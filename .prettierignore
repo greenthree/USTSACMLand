@@ -1,0 +1,6 @@
+dist
+coverage
+node_modules
+.firecrawl
+supabase/.temp
+package-lock.json

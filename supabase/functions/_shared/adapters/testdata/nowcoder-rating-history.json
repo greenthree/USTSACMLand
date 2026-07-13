@@ -1,0 +1,33 @@
+{
+  "code": 0,
+  "msg": "OK",
+  "data": [
+    {
+      "contestId": 103,
+      "rating": 1490,
+      "rank": 120,
+      "changeValue": -110,
+      "time": 1710000000000,
+      "contestName": "脱敏比赛 C",
+      "colorLevel": 3
+    },
+    {
+      "contestId": 101,
+      "rating": 1200,
+      "rank": 300,
+      "changeValue": 200,
+      "time": 1690000000000,
+      "contestName": "脱敏比赛 A",
+      "colorLevel": 2
+    },
+    {
+      "contestId": 102,
+      "rating": 1600,
+      "rank": 80,
+      "changeValue": 400,
+      "time": 1700000000000,
+      "contestName": "脱敏比赛 B",
+      "colorLevel": 4
+    }
+  ]
+}

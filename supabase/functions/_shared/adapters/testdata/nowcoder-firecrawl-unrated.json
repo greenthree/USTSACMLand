@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "data": {
+    "metadata": {
+      "statusCode": 200,
+      "sourceURL": "https://ac.nowcoder.com/acm/contest/profile/123456789",
+      "url": "https://ac.nowcoder.com/acm/contest/profile/123456789"
+    },
+    "actions": {
+      "javascriptReturns": [
+        {
+          "type": "object",
+          "value": {
+            "uid": "123456789",
+            "isProfile": true,
+            "currentRating": null,
+            "maxRating": null,
+            "solvedCount": 39,
+            "ratingPoints": 0
+          }
+        }
+      ]
+    }
+  }
+}

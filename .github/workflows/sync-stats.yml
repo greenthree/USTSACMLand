@@ -1,0 +1,124 @@
+name: Sync platform statistics
+
+on:
+  schedule:
+    # GitHub cron uses UTC. These map to 07:00/19:00 Asia/Shanghai every day.
+    - cron: '0 11,23 * * *'
+    # 00:00 UTC Tuesday is 08:00 Asia/Shanghai Tuesday.
+    - cron: '0 0 * * 2'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Statistics to synchronize
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - platform
+          - platforms
+          - member
+      platform:
+        description: Platform key when scope is platform
+        required: false
+        type: string
+      platforms:
+        description: Comma-separated platform keys when scope is platforms
+        required: false
+        type: string
+      member_id:
+        description: Member UUID when scope is member
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-statistics-sync
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SYNC_SCOPE: ${{ github.event_name == 'schedule' && 'platforms' || inputs.scope || 'all' }}
+      SYNC_PLATFORM: ${{ inputs.platform || '' }}
+      SYNC_PLATFORMS: ${{ github.event.schedule == '0 11,23 * * *' && 'codeforces,nowcoder,luogu,atcoder' || github.event.schedule == '0 0 * * 2' && 'xcpc_elo,qoj' || inputs.platforms || '' }}
+      SYNC_MEMBER_ID: ${{ inputs.member_id || '' }}
+
+    steps:
+      - name: Validate configuration
+        shell: bash
+        run: |
+          if [[ -z "$SUPABASE_PROJECT_REF" || -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
+            echo "Required Supabase Actions secrets are not configured." >&2
+            exit 1
+          fi
+
+          if [[ "$SYNC_SCOPE" == "platform" && -z "$SYNC_PLATFORM" ]]; then
+            echo "platform is required when scope is platform." >&2
+            exit 1
+          fi
+
+          if [[ "$SYNC_SCOPE" == "platforms" && -z "$SYNC_PLATFORMS" ]]; then
+            echo "platforms is required when scope is platforms." >&2
+            exit 1
+          fi
+
+          if [[ "$SYNC_SCOPE" == "member" && -z "$SYNC_MEMBER_ID" ]]; then
+            echo "member_id is required when scope is member." >&2
+            exit 1
+          fi
+
+      - name: Trigger Supabase sync function
+        shell: bash
+        run: |
+          platforms_json="[]"
+          if [[ -n "$SYNC_PLATFORMS" ]]; then
+            platforms_json="$(jq -cn \
+              --arg csv "$SYNC_PLATFORMS" \
+              '$csv | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
+          fi
+
+          payload="$(jq -n \
+            --arg scope "$SYNC_SCOPE" \
+            --arg platform "$SYNC_PLATFORM" \
+            --argjson platforms "$platforms_json" \
+            --arg member_id "$SYNC_MEMBER_ID" \
+            '{scope: $scope}
+            + (if $platform == "" then {} else {platform: $platform} end)
+            + (if ($platforms | length) == 0 then {} else {platforms: $platforms} end)
+            + (if $member_id == "" then {} else {member_id: $member_id} end)')"
+
+          http_status="$(curl \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 300 \
+            --output response.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Content-Type: application/json" \
+            --data "$payload" \
+            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/sync-stats")"
+
+          if [[ "$http_status" -lt 200 || "$http_status" -ge 300 ]]; then
+            echo "Sync function returned HTTP $http_status." >&2
+            exit 1
+          fi
+
+          if [[ "$http_status" -eq 207 ]]; then
+            failed_count="$(jq -r '.failed // "unknown"' response.json)"
+            echo "Sync function partially failed for $failed_count member(s)." >&2
+            exit 1
+          fi
+
+          echo "Sync request accepted (HTTP $http_status)."

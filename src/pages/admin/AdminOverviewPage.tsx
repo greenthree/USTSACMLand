@@ -1,0 +1,192 @@
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
+import Clock3 from 'lucide-react/dist/esm/icons/clock-3'
+import Users from 'lucide-react/dist/esm/icons/users'
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { EmptyState } from '../../components/EmptyState'
+import { LoadingState } from '../../components/LoadingState'
+import { PlatformMark } from '../../components/PlatformMark'
+import { StatusBadge } from '../../components/StatusBadge'
+import { mockMembers, mockReviewMembers, mockSyncRuns } from '../../data/mock'
+import { fetchAdminReviewMembers } from '../../lib/adminMembers'
+import { fetchAdminOverview, fetchAdminSyncRuns } from '../../lib/adminOperations'
+import { formatDuration } from '../../lib/format'
+import { supabase } from '../../lib/supabase'
+import type { ReviewMember, SyncRun } from '../../types/domain'
+
+type AdminOverview = Awaited<ReturnType<typeof fetchAdminOverview>>
+
+const demoPendingMembers = mockReviewMembers.filter((member) => member.reviewStatus === 'pending')
+const demoOverview: AdminOverview = {
+  approvedMemberCount: mockMembers.length,
+  pendingMemberCount: demoPendingMembers.length,
+  failedJobCount24h: mockSyncRuns.filter((run) => run.status === 'failed').length,
+  runningJobCount: mockSyncRuns.filter((run) => run.status === 'running').length,
+  overdueStatCount: 2,
+  credentialErrorCount: mockSyncRuns.filter((run) => run.errorCode === 'auth_expired').length,
+  verifiedAccountCount: mockMembers.reduce(
+    (total, member) =>
+      total + Object.values(member.stats).filter((stat) => stat.externalId.length > 0).length,
+    0,
+  ),
+}
+
+export function AdminOverviewPage() {
+  const demo = !supabase
+  const [overview, setOverview] = useState<AdminOverview | null>(() => (demo ? demoOverview : null))
+  const [pendingMembers, setPendingMembers] = useState<ReviewMember[]>(() =>
+    demo ? demoPendingMembers : [],
+  )
+  const [recentRuns, setRecentRuns] = useState<SyncRun[]>(() => (demo ? mockSyncRuns : []))
+  const [loading, setLoading] = useState(!demo)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  const loadOverview = useCallback(async () => {
+    if (demo) return
+
+    setLoading(true)
+    setErrorMessage('')
+    try {
+      const [nextOverview, members, runs] = await Promise.all([
+        fetchAdminOverview(),
+        fetchAdminReviewMembers(),
+        fetchAdminSyncRuns(5),
+      ])
+      setOverview(nextOverview)
+      setPendingMembers(members.filter((member) => member.reviewStatus === 'pending').slice(0, 5))
+      setRecentRuns(runs)
+    } catch (error) {
+      setOverview(null)
+      setPendingMembers([])
+      setRecentRuns([])
+      setErrorMessage(error instanceof Error ? error.message : '后台概览读取失败。')
+    } finally {
+      setLoading(false)
+    }
+  }, [demo])
+
+  useEffect(() => {
+    void loadOverview()
+  }, [loadOverview])
+
+  return (
+    <div className="admin-page">
+      <section className="admin-page-heading">
+        <div>
+          <h1>后台概览</h1>
+          <p>成员审核、数据同步与凭据健康状态。</p>
+        </div>
+        <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
+      </section>
+
+      {errorMessage ? (
+        <p className="form-error admin-notice" role="status">
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {loading ? <LoadingState label="正在读取后台概览" /> : null}
+
+      {!loading && !overview ? (
+        <EmptyState title="概览数据暂不可用" description="请稍后刷新页面重试。" />
+      ) : null}
+
+      {!loading && overview ? (
+        <>
+          <section className="admin-metric-strip" aria-label="后台指标">
+            <div>
+              <Users size={19} aria-hidden="true" />
+              <span>已审核成员</span>
+              <strong>{overview.approvedMemberCount}</strong>
+            </div>
+            <div>
+              <Clock3 size={19} aria-hidden="true" />
+              <span>待审核</span>
+              <strong>{overview.pendingMemberCount}</strong>
+            </div>
+            <div>
+              <AlertTriangle size={19} aria-hidden="true" />
+              <span>24 小时失败任务</span>
+              <strong>{overview.failedJobCount24h}</strong>
+            </div>
+            <div>
+              <Clock3 size={19} aria-hidden="true" />
+              <span>过期数据</span>
+              <strong>{overview.overdueStatCount}</strong>
+            </div>
+          </section>
+
+          <section className="admin-section">
+            <div className="section-title-row">
+              <div>
+                <h2>待审核成员</h2>
+                <p>按提交时间排序。</p>
+              </div>
+              <Link className="text-button" to="/admin/members">
+                查看全部 <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
+            {pendingMembers.length === 0 ? (
+              <EmptyState title="暂无待审核成员" description="新的成员申请会显示在这里。" />
+            ) : (
+              <div className="compact-table-wrap">
+                <table className="compact-table">
+                  <thead>
+                    <tr>
+                      <th>姓名</th>
+                      <th>年级</th>
+                      <th>专业</th>
+                      <th>平台数</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingMembers.map((member) => (
+                      <tr key={member.id}>
+                        <td>{member.name}</td>
+                        <td>{member.grade}</td>
+                        <td>{member.major}</td>
+                        <td>{member.platformCount}</td>
+                        <td>
+                          <StatusBadge status={member.reviewStatus} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="admin-section">
+            <div className="section-title-row">
+              <div>
+                <h2>最近同步</h2>
+                <p>显示最新运行和结构化错误码。</p>
+              </div>
+              <Link className="text-button" to="/admin/sync">
+                打开同步中心 <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
+            {recentRuns.length === 0 ? (
+              <EmptyState title="暂无同步记录" description="首次同步完成后会显示运行结果。" />
+            ) : (
+              <div className="sync-run-list">
+                {recentRuns.map((run) => (
+                  <div className="sync-run-row" key={run.id}>
+                    <PlatformMark platform={run.platform} />
+                    <strong>{run.memberName}</strong>
+                    <span>{formatDuration(run.durationMs)}</span>
+                    <span>{run.errorCode ?? '--'}</span>
+                    <StatusBadge status={run.status} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+    </div>
+  )
+}

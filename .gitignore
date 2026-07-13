@@ -1,0 +1,45 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Tool caches
+.firecrawl/
+.playwright/
+supabase/.temp/
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+cookies*.txt
+credentials*.json
+service-account*.json
+.npmrc.local
+
+# Additional generated reports
+playwright-report/
+test-results/
+.cache/
+*.tsbuildinfo

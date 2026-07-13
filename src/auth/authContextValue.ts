@@ -1,0 +1,28 @@
+import { createContext, useContext } from 'react'
+import type { ReviewStatus } from '../types/domain'
+
+export type AppRole = 'member' | 'admin'
+export type AuthStatus = 'loading' | 'anonymous' | 'authenticated' | 'unavailable'
+
+export interface AuthUser {
+  id: string
+  email: string
+  role: AppRole
+  reviewStatus: ReviewStatus
+}
+
+export interface AuthContextValue {
+  status: AuthStatus
+  user: AuthUser | null
+  isDemo: boolean
+  signIn: (email: string, password: string) => Promise<void>
+  signOut: () => Promise<void>
+}
+
+export const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function useAuth() {
+  const value = useContext(AuthContext)
+  if (!value) throw new Error('useAuth must be used within AuthProvider')
+  return value
+}
