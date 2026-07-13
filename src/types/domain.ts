@@ -5,6 +5,7 @@ export type RatingPlatform = Extract<Platform, 'codeforces' | 'nowcoder' | 'atco
 export type SolvedPlatform = Extract<Platform, 'codeforces' | 'nowcoder' | 'luogu' | 'qoj'>
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type AccountVerificationStatus = 'pending' | 'verified' | 'invalid' | 'disabled'
+export type AdminMemberStatus = 'active' | 'suspended'
 export type SyncStatus = 'fresh' | 'stale' | 'error' | 'missing' | 'syncing'
 export type SyncRunStatus = 'success' | 'running' | 'failed' | 'queued' | 'skipped'
 export type SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
@@ -44,6 +45,22 @@ export interface AdminPlatformAccount {
   verificationErrorCode: string | null
   verificationErrorMessage: string | null
   updatedAt: string
+}
+
+export interface AdminMember {
+  id: string
+  name: string
+  email: string
+  qq: string
+  major: string
+  grade: string
+  status: AdminMemberStatus
+  suspensionNote: string | null
+  isPublic: boolean
+  joinedAt: string
+  updatedAt: string
+  platformCount: number
+  verifiedPlatformCount: number
 }
 
 export interface SyncRun {

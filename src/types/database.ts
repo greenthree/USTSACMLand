@@ -686,6 +686,24 @@ export type Database = {
           verified_at: string
         }[]
       }
+      admin_list_members: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          grade: string
+          id: string
+          is_public: boolean
+          major: string
+          platform_count: number
+          qq: string
+          review_status: Database['public']['Enums']['profile_review_status']
+          suspension_note: string
+          updated_at: string
+          verified_platform_count: number
+        }[]
+      }
       admin_list_sync_runs: {
         Args: { before_run_id?: number; row_limit?: number }
         Returns: {
@@ -714,6 +732,15 @@ export type Database = {
           target_account_id: number
         }
         Returns: Database['public']['Enums']['account_verification_status']
+      }
+      admin_set_member_suspension: {
+        Args: {
+          expected_updated_at: string
+          note?: string
+          suspended: boolean
+          target_profile_id: string
+        }
+        Returns: string
       }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       can_edit_own_data: { Args: never; Returns: boolean }

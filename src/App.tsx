@@ -14,6 +14,7 @@ import { RankingsPage } from './pages/RankingsPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { AdminAuditPage } from './pages/admin/AdminAuditPage'
 import { AdminAccountsPage } from './pages/admin/AdminAccountsPage'
+import { AdminMembersPage } from './pages/admin/AdminMembersPage'
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
 import { AdminSyncPage } from './pages/admin/AdminSyncPage'
 
@@ -48,6 +49,7 @@ export default function App() {
               }
             >
               <Route index element={<AdminOverviewPage />} />
+              <Route path="members" element={<AdminMembersPage />} />
               <Route path="accounts" element={<AdminAccountsPage />} />
               <Route path="sync" element={<AdminSyncPage />} />
               <Route path="audit" element={<AdminAuditPage />} />

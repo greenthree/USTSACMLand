@@ -1293,6 +1293,19 @@ main {
   gap: 0;
 }
 
+.account-security-form {
+  margin-top: 32px;
+}
+
+.account-password-notice {
+  margin-top: 18px;
+}
+
+.account-security-form label small {
+  color: var(--faint);
+  font-weight: 500;
+}
+
 .form-section {
   padding: 24px;
   background: #fff;
@@ -1706,6 +1719,18 @@ fieldset.form-section {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
+}
+
+.admin-member-platform-count,
+.admin-member-visibility {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.admin-member-platform-count small {
+  color: var(--text-muted);
 }
 
 .approve-button {

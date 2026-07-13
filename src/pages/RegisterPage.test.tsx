@@ -11,6 +11,7 @@ function authValue(signUp: AuthContextValue['signUp']): AuthContextValue {
     isDemo: false,
     signUp,
     signIn: vi.fn(),
+    changePassword: vi.fn(),
     signOut: vi.fn(),
   }
 }

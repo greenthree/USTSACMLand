@@ -3,10 +3,12 @@ import FileClock from 'lucide-react/dist/esm/icons/file-clock'
 import Gauge from 'lucide-react/dist/esm/icons/gauge'
 import IdCard from 'lucide-react/dist/esm/icons/id-card'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
+import Users from 'lucide-react/dist/esm/icons/users'
 import { NavLink, Outlet } from 'react-router-dom'
 
 const adminItems = [
   { to: '/admin', label: '概览', icon: Gauge, end: true },
+  { to: '/admin/members', label: '成员管理', icon: Users },
   { to: '/admin/accounts', label: '平台账号', icon: IdCard },
   { to: '/admin/sync', label: '同步中心', icon: RefreshCw },
   { to: '/admin/audit', label: '审计日志', icon: FileClock },

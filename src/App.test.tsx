@@ -42,6 +42,18 @@ describe('route authorization', () => {
     expect(await screen.findByRole('heading', { name: '后台概览' })).toBeInTheDocument()
   })
 
+  it('exposes member management to approved demo administrators', async () => {
+    sessionStorage.setItem(demoSessionKey, 'admin@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/admin/members']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: '成员管理' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '成员审核' })).not.toBeInTheDocument()
+  })
+
   it('keeps the privacy notice public', async () => {
     render(
       <MemoryRouter initialEntries={['/privacy']}>

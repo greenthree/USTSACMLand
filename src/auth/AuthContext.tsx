@@ -127,6 +127,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySupabaseUser],
   )
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user?.email) throw new Error('当前账号没有可用邮箱。')
+      if (newPassword.length < 8) throw new Error('新密码至少需要 8 位。')
+
+      if (!supabase) {
+        if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，密码修改暂不可用。')
+        return
+      }
+
+      const { error: reauthenticationError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+      if (reauthenticationError) {
+        throw new Error(`当前密码验证失败：${reauthenticationError.message}`)
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateError) throw new Error(`密码更新失败：${updateError.message}`)
+    },
+    [user?.email],
+  )
+
   const signOut = useCallback(async () => {
     if (supabase) {
       const { error } = await supabase.auth.signOut()
@@ -139,8 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, isDemo: demoAuthEnabled, signUp, signIn, signOut }),
-    [signIn, signOut, signUp, status, user],
+    () => ({
+      status,
+      user,
+      isDemo: demoAuthEnabled,
+      signUp,
+      signIn,
+      changePassword,
+      signOut,
+    }),
+    [changePassword, signIn, signOut, signUp, status, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

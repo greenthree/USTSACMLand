@@ -34,6 +34,7 @@ const authValue: AuthContextValue = {
   isDemo: false,
   signUp: vi.fn(),
   signIn: vi.fn(),
+  changePassword: vi.fn(),
   signOut: vi.fn(),
 }
 
@@ -68,6 +69,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     accountMocks.accountsDeleteIn.mockReset()
     accountMocks.from.mockReset()
     accountMocks.invoke.mockReset()
+    vi.mocked(authValue.changePassword).mockReset()
     accountMocks.profileSingle.mockReset()
     accountMocks.profileUpdate.mockReset()
     accountMocks.profileUpdateEq.mockReset()
@@ -224,5 +226,36 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     )
 
     expect(screen.getByRole('combobox', { name: '专业' })).toHaveValue('智能算法实验班')
+  })
+
+  it('verifies and updates a member password independently from profile saving', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authValue.changePassword).mockResolvedValue(undefined)
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.type(screen.getByLabelText('当前密码'), 'old-password')
+    await user.type(screen.getByLabelText(/^新密码/), 'new-password')
+    await user.type(screen.getByLabelText('确认新密码'), 'new-password')
+    await user.click(screen.getByRole('button', { name: '修改密码' }))
+
+    expect(authValue.changePassword).toHaveBeenCalledWith('old-password', 'new-password')
+    expect(await screen.findByText('密码已更新。')).toBeInTheDocument()
+    expect(screen.getByLabelText('当前密码')).toHaveValue('')
+    expect(accountMocks.profileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects mismatched new passwords before calling auth', async () => {
+    const user = userEvent.setup()
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.type(screen.getByLabelText('当前密码'), 'old-password')
+    await user.type(screen.getByLabelText(/^新密码/), 'new-password')
+    await user.type(screen.getByLabelText('确认新密码'), 'different-password')
+    await user.click(screen.getByRole('button', { name: '修改密码' }))
+
+    expect(await screen.findByText('两次输入的新密码不一致。')).toBeInTheDocument()
+    expect(authValue.changePassword).not.toHaveBeenCalled()
   })
 })
