@@ -1,17 +1,39 @@
 import { mapPublicStatStatus } from './memberStats'
 
 describe('public statistic freshness', () => {
-  const now = Date.parse('2026-07-13T12:00:00Z')
+  const lastSuccessAt = '2026-07-13T05:56:31Z'
 
-  it('marks a fresh row stale after its deadline passes', () => {
-    expect(mapPublicStatStatus('fresh', '2026-07-13T11:59:59Z', now)).toBe('stale')
+  it('keeps daily data fresh through the latest scheduled update grace period', () => {
+    expect(
+      mapPublicStatStatus('fresh', 'codeforces', lastSuccessAt, Date.parse('2026-07-13T12:59:59Z')),
+    ).toBe('fresh')
   })
 
-  it('keeps a fresh row fresh before its deadline', () => {
-    expect(mapPublicStatStatus('fresh', '2026-07-13T12:00:01Z', now)).toBe('fresh')
+  it('marks data stale only after it misses the latest scheduled window', () => {
+    expect(
+      mapPublicStatStatus('fresh', 'codeforces', lastSuccessAt, Date.parse('2026-07-13T13:00:00Z')),
+    ).toBe('stale')
+  })
+
+  it('does not expose a premature database stale flag before the scheduled deadline', () => {
+    expect(
+      mapPublicStatStatus('stale', 'codeforces', lastSuccessAt, Date.parse('2026-07-13T12:00:00Z')),
+    ).toBe('fresh')
+  })
+
+  it('uses the Tuesday update window and one-day grace for weekly platforms', () => {
+    const weeklySuccess = '2026-07-13T12:38:36Z'
+    expect(
+      mapPublicStatStatus('fresh', 'qoj', weeklySuccess, Date.parse('2026-07-14T23:59:59Z')),
+    ).toBe('fresh')
+    expect(
+      mapPublicStatStatus('fresh', 'qoj', weeklySuccess, Date.parse('2026-07-15T00:00:00Z')),
+    ).toBe('stale')
   })
 
   it('maps unavailable rows to an error state', () => {
-    expect(mapPublicStatStatus('unavailable', null, now)).toBe('error')
+    expect(
+      mapPublicStatStatus('unavailable', 'codeforces', null, Date.parse('2026-07-13T12:00:00Z')),
+    ).toBe('error')
   })
 })

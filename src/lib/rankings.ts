@@ -4,20 +4,15 @@ import type { Member, RatingPlatform } from '../types/domain'
 export type RatingBenchmarks = Record<RatingPlatform, number | null>
 
 export function calculateRatingBenchmarks(members: Member[]): RatingBenchmarks {
-  const references = members
-    .filter((member) => member.stats.codeforces.rating !== null)
-    .slice()
-    .sort(
-      (left, right) => (right.stats.codeforces.rating ?? 0) - (left.stats.codeforces.rating ?? 0),
-    )
-    .slice(0, 5)
-
   return Object.fromEntries(
     ratingPlatforms.map((platform) => {
-      const values = references.flatMap((member) => {
-        const value = member.stats[platform].rating
-        return value === null ? [] : [value]
-      })
+      const values = members
+        .flatMap((member) => {
+          const value = member.stats[platform].rating
+          return value === null ? [] : [value]
+        })
+        .sort((left, right) => right - left)
+        .slice(0, 5)
       const average =
         values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length
       return [platform, average]

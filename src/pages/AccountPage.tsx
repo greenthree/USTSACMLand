@@ -560,7 +560,9 @@ export function AccountPage() {
           <div className="section-title-row">
             <div>
               <h2>平台绑定</h2>
-              <p>牛客和洛谷填写 UID；XCPC ELO 使用姓名和学校自动匹配。</p>
+              <p>
+                牛客和洛谷填写 UID（个人主页链接最后的一串数字）；XCPC ELO 使用姓名和学校自动匹配。
+              </p>
             </div>
           </div>
           <div className="platform-form-list">

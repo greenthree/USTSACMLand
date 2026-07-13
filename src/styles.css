@@ -137,31 +137,10 @@ strong,
   min-width: max-content;
 }
 
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 6px;
-}
-
-.brand-mark span {
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.brand-mark span:first-child {
-  background: #f5f7f6;
-  color: var(--nav);
-}
-
-.brand-mark span:last-child {
-  background: var(--green);
-  color: #fff;
+.brand-logo {
+  width: 42px;
+  height: auto;
+  flex: 0 0 auto;
 }
 
 .brand-copy {
@@ -552,7 +531,8 @@ main {
     box-sizing: border-box;
   }
 
-  .overall-ranking-table th {
+  .overall-ranking-table th,
+  .overall-ranking-table td {
     display: flex;
     align-items: center;
   }
@@ -1145,18 +1125,11 @@ main {
   width: min(410px, 100%);
 }
 
-.auth-monogram {
-  width: 64px;
-  height: 64px;
-  display: grid;
-  place-items: center;
+.auth-logo {
+  width: 112px;
+  height: auto;
+  display: block;
   margin-bottom: 38px;
-  color: #fff;
-  background: var(--green);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 8px;
-  font-size: 18px;
-  font-weight: 850;
 }
 
 .auth-context h1 {
@@ -2333,11 +2306,9 @@ fieldset.form-section {
     padding: 28px 24px;
   }
 
-  .auth-monogram {
-    width: 48px;
-    height: 48px;
+  .auth-logo {
+    width: 84px;
     margin-bottom: 20px;
-    font-size: 14px;
   }
 
   .auth-context h1 {

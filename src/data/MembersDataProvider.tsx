@@ -30,8 +30,7 @@ interface PublicStatRow {
   max_rating: number | null
   solved_count: number | null
   status: string
-  stale_after: string | null
-  updated_at: string | null
+  last_success_at: string | null
 }
 
 function emptyStat(platform: Platform): PlatformStat {
@@ -55,7 +54,7 @@ async function loadPublicMembers(): Promise<Member[]> {
     supabase
       .from('public_platform_stats')
       .select(
-        'profile_id, platform, current_rating, max_rating, solved_count, status, stale_after, updated_at',
+        'profile_id, platform, current_rating, max_rating, solved_count, status, last_success_at',
       ),
   ])
 
@@ -90,8 +89,8 @@ async function loadPublicMembers(): Promise<Member[]> {
         rating: item.current_rating,
         peakRating: item.max_rating,
         solved: item.solved_count,
-        status: mapPublicStatStatus(item.status, item.stale_after),
-        updatedAt: item.updated_at,
+        status: mapPublicStatStatus(item.status, item.platform, item.last_success_at),
+        updatedAt: item.last_success_at,
       }
     }
 

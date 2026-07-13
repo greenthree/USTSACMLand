@@ -2,6 +2,7 @@ import LogIn from 'lucide-react/dist/esm/icons/log-in'
 import { FormEvent, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
+import { SiteLogo } from '../components/SiteLogo'
 import { hasSupabaseConfig } from '../lib/supabase'
 
 export function LoginPage() {
@@ -36,7 +37,7 @@ export function LoginPage() {
     <div className="auth-page">
       <section className="auth-context">
         <div className="auth-context-inner">
-          <span className="auth-monogram">UA</span>
+          <SiteLogo className="auth-logo" />
           <h1>USTSACMLand</h1>
           <p>苏州科技大学 ACM 集训队</p>
           <dl>

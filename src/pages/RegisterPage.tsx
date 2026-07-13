@@ -1,6 +1,7 @@
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { SiteLogo } from '../components/SiteLogo'
 import { demoAuthEnabled, supabase } from '../lib/supabase'
 
 export function RegisterPage() {
@@ -34,7 +35,7 @@ export function RegisterPage() {
     <div className="auth-page">
       <section className="auth-context">
         <div className="auth-context-inner">
-          <span className="auth-monogram">UA</span>
+          <SiteLogo className="auth-logo" />
           <h1>USTSACMLand</h1>
           <p>苏州科技大学 ACM 集训队</p>
           <dl>

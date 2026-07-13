@@ -7,7 +7,7 @@ import {
   type PlatformId,
 } from '../_shared/adapters/index.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
-import { freshnessDeadline } from '../_shared/freshness.ts'
+import { freshnessDeadline, retainedFreshness } from '../_shared/freshness.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
 import { buildSyncJobTarget } from './job.ts'
 
@@ -33,7 +33,6 @@ interface ExistingStat {
   solved_count: number | null
   source_observed_at: string | null
   last_success_at: string | null
-  stale_after: string | null
   source_version: string | null
 }
 
@@ -219,14 +218,17 @@ async function persistResult(
       : (existing?.current_rating ?? null)
     const maxRating = result.ok ? result.metrics.maxRating : (existing?.max_rating ?? null)
     const solvedCount = result.ok ? result.metrics.solvedCount : (existing?.solved_count ?? null)
-    const status = result.ok ? 'fresh' : existing?.last_success_at ? 'stale' : 'unavailable'
+    const retained = result.ok
+      ? null
+      : retainedFreshness(account.platform, existing?.last_success_at ?? null)
+    const status = result.ok ? 'fresh' : (retained?.status ?? 'unavailable')
     const sourceObservedAt = result.ok
       ? result.sourceUpdatedAt
       : (existing?.source_observed_at ?? null)
     const lastSuccessAt = result.ok ? result.fetchedAt : (existing?.last_success_at ?? null)
     const staleAfter = result.ok
       ? freshnessDeadline(account.platform, result.fetchedAt)
-      : (existing?.stale_after ?? null)
+      : (retained?.staleAfter ?? null)
     const sourceVersion = result.ok ? result.sourceVersion : (existing?.source_version ?? null)
 
     const statRow = {
@@ -437,7 +439,7 @@ Deno.serve(async (request) => {
     const { data: statsRows, error: statsError } = await serviceClient
       .from('platform_stats')
       .select(
-        'profile_id, platform, current_rating, max_rating, solved_count, source_observed_at, last_success_at, stale_after, source_version',
+        'profile_id, platform, current_rating, max_rating, solved_count, source_observed_at, last_success_at, source_version',
       )
       .eq('profile_id', body.memberId)
       .in(

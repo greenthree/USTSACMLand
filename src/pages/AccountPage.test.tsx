@@ -108,6 +108,11 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     const user = userEvent.setup()
     renderAccountPage()
 
+    expect(
+      await screen.findByText(
+        '牛客和洛谷填写 UID（个人主页链接最后的一串数字）；XCPC ELO 使用姓名和学校自动匹配。',
+      ),
+    ).toBeInTheDocument()
     expect(await screen.findByText('按「姓名 + 苏州科技大学」自动匹配')).toBeInTheDocument()
     expect(screen.queryByLabelText('XCPC ELO 账号')).not.toBeInTheDocument()
 

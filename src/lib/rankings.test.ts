@@ -3,7 +3,7 @@ import type { Member } from '../types/domain'
 import { calculateOverallRating, calculateRatingBenchmarks, calculateTotalSolved } from './rankings'
 
 describe('overall rankings', () => {
-  it('uses the top five Codeforces members as rating benchmarks', () => {
+  it('uses each platform independent top five as its rating benchmark', () => {
     const benchmarks = calculateRatingBenchmarks(mockMembers)
 
     expect(benchmarks).toEqual({
@@ -14,6 +14,20 @@ describe('overall rankings', () => {
     })
     expect(calculateOverallRating(mockMembers[0], benchmarks)).toBeCloseTo(1752.41, 2)
     expect(calculateOverallRating(mockMembers[5], benchmarks)).toBeCloseTo(921.23, 2)
+  })
+
+  it('includes a low-Codeforces member when they rank in another platform top five', () => {
+    const members = structuredClone(mockMembers) as Member[]
+    members[5].stats.nowcoder.rating = 2500
+    members[5].stats.atcoder.rating = 2500
+    members[5].stats.xcpc_elo.rating = 2500
+
+    expect(calculateRatingBenchmarks(members)).toEqual({
+      codeforces: 1700,
+      nowcoder: 1903,
+      atcoder: 1716.4,
+      xcpc_elo: 1877.4,
+    })
   })
 
   it('sums solved counts across the four supported platforms', () => {
