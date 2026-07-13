@@ -9,12 +9,13 @@ import {
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { freshnessDeadline, retainedFreshness } from '../_shared/freshness.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
+import { canRequestSync, SYNC_TRIGGER_TYPES, type SyncTriggerType } from './access.ts'
 import { buildSyncJobTarget } from './job.ts'
 
 interface SyncRequest {
   memberId?: string
   platforms?: PlatformId[]
-  triggerType?: 'scheduled' | 'manual' | 'registration' | 'account_changed' | 'retry'
+  triggerType?: SyncTriggerType
 }
 
 interface PlatformAccount {
@@ -337,44 +338,17 @@ Deno.serve(async (request) => {
     const auth = await authorize(request, serviceClient, body.memberId, serviceRoleKey)
     const platforms = selectedPlatforms(body.platforms)
     const triggerType = body.triggerType ?? (auth.serviceRole ? 'scheduled' : 'manual')
-    if (
-      !['scheduled', 'manual', 'registration', 'account_changed', 'retry'].includes(triggerType)
-    ) {
+    if (!SYNC_TRIGGER_TYPES.includes(triggerType)) {
       throw new ApiError(400, 'Unsupported triggerType')
     }
-    if (!auth.serviceRole) {
-      if (
-        auth.admin &&
-        !['manual', 'registration', 'account_changed', 'retry'].includes(triggerType)
-      ) {
-        throw new ApiError(
-          403,
-          'Administrators may only request review, account-change, manual, or retry synchronization',
-        )
+    if (!canRequestSync(auth, triggerType)) {
+      if (!auth.admin) {
+        throw new ApiError(403, 'Manual synchronization is restricted to administrators')
       }
-      if (!auth.admin && triggerType !== 'manual') {
-        throw new ApiError(403, 'Members may only request manual synchronization')
-      }
-    }
-
-    if (!auth.serviceRole && !auth.admin) {
-      const cooldownStartedAt = new Date(Date.now() - 10 * 60 * 1_000).toISOString()
-      const { data: recentJob, error: recentJobError } = await serviceClient
-        .from('sync_jobs')
-        .select('id')
-        .eq('profile_id', body.memberId)
-        .eq('requested_by', auth.requestedBy)
-        .eq('trigger_type', 'manual')
-        .gte('created_at', cooldownStartedAt)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (recentJobError) {
-        throw new Error(`Could not enforce manual sync cooldown: ${recentJobError.message}`)
-      }
-      if (recentJob) {
-        throw new ApiError(429, 'Manual synchronization is limited to once every 10 minutes')
-      }
+      throw new ApiError(
+        403,
+        'Administrators may only request review, account-change, manual, or retry synchronization',
+      )
     }
 
     const { data: memberProfile, error: memberProfileError } = await serviceClient

@@ -36,6 +36,14 @@ const authValue: AuthContextValue = {
   signOut: vi.fn(),
 }
 
+const adminAuthValue: AuthContextValue = {
+  ...authValue,
+  user: {
+    ...authValue.user!,
+    role: 'admin',
+  },
+}
+
 const xcpcAccount = {
   platform: 'xcpc_elo',
   external_id: 'auto:1234567890abcdef1234567890abcdef',
@@ -104,8 +112,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     })
   })
 
-  it('shows a read-only name match and allows a pending automatic record to sync', async () => {
-    const user = userEvent.setup()
+  it('shows a read-only name match without manual synchronization for members', async () => {
     renderAccountPage()
 
     expect(
@@ -115,8 +122,15 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText('按「姓名 + 苏州科技大学」自动匹配')).toBeInTheDocument()
     expect(screen.queryByLabelText('XCPC ELO 账号')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '立即同步' })).not.toBeInTheDocument()
+    expect(accountMocks.invoke).not.toHaveBeenCalled()
+  })
 
-    const syncButton = screen.getByRole('button', { name: '立即同步' })
+  it('allows administrators to start synchronization from their account page', async () => {
+    const user = userEvent.setup()
+    renderAccountPage(adminAuthValue)
+
+    const syncButton = await screen.findByRole('button', { name: '立即同步' })
     expect(syncButton).toBeEnabled()
     await user.click(syncButton)
 

@@ -435,7 +435,8 @@ export function AccountPage() {
     accountStatuses.xcpc_elo !== 'missing' &&
     accountStatuses.xcpc_elo !== 'disabled'
   const hasSyncableAccount = hasVerifiedAccount || hasSyncableXcpcAccount
-  const canSync = isDemo || (reviewStatus === 'approved' && hasSyncableAccount)
+  const canSync =
+    user?.role === 'admin' && (isDemo || (reviewStatus === 'approved' && hasSyncableAccount))
   const syncDisabledReason =
     reviewStatus !== 'approved'
       ? '成员资料审核通过后可同步'
@@ -444,6 +445,7 @@ export function AccountPage() {
         : undefined
 
   async function handleSync() {
+    if (user?.role !== 'admin') return
     setSyncing(true)
     setNotice('')
     setNoticeKind('success')
@@ -620,20 +622,22 @@ export function AccountPage() {
           </p>
         ) : null}
         <div className="form-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={handleSync}
-            disabled={syncing || loadingProfile || !canSync}
-            title={!canSync ? syncDisabledReason : undefined}
-          >
-            <RefreshCw
-              className={syncing ? 'is-spinning' : undefined}
-              size={17}
-              aria-hidden="true"
-            />
-            {syncing ? '同步中' : '立即同步'}
-          </button>
+          {user?.role === 'admin' ? (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleSync}
+              disabled={syncing || loadingProfile || !canSync}
+              title={!canSync ? syncDisabledReason : undefined}
+            >
+              <RefreshCw
+                className={syncing ? 'is-spinning' : undefined}
+                size={17}
+                aria-hidden="true"
+              />
+              {syncing ? '同步中' : '立即同步'}
+            </button>
+          ) : null}
           <button className="primary-button" type="submit" disabled={saving || loadingProfile}>
             <Save size={17} aria-hidden="true" />
             {saving ? '保存中' : '保存资料'}
