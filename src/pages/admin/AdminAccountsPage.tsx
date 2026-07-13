@@ -97,6 +97,22 @@ export function AdminAccountsPage() {
 
     try {
       await setAdminPlatformAccountStatus(account.id, nextStatus, errorMessage, account.updatedAt)
+      const successNotice = `${account.memberName} 的 ${platformLabels[account.platform]} 账号已更新为“${statusLabels[nextStatus]}”。`
+      const followUpErrors: string[] = []
+
+      if (nextStatus === 'verified') {
+        try {
+          await triggerAdminImmediateSync({
+            memberId: account.profileId,
+            platforms: [account.platform],
+            triggerType: 'account_changed',
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '未知同步错误'
+          followUpErrors.push(`首次同步失败：${message}。`)
+        }
+      }
+
       if (demo) {
         const now = new Date().toISOString()
         setAccounts((current) =>
@@ -114,25 +130,16 @@ export function AdminAccountsPage() {
           ),
         )
       } else {
-        setAccounts(await fetchAdminPlatformAccounts())
-      }
-      const successNotice = `${account.memberName} 的 ${platformLabels[account.platform]} 账号已更新为“${statusLabels[nextStatus]}”。`
-      setNoticeKind('success')
-      setNotice(successNotice)
-
-      if (nextStatus === 'verified') {
         try {
-          await triggerAdminImmediateSync({
-            memberId: account.profileId,
-            platforms: [account.platform],
-            triggerType: 'account_changed',
-          })
+          setAccounts(await fetchAdminPlatformAccounts())
         } catch (error) {
-          const message = error instanceof Error ? error.message : '未知同步错误'
-          setNoticeKind('error')
-          setNotice(`${successNotice} 首次同步失败：${message}。`)
+          const message = error instanceof Error ? error.message : '未知刷新错误'
+          followUpErrors.push(`列表刷新失败：${message}。`)
         }
       }
+
+      setNoticeKind(followUpErrors.length === 0 ? 'success' : 'error')
+      setNotice([successNotice, ...followUpErrors].join(' '))
     } catch (error) {
       setNoticeKind('error')
       setNotice(error instanceof Error ? error.message : '平台账号审核失败。')

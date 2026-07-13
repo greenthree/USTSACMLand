@@ -19,7 +19,7 @@
 
 目标：证明部署架构和所有必需数据源可行，避免在不可靠接口上构建完整业务。
 
-- [x] 初始化 Git 仓库、Node.js 版本约束、包管理器和基础目录（尚未首次提交）。
+- [x] 初始化 Git 仓库、Node.js 版本约束、包管理器和基础目录并完成初始提交。
 - [x] 创建 React + TypeScript + Vite 应用，配置代码检查、格式化和单元测试。
 - [x] 创建 Supabase 配置和首个数据库 migration。
 - [x] 从生产 Schema 生成 Supabase TypeScript 数据库类型并接入前端 Client。
@@ -31,7 +31,7 @@
 - [x] 完成 AtCoder 历史 JSON 验证，覆盖有 Rating、未参赛和不存在用户。
 - [x] 完成 XCPC ELO `data.js` 解析，并按“姓名 + 苏州科技大学”唯一匹配后保存稳定 `xcpc_*` ID。
 - [ ] 完成 XCPC ELO 数据缓存和失效策略。
-- [x] 完成洛谷公开主页 `passedProblemCount` 验证，覆盖 UID 匹配、零题数、字段变化、403/WAF 和异常跳转。
+- [x] 完成洛谷认证记录接口验证：按 UID 分页读取 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重，覆盖零题数、凭据失效、限流、结构变化和分页截断。
 - [x] 完成 QOJ 可行性 Spike：确认需要认证浏览器会话，统计去重后的 Accepted 题目。
 - [x] 实现 QOJ Firecrawl `/interact` 临时会话自动登录、结构校验、限流错误和完整登录健康检查脚本。
 - [x] 完成生产 QOJ 自动登录烟测，确认题数快照、来源版本和成功时间正确写入。
@@ -106,7 +106,7 @@ M2 验收条件：
 - [x] AtCoder：读取 Rating 历史，计算当前和历史最高 Rating。
 - [x] XCPC ELO：下载解析数据集，按姓名和学校唯一匹配；零匹配与同校同名均返回结构化错误，唯一命中回写稳定 ID。
 - [ ] XCPC ELO：增加低频缓存和失效策略。
-- [x] 洛谷：读取公开主页 `passedProblemCount`，校验 UID 和字段结构，无需登录凭据或分页。
+- [x] 洛谷：使用 Supabase Secrets 中的 Cookie/CSRF 请求认证记录接口，分页读取全部 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重。
 - [x] QOJ：使用 Supabase Secrets 中的专用账号，每次创建 Firecrawl `/interact` 临时会话并自动登录查询目标主页。
 - [x] QOJ：完成生产真实账号 smoke test，并验证统计值和成功状态落库。
 - [ ] QOJ：继续演练密码错误、Cloudflare 和 Firecrawl 限流路径。

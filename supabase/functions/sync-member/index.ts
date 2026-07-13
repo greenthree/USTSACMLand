@@ -9,6 +9,7 @@ import {
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { freshnessDeadline } from '../_shared/freshness.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
+import { buildSyncJobTarget } from './job.ts'
 
 interface SyncRequest {
   memberId?: string
@@ -406,19 +407,15 @@ Deno.serve(async (request) => {
     }
 
     const syncedPlatforms = accounts.map((account) => account.platform).sort()
-    const dedupeKey = `member:${body.memberId}`
+    const jobTarget = buildSyncJobTarget(body.memberId, platforms, syncedPlatforms)
 
     const { data: job, error: jobError } = await serviceClient
       .from('sync_jobs')
       .insert({
-        scope: 'member',
-        profile_id: body.memberId,
-        platform: null,
+        ...jobTarget,
         status: 'queued',
         trigger_type: triggerType,
         requested_by: auth.requestedBy,
-        dedupe_key: dedupeKey,
-        payload: { platforms: syncedPlatforms },
       })
       .select('id, created_at')
       .single()

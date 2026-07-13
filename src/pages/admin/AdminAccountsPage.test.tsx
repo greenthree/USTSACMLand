@@ -193,6 +193,59 @@ describe('AdminAccountsPage with Supabase configured', () => {
     )
   })
 
+  it('still starts the first synchronization when the account list refresh fails', async () => {
+    const user = userEvent.setup()
+    adminAccountMocks.fetchAccounts
+      .mockResolvedValueOnce([pendingAccount])
+      .mockRejectedValueOnce(new Error('平台账号列表读取失败：网络中断'))
+    adminAccountMocks.setStatus.mockResolvedValue(undefined)
+
+    render(<AdminAccountsPage />)
+
+    await screen.findByRole('row', { name: /测试成员/ })
+    await user.click(screen.getByRole('button', { name: '验证 测试成员 的 洛谷 账号' }))
+
+    expect(adminAccountMocks.syncMember).toHaveBeenCalledWith({
+      memberId: 'member-1',
+      platforms: ['luogu'],
+      triggerType: 'account_changed',
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '测试成员 的 洛谷 账号已更新为“已验证”。 列表刷新失败：平台账号列表读取失败：网络中断。',
+    )
+  })
+
+  it('requests independent first synchronizations when two platforms are verified', async () => {
+    const user = userEvent.setup()
+    const qojAccount: AdminPlatformAccount = {
+      ...pendingAccount,
+      id: 43,
+      platform: 'qoj',
+      externalId: 'Greenthree',
+    }
+    adminAccountMocks.fetchAccounts.mockResolvedValue([pendingAccount, qojAccount])
+    adminAccountMocks.setStatus.mockResolvedValue(undefined)
+
+    render(<AdminAccountsPage />)
+
+    await screen.findByRole('row', { name: /409073/ })
+    await user.click(screen.getByRole('button', { name: '验证 测试成员 的 洛谷 账号' }))
+    await screen.findByText('测试成员 的 洛谷 账号已更新为“已验证”。')
+    await user.click(screen.getByRole('button', { name: '验证 测试成员 的 QOJ 账号' }))
+    await screen.findByText('测试成员 的 QOJ 账号已更新为“已验证”。')
+
+    expect(adminAccountMocks.syncMember).toHaveBeenNthCalledWith(1, {
+      memberId: 'member-1',
+      platforms: ['luogu'],
+      triggerType: 'account_changed',
+    })
+    expect(adminAccountMocks.syncMember).toHaveBeenNthCalledWith(2, {
+      memberId: 'member-1',
+      platforms: ['qoj'],
+      triggerType: 'account_changed',
+    })
+  })
+
   it('shows the loading failure and an empty recovery state', async () => {
     adminAccountMocks.fetchAccounts.mockRejectedValue(new Error('平台账号列表读取失败：无权限'))
 

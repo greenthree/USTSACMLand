@@ -62,23 +62,23 @@ flowchart LR
 | 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                |
 | AtCoder    | Username     | 当前/最高 Rating               | 已实现 `/users/{username}/history/json`，区分未参赛与不存在账号；已做真实 smoke test                                         |
 | XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；同步时按“姓名 + 苏州科技大学”唯一匹配并在服务端保存稳定 `xcpc_*` ID，同校同名时拒绝自动绑定，缓存策略待完成 |
-| 洛谷       | UID          | 主页公开通过题数               | 已实现公开 `/user/{uid}` 页面解析，读取并校验 `data.user.passedProblemCount`；无需登录凭据或分页                             |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`，分页读取 Accepted 记录，只保留 `P`/`B` 开头 PID 并去重；不使用 Firecrawl                |
 | QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；登录或页面校验失败时保留上次成功值，不会伪造同步成功          |
 
-洛谷统计口径与用户公开主页的“通过”数字保持一致。同步只按 UID 读取公开主页中的 `passedProblemCount`，字段缺失或结构变化时保留最后一次成功值并标记数据过期。
+洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。该口径可能与公开主页的“通过”数字不同；同步沿用参考项目的请求方式，分页间隔 300ms；达到 `LUOGU_MAX_PAGES` 仍未读完时会失败并保留最后一次成功值，不会把截断数据写成总题数。
 
 QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，先以 `maxAge: 0` 创建全新 Firecrawl scrape 会话，再通过 `/interact` 登录并在同一浏览器中打开目标主页，最后主动结束会话；请求不使用持久 profile，也不读写 Firecrawl 页面缓存。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为 Firecrawl interact 作业请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
 
 ## 同步计划
 
 - 成员审核通过后，立即同步该成员全部已验证平台，并执行 XCPC ELO 姓名匹配。
-- 平台账号被管理员标记为已验证后，立即同步该平台。审核结果先保存；首次同步失败只显示为后续错误，不会撤销审核状态。
+- 平台账号被管理员标记为已验证后，立即同步该平台。单平台任务按“成员 + 平台”独立去重，不同平台并发审核不会互相丢任务；审核结果先保存，首次同步失败不会撤销审核状态。
 - Codeforces、牛客、洛谷、AtCoder：北京时间每天 07:00 和 19:00 更新。
 - XCPC ELO、QOJ：北京时间每周二 08:00 更新。
 
 日更数据成功抓取后 14 小时标记过期，周更数据成功抓取后 192 小时标记过期，为 GitHub Actions 的排队延迟保留余量。GitHub Actions 的定时任务是 best-effort，繁忙时可能比标称时间略晚启动；管理员仍可在同步中心手动触发。
 
-参考项目：[FCYXSZY/astrbot_plugin_acm_helper](https://github.com/FCYXSZY/astrbot_plugin_acm_helper)。本项目借鉴其 Codeforces 分页/Accepted 去重思路；洛谷改为读取公开主页统计，不复制其存储方式或凭据。
+参考项目：[FCYXSZY/astrbot_plugin_acm_helper](https://github.com/FCYXSZY/astrbot_plugin_acm_helper)。本项目借鉴其 Codeforces 分页/Accepted 去重思路，以及 `luogu_api/ckp.py` 的洛谷 Cookie、CSRF 和记录列表请求方式；凭据改由 Supabase Secrets 管理，不进入源码。
 
 ## 数据模型
 
@@ -165,10 +165,14 @@ Supabase Function Secrets/配置：
 - `FIRECRAWL_API_KEY`（牛客 WAF 回退及 QOJ 自动登录，只能配置在 Supabase Secrets）
 - `QOJ_SERVICE_USERNAME`（专用 QOJ 服务账号）
 - `QOJ_SERVICE_PASSWORD`（专用 QOJ 服务账号密码）
+- `LUOGU_COOKIE`（专用洛谷会话 Cookie）
+- `LUOGU_CSRF_TOKEN`（与 Cookie 对应的 CSRF Token）
 - `ALLOWED_ORIGIN`
-- 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`XCPC_ELO_DATA_URL`
+- 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 
 `service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
+
+洛谷 Cookie 与 CSRF Token 必须来自独立、可轮换的服务账号，并且保持成对更新。`LUOGU_MAX_PAGES` 默认 100、最大 1000；它只用于阻止异常分页无限消耗请求，不应调低到无法覆盖成员完整提交历史。
 
 ### QOJ 自动登录
 
@@ -202,7 +206,7 @@ Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/in
 1. 增加 QOJ 登录失败告警和 Firecrawl 用量监控。
 2. 增加平台账号自动验证和真正的原子队列、重试与冷却控制。
 3. 完成多身份 RLS/越权集成测试和管理员角色管理。
-4. 创建 GitHub 仓库，配置 Actions Secrets，完成 Pages 首次发布和线上验证。
+4. 完成 GitHub Pages 首次发布和线上注册、登录、路由刷新验证。
 5. 增加同步失败通知、XCPC 数据缓存和更完整的重试/退避策略。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。

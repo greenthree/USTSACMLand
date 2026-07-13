@@ -1,135 +1,259 @@
-import { DOMParser } from 'deno-dom'
-import { fetchWithRetry, HttpError, toAdapterHttpError } from '../http.ts'
+import { fetchJson, HttpError, toAdapterHttpError } from '../http.ts'
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
-interface LuoguProfileContext {
-  data?: {
-    user?: {
-      uid?: unknown
-      passedProblemCount?: unknown
-    } | null
-  }
+interface LuoguRecord {
+  problem?: {
+    pid?: unknown
+  } | null
 }
 
-export interface LuoguProfilePage {
-  html: string
-  finalUrl: string
+interface LuoguRecordListResponse {
+  currentData?: {
+    records?: {
+      result?: unknown
+      count?: unknown
+    } | null
+  } | null
+}
+
+export interface LuoguRecordPage {
+  problemIds: string[]
+  recordCount: number
+  totalRecords: number | null
 }
 
 export interface LuoguTransport {
-  fetchProfile(accountId: string, signal?: AbortSignal): Promise<LuoguProfilePage>
+  fetchRecordPage(accountId: string, page: number, signal?: AbortSignal): Promise<unknown>
 }
 
 export interface LuoguAdapterOptions {
-  transport?: LuoguTransport
+  transport?: LuoguTransport | null
+  maxPages?: number
+  pageDelayMs?: number
 }
 
 const ORIGIN = 'https://www.luogu.com.cn'
-const USER_AGENT = 'USTSACMLand/1.0'
+const DEFAULT_MAX_PAGES = 100
+const MAX_MAX_PAGES = 1_000
+const DEFAULT_PAGE_DELAY_MS = 300
+const COUNTED_PROBLEM_PID = /^[PB]/i
+const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
 
-function challengePage(body: string): boolean {
-  return (
-    body.includes('challenge-platform') ||
-    body.includes('aliyun_waf_') ||
-    body.includes('__shield') ||
-    /<title>\s*Just a moment/i.test(body)
-  )
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
-export function parseLuoguProfilePage(page: LuoguProfilePage, accountId: string): number {
-  let finalUrl: URL
-  try {
-    finalUrl = new URL(page.finalUrl)
-  } catch {
-    throw new HttpError('Luogu returned an invalid profile URL', 'schema_changed', false)
+function parseOptionalTotal(records: Record<string, unknown>): number | null {
+  if (!Object.hasOwn(records, 'count')) return null
+  const count = records.count
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+    throw new HttpError('Luogu record total is invalid', 'schema_changed', false)
   }
-  if (finalUrl.origin !== ORIGIN) {
-    throw new HttpError('Luogu redirected away from the user profile', 'source_unavailable', true)
-  }
-  if (challengePage(page.html)) {
-    throw new HttpError('Luogu returned an anti-bot challenge page', 'source_unavailable', true)
-  }
-  if (finalUrl.pathname.startsWith('/auth/login')) {
-    throw new HttpError(
-      'Luogu unexpectedly required login for a public profile',
-      'source_unavailable',
-      true,
-    )
-  }
-  const normalizedPath = finalUrl.pathname.replace(/\/+$/, '')
-  if (normalizedPath !== `/user/${accountId}`) {
-    if (/^\/user\/\d+$/.test(normalizedPath)) {
-      throw new HttpError('Luogu returned the wrong user profile', 'schema_changed', false)
-    }
-    throw new HttpError('Luogu user was not found', 'not_found', false)
-  }
-
-  const document = new DOMParser().parseFromString(page.html, 'text/html')
-  const contextElement = document?.querySelector('#lentille-context')
-  if (!document || !contextElement) {
-    throw new HttpError('Luogu profile context is missing', 'schema_changed', false)
-  }
-
-  let contextText = contextElement.textContent.trim()
-  try {
-    if (contextText.startsWith('%7B') || contextText.startsWith('%7b')) {
-      contextText = decodeURIComponent(contextText)
-    }
-    const context = JSON.parse(contextText) as LuoguProfileContext
-    const user = context.data?.user
-    if (user === null) {
-      throw new HttpError('Luogu user was not found', 'not_found', false)
-    }
-    const returnedUid = user?.uid
-    if (returnedUid === undefined || returnedUid === null) {
-      throw new HttpError('Luogu profile UID is missing', 'schema_changed', false)
-    }
-    if (String(returnedUid) !== accountId) {
-      throw new HttpError('Luogu returned the wrong user profile', 'schema_changed', false)
-    }
-    if (
-      typeof user?.passedProblemCount !== 'number' ||
-      !Number.isSafeInteger(user.passedProblemCount) ||
-      user.passedProblemCount < 0
-    ) {
-      throw new HttpError('Luogu profile passed problem count is invalid', 'schema_changed', false)
-    }
-    return user.passedProblemCount
-  } catch (error) {
-    if (error instanceof HttpError) throw error
-    throw new HttpError('Luogu profile context is invalid', 'schema_changed', false)
-  }
+  return count
 }
 
-function publicTransport(): LuoguTransport {
+export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
+  if (!isRecord(payload)) {
+    throw new HttpError('Luogu record response is not an object', 'schema_changed', false)
+  }
+
+  const response = payload as LuoguRecordListResponse
+  if (!isRecord(response.currentData)) {
+    throw new HttpError('Luogu currentData is missing', 'schema_changed', false)
+  }
+  if (!isRecord(response.currentData.records)) {
+    throw new HttpError('Luogu records object is missing', 'schema_changed', false)
+  }
+
+  const records = response.currentData.records as Record<string, unknown>
+  if (!Array.isArray(records.result)) {
+    throw new HttpError('Luogu record result is not an array', 'schema_changed', false)
+  }
+
+  const problemIds = records.result.map((value, index) => {
+    if (!isRecord(value)) {
+      throw new HttpError(`Luogu record ${index} is not an object`, 'schema_changed', false)
+    }
+    const record = value as LuoguRecord
+    if (!isRecord(record.problem)) {
+      throw new HttpError(`Luogu record ${index} problem is missing`, 'schema_changed', false)
+    }
+    const pid = record.problem.pid
+    if (typeof pid !== 'string' || pid.length === 0 || pid.length > 100 || pid.trim() !== pid) {
+      throw new HttpError(`Luogu record ${index} problem PID is invalid`, 'schema_changed', false)
+    }
+    return pid
+  })
+
   return {
-    async fetchProfile(accountId, signal) {
-      const response = await fetchWithRetry(`${ORIGIN}/user/${encodeURIComponent(accountId)}`, {
+    problemIds,
+    recordCount: records.result.length,
+    totalRecords: parseOptionalTotal(records),
+  }
+}
+
+function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguTransport {
+  return {
+    fetchRecordPage(accountId, page, signal) {
+      const url = new URL('/record/list', ORIGIN)
+      url.searchParams.set('user', accountId)
+      url.searchParams.set('page', String(page))
+      url.searchParams.set('status', '12')
+      url.searchParams.set('_contentOnly', '1')
+
+      return fetchJson<unknown>(url, {
         signal,
         timeoutMs: 15_000,
         retries: 2,
         retryBaseMs: 750,
         headers: {
-          accept: 'text/html,application/xhtml+xml',
-          referer: `${ORIGIN}/`,
-          'user-agent': USER_AGENT,
+          accept: 'application/json, text/plain, */*',
+          cookie,
+          referer: `${ORIGIN}/record/list?user=${encodeURIComponent(accountId)}`,
+          'user-agent': BROWSER_USER_AGENT,
+          'x-csrf-token': csrfToken,
+          'x-requested-with': 'XMLHttpRequest',
         },
       })
-      return { html: await response.text(), finalUrl: response.url }
     },
   }
+}
+
+function environmentValue(name: string): string | undefined {
+  try {
+    return Deno.env.get(name)
+  } catch {
+    return undefined
+  }
+}
+
+function environmentTransport(): LuoguTransport | null {
+  const cookie = environmentValue('LUOGU_COOKIE')?.trim()
+  const csrfToken = environmentValue('LUOGU_CSRF_TOKEN')?.trim()
+  if (!cookie || !csrfToken) return null
+  return createAuthenticatedTransport(cookie, csrfToken)
+}
+
+function resolveMaxPages(configured: number | undefined, useEnvironment: boolean): number {
+  const raw =
+    configured ??
+    (useEnvironment ? environmentValue('LUOGU_MAX_PAGES') : undefined) ??
+    DEFAULT_MAX_PAGES
+  const maxPages = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > MAX_MAX_PAGES) {
+    throw new HttpError(
+      `LUOGU_MAX_PAGES must be an integer between 1 and ${MAX_MAX_PAGES}`,
+      'not_configured',
+      false,
+    )
+  }
+  return maxPages
+}
+
+function waitForNextPage(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (delayMs <= 0) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
+
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, delayMs)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function normalizeLuoguError(error: unknown): ReturnType<typeof toAdapterHttpError> {
   if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
     return {
-      code: 'source_unavailable',
-      message: 'Luogu blocked the public profile request',
-      retryable: true,
+      code: 'auth_expired',
+      message: 'Luogu authentication credentials are invalid or expired',
+      retryable: false,
       details: { httpStatus: error.status },
     }
   }
+  if (error instanceof HttpError && error.status === 429) {
+    return {
+      code: 'rate_limited',
+      message: 'Luogu rate limit was reached',
+      retryable: true,
+      details: { httpStatus: 429 },
+    }
+  }
   return toAdapterHttpError(error)
+}
+
+async function countAcceptedProblems(
+  transport: LuoguTransport,
+  accountId: string,
+  maxPages: number,
+  pageDelayMs: number,
+  signal?: AbortSignal,
+): Promise<{ solvedCount: number; pagesRead: number; recordsRead: number }> {
+  const countedProblemIds = new Set<string>()
+  let pagesRead = 0
+  let recordsRead = 0
+  let expectedTotal: number | null = null
+  let complete = false
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const recordPage = parseLuoguRecordPage(
+      await transport.fetchRecordPage(accountId, page, signal),
+    )
+    pagesRead += 1
+
+    if (recordPage.totalRecords !== null) {
+      if (expectedTotal !== null && recordPage.totalRecords !== expectedTotal) {
+        throw new HttpError('Luogu record total changed between pages', 'schema_changed', false)
+      }
+      expectedTotal = recordPage.totalRecords
+    }
+
+    recordsRead += recordPage.recordCount
+    if (expectedTotal !== null && recordsRead > expectedTotal) {
+      throw new HttpError('Luogu returned more records than its total', 'schema_changed', false)
+    }
+    for (const problemId of recordPage.problemIds) {
+      if (COUNTED_PROBLEM_PID.test(problemId)) countedProblemIds.add(problemId.toUpperCase())
+    }
+
+    if (recordPage.recordCount === 0) {
+      if (expectedTotal !== null && recordsRead < expectedTotal) {
+        throw new HttpError(
+          'Luogu record list ended before its declared total',
+          'schema_changed',
+          false,
+        )
+      }
+      complete = true
+      break
+    }
+    if (expectedTotal !== null && recordsRead === expectedTotal) {
+      complete = true
+      break
+    }
+
+    if (page < maxPages) await waitForNextPage(pageDelayMs, signal)
+  }
+
+  if (!complete) {
+    throw new HttpError(
+      `Luogu record history exceeded the ${maxPages}-page safety limit`,
+      'source_unavailable',
+      false,
+    )
+  }
+
+  return { solvedCount: countedProblemIds.size, pagesRead, recordsRead }
 }
 
 export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformAdapter {
@@ -142,19 +266,43 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
         return failure('luogu', accountId, 'invalid_account', 'Invalid Luogu UID format', false)
       }
 
-      try {
-        const solvedCount = parseLuoguProfilePage(
-          await (options.transport ?? publicTransport()).fetchProfile(accountId, context?.signal),
+      const transport = options.transport === undefined ? environmentTransport() : options.transport
+      if (!transport) {
+        return failure(
+          'luogu',
           accountId,
+          'not_configured',
+          'Luogu authentication is not configured',
+          false,
+          { requiredSecrets: ['LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'] },
+        )
+      }
+
+      try {
+        const maxPages = resolveMaxPages(options.maxPages, options.transport === undefined)
+        const pageDelayMs =
+          options.pageDelayMs ?? (options.transport === undefined ? DEFAULT_PAGE_DELAY_MS : 0)
+        const metrics = await countAcceptedProblems(
+          transport,
+          accountId,
+          maxPages,
+          pageDelayMs,
+          context?.signal,
         )
         return success(
           'luogu',
           accountId,
-          { currentRating: null, maxRating: null, solvedCount },
+          { currentRating: null, maxRating: null, solvedCount: metrics.solvedCount },
           {
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-public-profile-v1',
-            details: { statistic: 'data.user.passedProblemCount' },
+            sourceVersion: 'luogu-authenticated-record-list-pb-v1',
+            details: {
+              provider: 'authenticated_record_list',
+              statistic: 'unique currentData.records.result[].problem.pid',
+              pidPrefixes: ['P', 'B'],
+              pagesRead: metrics.pagesRead,
+              recordsRead: metrics.recordsRead,
+            },
           },
         )
       } catch (error) {
