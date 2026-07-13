@@ -26,7 +26,7 @@ export function MembersPage() {
       <section className="page-heading members-heading">
         <div>
           <h1>成员</h1>
-          <p>已审核成员的竞赛账号和最新公开统计。</p>
+          <p>资料完整成员的竞赛账号和最新公开统计。</p>
         </div>
         <label className="search-field wide-search">
           <Search size={17} aria-hidden="true" />

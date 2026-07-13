@@ -174,7 +174,7 @@ describe('admin operations mapping', () => {
       action: '更新成员资料',
       target: '测试成员',
     })
-    expect(entry.summary).toContain('审核状态：待审核 -> 已通过')
+    expect(entry.summary).toContain('成员状态：待启用 -> 已启用')
     expect(entry.summary).toContain('更新字段：QQ、年级')
     expect(entry.summary).not.toContain('123456789')
   })

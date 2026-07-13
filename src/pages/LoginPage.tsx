@@ -58,7 +58,7 @@ export function LoginPage() {
             <h2>登录</h2>
             <p>
               {hasSupabaseConfig
-                ? '使用已验证邮箱进入系统。'
+                ? '使用注册邮箱进入系统。'
                 : isDemo
                   ? '当前为本地演示模式，admin@ 开头的邮箱进入后台。'
                   : '系统尚未配置 Supabase，登录暂不可用。'}

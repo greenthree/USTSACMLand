@@ -22,12 +22,12 @@ const auditEntry: AuditEntry = {
   id: 7,
   actorId: 'admin-1',
   actor: '测试管理员',
-  action: '批准成员',
+  action: '启用成员',
   targetTable: 'profiles',
   targetId: 'member-1',
   target: '测试成员',
   createdAt: '2026-07-13T10:00:00Z',
-  summary: '审核状态：待审核 -> 已通过',
+  summary: '成员状态：待启用 -> 已启用',
 }
 
 describe('AdminAuditPage with Supabase configured', () => {

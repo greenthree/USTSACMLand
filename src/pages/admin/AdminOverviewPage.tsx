@@ -1,6 +1,7 @@
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3'
+import IdCard from 'lucide-react/dist/esm/icons/id-card'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -8,19 +9,17 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
 import { StatusBadge } from '../../components/StatusBadge'
-import { mockMembers, mockReviewMembers, mockSyncRuns } from '../../data/mock'
-import { fetchAdminReviewMembers } from '../../lib/adminMembers'
+import { mockMembers, mockSyncRuns } from '../../data/mock'
 import { fetchAdminOverview, fetchAdminSyncRuns } from '../../lib/adminOperations'
 import { formatDuration } from '../../lib/format'
 import { supabase } from '../../lib/supabase'
-import type { ReviewMember, SyncRun } from '../../types/domain'
+import type { SyncRun } from '../../types/domain'
 
 type AdminOverview = Awaited<ReturnType<typeof fetchAdminOverview>>
 
-const demoPendingMembers = mockReviewMembers.filter((member) => member.reviewStatus === 'pending')
 const demoOverview: AdminOverview = {
   approvedMemberCount: mockMembers.length,
-  pendingMemberCount: demoPendingMembers.length,
+  pendingMemberCount: 0,
   failedJobCount24h: mockSyncRuns.filter((run) => run.status === 'failed').length,
   runningJobCount: mockSyncRuns.filter((run) => run.status === 'running').length,
   overdueStatCount: 2,
@@ -35,9 +34,6 @@ const demoOverview: AdminOverview = {
 export function AdminOverviewPage() {
   const demo = !supabase
   const [overview, setOverview] = useState<AdminOverview | null>(() => (demo ? demoOverview : null))
-  const [pendingMembers, setPendingMembers] = useState<ReviewMember[]>(() =>
-    demo ? demoPendingMembers : [],
-  )
   const [recentRuns, setRecentRuns] = useState<SyncRun[]>(() => (demo ? mockSyncRuns : []))
   const [loading, setLoading] = useState(!demo)
   const [errorMessage, setErrorMessage] = useState('')
@@ -48,17 +44,11 @@ export function AdminOverviewPage() {
     setLoading(true)
     setErrorMessage('')
     try {
-      const [nextOverview, members, runs] = await Promise.all([
-        fetchAdminOverview(),
-        fetchAdminReviewMembers(),
-        fetchAdminSyncRuns(5),
-      ])
+      const [nextOverview, runs] = await Promise.all([fetchAdminOverview(), fetchAdminSyncRuns(5)])
       setOverview(nextOverview)
-      setPendingMembers(members.filter((member) => member.reviewStatus === 'pending').slice(0, 5))
       setRecentRuns(runs)
     } catch (error) {
       setOverview(null)
-      setPendingMembers([])
       setRecentRuns([])
       setErrorMessage(error instanceof Error ? error.message : '后台概览读取失败。')
     } finally {
@@ -75,7 +65,7 @@ export function AdminOverviewPage() {
       <section className="admin-page-heading">
         <div>
           <h1>后台概览</h1>
-          <p>成员审核、数据同步与凭据健康状态。</p>
+          <p>成员账号、数据同步与凭据健康状态。</p>
         </div>
         <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
       </section>
@@ -97,13 +87,13 @@ export function AdminOverviewPage() {
           <section className="admin-metric-strip" aria-label="后台指标">
             <div>
               <Users size={19} aria-hidden="true" />
-              <span>已审核成员</span>
+              <span>成员账号</span>
               <strong>{overview.approvedMemberCount}</strong>
             </div>
             <div>
-              <Clock3 size={19} aria-hidden="true" />
-              <span>待审核</span>
-              <strong>{overview.pendingMemberCount}</strong>
+              <IdCard size={19} aria-hidden="true" />
+              <span>已验证平台账号</span>
+              <strong>{overview.verifiedAccountCount}</strong>
             </div>
             <div>
               <AlertTriangle size={19} aria-hidden="true" />
@@ -115,48 +105,6 @@ export function AdminOverviewPage() {
               <span>过期数据</span>
               <strong>{overview.overdueStatCount}</strong>
             </div>
-          </section>
-
-          <section className="admin-section">
-            <div className="section-title-row">
-              <div>
-                <h2>待审核成员</h2>
-                <p>按提交时间排序。</p>
-              </div>
-              <Link className="text-button" to="/admin/members">
-                查看全部 <ArrowRight size={15} aria-hidden="true" />
-              </Link>
-            </div>
-            {pendingMembers.length === 0 ? (
-              <EmptyState title="暂无待审核成员" description="新的成员申请会显示在这里。" />
-            ) : (
-              <div className="compact-table-wrap">
-                <table className="compact-table">
-                  <thead>
-                    <tr>
-                      <th>姓名</th>
-                      <th>年级</th>
-                      <th>专业</th>
-                      <th>平台数</th>
-                      <th>状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingMembers.map((member) => (
-                      <tr key={member.id}>
-                        <td>{member.name}</td>
-                        <td>{member.grade}</td>
-                        <td>{member.major}</td>
-                        <td>{member.platformCount}</td>
-                        <td>
-                          <StatusBadge status={member.reviewStatus} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
 
           <section className="admin-section">

@@ -7,7 +7,7 @@ Deno.test('ordinary members cannot request any synchronization trigger', () => {
   }
 })
 
-Deno.test('administrators can request review and manual synchronization triggers', () => {
+Deno.test('administrators can request registration and manual synchronization triggers', () => {
   for (const triggerType of ['manual', 'registration', 'account_changed', 'retry'] as const) {
     strictEqual(canRequestSync({ serviceRole: false, admin: true }, triggerType), true)
   }

@@ -686,22 +686,6 @@ export type Database = {
           verified_at: string
         }[]
       }
-      admin_list_review_members: {
-        Args: never
-        Returns: {
-          email: string
-          full_name: string
-          grade: string
-          id: string
-          major: string
-          platform_count: number
-          qq: string
-          review_note: string
-          review_requested_at: string
-          review_status: Database['public']['Enums']['profile_review_status']
-          updated_at: string
-        }[]
-      }
       admin_list_sync_runs: {
         Args: { before_run_id?: number; row_limit?: number }
         Returns: {
@@ -721,15 +705,6 @@ export type Database = {
           started_at: string
           trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
-      }
-      admin_set_member_review_status: {
-        Args: {
-          expected_updated_at: string
-          next_status: Database['public']['Enums']['profile_review_status']
-          note?: string
-          target_profile_id: string
-        }
-        Returns: string
       }
       admin_set_platform_account_status: {
         Args: {

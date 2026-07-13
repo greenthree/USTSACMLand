@@ -107,6 +107,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySupabaseUser],
   )
 
+  const signUp = useCallback(
+    async (email: string, password: string) => {
+      if (!supabase) {
+        if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，注册暂不可用。')
+        sessionStorage.setItem(demoSessionKey, email.trim())
+        setUser(demoUser(email))
+        setStatus('authenticated')
+        return true
+      }
+
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (error) throw error
+      if (!data.session) return false
+
+      await applySupabaseUser(data.user)
+      return true
+    },
+    [applySupabaseUser],
+  )
+
   const signOut = useCallback(async () => {
     if (supabase) {
       const { error } = await supabase.auth.signOut()
@@ -119,8 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, isDemo: demoAuthEnabled, signIn, signOut }),
-    [signIn, signOut, status, user],
+    () => ({ status, user, isDemo: demoAuthEnabled, signUp, signIn, signOut }),
+    [signIn, signOut, signUp, status, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

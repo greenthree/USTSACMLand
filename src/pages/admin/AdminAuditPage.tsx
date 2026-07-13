@@ -53,7 +53,7 @@ export function AdminAuditPage() {
       <section className="admin-page-heading">
         <div>
           <h1>审计日志</h1>
-          <p>记录角色、审核、平台绑定和手动同步操作。</p>
+          <p>记录角色、平台账号验证、绑定和手动同步操作。</p>
         </div>
         <div className="admin-heading-actions">
           <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
@@ -78,7 +78,10 @@ export function AdminAuditPage() {
       {loading ? <LoadingState label="正在读取审计日志" /> : null}
 
       {!loading && entries.length === 0 ? (
-        <EmptyState title="暂无审计日志" description="审核、绑定和手动同步操作会记录在这里。" />
+        <EmptyState
+          title="暂无审计日志"
+          description="平台账号验证、绑定和手动同步操作会记录在这里。"
+        />
       ) : null}
 
       {!loading && entries.length > 0 ? (

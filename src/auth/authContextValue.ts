@@ -15,6 +15,7 @@ export interface AuthContextValue {
   status: AuthStatus
   user: AuthUser | null
   isDemo: boolean
+  signUp: (email: string, password: string) => Promise<boolean>
   signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
 }

@@ -103,9 +103,9 @@ const sourceGroups: Array<Pick<AdminSourceHealthGroup, 'id' | 'label' | 'platfor
 ]
 
 const reviewStatusLabels: Record<string, string> = {
-  pending: '待审核',
-  approved: '已通过',
-  rejected: '已驳回',
+  pending: '待启用',
+  approved: '已启用',
+  rejected: '未启用',
   suspended: '已停用',
 }
 
@@ -312,7 +312,7 @@ function profileAuditSummary(details: Record<string, unknown>): string {
       roleLabels,
     ),
     transitionSummary(
-      '审核状态',
+      '成员状态',
       stringValue(details.before_review_status),
       stringValue(details.after_review_status),
       reviewStatusLabels,
@@ -361,10 +361,10 @@ function auditAction(row: AdminAuditRow, details: Record<string, unknown>): stri
     const afterReviewStatus = stringValue(details.after_review_status)
     if (beforeRole !== afterRole && afterRole === 'admin') return '设置管理员'
     if (fieldsChanged) return '更新成员资料'
-    if (afterReviewStatus === 'approved') return '批准成员'
-    if (afterReviewStatus === 'rejected') return '驳回成员'
+    if (afterReviewStatus === 'approved') return '启用成员'
+    if (afterReviewStatus === 'rejected') return '设为未启用'
     if (afterReviewStatus === 'suspended') return '停用成员'
-    if (afterReviewStatus === 'pending') return '恢复成员审核'
+    if (afterReviewStatus === 'pending') return '恢复待启用状态'
     if (row.action === 'delete') return '删除成员'
     return '更新成员'
   }

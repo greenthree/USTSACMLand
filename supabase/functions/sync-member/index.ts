@@ -347,7 +347,7 @@ Deno.serve(async (request) => {
       }
       throw new ApiError(
         403,
-        'Administrators may only request review, account-change, manual, or retry synchronization',
+        'Administrators may only request registration, account-change, manual, or retry synchronization',
       )
     }
 

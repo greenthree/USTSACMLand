@@ -31,20 +31,6 @@ export interface Member {
   stats: Record<Platform, PlatformStat>
 }
 
-export interface ReviewMember {
-  id: string
-  name: string
-  major: string
-  grade: string
-  qq: string
-  email: string
-  submittedAt: string
-  updatedAt: string
-  reviewStatus: ReviewStatus
-  reviewNote?: string | null
-  platformCount: number
-}
-
 export interface AdminPlatformAccount {
   id: number
   profileId: string

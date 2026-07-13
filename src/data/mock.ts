@@ -6,7 +6,6 @@ import type {
   Member,
   Platform,
   PlatformStat,
-  ReviewMember,
   SyncRun,
 } from '../types/domain'
 
@@ -133,45 +132,6 @@ export const mockMembers: Member[] = [
       luogu: stat('luogu', '1059382', null, null, 471),
       qoj: stat('qoj', 'QingheZ', null, null, 19),
     },
-  },
-]
-
-export const mockReviewMembers: ReviewMember[] = [
-  {
-    id: 'review-1',
-    name: '沈亦安',
-    major: '计算机科学与技术',
-    grade: '24级',
-    qq: '2984****17',
-    email: 'yi.an@example.edu.cn',
-    submittedAt: '2026-07-12T15:42:00+08:00',
-    updatedAt: '2026-07-12T15:42:00+08:00',
-    reviewStatus: 'pending',
-    platformCount: 6,
-  },
-  {
-    id: 'review-2',
-    name: '程予航',
-    major: '软件工程',
-    grade: '23级',
-    qq: '1736****82',
-    email: 'yuhang@example.edu.cn',
-    submittedAt: '2026-07-11T20:18:00+08:00',
-    updatedAt: '2026-07-11T20:18:00+08:00',
-    reviewStatus: 'pending',
-    platformCount: 4,
-  },
-  {
-    id: 'review-3',
-    name: '叶闻溪',
-    major: '人工智能',
-    grade: '24级',
-    qq: '2508****46',
-    email: 'wenxi@example.edu.cn',
-    submittedAt: '2026-07-10T13:05:00+08:00',
-    updatedAt: '2026-07-10T13:05:00+08:00',
-    reviewStatus: 'rejected',
-    platformCount: 3,
   },
 ]
 
@@ -307,7 +267,7 @@ export const mockSyncRuns: SyncRun[] = [
 
 export const mockAdminOverview: AdminOverview = {
   approvedMemberCount: 6,
-  pendingMemberCount: 2,
+  pendingMemberCount: 0,
   failedJobCount24h: 1,
   runningJobCount: 1,
   overdueStatCount: 2,
@@ -378,12 +338,12 @@ export const mockAuditEntries: AuditEntry[] = [
     id: 3,
     actorId: 'admin-1',
     actor: '管理员',
-    action: '批准成员',
-    targetTable: 'profiles',
+    action: '验证平台账号',
+    targetTable: 'platform_accounts',
     targetId: 'lu-xingye',
     target: '陆星野',
     createdAt: '2026-07-12T17:02:00+08:00',
-    summary: '资料审核通过并触发首次同步',
+    summary: 'Codeforces；状态：待验证 -> 已验证；已触发首次同步',
   },
   {
     id: 2,

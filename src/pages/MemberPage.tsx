@@ -18,7 +18,7 @@ export function MemberPage() {
   if (!member) {
     return (
       <div className="page narrow-page">
-        <EmptyState title="成员不存在" description="该成员可能尚未通过审核或已被停用。" />
+        <EmptyState title="成员不存在" description="该成员可能尚未完善公开资料或已被停用。" />
       </div>
     )
   }
@@ -35,7 +35,6 @@ export function MemberPage() {
         <div>
           <div className="member-profile-title">
             <h1>{member.name}</h1>
-            <StatusBadge status={member.reviewStatus} />
           </div>
           <p>
             {member.major} · {member.grade}

@@ -32,6 +32,7 @@ const authValue: AuthContextValue = {
     reviewStatus: 'approved',
   },
   isDemo: false,
+  signUp: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
 }
@@ -77,7 +78,6 @@ describe('AccountPage XCPC ELO automatic matching', () => {
         qq: '12345678',
         major: '计算机科学与技术',
         grade: '24级',
-        review_status: 'approved',
       },
       error: null,
     })
@@ -174,7 +174,6 @@ describe('AccountPage XCPC ELO automatic matching', () => {
         qq: '12345678',
         major: '电子信息工程',
         grade: '23级',
-        review_status: 'pending',
       },
       error: null,
     })

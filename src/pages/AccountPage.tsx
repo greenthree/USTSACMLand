@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
 import { PlatformMark } from '../components/PlatformMark'
-import { StatusBadge } from '../components/StatusBadge'
 import {
   accountDraftHasConflict,
   accountDraftPlatforms,
@@ -18,12 +17,7 @@ import {
 import { platformLabels } from '../lib/platforms'
 import { gradeOptions, majorSuggestions, normalizeGrade } from '../lib/profileFields'
 import { supabase } from '../lib/supabase'
-import {
-  platforms,
-  type AccountVerificationStatus,
-  type Platform,
-  type ReviewStatus,
-} from '../types/domain'
+import { platforms, type AccountVerificationStatus, type Platform } from '../types/domain'
 
 type AccountDisplayStatus = AccountVerificationStatus | 'missing'
 
@@ -165,7 +159,6 @@ export function AccountPage() {
   })
   const [notice, setNotice] = useState('')
   const [noticeKind, setNoticeKind] = useState<'success' | 'error'>('success')
-  const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('pending')
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -203,11 +196,7 @@ export function AccountPage() {
     baselineValuesRef.current = null
     setNotice('')
 
-    function initializeProfile(
-      serverValues: AccountFormValues,
-      serverAccountState: AccountState,
-      nextReviewStatus: ReviewStatus,
-    ) {
+    function initializeProfile(serverValues: AccountFormValues, serverAccountState: AccountState) {
       const draft = loadAccountDraft(currentUserId)
       const initialValues = draft ? mergeAccountDraft(serverValues, draft) : serverValues
       const accountState = restoreAccountState(serverAccountState, initialValues)
@@ -219,7 +208,6 @@ export function AccountPage() {
       setAccounts(accountState.accounts)
       setAccountStatuses(accountState.statuses)
       setAccountErrors(accountState.errors)
-      setReviewStatus(nextReviewStatus)
       baselineValuesRef.current = serverValues
       setDraftReady(true)
       setLoadingProfile(false)
@@ -246,7 +234,6 @@ export function AccountPage() {
       initializeProfile(
         formValues('周知行', '2984123417', '计算机科学与技术', '24级', demoAccountState.accounts),
         demoAccountState,
-        'approved',
       )
       return
     }
@@ -255,7 +242,7 @@ export function AccountPage() {
     void Promise.all([
       supabase
         .from('profiles')
-        .select('full_name, qq, major, grade, review_status')
+        .select('full_name, qq, major, grade')
         .eq('id', currentUserId)
         .single(),
       supabase
@@ -283,7 +270,6 @@ export function AccountPage() {
           accountState.accounts,
         ),
         accountState,
-        profileResult.data.review_status as ReviewStatus,
       )
     })
 
@@ -377,11 +363,7 @@ export function AccountPage() {
       }
 
       const [savedProfileResult, savedAccountsResult] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('full_name, qq, major, grade, review_status')
-          .eq('id', userId)
-          .single(),
+        supabase.from('profiles').select('full_name, qq, major, grade').eq('id', userId).single(),
         supabase
           .from('platform_accounts')
           .select('platform, external_id, status, verification_error_message')
@@ -411,7 +393,6 @@ export function AccountPage() {
       setAccounts(accountState.accounts)
       setAccountStatuses(accountState.statuses)
       setAccountErrors(accountState.errors)
-      setReviewStatus(savedProfileResult.data.review_status as ReviewStatus)
       baselineValuesRef.current = savedValues
       clearAccountDraft(userId)
     } else if (userId) {
@@ -435,14 +416,10 @@ export function AccountPage() {
     accountStatuses.xcpc_elo !== 'missing' &&
     accountStatuses.xcpc_elo !== 'disabled'
   const hasSyncableAccount = hasVerifiedAccount || hasSyncableXcpcAccount
-  const canSync =
-    user?.role === 'admin' && (isDemo || (reviewStatus === 'approved' && hasSyncableAccount))
-  const syncDisabledReason =
-    reviewStatus !== 'approved'
-      ? '成员资料审核通过后可同步'
-      : !hasSyncableAccount
-        ? '至少一个平台账号通过验证或存在 XCPC ELO 自动匹配记录后可同步'
-        : undefined
+  const canSync = user?.role === 'admin' && (isDemo || hasSyncableAccount)
+  const syncDisabledReason = !hasSyncableAccount
+    ? '至少一个平台账号通过验证或存在 XCPC ELO 自动匹配记录后可同步'
+    : undefined
 
   async function handleSync() {
     if (user?.role !== 'admin') return
@@ -469,10 +446,9 @@ export function AccountPage() {
       <section className="page-heading account-heading">
         <div>
           <h1>我的资料</h1>
-          <p>QQ 仅用于队内审核，不会展示在公开榜单。</p>
+          <p>QQ 仅用于队内管理，不会展示在公开榜单。</p>
         </div>
         <div className="account-status">
-          <StatusBadge status={reviewStatus} />
           <span>{isDemo ? '本地演示资料' : '账号资料'}</span>
         </div>
       </section>

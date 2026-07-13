@@ -1,34 +1,36 @@
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { FormEvent, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/authContextValue'
 import { SiteLogo } from '../components/SiteLogo'
-import { demoAuthEnabled, supabase } from '../lib/supabase'
 
 export function RegisterPage() {
+  const navigate = useNavigate()
+  const { signUp, status, user } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setMessage('')
+    setSubmitting(true)
 
-    if (!supabase) {
-      if (demoAuthEnabled) {
-        setMessage('演示模式已记录注册流程，连接 Supabase 后将发送验证邮件。')
-      } else {
-        setError('系统尚未配置 Supabase，注册暂不可用。')
+    try {
+      const signedIn = await signUp(email, password)
+      if (signedIn) {
+        navigate('/account', { replace: true })
+        return
       }
-      return
+      setMessage('账号已创建，但当前认证配置仍要求邮箱验证；验证后即可登录。')
+    } catch (signUpError) {
+      setError(signUpError instanceof Error ? signUpError.message : '注册失败，请稍后重试。')
+    } finally {
+      setSubmitting(false)
     }
-
-    const { error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) {
-      setError(signUpError.message)
-      return
-    }
-    setMessage('验证邮件已发送，请完成邮箱验证后登录。')
   }
 
   return (
@@ -54,7 +56,7 @@ export function RegisterPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <h2>创建账号</h2>
-            <p>完成邮箱验证后填写成员资料和竞赛账号。</p>
+            <p>注册后直接填写成员资料和竞赛账号。</p>
           </div>
           <label>
             <span>邮箱</span>
@@ -80,9 +82,13 @@ export function RegisterPage() {
           </label>
           {message ? <p className="form-success">{message}</p> : null}
           {error ? <p className="form-error">{error}</p> : null}
-          <button className="primary-button full-button" type="submit">
+          <button
+            className="primary-button full-button"
+            type="submit"
+            disabled={submitting || status === 'unavailable' || Boolean(user)}
+          >
             <UserPlus size={17} aria-hidden="true" />
-            注册
+            {user ? '已登录' : submitting ? '注册中' : '注册'}
           </button>
           <p className="centered-link">
             已有账号？<Link to="/login">返回登录</Link>

@@ -6,7 +6,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
 import { StatusBadge } from '../../components/StatusBadge'
-import { mockMembers, mockReviewMembers, mockSyncRuns } from '../../data/mock'
+import { mockMembers, mockSyncRuns } from '../../data/mock'
 import {
   fetchAdminOverview,
   fetchAdminSourceHealth,
@@ -69,8 +69,7 @@ const demoHealthGroups: SourceHealthGroup[] = [
 
 const demoOverview: AdminOverview = {
   approvedMemberCount: mockMembers.length,
-  pendingMemberCount: mockReviewMembers.filter((member) => member.reviewStatus === 'pending')
-    .length,
+  pendingMemberCount: 0,
   failedJobCount24h: mockSyncRuns.filter((run) => run.status === 'failed').length,
   runningJobCount: mockSyncRuns.filter((run) => run.status === 'running').length,
   overdueStatCount: 2,
