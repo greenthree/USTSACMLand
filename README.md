@@ -206,7 +206,7 @@ Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/in
 1. 增加 QOJ 登录失败告警和 Firecrawl 用量监控。
 2. 增加平台账号自动验证和真正的原子队列、重试与冷却控制。
 3. 完成多身份 RLS/越权集成测试和管理员角色管理。
-4. 完成 GitHub Pages 首次发布和线上注册、登录、路由刷新验证。
+4. 验证生产邮箱确认、密码重置、会话恢复和管理员登录完整流程。
 5. 增加同步失败通知、XCPC 数据缓存和更完整的重试/退避策略。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。

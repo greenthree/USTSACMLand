@@ -24,7 +24,7 @@
 - [x] 创建 Supabase 配置和首个数据库 migration。
 - [x] 从生产 Schema 生成 Supabase TypeScript 数据库类型并接入前端 Client。
 - [x] 配置 GitHub Pages 子路径、静态资源、SPA `404.html` 回退和部署工作流。
-- [ ] 完成首次线上 Pages 发布和刷新路由验证。
+- [x] 完成首次线上 Pages 发布和刷新路由验证。
 - [x] 建立统一适配器接口：输入外部账号，输出标准化统计、源时间和错误码。
 - [x] 完成 Codeforces `user.info` / `user.status` 分页验证，确认唯一题目去重规则。
 - [x] 完成牛客 UID -> 唯一通过题数、UID -> 当前/最高 Rating 验证，并增加 WAF 时的 Firecrawl 回退。
@@ -196,7 +196,7 @@ M5 验收条件：
 目标：让项目可以长期维护，而不只是一次性演示。
 
 - [x] 配置生产 Supabase，部署数据库迁移和 Edge Functions，并完成本地真实环境连接。
-- [ ] 配置正式域名/Pages 地址和 GitHub Actions 环境变量。
+- [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码。
 - [ ] 在生产 Secrets 和真实仓库中验证全部工作流。
 - [ ] 配置分支保护、依赖更新和秘密扫描。
