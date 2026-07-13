@@ -108,7 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const signUp = useCallback(
-    async (email: string, password: string) => {
+    async (fullName: string, email: string, password: string) => {
+      const normalizedFullName = fullName.trim()
+      if (!normalizedFullName) throw new Error('请输入姓名。')
+      if (normalizedFullName.length > 64) throw new Error('姓名不能超过 64 个字符。')
+
       if (!supabase) {
         if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，注册暂不可用。')
         sessionStorage.setItem(demoSessionKey, email.trim())
@@ -117,7 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true
       }
 
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: normalizedFullName } },
+      })
       if (error) throw error
       if (!data.session) return false
 

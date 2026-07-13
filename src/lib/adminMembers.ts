@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { AdminMember, ReviewStatus } from '../types/domain'
+import type { AdminMember, AdminMemberProfileUpdate, ReviewStatus } from '../types/domain'
 
 interface AdminMemberRow {
   id: string
@@ -60,5 +60,26 @@ export async function setAdminMemberSuspension(
   })
 
   if (error) throw new Error(`成员状态更新失败：${error.message}`)
+  return data as string
+}
+
+export async function updateAdminMemberProfile(
+  memberId: string,
+  values: AdminMemberProfileUpdate,
+  expectedUpdatedAt: string,
+): Promise<string> {
+  if (!supabase) return new Date().toISOString()
+
+  const { data, error } = await supabase.rpc('admin_update_member_profile', {
+    target_profile_id: memberId,
+    member_full_name: values.name,
+    member_qq: values.qq,
+    member_grade: values.grade,
+    member_major: values.major,
+    member_is_public: values.isPublic,
+    expected_updated_at: expectedUpdatedAt,
+  })
+
+  if (error) throw new Error(`成员资料更新失败：${error.message}`)
   return data as string
 }

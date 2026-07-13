@@ -1694,6 +1694,77 @@ fieldset.form-section {
   min-width: 96px;
 }
 
+.admin-member-edit-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.admin-member-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-member-edit-grid .admin-dialog-field {
+  gap: 7px;
+}
+
+.admin-member-edit-grid input,
+.admin-member-edit-grid select {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  outline: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.admin-member-edit-grid input:focus,
+.admin-member-edit-grid select:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgb(22 121 75 / 10%);
+}
+
+.admin-member-public-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  color: var(--ink);
+  background: var(--green-soft);
+  border: 1px solid #c6e2d2;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.admin-member-public-field input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+
+.admin-member-public-field span {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-member-public-field strong {
+  font-size: 13px;
+}
+
+.admin-member-public-field small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 .reject-confirm-button,
 .suspend-confirm-button {
   background: var(--red);
@@ -2431,6 +2502,10 @@ fieldset.form-section {
   .admin-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-member-edit-grid {
+    grid-template-columns: 1fr;
   }
 
   .plain-select {

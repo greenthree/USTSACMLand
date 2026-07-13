@@ -63,6 +63,14 @@ export interface AdminMember {
   verifiedPlatformCount: number
 }
 
+export interface AdminMemberProfileUpdate {
+  name: string
+  qq: string
+  grade: string
+  major: string
+  isPublic: boolean
+}
+
 export interface SyncRun {
   id: number
   jobId: number

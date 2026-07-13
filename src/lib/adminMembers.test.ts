@@ -1,6 +1,16 @@
-import { mapAdminMember } from './adminMembers'
+const adminMemberMocks = vi.hoisted(() => ({ rpc: vi.fn() }))
+
+vi.mock('./supabase', () => ({
+  supabase: { rpc: adminMemberMocks.rpc },
+}))
+
+import { mapAdminMember, updateAdminMemberProfile } from './adminMembers'
 
 describe('admin member mapping', () => {
+  beforeEach(() => {
+    adminMemberMocks.rpc.mockReset()
+  })
+
   it('maps active member counts and private profile fields', () => {
     expect(
       mapAdminMember({
@@ -62,6 +72,37 @@ describe('admin member mapping', () => {
       suspensionNote: '已离队',
       platformCount: 0,
       verifiedPlatformCount: 0,
+    })
+  })
+
+  it('sends editable profile fields with the optimistic-lock timestamp', async () => {
+    adminMemberMocks.rpc.mockResolvedValue({
+      data: '2026-07-14T08:00:00Z',
+      error: null,
+    })
+
+    await expect(
+      updateAdminMemberProfile(
+        'member-1',
+        {
+          name: '测试成员',
+          qq: '12345678',
+          grade: '24级',
+          major: '计算机科学与技术',
+          isPublic: true,
+        },
+        '2026-07-14T07:00:00Z',
+      ),
+    ).resolves.toBe('2026-07-14T08:00:00Z')
+
+    expect(adminMemberMocks.rpc).toHaveBeenCalledWith('admin_update_member_profile', {
+      target_profile_id: 'member-1',
+      member_full_name: '测试成员',
+      member_qq: '12345678',
+      member_grade: '24级',
+      member_major: '计算机科学与技术',
+      member_is_public: true,
+      expected_updated_at: '2026-07-14T07:00:00Z',
     })
   })
 })

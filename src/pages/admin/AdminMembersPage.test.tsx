@@ -5,6 +5,7 @@ import type { AdminMember } from '../../types/domain'
 const memberMocks = vi.hoisted(() => ({
   fetchMembers: vi.fn(),
   setSuspension: vi.fn(),
+  updateProfile: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
@@ -14,6 +15,7 @@ vi.mock('../../lib/supabase', () => ({
 vi.mock('../../lib/adminMembers', () => ({
   fetchAdminMembers: memberMocks.fetchMembers,
   setAdminMemberSuspension: memberMocks.setSuspension,
+  updateAdminMemberProfile: memberMocks.updateProfile,
 }))
 
 import { AdminMembersPage } from './AdminMembersPage'
@@ -50,6 +52,7 @@ describe('AdminMembersPage with Supabase configured', () => {
   beforeEach(() => {
     memberMocks.fetchMembers.mockReset()
     memberMocks.setSuspension.mockReset()
+    memberMocks.updateProfile.mockReset()
     memberMocks.fetchMembers.mockResolvedValue([activeMember, suspendedMember])
   })
 
@@ -112,6 +115,47 @@ describe('AdminMembersPage with Supabase configured', () => {
     )
     expect(await within(row).findByText('正常')).toBeInTheDocument()
     expect(within(row).queryByText('停用原因：已离队')).not.toBeInTheDocument()
+  })
+
+  it('lets an administrator edit member profile fields', async () => {
+    const user = userEvent.setup()
+    memberMocks.fetchMembers.mockResolvedValue([activeMember])
+    memberMocks.updateProfile.mockResolvedValue('2026-07-13T13:00:00Z')
+    render(<AdminMembersPage />)
+
+    const row = await screen.findByRole('row', { name: /测试成员/ })
+    await user.click(screen.getByRole('button', { name: '编辑 测试成员' }))
+
+    const dialog = screen.getByRole('dialog', { name: '编辑 测试成员' })
+    const nameInput = within(dialog).getByRole('textbox', { name: '姓名' })
+    const qqInput = within(dialog).getByRole('textbox', { name: 'QQ 号' })
+    const majorInput = within(dialog).getByRole('combobox', { name: '专业' })
+    await user.clear(nameInput)
+    await user.type(nameInput, '更新成员')
+    await user.clear(qqInput)
+    await user.type(qqInput, '22345678')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: '年级' }), '25级')
+    await user.clear(majorInput)
+    await user.type(majorInput, '人工智能')
+    await user.click(within(dialog).getByRole('checkbox', { name: /允许公开展示/ }))
+    await user.click(within(dialog).getByRole('button', { name: '保存修改' }))
+
+    expect(memberMocks.updateProfile).toHaveBeenCalledWith(
+      'member-1',
+      {
+        name: '更新成员',
+        qq: '22345678',
+        grade: '25级',
+        major: '人工智能',
+        isPublic: false,
+      },
+      '2026-07-13T10:00:00Z',
+    )
+    expect(await within(row).findByText('更新成员')).toBeInTheDocument()
+    expect(within(row).getByText('25级')).toBeInTheDocument()
+    expect(within(row).getByText('人工智能')).toBeInTheDocument()
+    expect(within(row).getByText('不公开')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('更新成员 的资料已更新。')
   })
 
   it('shows a protected empty state when the live list fails', async () => {

@@ -7,6 +7,7 @@ import { SiteLogo } from '../components/SiteLogo'
 export function RegisterPage() {
   const navigate = useNavigate()
   const { signUp, status, user } = useAuth()
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
@@ -20,7 +21,13 @@ export function RegisterPage() {
     setSubmitting(true)
 
     try {
-      const signedIn = await signUp(email, password)
+      const normalizedFullName = fullName.trim()
+      if (!normalizedFullName) {
+        setError('请输入姓名。')
+        return
+      }
+
+      const signedIn = await signUp(normalizedFullName, email, password)
       if (signedIn) {
         navigate('/account', { replace: true })
         return
@@ -56,8 +63,19 @@ export function RegisterPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <h2>创建账号</h2>
-            <p>注册后直接填写成员资料和竞赛账号。</p>
+            <p>注册后直接填写竞赛账号和其他成员资料。</p>
           </div>
+          <label>
+            <span>姓名</span>
+            <input
+              type="text"
+              autoComplete="name"
+              maxLength={64}
+              required
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+            />
+          </label>
           <label>
             <span>邮箱</span>
             <input

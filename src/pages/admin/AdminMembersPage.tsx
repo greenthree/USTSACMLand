@@ -1,5 +1,7 @@
 import Ban from 'lucide-react/dist/esm/icons/ban'
+import Pencil from 'lucide-react/dist/esm/icons/pencil'
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
+import Save from 'lucide-react/dist/esm/icons/save'
 import Search from 'lucide-react/dist/esm/icons/search'
 import X from 'lucide-react/dist/esm/icons/x'
 import {
@@ -14,10 +16,15 @@ import {
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { mockAdminMembers } from '../../data/mock'
-import { fetchAdminMembers, setAdminMemberSuspension } from '../../lib/adminMembers'
+import {
+  fetchAdminMembers,
+  setAdminMemberSuspension,
+  updateAdminMemberProfile,
+} from '../../lib/adminMembers'
 import { formatDateTime } from '../../lib/format'
+import { gradeOptions, majorSuggestions } from '../../lib/profileFields'
 import { supabase } from '../../lib/supabase'
-import type { AdminMember, AdminMemberStatus } from '../../types/domain'
+import type { AdminMember, AdminMemberProfileUpdate, AdminMemberStatus } from '../../types/domain'
 
 const memberStatusLabels: Record<AdminMemberStatus, string> = {
   active: '正常',
@@ -40,8 +47,14 @@ export function AdminMembersPage() {
   const [noticeKind, setNoticeKind] = useState<'success' | 'error'>('success')
   const [suspensionMember, setSuspensionMember] = useState<AdminMember | null>(null)
   const [suspensionNote, setSuspensionNote] = useState('')
+  const [editingMember, setEditingMember] = useState<AdminMember | null>(null)
+  const [editValues, setEditValues] = useState<AdminMemberProfileUpdate | null>(null)
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const suspensionDialogRef = useRef<HTMLElement | null>(null)
   const suspensionTriggerRef = useRef<HTMLElement | null>(null)
+  const editDialogRef = useRef<HTMLElement | null>(null)
+  const editTriggerRef = useRef<HTMLElement | null>(null)
 
   const loadMembers = useCallback(async () => {
     if (demo) return
@@ -159,6 +172,93 @@ export function AdminMembersPage() {
     }
   }
 
+  function openEditDialog(member: AdminMember) {
+    const activeElement = document.activeElement
+    editTriggerRef.current = activeElement instanceof HTMLElement ? activeElement : null
+    setEditingMember(member)
+    setEditValues({
+      name: member.name,
+      qq: member.qq,
+      grade: member.grade,
+      major: member.major,
+      isPublic: member.isPublic,
+    })
+    setEditError('')
+  }
+
+  function closeEditDialog() {
+    setEditingMember(null)
+    setEditValues(null)
+    setEditError('')
+    const trigger = editTriggerRef.current
+    editTriggerRef.current = null
+    window.setTimeout(() => {
+      if (trigger && document.contains(trigger)) trigger.focus()
+    }, 0)
+  }
+
+  function handleEditDialogKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape' && !savingEdit) {
+      event.preventDefault()
+      closeEditDialog()
+      return
+    }
+
+    if (event.key !== 'Tab') return
+
+    const focusableElements = Array.from(
+      editDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    )
+    if (focusableElements.length === 0) return
+
+    const first = focusableElements[0]
+    const last = focusableElements[focusableElements.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  async function submitMemberEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingMember || !editValues) return
+
+    const normalizedValues: AdminMemberProfileUpdate = {
+      name: editValues.name.trim(),
+      qq: editValues.qq.trim(),
+      grade: editValues.grade.trim(),
+      major: editValues.major.trim(),
+      isPublic: editValues.isPublic,
+    }
+
+    setSavingEdit(true)
+    setEditError('')
+    try {
+      const updatedAt = await updateAdminMemberProfile(
+        editingMember.id,
+        normalizedValues,
+        editingMember.updatedAt,
+      )
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === editingMember.id ? { ...member, ...normalizedValues, updatedAt } : member,
+        ),
+      )
+      setNoticeKind('success')
+      setNotice(`${normalizedValues.name} 的资料已更新。`)
+      closeEditDialog()
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : '成员资料更新失败。')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   function submitSuspension(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!suspensionMember) return
@@ -261,6 +361,16 @@ export function AdminMembersPage() {
                     </td>
                     <td data-label="操作">
                       <div className="row-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title="编辑成员"
+                          aria-label={`编辑 ${member.name}`}
+                          disabled={busy}
+                          onClick={() => openEditDialog(member)}
+                        >
+                          <Pencil size={16} aria-hidden="true" />
+                        </button>
                         {member.status === 'active' ? (
                           <button
                             className="icon-button suspend-button"
@@ -291,6 +401,143 @@ export function AdminMembersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {editingMember && editValues ? (
+        <div className="admin-dialog-backdrop" role="presentation">
+          <section
+            className="admin-dialog admin-member-edit-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-member-dialog-title"
+            ref={editDialogRef}
+            onKeyDown={handleEditDialogKeyDown}
+          >
+            <form onSubmit={submitMemberEdit}>
+              <div className="admin-dialog-header">
+                <h2 id="edit-member-dialog-title">编辑 {editingMember.name}</h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="关闭"
+                  aria-label="关闭编辑成员对话框"
+                  disabled={savingEdit}
+                  onClick={closeEditDialog}
+                >
+                  <X size={17} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="admin-member-edit-grid">
+                <label className="admin-dialog-field">
+                  <span>姓名</span>
+                  <input
+                    autoFocus
+                    required
+                    maxLength={64}
+                    value={editValues.name}
+                    onChange={(event) =>
+                      setEditValues((current) =>
+                        current ? { ...current, name: event.target.value } : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="admin-dialog-field">
+                  <span>QQ 号</span>
+                  <input
+                    required
+                    inputMode="numeric"
+                    pattern="[1-9][0-9]{4,11}"
+                    value={editValues.qq}
+                    onChange={(event) =>
+                      setEditValues((current) =>
+                        current ? { ...current, qq: event.target.value } : current,
+                      )
+                    }
+                  />
+                </label>
+                <label className="admin-dialog-field">
+                  <span>年级</span>
+                  <select
+                    required
+                    value={editValues.grade}
+                    onChange={(event) =>
+                      setEditValues((current) =>
+                        current ? { ...current, grade: event.target.value } : current,
+                      )
+                    }
+                  >
+                    {!gradeOptions.includes(editValues.grade) ? (
+                      <option value={editValues.grade}>{editValues.grade}</option>
+                    ) : null}
+                    {gradeOptions.map((grade) => (
+                      <option value={grade} key={grade}>
+                        {grade}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="admin-dialog-field">
+                  <span>专业</span>
+                  <input
+                    required
+                    list="admin-major-suggestions"
+                    maxLength={100}
+                    value={editValues.major}
+                    onChange={(event) =>
+                      setEditValues((current) =>
+                        current ? { ...current, major: event.target.value } : current,
+                      )
+                    }
+                  />
+                  <datalist id="admin-major-suggestions">
+                    {majorSuggestions.map((major) => (
+                      <option value={major} key={major} />
+                    ))}
+                  </datalist>
+                </label>
+              </div>
+
+              <label className="admin-member-public-field">
+                <input
+                  type="checkbox"
+                  checked={editValues.isPublic}
+                  onChange={(event) =>
+                    setEditValues((current) =>
+                      current ? { ...current, isPublic: event.target.checked } : current,
+                    )
+                  }
+                />
+                <span>
+                  <strong>允许公开展示</strong>
+                  <small>资料完整且账号正常时，该成员会进入公开成员列表和榜单。</small>
+                </span>
+              </label>
+
+              {editError ? (
+                <p className="form-error" role="status">
+                  {editError}
+                </p>
+              ) : null}
+
+              <div className="admin-dialog-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={savingEdit}
+                  onClick={closeEditDialog}
+                >
+                  取消
+                </button>
+                <button className="primary-button" type="submit" disabled={savingEdit}>
+                  <Save size={16} aria-hidden="true" />
+                  {savingEdit ? '保存中' : '保存修改'}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       ) : null}
 

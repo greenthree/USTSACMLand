@@ -742,6 +742,18 @@ export type Database = {
         }
         Returns: string
       }
+      admin_update_member_profile: {
+        Args: {
+          expected_updated_at: string
+          member_full_name: string
+          member_grade: string
+          member_is_public: boolean
+          member_major: string
+          member_qq: string
+          target_profile_id: string
+        }
+        Returns: string
+      }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       can_edit_own_data: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }

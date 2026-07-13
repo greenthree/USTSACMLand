@@ -35,11 +35,12 @@ describe('RegisterPage', () => {
     const signUp = vi.fn().mockResolvedValue(true)
     renderRegister(signUp)
 
+    await user.type(screen.getByRole('textbox', { name: '姓名' }), '  测试成员  ')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
     await user.type(screen.getByLabelText(/^密码/), 'password123')
     await user.click(screen.getByRole('button', { name: '注册' }))
 
-    expect(signUp).toHaveBeenCalledWith('new@example.com', 'password123')
+    expect(signUp).toHaveBeenCalledWith('测试成员', 'new@example.com', 'password123')
     expect(await screen.findByRole('heading', { name: '我的资料' })).toBeInTheDocument()
   })
 
@@ -48,6 +49,7 @@ describe('RegisterPage', () => {
     const signUp = vi.fn().mockResolvedValue(false)
     renderRegister(signUp)
 
+    await user.type(screen.getByRole('textbox', { name: '姓名' }), '测试成员')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
     await user.type(screen.getByLabelText(/^密码/), 'password123')
     await user.click(screen.getByRole('button', { name: '注册' }))
@@ -55,5 +57,19 @@ describe('RegisterPage', () => {
     expect(
       await screen.findByText('账号已创建，但当前认证配置仍要求邮箱验证；验证后即可登录。'),
     ).toBeInTheDocument()
+  })
+
+  it('rejects a whitespace-only name before calling signup', async () => {
+    const user = userEvent.setup()
+    const signUp = vi.fn()
+    renderRegister(signUp)
+
+    await user.type(screen.getByRole('textbox', { name: '姓名' }), '   ')
+    await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
+    await user.type(screen.getByLabelText(/^密码/), 'password123')
+    await user.click(screen.getByRole('button', { name: '注册' }))
+
+    expect(await screen.findByText('请输入姓名。')).toBeInTheDocument()
+    expect(signUp).not.toHaveBeenCalled()
   })
 })
