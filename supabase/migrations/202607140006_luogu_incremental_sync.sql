@@ -237,7 +237,7 @@ begin
       recorded_at = excluded.recorded_at;
 
   update public.sync_runs
-  set status = case when sync_succeeded then 'succeeded' else 'failed' end,
+  set status = (case when sync_succeeded then 'succeeded' else 'failed' end)::public.sync_run_status,
       finished_at = run_finished_at,
       duration_ms = run_duration_ms,
       error_code = stat_error_code,
