@@ -30,10 +30,10 @@ describe('overall rankings', () => {
     })
   })
 
-  it('sums solved counts across the four supported platforms', () => {
-    expect(calculateTotalSolved(mockMembers[0])).toBe(3098)
-    expect(calculateTotalSolved(mockMembers[1])).toBe(3563)
-    expect(calculateTotalSolved(mockMembers[4])).toBe(2186)
+  it('sums solved counts across the five supported platforms', () => {
+    expect(calculateTotalSolved(mockMembers[0])).toBe(3553)
+    expect(calculateTotalSolved(mockMembers[1])).toBe(4165)
+    expect(calculateTotalSolved(mockMembers[4])).toBe(2507)
   })
 
   it('returns no aggregate when a member has no applicable data', () => {

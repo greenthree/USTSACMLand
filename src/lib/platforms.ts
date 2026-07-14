@@ -12,7 +12,13 @@ export const platformLabels: Record<Platform, string> = {
 }
 
 export const ratingPlatforms: RatingPlatform[] = ['codeforces', 'nowcoder', 'atcoder', 'xcpc_elo']
-export const solvedPlatforms: SolvedPlatform[] = ['codeforces', 'nowcoder', 'luogu', 'qoj']
+export const solvedPlatforms: SolvedPlatform[] = [
+  'codeforces',
+  'nowcoder',
+  'atcoder',
+  'luogu',
+  'qoj',
+]
 export const ratingRankingViews: RankingView[] = ['overall', ...ratingPlatforms]
 export const solvedRankingViews: RankingView[] = ['overall', ...solvedPlatforms]
 

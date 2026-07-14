@@ -41,7 +41,7 @@ import type {
 } from '../../types/domain'
 
 const ratingPlatforms = new Set<Platform>(['codeforces', 'nowcoder', 'atcoder', 'xcpc_elo'])
-const solvedPlatforms = new Set<Platform>(['codeforces', 'nowcoder', 'luogu', 'qoj'])
+const solvedPlatforms = new Set<Platform>(['codeforces', 'nowcoder', 'atcoder', 'luogu', 'qoj'])
 
 const accountStatusLabels: Record<AdminMemberPlatformDetail['accountStatus'], string> = {
   missing: '未绑定',

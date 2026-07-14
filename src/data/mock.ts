@@ -44,7 +44,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'USTS_zhixing', 1924, 2011, 1186),
       nowcoder: stat('nowcoder', '91827364', 1887, 1942, 842),
-      atcoder: stat('atcoder', 'zhixing_usts', 1546, 1610, null),
+      atcoder: stat('atcoder', 'zhixing_usts', 1546, 1610, 455),
       xcpc_elo: stat('xcpc_elo', 'xcpc_41382a9bc0de127f', 1831, 1889, null),
       luogu: stat('luogu', '742193', null, null, 934),
       qoj: stat('qoj', 'zhixing', null, null, 136),
@@ -61,7 +61,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'MingYuanGu', 1816, 1882, 1328),
       nowcoder: stat('nowcoder', '26481735', 1712, 1790, 1014),
-      atcoder: stat('atcoder', 'mingyuan_g', 1682, 1682, null),
+      atcoder: stat('atcoder', 'mingyuan_g', 1682, 1682, 602),
       xcpc_elo: stat('xcpc_elo', 'xcpc_31820bc84e19fa20', 1764, 1815, null),
       luogu: stat('luogu', '519426', null, null, 1127),
       qoj: stat('qoj', 'MingYuanGu', null, null, 94, 'stale'),
@@ -78,7 +78,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'RiverTang', 1698, 1761, 907),
       nowcoder: stat('nowcoder', '63190248', 1810, 1834, 735),
-      atcoder: stat('atcoder', 'river_tang', 1460, 1502, null),
+      atcoder: stat('atcoder', 'river_tang', 1460, 1502, 388),
       xcpc_elo: stat('xcpc_elo', 'xcpc_49275ad2f8013c44', 1690, 1727, null),
       luogu: stat('luogu', '834271', null, null, 808),
       qoj: stat('qoj', 'RiverTang', null, null, 72),
@@ -95,7 +95,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'XingyeLu', 1488, 1537, 624),
       nowcoder: stat('nowcoder', '71029463', 1492, 1510, 509),
-      atcoder: stat('atcoder', 'xingye_lu', 1286, 1320, null),
+      atcoder: stat('atcoder', 'xingye_lu', 1286, 1320, 210),
       xcpc_elo: stat('xcpc_elo', 'xcpc_59831ef824da0b71', 1504, 1504, null),
       luogu: stat('luogu', '991238', null, null, 586),
       qoj: stat('qoj', 'XingyeLu', null, null, 41),
@@ -112,7 +112,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'JinyanSu', 1574, 1621, 786),
       nowcoder: stat('nowcoder', '54018279', 1606, 1645, 681),
-      atcoder: stat('atcoder', 'jinyan_su', 1394, 1394, null),
+      atcoder: stat('atcoder', 'jinyan_su', 1394, 1394, 321),
       xcpc_elo: stat('xcpc_elo', 'xcpc_47510bce318d42f9', 1602, 1638, null),
       luogu: stat('luogu', '780351', null, null, 719),
       qoj: stat('qoj', 'JinyanSu', null, null, null, 'error'),
@@ -129,7 +129,7 @@ export const mockMembers: Member[] = [
     stats: {
       codeforces: stat('codeforces', 'QingheZ', 1327, 1360, 438),
       nowcoder: stat('nowcoder', '88204157', 1415, 1415, 402),
-      atcoder: stat('atcoder', 'qinghe_z', 1018, 1072, null),
+      atcoder: stat('atcoder', 'qinghe_z', 1018, 1072, 147),
       xcpc_elo: stat('xcpc_elo', '', null, null, null, 'missing'),
       luogu: stat('luogu', '1059382', null, null, 471),
       qoj: stat('qoj', 'QingheZ', null, null, 19),

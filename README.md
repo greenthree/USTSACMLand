@@ -7,7 +7,7 @@
 ## 已实现
 
 - Rating 榜：默认总榜，并可切换 Codeforces、牛客、AtCoder、XCPC ELO。
-- 刷题榜：默认总榜，并可切换 Codeforces、牛客、洛谷、QOJ。
+- 刷题榜：默认总榜，并可切换 Codeforces、牛客、AtCoder、洛谷、QOJ。
 - 姓名/账号搜索、专业与年级组合筛选、成员列表、成员详情和平台主页链接。
 - Supabase 邮箱登录、注册时填写姓名并自动进入资料页、当前密码验证后修改密码、密码重置、资料和平台账号维护；XCPC ELO 根据成员姓名自动匹配。
 - 资料页专业联想直接读取根目录 `专业目录.txt`，支持目录匹配与目录外专业自由输入。
@@ -19,7 +19,7 @@
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流。
 - 未配置 Supabase 时，本地开发使用演示数据；生产构建缺少配置时认证功能失败关闭。
 
-Rating 总榜在每个 Rating 平台分别取当前分最高的 5 名成员，并计算其平均值 `X_k`。成员总 Rating 为 `400 × Σ(a_i,k / X_k)`；某平台不足 5 个有效 Rating 时使用全部有效数据，缺失平台贡献 0，显示时保留两位小数。刷题总榜为 CF、牛客、洛谷、QOJ 的已知通过题数之和，并同时展示各平台题数。
+Rating 总榜在每个 Rating 平台分别取当前分最高的 5 名成员，并计算其平均值 `X_k`。成员总 Rating 为 `400 × Σ(a_i,k / X_k)`；某平台不足 5 个有效 Rating 时使用全部有效数据，缺失平台贡献 0，显示时保留两位小数。刷题总榜为 CF、牛客、AtCoder、洛谷、QOJ 的已知通过题数之和，并同时展示各平台题数。
 
 ## 架构
 
@@ -60,7 +60,7 @@ flowchart LR
 | ---------- | ------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，按 `(contestId, index)` 去重；已做真实 smoke test                                             |
 | 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                              |
-| AtCoder    | Username     | 当前/最高 Rating               | 已实现 `/users/{username}/history/json`，区分未参赛与不存在账号；已做真实 smoke test                                                       |
+| AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号                  |
 | XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册建立会话后立即按“姓名 + 苏州科技大学”同步，唯一命中时保存稳定 `xcpc_*` ID，同校同名时拒绝自动绑定，缓存策略待完成     |
 | 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                      |
 | QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID，不自动重试 |

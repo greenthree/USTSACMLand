@@ -20,8 +20,15 @@ describe('RankingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: '刷题榜' }))
     expect(screen.getByRole('heading', { name: '刷题榜' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'QOJ' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      '总榜',
+      'Codeforces',
+      '牛客',
+      'AtCoder',
+      '洛谷',
+      'QOJ',
+    ])
     expect(screen.getByRole('columnheader', { name: '总通过题数' })).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
       '排名',
@@ -30,11 +37,16 @@ describe('RankingsPage', () => {
       '总通过题数',
       'Codeforces',
       '牛客',
+      'AtCoder',
       '洛谷',
       'QOJ',
     ])
     const solvedLeader = screen.getByRole('row', { name: /顾明远/ })
-    expect(within(solvedLeader).getByText('3,563')).toBeInTheDocument()
+    expect(within(solvedLeader).getByText('4,165')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'AtCoder' }))
+    expect(screen.getByText('mingyuan_g')).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: /顾明远/ })).getByText('602')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
     expect(screen.getByRole('columnheader', { name: '平台账号' })).toBeInTheDocument()

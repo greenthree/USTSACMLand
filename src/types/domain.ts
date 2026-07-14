@@ -2,7 +2,10 @@ export const platforms = ['codeforces', 'nowcoder', 'atcoder', 'xcpc_elo', 'luog
 
 export type Platform = (typeof platforms)[number]
 export type RatingPlatform = Extract<Platform, 'codeforces' | 'nowcoder' | 'atcoder' | 'xcpc_elo'>
-export type SolvedPlatform = Extract<Platform, 'codeforces' | 'nowcoder' | 'luogu' | 'qoj'>
+export type SolvedPlatform = Extract<
+  Platform,
+  'codeforces' | 'nowcoder' | 'atcoder' | 'luogu' | 'qoj'
+>
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type AccountVerificationStatus = 'pending' | 'verified' | 'invalid' | 'disabled'
 export type AdminMemberStatus = 'active' | 'suspended'
