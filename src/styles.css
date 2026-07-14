@@ -520,7 +520,7 @@ main {
 
   .overall-ranking-table tr {
     display: grid;
-    grid-template-columns: 72px 176px 188px minmax(0, 1.08fr) repeat(4, minmax(0, 1fr));
+    grid-template-columns: 72px 176px 188px minmax(0, 1.08fr) repeat(5, minmax(0, 1fr));
   }
 
   .overall-ranking-table th,
