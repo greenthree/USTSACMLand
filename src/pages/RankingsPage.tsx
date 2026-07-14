@@ -16,6 +16,7 @@ import {
 } from '../lib/platforms'
 import {
   calculateOverallRating,
+  calculatePeakRatingBenchmarks,
   calculateRatingBenchmarks,
   calculateTotalSolved,
 } from '../lib/rankings'
@@ -35,6 +36,10 @@ export function RankingsPage() {
   const platformOptions = mode === 'rating' ? ratingRankingViews : solvedRankingViews
   const metricPlatforms = mode === 'rating' ? ratingPlatforms : solvedPlatforms
   const ratingBenchmarks = useMemo(() => calculateRatingBenchmarks(sourceMembers), [sourceMembers])
+  const peakRatingBenchmarks = useMemo(
+    () => calculatePeakRatingBenchmarks(sourceMembers),
+    [sourceMembers],
+  )
   const majors = useMemo(
     () => ['全部专业', ...Array.from(new Set(sourceMembers.map((member) => member.major)))],
     [sourceMembers],
@@ -175,6 +180,7 @@ export function RankingsPage() {
             members={members}
             metric={mode}
             ratingBenchmarks={ratingBenchmarks}
+            peakRatingBenchmarks={peakRatingBenchmarks}
           />
         ) : (
           <RankingTable members={members} platform={platform} metric={mode} />

@@ -1,6 +1,12 @@
 import { mockMembers } from '../data/mock'
 import type { Member } from '../types/domain'
-import { calculateOverallRating, calculateRatingBenchmarks, calculateTotalSolved } from './rankings'
+import {
+  calculateOverallPeakRating,
+  calculateOverallRating,
+  calculatePeakRatingBenchmarks,
+  calculateRatingBenchmarks,
+  calculateTotalSolved,
+} from './rankings'
 
 describe('overall rankings', () => {
   it('uses each platform independent top five as its rating benchmark', () => {
@@ -28,6 +34,18 @@ describe('overall rankings', () => {
       atcoder: 1716.4,
       xcpc_elo: 1877.4,
     })
+  })
+
+  it('uses historical maximum ratings for the peak overall benchmark and score', () => {
+    const benchmarks = calculatePeakRatingBenchmarks(mockMembers)
+
+    expect(benchmarks).toEqual({
+      codeforces: 1762.4,
+      nowcoder: 1744.2,
+      atcoder: 1501.6,
+      xcpc_elo: 1714.6,
+    })
+    expect(calculateOverallPeakRating(mockMembers[0], benchmarks)).toBeCloseTo(1771.35, 2)
   })
 
   it('sums solved counts across the five supported platforms', () => {

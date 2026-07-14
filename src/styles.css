@@ -500,6 +500,10 @@ main {
   min-width: 1056px;
 }
 
+.overall-rating-table {
+  min-width: 1180px;
+}
+
 .overall-ranking-table .number-column {
   width: auto;
 }
@@ -518,9 +522,16 @@ main {
     width: 100%;
   }
 
-  .overall-ranking-table tr {
+  .overall-solved-table tr {
     display: grid;
     grid-template-columns: 72px 176px 188px minmax(0, 1.08fr) repeat(5, minmax(0, 1fr));
+  }
+
+  .overall-rating-table tr {
+    display: grid;
+    grid-template-columns:
+      72px 176px 188px minmax(0, 1.08fr) repeat(4, minmax(0, 1fr))
+      minmax(0, 1.2fr);
   }
 
   .overall-ranking-table th,

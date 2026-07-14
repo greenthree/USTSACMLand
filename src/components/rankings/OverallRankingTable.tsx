@@ -3,6 +3,7 @@ import { formatDecimal, formatInteger } from '../../lib/format'
 import { platformLabels, ratingPlatforms, solvedPlatforms } from '../../lib/platforms'
 import {
   calculateOverallRating,
+  calculateOverallPeakRating,
   calculateTotalSolved,
   type RatingBenchmarks,
 } from '../../lib/rankings'
@@ -13,6 +14,7 @@ interface OverallRankingTableProps {
   members: Member[]
   metric: 'rating' | 'solved'
   ratingBenchmarks: RatingBenchmarks
+  peakRatingBenchmarks: RatingBenchmarks
 }
 
 function RankNumber({ rank }: { rank: number }) {
@@ -23,6 +25,7 @@ export function OverallRankingTable({
   members,
   metric,
   ratingBenchmarks,
+  peakRatingBenchmarks,
 }: OverallRankingTableProps) {
   if (members.length === 0) {
     return <EmptyState title="没有匹配的成员" description="调整搜索词、专业或年级后重试。" />
@@ -32,7 +35,7 @@ export function OverallRankingTable({
 
   return (
     <div className="ranking-table-wrap">
-      <table className="ranking-table overall-ranking-table">
+      <table className={`ranking-table overall-ranking-table overall-${metric}-table`}>
         <thead>
           <tr>
             <th className="rank-column">排名</th>
@@ -49,6 +52,11 @@ export function OverallRankingTable({
                 {platformLabels[platform]}
               </th>
             ))}
+            {metric === 'rating' ? (
+              <th className="number-column" title="400 × 各平台历史最高 Rating 标准化之和">
+                历史最高总 Rating
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -57,6 +65,8 @@ export function OverallRankingTable({
               metric === 'rating'
                 ? calculateOverallRating(member, ratingBenchmarks)
                 : calculateTotalSolved(member)
+            const peakOverallValue =
+              metric === 'rating' ? calculateOverallPeakRating(member, peakRatingBenchmarks) : null
             return (
               <tr key={member.id}>
                 <td data-label="排名">
@@ -97,6 +107,14 @@ export function OverallRankingTable({
                     </td>
                   )
                 })}
+                {metric === 'rating' ? (
+                  <td
+                    className="secondary-number peak-overall-column"
+                    data-label="历史最高总 Rating"
+                  >
+                    {formatDecimal(peakOverallValue)}
+                  </td>
+                ) : null}
               </tr>
             )
           })}
