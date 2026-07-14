@@ -117,6 +117,19 @@ jobs:
 
           if [[ "$http_status" -eq 207 ]]; then
             failed_count="$(jq -r '.failed // "unknown"' response.json)"
+            jq -r '
+              .results[]
+              | select(.status < 200 or .status >= 300)
+              | if .body.error then
+                  "Sync error: " + .body.error
+                elif (.body.results | type) == "array" then
+                  .body.results[]
+                  | select(.ok == false)
+                  | "Sync error [" + .platform + "/" + .error.code + "]: " + .error.message
+                else
+                  "Sync error: member synchronization returned HTTP " + (.status | tostring)
+                end
+            ' response.json >&2
             echo "Sync function partially failed for $failed_count member(s)." >&2
             exit 1
           fi

@@ -35,6 +35,7 @@ describe('RegisterPage', () => {
     const signUp = vi.fn().mockResolvedValue(true)
     renderRegister(signUp)
 
+    expect(screen.getByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '姓名' }), '  测试成员  ')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
     await user.type(screen.getByLabelText(/^密码/), 'password123')

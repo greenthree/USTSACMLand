@@ -16,6 +16,7 @@ describe('route authorization', () => {
       </MemoryRouter>,
     )
 
+    expect(await screen.findByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: '登录' })).toBeInTheDocument()
   })
 

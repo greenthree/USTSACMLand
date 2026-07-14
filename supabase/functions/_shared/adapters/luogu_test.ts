@@ -1,19 +1,48 @@
 import { deepStrictEqual, equal, match } from 'node:assert/strict'
 import { HttpError } from '../http.ts'
-import { createLuoguAdapter, parseLuoguRecordPage, type LuoguTransport } from './luogu.ts'
+import {
+  createLuoguAdapter,
+  parseLuoguRecordPage,
+  type LuoguSyncState,
+  type LuoguTransport,
+} from './luogu.ts'
 
-function record(pid: string): Record<string, unknown> {
-  return { problem: { pid } }
+interface TestRecord {
+  id: number | string
+  submitTime: number
+  pid: string
 }
 
-function page(problemIds: string[], count?: number): unknown {
+const NOW = new Date('2026-07-14T00:00:00Z')
+
+function record(pid: string, id: number | string, submitTime: number): Record<string, unknown> {
+  return { id, submitTime, problem: { pid } }
+}
+
+function page(entries: TestRecord[], count?: number): unknown {
   return {
     currentData: {
       records: {
-        result: problemIds.map(record),
+        result: entries.map((entry) => record(entry.pid, entry.id, entry.submitTime)),
         ...(count === undefined ? {} : { count }),
       },
     },
+  }
+}
+
+function entry(id: number, pid: string, submitTime = id): TestRecord {
+  return { id, pid, submitTime }
+}
+
+function state(overrides: Partial<LuoguSyncState> = {}): LuoguSyncState {
+  return {
+    accountId: '409073',
+    boundaryRecordId: '100',
+    boundarySubmitTime: 100,
+    totalRecords: 1,
+    problemIds: ['P1000'],
+    lastFullSyncAt: '2026-07-13T00:00:00Z',
+    ...overrides,
   }
 }
 
@@ -35,82 +64,259 @@ function transportFromPages(pages: unknown[]): {
   }
 }
 
-Deno.test('Luogu record parser reads strict accepted-record fields', () => {
-  deepStrictEqual(parseLuoguRecordPage(page(['P1000', 'P1001'], 2)), {
-    problemIds: ['P1000', 'P1001'],
+function adapter(transport: LuoguTransport, maxPages = 5) {
+  return createLuoguAdapter({ transport, maxPages, now: () => NOW })
+}
+
+Deno.test('Luogu record parser reads stable IDs, submit times, and problem IDs', () => {
+  deepStrictEqual(parseLuoguRecordPage(page([entry(102, 'P1000'), entry(101, 'P1001')], 2)), {
+    records: [
+      { id: '102', submitTime: 102, problemId: 'P1000' },
+      { id: '101', submitTime: 101, problemId: 'P1001' },
+    ],
     recordCount: 2,
     totalRecords: 2,
   })
 })
 
-Deno.test('Luogu adapter returns zero for an empty accepted record list', async () => {
-  const { transport, requests } = transportFromPages([page([], 0)])
-  const result = await createLuoguAdapter({ transport }).sync('409073')
-
-  equal(result.ok, true)
-  if (!result.ok) return
-  equal(result.metrics.solvedCount, 0)
-  equal(result.sourceVersion, 'luogu-authenticated-record-list-pb-v1')
-  deepStrictEqual(result.details, {
-    provider: 'authenticated_record_list',
-    statistic: 'unique currentData.records.result[].problem.pid',
-    pidPrefixes: ['P', 'B'],
-    pagesRead: 1,
-    recordsRead: 0,
-  })
-  deepStrictEqual(requests, [{ accountId: '409073', page: 1 }])
-})
-
-Deno.test('Luogu adapter deduplicates accepted problem PIDs across pages', async () => {
+Deno.test('Luogu first synchronization reads the full accepted history', async () => {
   const { transport, requests } = transportFromPages([
-    page(['P1000', 'B2000', 'CF1000'], 6),
-    page(['p1000', 'B2001', 'UVA1000'], 6),
+    page([entry(103, 'P1000'), entry(102, 'B2000'), entry(101, 'CF1000')], 5),
+    page([entry(100, 'P1000'), entry(99, 'B2001')], 5),
   ])
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+  const result = await adapter(transport).sync('409073')
 
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 3)
-  deepStrictEqual(result.details?.pagesRead, 2)
+  equal(result.sourceVersion, 'luogu-authenticated-record-list-pb-v2')
+  deepStrictEqual(result.details, {
+    provider: 'authenticated_record_list',
+    statistic: 'unique currentData.records.result[].problem.pid',
+    pidPrefixes: ['P', 'B'],
+    syncMode: 'full',
+    fallbackReason: null,
+    pagesRead: 2,
+    recordsRead: 5,
+    newRecords: 5,
+    newProblems: 3,
+  })
+  deepStrictEqual(result.syncState, {
+    accountId: '409073',
+    boundaryRecordId: '103',
+    boundarySubmitTime: 103,
+    totalRecords: 5,
+    problemIds: ['B2000', 'B2001', 'P1000'],
+    lastFullSyncAt: NOW.toISOString(),
+  })
   deepStrictEqual(requests, [
     { accountId: '409073', page: 1 },
     { accountId: '409073', page: 2 },
   ])
 })
 
-Deno.test('Luogu adapter counts only P- and B-prefixed accepted problems', async () => {
-  const { transport } = transportFromPages([
-    page(['P1000', 'B2000', 'CF1000', 'UVA1000', 'AT_abc001_a'], 5),
-  ])
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+Deno.test('Luogu adapter returns zero and a checkpoint for an empty history', async () => {
+  const { transport } = transportFromPages([page([], 0)])
+  const result = await adapter(transport).sync('409073')
 
   equal(result.ok, true)
   if (!result.ok) return
-  equal(result.metrics.solvedCount, 2)
-  deepStrictEqual(result.details?.pidPrefixes, ['P', 'B'])
+  equal(result.metrics.solvedCount, 0)
+  deepStrictEqual(result.syncState, {
+    accountId: '409073',
+    boundaryRecordId: null,
+    boundarySubmitTime: null,
+    totalRecords: 0,
+    problemIds: [],
+    lastFullSyncAt: NOW.toISOString(),
+  })
 })
 
-Deno.test('Luogu adapter continues until an empty page when no total is present', async () => {
+Deno.test('Luogu incremental synchronization stops at the exact previous record ID', async () => {
   const { transport, requests } = transportFromPages([
-    page(['P1000']),
-    page(['P1000', 'P1001']),
-    page([]),
+    page([entry(102, 'B2000'), entry(101, 'P1000'), entry(100, 'P1000')], 3),
   ])
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ totalRecords: 1 }),
+  })
 
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 2)
-  equal(requests.length, 3)
+  equal(result.details?.syncMode, 'incremental')
+  equal(result.details?.newRecords, 2)
+  equal(result.details?.newProblems, 1)
+  deepStrictEqual(result.syncState, {
+    ...state({
+      boundaryRecordId: '102',
+      boundarySubmitTime: 102,
+      totalRecords: 3,
+      problemIds: ['B2000', 'P1000'],
+    }),
+  })
+  equal(requests.length, 1)
 })
 
-Deno.test('Luogu adapter reports missing authentication as not configured', async () => {
-  const result = await createLuoguAdapter({ transport: null }).sync('409073')
+Deno.test('Luogu incremental boundary remains exact when records share a timestamp', async () => {
+  const { transport } = transportFromPages([
+    page([entry(102, 'B2000', 100), entry(101, 'P1001', 100), entry(100, 'P1000', 100)], 3),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ boundarySubmitTime: 100 }),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 3)
+  equal(result.details?.newRecords, 2)
+})
+
+Deno.test('Luogu repeated AC records do not stop or increase the unique count', async () => {
+  const { transport } = transportFromPages([
+    page([entry(102, 'P1000'), entry(101, 'B2000'), entry(100, 'P1000')], 3),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state(),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 2)
+  equal(result.details?.newProblems, 1)
+})
+
+Deno.test(
+  'Luogu non-P/B records advance the incremental boundary without changing count',
+  async () => {
+    const { transport } = transportFromPages([page([entry(101, 'CF1000'), entry(100, 'P1000')], 2)])
+    const result = await adapter(transport).sync('409073', {
+      syncState: state(),
+    })
+
+    equal(result.ok, true)
+    if (!result.ok) return
+    equal(result.metrics.solvedCount, 1)
+    equal(result.details?.newRecords, 1)
+    equal(result.details?.newProblems, 0)
+    deepStrictEqual((result.syncState as LuoguSyncState).boundaryRecordId, '101')
+  },
+)
+
+Deno.test('Luogu incremental synchronization can find its boundary on a later page', async () => {
+  const { transport, requests } = transportFromPages([
+    page([entry(104, 'P1004'), entry(103, 'P1003')], 5),
+    page([entry(102, 'B2000'), entry(101, 'P1001'), entry(100, 'P1000')], 5),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state(),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 5)
+  equal(result.details?.newRecords, 4)
+  equal(requests.length, 2)
+})
+
+Deno.test('Luogu total mismatch falls back to a complete rebuild', async () => {
+  const { transport, requests } = transportFromPages([
+    page(
+      [
+        entry(104, 'P1004'),
+        entry(100, 'P1000'),
+        entry(99, 'B2000'),
+        entry(98, 'CF1000'),
+        entry(97, 'P1001'),
+      ],
+      5,
+    ),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ totalRecords: 3 }),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 4)
+  equal(result.details?.syncMode, 'rebuild')
+  equal(result.details?.fallbackReason, 'record_total_delta_mismatch')
+  equal(requests.length, 2)
+})
+
+Deno.test('Luogu record total decrease falls back to a complete rebuild', async () => {
+  const { transport, requests } = transportFromPages([
+    page([entry(100, 'P1000'), entry(99, 'B2000')], 2),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ totalRecords: 3 }),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 2)
+  equal(result.details?.syncMode, 'rebuild')
+  equal(result.details?.fallbackReason, 'record_total_decreased')
+  equal(requests.length, 2)
+})
+
+Deno.test('Luogu missing boundary rebuilds from the complete history', async () => {
+  const { transport } = transportFromPages([
+    page([entry(103, 'P1003'), entry(102, 'P1002'), entry(101, 'P1001')], 3),
+  ])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state(),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 3)
+  equal(result.details?.syncMode, 'rebuild')
+  equal(result.details?.fallbackReason, 'boundary_record_missing')
+})
+
+Deno.test('Luogu state for another UID is ignored and rebuilt in full', async () => {
+  const { transport } = transportFromPages([page([entry(101, 'P1001')], 1)])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ accountId: '123456' }),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.details?.syncMode, 'full')
+  equal(result.metrics.solvedCount, 1)
+})
+
+Deno.test('Luogu performs a full reconciliation after thirty days', async () => {
+  const { transport } = transportFromPages([page([entry(101, 'P1001')], 1)])
+  const result = await adapter(transport).sync('409073', {
+    syncState: state({ lastFullSyncAt: '2026-06-01T00:00:00Z' }),
+  })
+
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.details?.syncMode, 'full')
+  equal(result.details?.fallbackReason, 'periodic_reconciliation')
+})
+
+Deno.test('Luogu adapter rejects records that are not ordered newest first', async () => {
+  const { transport } = transportFromPages([
+    page([entry(101, 'P1001', 101), entry(102, 'P1002', 102)], 2),
+  ])
+  const result = await adapter(transport).sync('409073')
 
   equal(result.ok, false)
   if (result.ok) return
-  equal(result.error.code, 'not_configured')
-  deepStrictEqual(result.error.details, {
+  equal(result.error.code, 'schema_changed')
+})
+
+Deno.test('Luogu adapter reports missing authentication as not configured', async () => {
+  const result = createLuoguAdapter({ transport: null }).sync('409073')
+  const resolved = await result
+
+  equal(resolved.ok, false)
+  if (resolved.ok) return
+  equal(resolved.error.code, 'not_configured')
+  deepStrictEqual(resolved.error.details, {
     requiredSecrets: ['LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'],
   })
 })
@@ -122,7 +328,7 @@ for (const status of [401, 403]) {
         throw new HttpError(`HTTP ${status}`, 'source_unavailable', false, status)
       },
     }
-    const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+    const result = await adapter(transport).sync('409073')
 
     equal(result.ok, false)
     if (result.ok) return
@@ -138,7 +344,7 @@ Deno.test('Luogu adapter preserves rate-limit classification', async () => {
       throw new HttpError('HTTP 429', 'rate_limited', true, 429)
     },
   }
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+  const result = await adapter(transport).sync('409073')
 
   equal(result.ok, false)
   if (result.ok) return
@@ -156,21 +362,38 @@ Deno.test('Luogu adapter rejects changed record-list structures', async () => {
     { currentData: { records: { result: {}, count: 0 } } },
     { currentData: { records: { result: [null], count: 1 } } },
     { currentData: { records: { result: [{ problem: null }], count: 1 } } },
-    { currentData: { records: { result: [{ problem: { pid: 1000 } }], count: 1 } } },
+    {
+      currentData: {
+        records: { result: [{ id: 1, submitTime: 1, problem: { pid: 1000 } }], count: 1 },
+      },
+    },
+    {
+      currentData: {
+        records: { result: [{ id: 'bad', submitTime: 1, problem: { pid: 'P1000' } }], count: 1 },
+      },
+    },
+    {
+      currentData: {
+        records: { result: [{ id: 1, submitTime: '1', problem: { pid: 'P1000' } }], count: 1 },
+      },
+    },
     { currentData: { records: { result: [], count: '0' } } },
   ]
 
   for (const payload of malformedPages) {
     const { transport } = transportFromPages([payload])
-    const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+    const result = await adapter(transport).sync('409073')
     equal(result.ok, false)
     if (!result.ok) equal(result.error.code, 'schema_changed')
   }
 })
 
-Deno.test('Luogu adapter fails instead of returning a partial count at max pages', async () => {
-  const { transport, requests } = transportFromPages([page(['P1000', 'P1001']), page(['P1002'])])
-  const result = await createLuoguAdapter({ transport, maxPages: 2 }).sync('409073')
+Deno.test('Luogu incremental sync fails instead of advancing an unseen boundary', async () => {
+  const { transport, requests } = transportFromPages([
+    page([entry(104, 'P1004'), entry(103, 'P1003')]),
+    page([entry(102, 'P1002')]),
+  ])
+  const result = await adapter(transport, 2).sync('409073', { syncState: state() })
 
   equal(result.ok, false)
   if (result.ok) return
@@ -181,8 +404,8 @@ Deno.test('Luogu adapter fails instead of returning a partial count at max pages
 })
 
 Deno.test('Luogu adapter rejects an empty page before a declared total is complete', async () => {
-  const { transport } = transportFromPages([page(['P1000'], 2), page([], 2)])
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('409073')
+  const { transport } = transportFromPages([page([entry(101, 'P1000')], 2), page([], 2)])
+  const result = await adapter(transport).sync('409073')
 
   equal(result.ok, false)
   if (result.ok) return
@@ -197,7 +420,7 @@ Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async 
       throw new Error('should not run')
     },
   }
-  const result = await createLuoguAdapter({ transport, maxPages: 5 }).sync('user-name')
+  const result = await adapter(transport).sync('user-name')
 
   equal(result.ok, false)
   if (result.ok) return

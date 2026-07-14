@@ -45,7 +45,7 @@ export function RegisterPage() {
       <section className="auth-context">
         <div className="auth-context-inner">
           <SiteLogo className="auth-logo" />
-          <h1>USTSACMLand</h1>
+          <h1>USTS ACM Land</h1>
           <p>苏州科技大学 ACM 集训队</p>
           <dl>
             <div>

@@ -62,10 +62,10 @@ flowchart LR
 | 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                              |
 | AtCoder    | Username     | 当前/最高 Rating               | 已实现 `/users/{username}/history/json`，区分未参赛与不存在账号；已做真实 smoke test                                                       |
 | XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册建立会话后立即按“姓名 + 苏州科技大学”同步，唯一命中时保存稳定 `xcpc_*` ID，同校同名时拒绝自动绑定，缓存策略待完成     |
-| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`，分页读取 Accepted 记录，只保留 `P`/`B` 开头 PID 并去重；不使用 Firecrawl                              |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                      |
 | QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID，不自动重试 |
 
-洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。该口径可能与公开主页的“通过”数字不同；同步沿用参考项目的请求方式，分页间隔 300ms；达到 `LUOGU_MAX_PAGES` 仍未读完时会失败并保留最后一次成功值，不会把截断数据写成总题数。
+洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
 QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，先以 `maxAge: 0` 创建全新 Firecrawl scrape 会话，再通过 `/interact` 登录并在同一浏览器中打开目标主页，最后主动结束会话；请求不使用持久 profile，也不读写 Firecrawl 页面缓存。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为 Firecrawl interact 作业请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
 

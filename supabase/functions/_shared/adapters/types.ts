@@ -37,6 +37,7 @@ export interface AdapterSuccess {
   sourceUpdatedAt: string | null
   sourceVersion: string | null
   details?: Record<string, unknown>
+  syncState?: unknown
 }
 
 export interface AdapterFailure {
@@ -57,6 +58,7 @@ export type AdapterResult = AdapterSuccess | AdapterFailure
 export interface AdapterContext {
   signal?: AbortSignal
   memberName?: string
+  syncState?: unknown
 }
 
 export interface PlatformAdapter {
@@ -81,6 +83,7 @@ export function success(
     sourceUpdatedAt: options.sourceUpdatedAt,
     sourceVersion: options.sourceVersion,
     details: options.details,
+    syncState: options.syncState,
   }
 }
 

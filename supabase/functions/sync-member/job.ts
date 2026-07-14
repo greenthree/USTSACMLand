@@ -22,7 +22,7 @@ export function buildSyncJobTarget(
       scope: 'account',
       profile_id: memberId,
       platform,
-      dedupe_key: `account:${memberId}:${platform}`,
+      dedupe_key: `member:${memberId}`,
       payload: { platforms: [...syncedPlatforms] },
     }
   }

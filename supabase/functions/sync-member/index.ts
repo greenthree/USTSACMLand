@@ -42,6 +42,17 @@ interface ExistingStat {
   source_version: string | null
 }
 
+interface LuoguSyncStateRow {
+  platform_account_id: number
+  account_external_id: string
+  state_version: number
+  boundary_record_id: string | null
+  boundary_submit_time: number | null
+  total_records: number | null
+  problem_ids: string[]
+  last_full_sync_at: string
+}
+
 class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -202,11 +213,100 @@ async function persistXcpcAccountResolution(
   return result
 }
 
+function luoguAdapterState(state: LuoguSyncStateRow | undefined): unknown {
+  if (!state) return undefined
+  return {
+    accountId: state.account_external_id,
+    boundaryRecordId: state.boundary_record_id,
+    boundarySubmitTime: state.boundary_submit_time,
+    totalRecords: state.total_records,
+    problemIds: state.problem_ids,
+    lastFullSyncAt: state.last_full_sync_at,
+  }
+}
+
+async function commitLuoguSyncResult(
+  client: SupabaseClient,
+  jobId: number,
+  runId: number,
+  account: PlatformAccount,
+  existingState: LuoguSyncStateRow | undefined,
+  result: AdapterResult,
+  finishedAt: string,
+  durationMs: number,
+  currentRating: number | null,
+  maxRating: number | null,
+  solvedCount: number | null,
+  status: 'fresh' | 'stale' | 'unavailable',
+  sourceObservedAt: string | null,
+  lastSuccessAt: string | null,
+  staleAfter: string | null,
+  sourceVersion: string | null,
+): Promise<void> {
+  if (account.platform !== 'luogu') return
+  const state = result.ok ? result.syncState : null
+  if (result.ok && (!state || typeof state !== 'object' || Array.isArray(state))) {
+    throw new Error('Luogu adapter did not return a valid incremental state')
+  }
+  const nextState = (state ?? {}) as Record<string, unknown>
+  const runMetrics = result.ok
+    ? result.metrics
+    : result.error.details
+      ? { diagnostics: result.error.details }
+      : null
+
+  const { error } = await client.rpc('commit_luogu_sync_result', {
+    target_platform_account_id: account.id,
+    expected_external_id: account.external_id,
+    expected_state_version: existingState?.state_version ?? 0,
+    target_job_id: jobId,
+    target_run_id: runId,
+    sync_succeeded: result.ok,
+    stat_current_rating: currentRating,
+    stat_max_rating: maxRating,
+    stat_solved_count: solvedCount,
+    stat_status: status,
+    stat_source_observed_at: sourceObservedAt,
+    stat_fetched_at: result.fetchedAt,
+    stat_last_success_at: lastSuccessAt,
+    stat_stale_after: staleAfter,
+    stat_error_code: result.ok ? null : result.error.code,
+    stat_error_message: result.ok ? null : result.error.message.slice(0, 4_000),
+    stat_source_version: sourceVersion,
+    run_finished_at: finishedAt,
+    run_duration_ms: durationMs,
+    run_metrics: runMetrics,
+    state_boundary_record_id: nextState.boundaryRecordId ?? null,
+    state_boundary_submit_time: nextState.boundarySubmitTime ?? null,
+    state_total_records: nextState.totalRecords ?? null,
+    state_problem_ids: nextState.problemIds ?? null,
+    state_last_full_sync_at: nextState.lastFullSyncAt ?? null,
+  })
+  if (error) {
+    throw new Error(`Could not atomically commit Luogu synchronization: ${error.message}`)
+  }
+}
+
+function publicAdapterResult(result: AdapterResult): AdapterResult {
+  if (!result.ok) return result
+  return {
+    ok: true,
+    platform: result.platform,
+    accountId: result.accountId,
+    metrics: result.metrics,
+    fetchedAt: result.fetchedAt,
+    sourceUpdatedAt: result.sourceUpdatedAt,
+    sourceVersion: result.sourceVersion,
+    details: result.details,
+  }
+}
+
 async function persistResult(
   client: SupabaseClient,
   jobId: number,
   account: PlatformAccount,
   existing: ExistingStat | undefined,
+  luoguState: LuoguSyncStateRow | undefined,
   memberName: string | undefined,
 ): Promise<{ result: AdapterResult; runId: number }> {
   const startedAt = new Date().toISOString()
@@ -230,7 +330,10 @@ async function persistResult(
   try {
     // external_id preserves case for case-sensitive platforms. The normalized
     // value exists for uniqueness checks, not for upstream requests.
-    const adapterResult = await adapters[account.platform].sync(account.external_id, { memberName })
+    const adapterResult = await adapters[account.platform].sync(account.external_id, {
+      memberName,
+      syncState: luoguAdapterState(luoguState),
+    })
     const result = await persistXcpcAccountResolution(client, account, adapterResult)
     const finishedAt = new Date().toISOString()
     const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt))
@@ -267,6 +370,28 @@ async function persistResult(
       error_message: result.ok ? null : result.error.message.slice(0, 4_000),
       source_version: sourceVersion,
       updated_at: finishedAt,
+    }
+
+    if (account.platform === 'luogu') {
+      await commitLuoguSyncResult(
+        client,
+        jobId,
+        run.id as number,
+        account,
+        luoguState,
+        result,
+        finishedAt,
+        durationMs,
+        currentRating,
+        maxRating,
+        solvedCount,
+        status,
+        sourceObservedAt,
+        lastSuccessAt,
+        staleAfter,
+        sourceVersion,
+      )
+      return { result, runId: run.id as number }
     }
 
     const { error: statError } = await client
@@ -462,6 +587,26 @@ Deno.serve(async (request) => {
       ((statsRows ?? []) as ExistingStat[]).map((stat) => [stat.platform, stat]),
     )
 
+    const luoguAccountIds = accounts
+      .filter((account) => account.platform === 'luogu')
+      .map((account) => account.id)
+    let luoguStateRows: LuoguSyncStateRow[] = []
+    if (luoguAccountIds.length > 0) {
+      const { data, error } = await serviceClient
+        .from('luogu_sync_states')
+        .select(
+          'platform_account_id, account_external_id, state_version, boundary_record_id, boundary_submit_time, total_records, problem_ids, last_full_sync_at',
+        )
+        .in('platform_account_id', luoguAccountIds)
+      if (error) {
+        throw new Error(`Could not load Luogu incremental state: ${error.message}`)
+      }
+      luoguStateRows = (data ?? []) as LuoguSyncStateRow[]
+    }
+    const luoguStateByAccount = new Map(
+      luoguStateRows.map((state) => [state.platform_account_id, state]),
+    )
+
     const persisted = await Promise.all(
       accounts.map(async (account) => {
         return await persistResult(
@@ -469,6 +614,7 @@ Deno.serve(async (request) => {
           jobId!,
           account,
           existingByPlatform.get(account.platform),
+          luoguStateByAccount.get(account.id),
           memberName,
         )
       }),
@@ -496,7 +642,7 @@ Deno.serve(async (request) => {
         jobId,
         memberId: body.memberId,
         status: failures.length === 0 ? 'succeeded' : 'failed',
-        results: persisted.map(({ result, runId }) => ({ runId, ...result })),
+        results: persisted.map(({ result, runId }) => ({ runId, ...publicAdapterResult(result) })),
       },
       failures.length === 0 ? 200 : 207,
     )

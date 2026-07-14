@@ -206,6 +206,50 @@ export type Database = {
           },
         ]
       }
+      luogu_sync_states: {
+        Row: {
+          account_external_id: string
+          boundary_record_id: string | null
+          boundary_submit_time: number | null
+          last_full_sync_at: string
+          platform_account_id: number
+          problem_ids: string[]
+          state_version: number
+          total_records: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_external_id: string
+          boundary_record_id?: string | null
+          boundary_submit_time?: number | null
+          last_full_sync_at: string
+          platform_account_id: number
+          problem_ids?: string[]
+          state_version?: number
+          total_records?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_external_id?: string
+          boundary_record_id?: string | null
+          boundary_submit_time?: number | null
+          last_full_sync_at?: string
+          platform_account_id?: number
+          problem_ids?: string[]
+          state_version?: number
+          total_records?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'luogu_sync_states_platform_account_id_fkey'
+            columns: ['platform_account_id']
+            isOneToOne: true
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       profiles: {
         Row: {
           approved_at: string | null
@@ -836,6 +880,36 @@ export type Database = {
           account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
         }[]
+      }
+      commit_luogu_sync_result: {
+        Args: {
+          expected_external_id: string
+          expected_state_version: number
+          run_duration_ms: number
+          run_finished_at: string
+          run_metrics: Json | null
+          state_boundary_record_id: string | null
+          state_boundary_submit_time: number | null
+          state_last_full_sync_at: string | null
+          state_problem_ids: string[] | null
+          state_total_records: number | null
+          stat_current_rating: number | null
+          stat_error_code: Database['public']['Enums']['sync_error_code'] | null
+          stat_error_message: string | null
+          stat_fetched_at: string
+          stat_last_success_at: string | null
+          stat_max_rating: number | null
+          stat_solved_count: number | null
+          stat_source_observed_at: string | null
+          stat_source_version: string | null
+          stat_stale_after: string | null
+          stat_status: Database['public']['Enums']['stat_freshness_status']
+          sync_succeeded: boolean
+          target_job_id: number
+          target_platform_account_id: number
+          target_run_id: number
+        }
+        Returns: number
       }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       can_edit_own_data: { Args: never; Returns: boolean }

@@ -2,6 +2,8 @@ import { fetchJson, HttpError, toAdapterHttpError } from '../http.ts'
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
 interface LuoguRecord {
+  id?: unknown
+  submitTime?: unknown
   problem?: {
     pid?: unknown
   } | null
@@ -16,10 +18,25 @@ interface LuoguRecordListResponse {
   } | null
 }
 
+export interface LuoguAcceptedRecord {
+  id: string
+  submitTime: number
+  problemId: string
+}
+
 export interface LuoguRecordPage {
-  problemIds: string[]
+  records: LuoguAcceptedRecord[]
   recordCount: number
   totalRecords: number | null
+}
+
+export interface LuoguSyncState {
+  accountId: string
+  boundaryRecordId: string | null
+  boundarySubmitTime: number | null
+  totalRecords: number | null
+  problemIds: string[]
+  lastFullSyncAt: string
 }
 
 export interface LuoguTransport {
@@ -30,12 +47,35 @@ export interface LuoguAdapterOptions {
   transport?: LuoguTransport | null
   maxPages?: number
   pageDelayMs?: number
+  now?: () => Date
+}
+
+interface ScanResult {
+  records: LuoguAcceptedRecord[]
+  pagesRead: number
+  recordsRead: number
+  totalRecords: number | null
+  boundaryIndex: number | null
+  complete: boolean
+}
+
+interface SyncMetrics {
+  solvedCount: number
+  state: LuoguSyncState
+  pagesRead: number
+  recordsRead: number
+  newRecords: number
+  newProblems: number
+  syncMode: 'full' | 'incremental' | 'rebuild'
+  fallbackReason: string | null
 }
 
 const ORIGIN = 'https://www.luogu.com.cn'
 const DEFAULT_MAX_PAGES = 100
 const MAX_MAX_PAGES = 1_000
 const DEFAULT_PAGE_DELAY_MS = 300
+const FULL_SYNC_INTERVAL_MS = 30 * 24 * 60 * 60 * 1_000
+const MAX_STATE_PROBLEMS = 100_000
 const COUNTED_PROBLEM_PID = /^[PB]/i
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -52,6 +92,12 @@ function parseOptionalTotal(records: Record<string, unknown>): number | null {
     throw new HttpError('Luogu record total is invalid', 'schema_changed', false)
   }
   return count
+}
+
+function parseRecordId(value: unknown, index: number): string {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value)
+  if (typeof value === 'string' && /^\d{1,30}$/.test(value)) return value
+  throw new HttpError(`Luogu record ${index} ID is invalid`, 'schema_changed', false)
 }
 
 export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
@@ -72,7 +118,7 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
     throw new HttpError('Luogu record result is not an array', 'schema_changed', false)
   }
 
-  const problemIds = records.result.map((value, index) => {
+  const parsedRecords = records.result.map((value, index) => {
     if (!isRecord(value)) {
       throw new HttpError(`Luogu record ${index} is not an object`, 'schema_changed', false)
     }
@@ -80,16 +126,32 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
     if (!isRecord(record.problem)) {
       throw new HttpError(`Luogu record ${index} problem is missing`, 'schema_changed', false)
     }
-    const pid = record.problem.pid
-    if (typeof pid !== 'string' || pid.length === 0 || pid.length > 100 || pid.trim() !== pid) {
+    const problemId = record.problem.pid
+    if (
+      typeof problemId !== 'string' ||
+      problemId.length === 0 ||
+      problemId.length > 100 ||
+      problemId.trim() !== problemId
+    ) {
       throw new HttpError(`Luogu record ${index} problem PID is invalid`, 'schema_changed', false)
     }
-    return pid
+    if (
+      typeof record.submitTime !== 'number' ||
+      !Number.isSafeInteger(record.submitTime) ||
+      record.submitTime < 0
+    ) {
+      throw new HttpError(`Luogu record ${index} submit time is invalid`, 'schema_changed', false)
+    }
+    return {
+      id: parseRecordId(record.id, index),
+      submitTime: record.submitTime,
+      problemId,
+    }
   })
 
   return {
-    problemIds,
-    recordCount: records.result.length,
+    records: parsedRecords,
+    recordCount: parsedRecords.length,
     totalRecords: parseOptionalTotal(records),
   }
 }
@@ -192,18 +254,75 @@ function normalizeLuoguError(error: unknown): ReturnType<typeof toAdapterHttpErr
   return toAdapterHttpError(error)
 }
 
-async function countAcceptedProblems(
+function parseSyncState(value: unknown, accountId: string): LuoguSyncState | null {
+  if (!isRecord(value) || value.accountId !== accountId) return null
+  const boundaryRecordId = value.boundaryRecordId
+  const boundarySubmitTime = value.boundarySubmitTime
+  if (!(
+    (boundaryRecordId === null && boundarySubmitTime === null) ||
+    (typeof boundaryRecordId === 'string' &&
+      /^\d{1,30}$/.test(boundaryRecordId) &&
+      typeof boundarySubmitTime === 'number' &&
+      Number.isSafeInteger(boundarySubmitTime) &&
+      boundarySubmitTime >= 0)
+  )) {
+    return null
+  }
+  if (
+    !(
+      value.totalRecords === null ||
+      (typeof value.totalRecords === 'number' &&
+        Number.isSafeInteger(value.totalRecords) &&
+        value.totalRecords >= 0)
+    ) ||
+    !Array.isArray(value.problemIds) ||
+    value.problemIds.length > MAX_STATE_PROBLEMS ||
+    typeof value.lastFullSyncAt !== 'string' ||
+    !Number.isFinite(Date.parse(value.lastFullSyncAt))
+  ) {
+    return null
+  }
+
+  const problemIds = new Set<string>()
+  for (const problemId of value.problemIds) {
+    if (
+      typeof problemId !== 'string' ||
+      problemId.length === 0 ||
+      problemId.length > 100 ||
+      problemId.trim() !== problemId ||
+      !COUNTED_PROBLEM_PID.test(problemId)
+    ) {
+      return null
+    }
+    problemIds.add(problemId.toUpperCase())
+  }
+
+  return {
+    accountId,
+    boundaryRecordId,
+    boundarySubmitTime,
+    totalRecords: value.totalRecords as number | null,
+    problemIds: [...problemIds].sort(),
+    lastFullSyncAt: value.lastFullSyncAt,
+  }
+}
+
+async function scanRecordHistory(
   transport: LuoguTransport,
   accountId: string,
+  boundaryRecordId: string | null,
   maxPages: number,
   pageDelayMs: number,
   signal?: AbortSignal,
-): Promise<{ solvedCount: number; pagesRead: number; recordsRead: number }> {
-  const countedProblemIds = new Set<string>()
+): Promise<ScanResult> {
+  const records: LuoguAcceptedRecord[] = []
+  const seenRecordIds = new Set<string>()
   let pagesRead = 0
   let recordsRead = 0
   let expectedTotal: number | null = null
+  let boundaryIndex: number | null = null
   let complete = false
+  let previousSubmitTime = Number.POSITIVE_INFINITY
 
   for (let page = 1; page <= maxPages; page += 1) {
     const recordPage = parseLuoguRecordPage(
@@ -218,12 +337,32 @@ async function countAcceptedProblems(
       expectedTotal = recordPage.totalRecords
     }
 
+    const pageOffset = records.length
+    for (const record of recordPage.records) {
+      if (record.submitTime > previousSubmitTime) {
+        throw new HttpError('Luogu records are not ordered newest first', 'schema_changed', false)
+      }
+      previousSubmitTime = record.submitTime
+      if (seenRecordIds.has(record.id)) {
+        throw new HttpError('Luogu returned a duplicate record ID', 'schema_changed', false)
+      }
+      seenRecordIds.add(record.id)
+      records.push(record)
+    }
+
     recordsRead += recordPage.recordCount
     if (expectedTotal !== null && recordsRead > expectedTotal) {
       throw new HttpError('Luogu returned more records than its total', 'schema_changed', false)
     }
-    for (const problemId of recordPage.problemIds) {
-      if (COUNTED_PROBLEM_PID.test(problemId)) countedProblemIds.add(problemId.toUpperCase())
+
+    if (boundaryRecordId !== null && boundaryIndex === null) {
+      const localBoundaryIndex = recordPage.records.findIndex(
+        (record) => record.id === boundaryRecordId,
+      )
+      if (localBoundaryIndex >= 0) {
+        boundaryIndex = pageOffset + localBoundaryIndex
+        break
+      }
     }
 
     if (recordPage.recordCount === 0) {
@@ -245,7 +384,7 @@ async function countAcceptedProblems(
     if (page < maxPages) await waitForNextPage(pageDelayMs, signal)
   }
 
-  if (!complete) {
+  if (boundaryIndex === null && !complete) {
     throw new HttpError(
       `Luogu record history exceeded the ${maxPages}-page safety limit`,
       'source_unavailable',
@@ -253,7 +392,155 @@ async function countAcceptedProblems(
     )
   }
 
-  return { solvedCount: countedProblemIds.size, pagesRead, recordsRead }
+  return { records, pagesRead, recordsRead, totalRecords: expectedTotal, boundaryIndex, complete }
+}
+
+function countedProblemIds(records: readonly LuoguAcceptedRecord[]): Set<string> {
+  const problemIds = new Set<string>()
+  for (const record of records) {
+    if (COUNTED_PROBLEM_PID.test(record.problemId)) {
+      problemIds.add(record.problemId.toUpperCase())
+      if (problemIds.size > MAX_STATE_PROBLEMS) {
+        throw new HttpError('Luogu solved-problem state is too large', 'source_unavailable', false)
+      }
+    }
+  }
+  return problemIds
+}
+
+function nextState(
+  accountId: string,
+  scan: ScanResult,
+  problemIds: Set<string>,
+  lastFullSyncAt: string,
+): LuoguSyncState {
+  const newest = scan.records[0] ?? null
+  return {
+    accountId,
+    boundaryRecordId: newest?.id ?? null,
+    boundarySubmitTime: newest?.submitTime ?? null,
+    totalRecords: scan.totalRecords,
+    problemIds: [...problemIds].sort(),
+    lastFullSyncAt,
+  }
+}
+
+async function synchronizeAcceptedProblems(
+  transport: LuoguTransport,
+  accountId: string,
+  previousStateValue: unknown,
+  maxPages: number,
+  pageDelayMs: number,
+  fetchedAt: string,
+  signal?: AbortSignal,
+): Promise<SyncMetrics> {
+  const previousState = parseSyncState(previousStateValue, accountId)
+  const previousFullSyncAt = previousState ? Date.parse(previousState.lastFullSyncAt) : Number.NaN
+  const requiresPeriodicFullSync =
+    previousState !== null && Date.parse(fetchedAt) - previousFullSyncAt >= FULL_SYNC_INTERVAL_MS
+
+  if (!previousState || previousState.boundaryRecordId === null || requiresPeriodicFullSync) {
+    const scan = await scanRecordHistory(transport, accountId, null, maxPages, pageDelayMs, signal)
+    const problemIds = countedProblemIds(scan.records)
+    return {
+      solvedCount: problemIds.size,
+      state: nextState(accountId, scan, problemIds, fetchedAt),
+      pagesRead: scan.pagesRead,
+      recordsRead: scan.recordsRead,
+      newRecords: scan.records.length,
+      newProblems: problemIds.size,
+      syncMode: 'full',
+      fallbackReason: requiresPeriodicFullSync ? 'periodic_reconciliation' : null,
+    }
+  }
+
+  const incrementalScan = await scanRecordHistory(
+    transport,
+    accountId,
+    previousState.boundaryRecordId,
+    maxPages,
+    pageDelayMs,
+    signal,
+  )
+  const totalDecreased =
+    incrementalScan.totalRecords !== null &&
+    previousState.totalRecords !== null &&
+    incrementalScan.totalRecords < previousState.totalRecords
+  const expectedNewRecords =
+    incrementalScan.totalRecords !== null && previousState.totalRecords !== null
+      ? incrementalScan.totalRecords - previousState.totalRecords
+      : null
+  const totalDeltaMismatch =
+    incrementalScan.boundaryIndex !== null &&
+    expectedNewRecords !== null &&
+    expectedNewRecords !== incrementalScan.boundaryIndex
+  const boundaryTimestampMismatch =
+    incrementalScan.boundaryIndex !== null &&
+    incrementalScan.records[incrementalScan.boundaryIndex]?.submitTime !==
+      previousState.boundarySubmitTime
+
+  if (totalDecreased || totalDeltaMismatch || boundaryTimestampMismatch) {
+    const fullScan = await scanRecordHistory(
+      transport,
+      accountId,
+      null,
+      maxPages,
+      pageDelayMs,
+      signal,
+    )
+    const problemIds = countedProblemIds(fullScan.records)
+    return {
+      solvedCount: problemIds.size,
+      state: nextState(accountId, fullScan, problemIds, fetchedAt),
+      pagesRead: incrementalScan.pagesRead + fullScan.pagesRead,
+      recordsRead: incrementalScan.recordsRead + fullScan.recordsRead,
+      newRecords: fullScan.records.length,
+      newProblems: problemIds.size,
+      syncMode: 'rebuild',
+      fallbackReason: totalDecreased
+        ? 'record_total_decreased'
+        : boundaryTimestampMismatch
+          ? 'boundary_timestamp_mismatch'
+          : 'record_total_delta_mismatch',
+    }
+  }
+
+  if (incrementalScan.boundaryIndex === null) {
+    const problemIds = countedProblemIds(incrementalScan.records)
+    return {
+      solvedCount: problemIds.size,
+      state: nextState(accountId, incrementalScan, problemIds, fetchedAt),
+      pagesRead: incrementalScan.pagesRead,
+      recordsRead: incrementalScan.recordsRead,
+      newRecords: incrementalScan.records.length,
+      newProblems: problemIds.size,
+      syncMode: 'rebuild',
+      fallbackReason: 'boundary_record_missing',
+    }
+  }
+
+  const newRecords = incrementalScan.records.slice(0, incrementalScan.boundaryIndex)
+  const problemIds = new Set(previousState.problemIds)
+  const previousProblemCount = problemIds.size
+  for (const record of newRecords) {
+    if (COUNTED_PROBLEM_PID.test(record.problemId)) {
+      problemIds.add(record.problemId.toUpperCase())
+      if (problemIds.size > MAX_STATE_PROBLEMS) {
+        throw new HttpError('Luogu solved-problem state is too large', 'source_unavailable', false)
+      }
+    }
+  }
+
+  return {
+    solvedCount: problemIds.size,
+    state: nextState(accountId, incrementalScan, problemIds, previousState.lastFullSyncAt),
+    pagesRead: incrementalScan.pagesRead,
+    recordsRead: incrementalScan.recordsRead,
+    newRecords: newRecords.length,
+    newProblems: problemIds.size - previousProblemCount,
+    syncMode: 'incremental',
+    fallbackReason: null,
+  }
 }
 
 export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformAdapter {
@@ -282,11 +569,14 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
         const maxPages = resolveMaxPages(options.maxPages, options.transport === undefined)
         const pageDelayMs =
           options.pageDelayMs ?? (options.transport === undefined ? DEFAULT_PAGE_DELAY_MS : 0)
-        const metrics = await countAcceptedProblems(
+        const fetchedAt = (options.now ?? (() => new Date()))().toISOString()
+        const metrics = await synchronizeAcceptedProblems(
           transport,
           accountId,
+          context?.syncState,
           maxPages,
           pageDelayMs,
+          fetchedAt,
           context?.signal,
         )
         return success(
@@ -294,14 +584,20 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           accountId,
           { currentRating: null, maxRating: null, solvedCount: metrics.solvedCount },
           {
+            fetchedAt,
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-authenticated-record-list-pb-v1',
+            sourceVersion: 'luogu-authenticated-record-list-pb-v2',
+            syncState: metrics.state,
             details: {
               provider: 'authenticated_record_list',
               statistic: 'unique currentData.records.result[].problem.pid',
               pidPrefixes: ['P', 'B'],
+              syncMode: metrics.syncMode,
+              fallbackReason: metrics.fallbackReason,
               pagesRead: metrics.pagesRead,
               recordsRead: metrics.recordsRead,
+              newRecords: metrics.newRecords,
+              newProblems: metrics.newProblems,
             },
           },
         )
