@@ -38,6 +38,25 @@ async function loadSupabaseUser(user: User): Promise<AuthUser> {
   }
 }
 
+async function startRegistrationXcpcSync(memberId: string) {
+  if (!supabase) return
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const { error } = await supabase.functions.invoke('sync-member', {
+        body: {
+          memberId,
+          platforms: ['xcpc_elo'],
+          triggerType: 'registration',
+        },
+      })
+      if (!error) return
+    } catch {
+      // A second attempt covers a transient network failure during registration.
+    }
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -127,9 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: { data: { full_name: normalizedFullName } },
       })
       if (error) throw error
-      if (!data.session) return false
+      if (!data.session || !data.user) return false
 
       await applySupabaseUser(data.user)
+      void startRegistrationXcpcSync(data.user.id)
       return true
     },
     [applySupabaseUser],

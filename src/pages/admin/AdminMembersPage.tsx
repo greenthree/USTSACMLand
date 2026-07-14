@@ -1,4 +1,5 @@
 import Ban from 'lucide-react/dist/esm/icons/ban'
+import Eye from 'lucide-react/dist/esm/icons/eye'
 import Pencil from 'lucide-react/dist/esm/icons/pencil'
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
 import Save from 'lucide-react/dist/esm/icons/save'
@@ -13,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { mockAdminMembers } from '../../data/mock'
@@ -361,6 +363,14 @@ export function AdminMembersPage() {
                     </td>
                     <td data-label="操作">
                       <div className="row-actions">
+                        <Link
+                          className="icon-button"
+                          to={`/admin/members/${member.id}`}
+                          title="查看成员详情"
+                          aria-label={`查看 ${member.name} 详情`}
+                        >
+                          <Eye size={16} aria-hidden="true" />
+                        </Link>
                         <button
                           className="icon-button"
                           type="button"

@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import type { AdminMember } from '../../types/domain'
 
 const memberMocks = vi.hoisted(() => ({
@@ -19,6 +20,14 @@ vi.mock('../../lib/adminMembers', () => ({
 }))
 
 import { AdminMembersPage } from './AdminMembersPage'
+
+function renderMembersPage() {
+  return render(
+    <MemoryRouter>
+      <AdminMembersPage />
+    </MemoryRouter>,
+  )
+}
 
 const activeMember: AdminMember = {
   id: 'member-1',
@@ -58,7 +67,7 @@ describe('AdminMembersPage with Supabase configured', () => {
 
   it('loads members and filters by private fields and status', async () => {
     const user = userEvent.setup()
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     expect(await screen.findByRole('row', { name: /测试成员/ })).toBeInTheDocument()
     expect(screen.getByRole('row', { name: /停用成员/ })).toBeInTheDocument()
@@ -77,7 +86,7 @@ describe('AdminMembersPage with Supabase configured', () => {
     const user = userEvent.setup()
     memberMocks.fetchMembers.mockResolvedValue([activeMember])
     memberMocks.setSuspension.mockResolvedValue('2026-07-13T12:00:00Z')
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     const row = await screen.findByRole('row', { name: /测试成员/ })
     await user.click(screen.getByRole('button', { name: '停用 测试成员' }))
@@ -102,7 +111,7 @@ describe('AdminMembersPage with Supabase configured', () => {
     const user = userEvent.setup()
     memberMocks.fetchMembers.mockResolvedValue([suspendedMember])
     memberMocks.setSuspension.mockResolvedValue('2026-07-13T12:30:00Z')
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     const row = await screen.findByRole('row', { name: /停用成员/ })
     await user.click(screen.getByRole('button', { name: '恢复 停用成员' }))
@@ -121,7 +130,7 @@ describe('AdminMembersPage with Supabase configured', () => {
     const user = userEvent.setup()
     memberMocks.fetchMembers.mockResolvedValue([activeMember])
     memberMocks.updateProfile.mockResolvedValue('2026-07-13T13:00:00Z')
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     const row = await screen.findByRole('row', { name: /测试成员/ })
     await user.click(screen.getByRole('button', { name: '编辑 测试成员' }))
@@ -160,7 +169,7 @@ describe('AdminMembersPage with Supabase configured', () => {
 
   it('shows a protected empty state when the live list fails', async () => {
     memberMocks.fetchMembers.mockRejectedValue(new Error('成员列表读取失败：无权限'))
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     expect(await screen.findByText('成员列表读取失败：无权限')).toHaveAttribute('role', 'status')
     expect(screen.getByText('没有匹配的成员')).toBeInTheDocument()
@@ -169,7 +178,7 @@ describe('AdminMembersPage with Supabase configured', () => {
   it('keeps keyboard focus inside the suspension dialog and restores it on close', async () => {
     const user = userEvent.setup()
     memberMocks.fetchMembers.mockResolvedValue([activeMember])
-    render(<AdminMembersPage />)
+    renderMembersPage()
 
     await screen.findByRole('row', { name: /测试成员/ })
     const trigger = screen.getByRole('button', { name: '停用 测试成员' })

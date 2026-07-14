@@ -1,0 +1,158 @@
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { mockAdminMemberDetail } from '../../data/mock'
+
+const memberDetailMocks = vi.hoisted(() => ({
+  fetchDetail: vi.fn(),
+  upsertAccount: vi.fn(),
+  unbindAccount: vi.fn(),
+  setManualStats: vi.fn(),
+  setAccountStatus: vi.fn(),
+  triggerSync: vi.fn(),
+}))
+
+vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
+vi.mock('../../lib/adminMemberDetail', () => ({
+  fetchAdminMemberDetail: memberDetailMocks.fetchDetail,
+  upsertAdminMemberPlatformAccount: memberDetailMocks.upsertAccount,
+  unbindAdminMemberPlatformAccount: memberDetailMocks.unbindAccount,
+  setAdminManualPlatformStats: memberDetailMocks.setManualStats,
+}))
+vi.mock('../../lib/adminPlatformAccounts', () => ({
+  setAdminPlatformAccountStatus: memberDetailMocks.setAccountStatus,
+}))
+vi.mock('../../lib/adminImmediateSync', () => ({
+  triggerAdminImmediateSync: memberDetailMocks.triggerSync,
+}))
+
+import { AdminMemberDetailPage } from './AdminMemberDetailPage'
+
+function detailFixture() {
+  return structuredClone(mockAdminMemberDetail)
+}
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={['/admin/members/member-1']}>
+      <Routes>
+        <Route path="/admin/members/:memberId" element={<AdminMemberDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('AdminMemberDetailPage', () => {
+  beforeEach(() => {
+    for (const mock of Object.values(memberDetailMocks)) mock.mockReset()
+    memberDetailMocks.fetchDetail.mockResolvedValue(detailFixture())
+    memberDetailMocks.upsertAccount.mockResolvedValue(undefined)
+    memberDetailMocks.unbindAccount.mockResolvedValue(undefined)
+    memberDetailMocks.setManualStats.mockResolvedValue(undefined)
+    memberDetailMocks.setAccountStatus.mockResolvedValue(undefined)
+    memberDetailMocks.triggerSync.mockResolvedValue(undefined)
+  })
+
+  it('shows the member profile, six platforms, and XCPC automatic matching boundary', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: '沈亦安' })).toBeInTheDocument()
+    expect(screen.getAllByRole('row')).toHaveLength(7)
+    expect(screen.getByRole('row', { name: /Codeforces/ })).toHaveTextContent('1,712')
+    expect(screen.getByRole('row', { name: /牛客/ })).toHaveTextContent('待验证')
+    expect(screen.queryByRole('button', { name: '修改 XCPC ELO 账号' })).not.toBeInTheDocument()
+  })
+
+  it('edits a platform account with its optimistic-lock timestamp', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    await user.click(screen.getByRole('button', { name: '修改 牛客 账号' }))
+    const dialog = screen.getByRole('dialog', { name: '修改 牛客 账号' })
+    const input = within(dialog).getByRole('textbox', { name: '平台账号' })
+    await user.clear(input)
+    await user.type(input, '39841234')
+    await user.click(within(dialog).getByRole('button', { name: '保存账号' }))
+
+    expect(memberDetailMocks.upsertAccount).toHaveBeenCalledWith(
+      'member-1',
+      'nowcoder',
+      '39841234',
+      '2026-07-13T09:00:00+08:00',
+    )
+    expect(await screen.findByText('牛客 账号已保存，等待验证。')).toBeInTheDocument()
+  })
+
+  it('validates and submits manual platform data with an audit reason', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    await user.click(screen.getByRole('button', { name: '手工录入 Codeforces 数据' }))
+    const dialog = screen.getByRole('dialog', { name: '手工录入 Codeforces 数据' })
+    const current = within(dialog).getByRole('spinbutton', { name: '当前 Rating' })
+    const maximum = within(dialog).getByRole('spinbutton', { name: '历史最高 Rating' })
+    const solved = within(dialog).getByRole('spinbutton', { name: '通过题数' })
+    await user.clear(current)
+    await user.type(current, '1800')
+    await user.clear(maximum)
+    await user.type(maximum, '1900')
+    await user.clear(solved)
+    await user.type(solved, '700')
+    await user.type(within(dialog).getByRole('textbox', { name: '录入原因' }), '补录比赛数据')
+    await user.click(within(dialog).getByRole('button', { name: '保存手工数据' }))
+
+    expect(memberDetailMocks.setManualStats).toHaveBeenCalledWith(
+      'member-1',
+      'codeforces',
+      expect.objectContaining({
+        currentRating: 1800,
+        maxRating: 1900,
+        solvedCount: 700,
+        note: '补录比赛数据',
+      }),
+      '2026-07-13T08:00:00+08:00',
+    )
+    expect(await screen.findByText('Codeforces 手工数据已保存。')).toBeInTheDocument()
+  })
+
+  it('rejects a maximum Rating below the current Rating before calling the RPC', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+    await user.click(screen.getByRole('button', { name: '手工录入 Codeforces 数据' }))
+
+    const dialog = screen.getByRole('dialog', { name: '手工录入 Codeforces 数据' })
+    const current = within(dialog).getByRole('spinbutton', { name: '当前 Rating' })
+    const maximum = within(dialog).getByRole('spinbutton', { name: '历史最高 Rating' })
+    await user.clear(current)
+    await user.type(current, '2000')
+    await user.clear(maximum)
+    await user.type(maximum, '1900')
+    await user.type(within(dialog).getByRole('textbox', { name: '录入原因' }), '测试校验')
+    await user.click(within(dialog).getByRole('button', { name: '保存手工数据' }))
+
+    expect(
+      await within(dialog).findByText('历史最高 Rating 不能低于当前 Rating。'),
+    ).toBeInTheDocument()
+    expect(memberDetailMocks.setManualStats).not.toHaveBeenCalled()
+  })
+
+  it('requires confirmation before deleting an account and its snapshots', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    await user.click(screen.getByRole('button', { name: '解绑 Codeforces 账号' }))
+    const dialog = screen.getByRole('dialog', { name: '解绑 Codeforces 账号' })
+    expect(dialog).toHaveTextContent('永久删除该平台的当前统计和全部历史快照')
+    await user.click(within(dialog).getByRole('button', { name: '确认解绑' }))
+
+    expect(memberDetailMocks.unbindAccount).toHaveBeenCalledWith(
+      'member-1',
+      'codeforces',
+      '2026-07-13T08:00:00+08:00',
+    )
+  })
+})

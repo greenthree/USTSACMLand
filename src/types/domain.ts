@@ -71,6 +71,53 @@ export interface AdminMemberProfileUpdate {
   isPublic: boolean
 }
 
+export type AdminMemberAccountStatus = AccountVerificationStatus | 'missing'
+export type AdminMemberStatStatus = 'fresh' | 'stale' | 'unavailable' | 'missing'
+
+export interface AdminMemberPlatformDetail {
+  platform: Platform
+  accountId: number | null
+  externalId: string | null
+  accountStatus: AdminMemberAccountStatus
+  verifiedAt: string | null
+  verificationErrorMessage: string | null
+  accountUpdatedAt: string | null
+  currentRating: number | null
+  maxRating: number | null
+  solvedCount: number | null
+  statStatus: AdminMemberStatStatus
+  sourceObservedAt: string | null
+  lastSuccessAt: string | null
+  staleAfter: string | null
+  sourceVersion: string | null
+  statUpdatedAt: string | null
+}
+
+export interface AdminMemberActivity {
+  id: string
+  kind: 'audit' | 'sync'
+  targetTable: string
+  action: string
+  platform: Platform | null
+  runStatus: string | null
+  detail: string | null
+  sourceVersion: string | null
+  createdAt: string
+}
+
+export interface AdminMemberDetail extends AdminMember {
+  platforms: AdminMemberPlatformDetail[]
+  activity: AdminMemberActivity[]
+}
+
+export interface AdminManualStatsInput {
+  currentRating: number | null
+  maxRating: number | null
+  solvedCount: number | null
+  sourceObservedAt: string | null
+  note: string
+}
+
 export interface SyncRun {
   id: number
   jobId: number

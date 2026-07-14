@@ -9,7 +9,12 @@ import {
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { freshnessDeadline, retainedFreshness } from '../_shared/freshness.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
-import { canRequestSync, SYNC_TRIGGER_TYPES, type SyncTriggerType } from './access.ts'
+import {
+  canRequestSync,
+  isRegistrationSyncWindowOpen,
+  SYNC_TRIGGER_TYPES,
+  type SyncTriggerType,
+} from './access.ts'
 import { buildSyncJobTarget } from './job.ts'
 
 interface SyncRequest {
@@ -87,10 +92,20 @@ async function authorize(
   serviceClient: SupabaseClient,
   memberId: string,
   serviceRoleKey: string,
-): Promise<{ requestedBy: string | null; serviceRole: boolean; admin: boolean }> {
+): Promise<{
+  requestedBy: string | null
+  serviceRole: boolean
+  admin: boolean
+  profileCreatedAt: string | null
+}> {
   const token = bearerToken(request)
   if (token === serviceRoleKey || gatewayVerifiedJwtRole(token) === 'service_role') {
-    return { requestedBy: null, serviceRole: true, admin: true }
+    return {
+      requestedBy: null,
+      serviceRole: true,
+      admin: true,
+      profileCreatedAt: null,
+    }
   }
 
   const { data: userData, error: userError } = await serviceClient.auth.getUser(token)
@@ -100,7 +115,7 @@ async function authorize(
 
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('role, review_status')
+    .select('role, review_status, created_at')
     .eq('id', userData.user.id)
     .maybeSingle()
   if (profileError) {
@@ -112,7 +127,12 @@ async function authorize(
   if (!admin && userData.user.id !== memberId) {
     throw new ApiError(403, 'Members may only synchronize their own account')
   }
-  return { requestedBy: userData.user.id, serviceRole: false, admin }
+  return {
+    requestedBy: userData.user.id,
+    serviceRole: false,
+    admin,
+    profileCreatedAt: profile.created_at,
+  }
 }
 
 function eligibleAccount(account: PlatformAccount): boolean {
@@ -341,14 +361,22 @@ Deno.serve(async (request) => {
     if (!SYNC_TRIGGER_TYPES.includes(triggerType)) {
       throw new ApiError(400, 'Unsupported triggerType')
     }
-    if (!canRequestSync(auth, triggerType)) {
+    if (!canRequestSync(auth, triggerType, platforms)) {
       if (!auth.admin) {
-        throw new ApiError(403, 'Manual synchronization is restricted to administrators')
+        throw new ApiError(
+          403,
+          'Members may only request their own XCPC ELO synchronization during registration',
+        )
       }
       throw new ApiError(
         403,
         'Administrators may only request registration, account-change, manual, or retry synchronization',
       )
+    }
+    const memberRegistrationSync =
+      !auth.serviceRole && !auth.admin && triggerType === 'registration'
+    if (memberRegistrationSync && !isRegistrationSyncWindowOpen(auth.profileCreatedAt)) {
+      throw new ApiError(403, 'The XCPC ELO registration synchronization window has expired')
     }
 
     const { data: memberProfile, error: memberProfileError } = await serviceClient
@@ -397,6 +425,9 @@ Deno.serve(async (request) => {
       .single()
     if (jobError) {
       if (jobError.code === '23505') {
+        if (memberRegistrationSync) {
+          throw new ApiError(409, 'XCPC ELO registration synchronization was already requested')
+        }
         throw new ApiError(409, 'A synchronization job is already active for this member')
       }
       throw new Error(`Could not create sync job: ${jobError.message}`)

@@ -641,6 +641,38 @@ export type Database = {
           verified_account_count: number
         }[]
       }
+      admin_get_member_detail: {
+        Args: { target_profile_id: string }
+        Returns: {
+          account_id: number
+          account_status: Database['public']['Enums']['account_verification_status']
+          account_updated_at: string
+          created_at: string
+          current_rating: number
+          email: string
+          external_id: string
+          full_name: string
+          grade: string
+          id: string
+          is_public: boolean
+          last_success_at: string
+          major: string
+          max_rating: number
+          platform: Database['public']['Enums']['platform_name']
+          qq: string
+          review_status: Database['public']['Enums']['profile_review_status']
+          solved_count: number
+          source_observed_at: string
+          source_version: string
+          stale_after: string
+          stat_status: Database['public']['Enums']['stat_freshness_status']
+          stat_updated_at: string
+          suspension_note: string
+          updated_at: string
+          verification_error_message: string
+          verified_at: string
+        }[]
+      }
       admin_get_source_health: {
         Args: { lookback_hours?: number }
         Returns: {
@@ -704,6 +736,20 @@ export type Database = {
           verified_platform_count: number
         }[]
       }
+      admin_list_member_activity: {
+        Args: { row_limit?: number; target_profile_id: string }
+        Returns: {
+          action: string
+          created_at: string
+          detail: string
+          event_id: string
+          event_kind: string
+          platform: string
+          run_status: string
+          source_version: string
+          target_table: string
+        }[]
+      }
       admin_list_sync_runs: {
         Args: { before_run_id?: number; row_limit?: number }
         Returns: {
@@ -742,6 +788,22 @@ export type Database = {
         }
         Returns: string
       }
+      admin_set_manual_platform_stats: {
+        Args: {
+          expected_stat_updated_at?: string
+          manual_current_rating: number | null
+          manual_max_rating: number | null
+          manual_note: string
+          manual_solved_count: number | null
+          manual_source_observed_at: string | null
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: {
+          stat_updated_at: string
+          sync_run_id: number
+        }[]
+      }
       admin_update_member_profile: {
         Args: {
           expected_updated_at: string
@@ -753,6 +815,27 @@ export type Database = {
           target_profile_id: string
         }
         Returns: string
+      }
+      admin_unbind_member_platform_account: {
+        Args: {
+          expected_updated_at: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: boolean
+      }
+      admin_upsert_member_platform_account: {
+        Args: {
+          expected_updated_at?: string
+          new_external_id: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: {
+          account_id: number
+          account_status: Database['public']['Enums']['account_verification_status']
+          account_updated_at: string
+        }[]
       }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       can_edit_own_data: { Args: never; Returns: boolean }

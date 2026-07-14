@@ -388,6 +388,10 @@ function auditAction(row: AdminAuditRow, details: Record<string, unknown>): stri
     return '请求同步'
   }
 
+  if (row.target_table === 'platform_stats' && row.action === 'manual_stats_updated') {
+    return '手工录入平台数据'
+  }
+
   if (row.target_table === 'announcements') {
     if (row.action === 'insert') return '创建公告'
     if (row.action === 'delete') return '删除公告'
