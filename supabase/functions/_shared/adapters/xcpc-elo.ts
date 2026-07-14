@@ -8,6 +8,7 @@ export interface XcpcPlayer {
   rating?: number
   maxRating?: number
   contests?: number
+  history?: unknown[]
 }
 
 export interface XcpcDataset {
@@ -39,6 +40,21 @@ export function findXcpcPlayersByIdentity(
       normalizeIdentityPart(candidate.teamMember) === normalizedName &&
       normalizeIdentityPart(candidate.organization) === normalizedOrganization,
   )
+}
+
+export function computeXcpcHistoricalMaxRating(player: Pick<XcpcPlayer, 'history'>): number | null {
+  const history = Array.isArray(player.history) ? player.history : []
+  let best = Number.NEGATIVE_INFINITY
+
+  for (const event of history) {
+    if (!Array.isArray(event)) continue
+    const rating = event[3]
+    if (typeof rating === 'number' && Number.isFinite(rating) && rating > best) {
+      best = rating
+    }
+  }
+
+  return Number.isFinite(best) ? best : null
 }
 
 function parseDataset(script: string): XcpcDataset {
@@ -134,29 +150,30 @@ export function createXcpcEloAdapter(
             false,
           )
         }
-        if (!Number.isFinite(player.rating) || !Number.isFinite(player.maxRating)) {
+        if (!Number.isFinite(player.rating)) {
           return failure(
             'xcpc_elo',
             player.id,
             'schema_changed',
-            'XCPC ELO player rating fields are invalid',
+            'XCPC ELO player rating field is invalid',
             false,
           )
         }
+        const historicalMaxRating = computeXcpcHistoricalMaxRating(player)
 
         return success(
           'xcpc_elo',
           player.id,
           {
             currentRating: player.rating!,
-            maxRating: player.maxRating!,
+            maxRating: historicalMaxRating,
             solvedCount: null,
           },
           {
             sourceUpdatedAt: dataset.generatedAt
               ? new Date(dataset.generatedAt).toISOString()
               : null,
-            sourceVersion: 'xcpc-elo-data-js-v1',
+            sourceVersion: 'xcpc-elo-data-js-v2',
             details: {
               organization: player.organization ?? null,
               name: player.teamMember ?? null,

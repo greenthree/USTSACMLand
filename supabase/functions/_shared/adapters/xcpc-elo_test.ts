@@ -1,5 +1,6 @@
 import { deepStrictEqual } from 'node:assert/strict'
 import {
+  computeXcpcHistoricalMaxRating,
   createXcpcEloAdapter,
   findXcpcPlayersByIdentity,
   XCPC_TARGET_ORGANIZATION,
@@ -66,7 +67,52 @@ const ratedPlayer: XcpcPlayer = {
   rating: 1723.5,
   maxRating: 1801.25,
   contests: 9,
+  history: [
+    [100, 10, 301.25, 1801.25],
+    [101, 20, -77.75, 1723.5],
+  ],
 }
+
+Deno.test('XCPC historical maximum excludes the artificial initial rating', () => {
+  deepStrictEqual(
+    computeXcpcHistoricalMaxRating({
+      history: [
+        [166, 104, -86, 1414],
+        [196, 138, 108, 1483],
+      ],
+    }),
+    1483,
+  )
+})
+
+Deno.test('XCPC historical maximum keeps a genuine post-contest rating of 1500', () => {
+  deepStrictEqual(
+    computeXcpcHistoricalMaxRating({
+      history: [
+        [166, 104, -50, 1450],
+        [196, 138, 50, 1500],
+      ],
+    }),
+    1500,
+  )
+})
+
+Deno.test('XCPC historical maximum keeps normal ratings above 1500 unchanged', () => {
+  deepStrictEqual(
+    computeXcpcHistoricalMaxRating({
+      history: [
+        [166, 104, 120, 1620],
+        [196, 138, -20, 1600],
+      ],
+    }),
+    1620,
+  )
+})
+
+Deno.test('XCPC historical maximum matches the official empty-history behavior', () => {
+  deepStrictEqual(computeXcpcHistoricalMaxRating({ history: [] }), null)
+  deepStrictEqual(computeXcpcHistoricalMaxRating({}), null)
+})
 
 Deno.test(
   'XCPC adapter finds a unique player by member name and returns its stable ID',
