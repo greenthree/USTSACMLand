@@ -303,7 +303,11 @@ async function persistResult(
         error_code: result.ok ? null : result.error.code,
         error_message: result.ok ? null : result.error.message.slice(0, 4_000),
         source_version: sourceVersion,
-        metrics: result.ok ? result.metrics : null,
+        metrics: result.ok
+          ? result.metrics
+          : result.error.details
+            ? { diagnostics: result.error.details }
+            : null,
       })
       .eq('id', run.id)
     if (finishRunError) {

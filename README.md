@@ -56,14 +56,14 @@ flowchart LR
 
 ## 数据源状态
 
-| 平台       | 标识         | 指标                           | 当前实现                                                                                                                               |
-| ---------- | ------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，按 `(contestId, index)` 去重；已做真实 smoke test                                         |
-| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                          |
-| AtCoder    | Username     | 当前/最高 Rating               | 已实现 `/users/{username}/history/json`，区分未参赛与不存在账号；已做真实 smoke test                                                   |
-| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册建立会话后立即按“姓名 + 苏州科技大学”同步，唯一命中时保存稳定 `xcpc_*` ID，同校同名时拒绝自动绑定，缓存策略待完成 |
-| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`，分页读取 Accepted 记录，只保留 `P`/`B` 开头 PID 并去重；不使用 Firecrawl                          |
-| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；登录或页面校验失败时保留上次成功值，不会伪造同步成功                    |
+| 平台       | 标识         | 指标                           | 当前实现                                                                                                                                   |
+| ---------- | ------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，按 `(contestId, index)` 去重；已做真实 smoke test                                             |
+| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                              |
+| AtCoder    | Username     | 当前/最高 Rating               | 已实现 `/users/{username}/history/json`，区分未参赛与不存在账号；已做真实 smoke test                                                       |
+| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册建立会话后立即按“姓名 + 苏州科技大学”同步，唯一命中时保存稳定 `xcpc_*` ID，同校同名时拒绝自动绑定，缓存策略待完成     |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`，分页读取 Accepted 记录，只保留 `P`/`B` 开头 PID 并去重；不使用 Firecrawl                              |
+| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID，不自动重试 |
 
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。该口径可能与公开主页的“通过”数字不同；同步沿用参考项目的请求方式，分页间隔 300ms；达到 `LUOGU_MAX_PAGES` 仍未读完时会失败并保留最后一次成功值，不会把截断数据写成总题数。
 

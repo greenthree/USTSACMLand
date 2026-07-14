@@ -304,7 +304,7 @@ export function AdminSyncPage() {
                     <th>成员</th>
                     <th>开始时间</th>
                     <th>耗时</th>
-                    <th>错误码</th>
+                    <th>错误详情</th>
                     <th>状态</th>
                     <th className="actions-column">操作</th>
                   </tr>
@@ -320,8 +320,11 @@ export function AdminSyncPage() {
                         <td data-label="成员">{run.memberName}</td>
                         <td data-label="开始时间">{formatDateTime(run.startedAt)}</td>
                         <td data-label="耗时">{formatDuration(run.durationMs)}</td>
-                        <td data-label="错误码">
+                        <td className="sync-error-cell" data-label="错误详情">
                           <code>{run.errorCode ?? '--'}</code>
+                          {run.errorMessage ? (
+                            <small className="sync-error-message">{run.errorMessage}</small>
+                          ) : null}
                         </td>
                         <td data-label="状态">
                           <StatusBadge status={run.status} />

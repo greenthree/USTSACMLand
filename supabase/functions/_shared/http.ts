@@ -14,6 +14,7 @@ export class HttpError extends Error {
     readonly retryable: boolean,
     readonly status?: number,
     readonly responseBody?: string,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = 'HttpError'
@@ -158,11 +159,15 @@ export function toAdapterHttpError(error: unknown): {
   details?: Record<string, unknown>
 } {
   if (error instanceof HttpError) {
+    const details = {
+      ...(error.status ? { httpStatus: error.status } : {}),
+      ...(error.details ?? {}),
+    }
     return {
       code: error.code,
       message: error.message,
       retryable: error.retryable,
-      details: error.status ? { httpStatus: error.status } : undefined,
+      details: Object.keys(details).length > 0 ? details : undefined,
     }
   }
   if (error instanceof Error) {

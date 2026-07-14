@@ -1985,6 +1985,21 @@ fieldset.form-section {
   overflow-wrap: anywhere;
 }
 
+.sync-error-cell {
+  min-width: 13rem;
+}
+
+.sync-error-message {
+  display: block;
+  margin-top: 4px;
+  max-width: 24rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .source-health-grid strong {
   font-size: 23px;
 }

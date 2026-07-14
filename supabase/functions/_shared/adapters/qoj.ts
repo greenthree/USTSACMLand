@@ -15,6 +15,7 @@ interface FirecrawlInteractResponse {
   stdout?: unknown
   result?: unknown
   exitCode?: unknown
+  killed?: unknown
 }
 
 interface FirecrawlQojValue {
@@ -27,6 +28,9 @@ interface FirecrawlQojValue {
   challenge?: unknown
   rateLimited?: unknown
   fetchFailed?: unknown
+  failureStage?: unknown
+  responseStatus?: unknown
+  navigationError?: unknown
   acceptedCount?: unknown
 }
 
@@ -55,7 +59,11 @@ function qojInteractCode(
   servicePassword: string,
 ): string {
   const targetUrl = `${ORIGIN}/user/profile/${encodeURIComponent(accountId)}?locale=en`
-  return String.raw`const inspect = async (responseStatus = null) => {
+  return String.raw`const inspect = async (
+    responseStatus = null,
+    failureStage = null,
+    navigationError = null,
+  ) => {
     const pathname = new URL(page.url()).pathname.replace(/\/+$/, '') || '/';
     const profileMatch = pathname.match(/^\/user\/profile\/([^/]+)$/);
     let profileUsername = null;
@@ -105,6 +113,9 @@ function qojInteractCode(
         && responseStatus >= 400
         && responseStatus !== 404
         && responseStatus !== 429,
+      failureStage,
+      responseStatus,
+      navigationError,
       acceptedCount,
     };
   };
@@ -138,15 +149,24 @@ function qojInteractCode(
         await page.waitForTimeout(500);
         const profileState = await inspect(response ? response.status() : null);
         process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify(profileState) + '\n');
-      } catch {
+      } catch (error) {
+        const navigationError = error instanceof Error
+          ? (error.name + ': ' + error.message).slice(0, 500)
+          : 'Unknown navigation error';
         process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify({
           ...loginState,
           rateLimited: false,
           fetchFailed: true,
+          failureStage: 'profile_navigation',
+          responseStatus: null,
+          navigationError,
         }) + '\n');
       }
     }
-  } catch {
+  } catch (error) {
+    const navigationError = error instanceof Error
+      ? (error.name + ': ' + error.message).slice(0, 500)
+      : 'Unknown login-form error';
     process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify({
       pathname: new URL(page.url()).pathname.replace(/\/+$/, '') || '/',
       profileUsername: null,
@@ -157,6 +177,9 @@ function qojInteractCode(
       challenge: false,
       rateLimited: false,
       fetchFailed: true,
+      failureStage: 'login_form',
+      responseStatus: null,
+      navigationError,
       acceptedCount: null,
     }) + '\n');
   }
@@ -186,10 +209,26 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
 
   const response = payload as FirecrawlInteractResponse
   if (response.success !== true) {
-    throw new HttpError('Firecrawl interact was not successful', 'source_unavailable', true)
+    throw new HttpError(
+      response.killed === true
+        ? 'Firecrawl interact execution was killed'
+        : 'Firecrawl interact was not successful',
+      'source_unavailable',
+      true,
+      undefined,
+      undefined,
+      { interactKilled: response.killed === true },
+    )
   }
   if (response.exitCode !== undefined && response.exitCode !== null && response.exitCode !== 0) {
-    throw new HttpError('Firecrawl interact execution failed', 'source_unavailable', true)
+    throw new HttpError(
+      `Firecrawl interact execution failed with exit code ${String(response.exitCode)}`,
+      'source_unavailable',
+      true,
+      undefined,
+      undefined,
+      { interactExitCode: response.exitCode },
+    )
   }
 
   const output = [response.stdout, response.result].find(
@@ -222,6 +261,7 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
     'account_disabled',
     'rejected',
   ])
+  const allowedFailureStages = new Set(['login_form', 'profile_navigation'])
   if (
     typeof value.pathname !== 'string' ||
     typeof value.isLogin !== 'boolean' ||
@@ -231,7 +271,11 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
     typeof value.notFound !== 'boolean' ||
     typeof value.challenge !== 'boolean' ||
     typeof value.rateLimited !== 'boolean' ||
-    typeof value.fetchFailed !== 'boolean'
+    typeof value.fetchFailed !== 'boolean' ||
+    (value.failureStage !== null &&
+      (typeof value.failureStage !== 'string' || !allowedFailureStages.has(value.failureStage))) ||
+    (value.responseStatus !== null && typeof value.responseStatus !== 'number') ||
+    (value.navigationError !== null && typeof value.navigationError !== 'string')
   ) {
     throw new HttpError('Firecrawl returned invalid QOJ page state', 'schema_changed', false)
   }
@@ -243,10 +287,28 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
     throw new HttpError('QOJ rate limit was reached', 'rate_limited', true)
   }
   if (value.fetchFailed) {
+    const navigationError =
+      typeof value.navigationError === 'string' ? value.navigationError.slice(0, 500) : null
+    const responseStatus =
+      typeof value.responseStatus === 'number' ? value.responseStatus : undefined
+    const timedOut = navigationError !== null && /timeout/i.test(navigationError)
+    const message =
+      value.failureStage === 'login_form'
+        ? `QOJ login form could not be loaded${navigationError ? `: ${navigationError}` : ''}`
+        : responseStatus !== undefined
+          ? `QOJ profile returned HTTP ${responseStatus}`
+          : `QOJ profile navigation failed${navigationError ? `: ${navigationError}` : ''}`
     throw new HttpError(
-      'QOJ profile request failed in the browser session',
-      'source_unavailable',
+      message,
+      timedOut ? 'timeout' : 'source_unavailable',
       true,
+      responseStatus,
+      undefined,
+      {
+        failureStage: value.failureStage,
+        responseStatus: responseStatus ?? null,
+        navigationError,
+      },
     )
   }
   if (value.isLogin || value.pathname === '/login' || !value.hasLogout) {
@@ -348,14 +410,39 @@ export function createFirecrawlQojProvider(
         })
         return parseFirecrawlQojAcceptedCount(interactPayload, accountId)
       } catch (error) {
+        const diagnostics = {
+          ...(error instanceof HttpError ? (error.details ?? {}) : {}),
+          ...(jobId ? { firecrawlJobId: jobId } : {}),
+        }
         if (error instanceof HttpError && error.status === 401) {
-          throw new HttpError('Firecrawl API key is invalid or expired', 'auth_expired', false, 401)
+          throw new HttpError(
+            'Firecrawl API key is invalid or expired',
+            'auth_expired',
+            false,
+            401,
+            undefined,
+            diagnostics,
+          )
         }
         if (error instanceof HttpError && error.status === 403) {
-          throw new HttpError('Firecrawl API access is forbidden', 'auth_required', false, 403)
+          throw new HttpError(
+            'Firecrawl API access is forbidden',
+            'auth_required',
+            false,
+            403,
+            undefined,
+            diagnostics,
+          )
         }
         if (error instanceof HttpError && error.status === 409) {
-          throw new HttpError('Firecrawl QOJ browser session is busy', 'rate_limited', true, 409)
+          throw new HttpError(
+            'Firecrawl QOJ browser session is busy',
+            'rate_limited',
+            true,
+            409,
+            undefined,
+            diagnostics,
+          )
         }
         if (error instanceof HttpError && error.status === 404) {
           throw new HttpError(
@@ -363,6 +450,18 @@ export function createFirecrawlQojProvider(
             'source_unavailable',
             true,
             404,
+            undefined,
+            diagnostics,
+          )
+        }
+        if (error instanceof HttpError && jobId) {
+          throw new HttpError(
+            error.message,
+            error.code,
+            error.retryable,
+            error.status,
+            error.responseBody,
+            diagnostics,
           )
         }
         throw error

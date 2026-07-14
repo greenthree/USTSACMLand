@@ -132,6 +132,14 @@ describe('AdminSyncPage with Supabase configured', () => {
     expect(syncMocks.fetchRuns).toHaveBeenCalledTimes(2)
   })
 
+  it('shows the persisted synchronization error message', async () => {
+    render(<AdminSyncPage />)
+
+    const row = await screen.findByRole('row', { name: /测试成员/ })
+    expect(within(row).getByText('auth_expired')).toBeInTheDocument()
+    expect(within(row).getByText('认证过期')).toBeInTheDocument()
+  })
+
   it('shows a recoverable empty state when the live center cannot be loaded', async () => {
     syncMocks.fetchRuns.mockRejectedValue(new Error('同步记录读取失败：无权限'))
 

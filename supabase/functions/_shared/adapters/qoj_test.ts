@@ -17,6 +17,9 @@ interface QojTestState {
   challenge: boolean
   rateLimited: boolean
   fetchFailed: boolean
+  failureStage: 'login_form' | 'profile_navigation' | null
+  responseStatus: number | null
+  navigationError: string | null
   acceptedCount: number | null
 }
 
@@ -37,6 +40,9 @@ function interactPayload(
     challenge: false,
     rateLimited: false,
     fetchFailed: false,
+    failureStage: null,
+    responseStatus: null,
+    navigationError: null,
     acceptedCount,
     ...overrides,
   }
@@ -124,6 +130,46 @@ Deno.test('QOJ Firecrawl parser preserves browser-side rate limits', () => {
   )
 })
 
+Deno.test('QOJ Firecrawl parser preserves profile HTTP diagnostics', () => {
+  throws(
+    () =>
+      parseFirecrawlQojAcceptedCount(
+        interactPayload('sample_user', 0, {
+          fetchFailed: true,
+          failureStage: 'profile_navigation',
+          responseStatus: 503,
+          acceptedCount: null,
+        }),
+        'sample_user',
+      ),
+    (error: unknown) =>
+      error instanceof HttpError &&
+      error.code === 'source_unavailable' &&
+      error.status === 503 &&
+      error.message === 'QOJ profile returned HTTP 503' &&
+      error.details?.failureStage === 'profile_navigation',
+  )
+})
+
+Deno.test('QOJ Firecrawl parser distinguishes a navigation timeout', () => {
+  throws(
+    () =>
+      parseFirecrawlQojAcceptedCount(
+        interactPayload('sample_user', 0, {
+          fetchFailed: true,
+          failureStage: 'profile_navigation',
+          navigationError: 'TimeoutError: page.goto timed out',
+          acceptedCount: null,
+        }),
+        'sample_user',
+      ),
+    (error: unknown) =>
+      error instanceof HttpError &&
+      error.code === 'timeout' &&
+      error.message.includes('page.goto timed out'),
+  )
+})
+
 Deno.test('QOJ Firecrawl parser rejects a response for another account', () => {
   throws(
     () => parseFirecrawlQojAcceptedCount(interactPayload('another_user'), 'sample_user'),
@@ -157,6 +203,10 @@ Deno.test(
 
     equal(await provider.fetchAcceptedCount('sample_user'), 10)
     equal(calls.length, 3)
+    equal(
+      calls.filter((call) => call.method === 'POST' && call.input.endsWith('/interact')).length,
+      1,
+    )
 
     const sessionBody = JSON.parse(calls[0].body) as Record<string, unknown>
     equal(calls[0].input, 'https://firecrawl.example/v2/scrape')
@@ -210,6 +260,40 @@ Deno.test('QOJ Firecrawl provider requires a scrape-bound browser session id', a
   await rejects(
     () => provider.fetchAcceptedCount('sample_user'),
     (error: unknown) => error instanceof HttpError && error.code === 'schema_changed',
+  )
+})
+
+Deno.test('QOJ Firecrawl provider attaches the browser job id to failures', async () => {
+  const provider = createFirecrawlQojProvider(
+    'test-api-key',
+    'service_user',
+    'service-pass-value',
+    'https://firecrawl.example',
+    (input, options) => {
+      if (options.method === 'DELETE') return Promise.resolve({ success: true })
+      if (input.endsWith('/interact')) {
+        return Promise.resolve(
+          interactPayload('sample_user', 0, {
+            fetchFailed: true,
+            failureStage: 'profile_navigation',
+            responseStatus: 502,
+            acceptedCount: null,
+          }),
+        )
+      }
+      return Promise.resolve({
+        success: true,
+        data: { metadata: { scrapeId: JOB_ID } },
+      })
+    },
+  )
+
+  await rejects(
+    () => provider.fetchAcceptedCount('sample_user'),
+    (error: unknown) =>
+      error instanceof HttpError &&
+      error.message === 'QOJ profile returned HTTP 502' &&
+      error.details?.firecrawlJobId === JOB_ID,
   )
 })
 
