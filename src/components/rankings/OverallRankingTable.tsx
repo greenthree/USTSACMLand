@@ -54,7 +54,7 @@ export function OverallRankingTable({
             ))}
             {metric === 'rating' ? (
               <th className="number-column" title="400 × 各平台历史最高 Rating 标准化之和">
-                历史最高总 Rating
+                总历史最高 Rating
               </th>
             ) : null}
           </tr>
@@ -110,7 +110,7 @@ export function OverallRankingTable({
                 {metric === 'rating' ? (
                   <td
                     className="secondary-number peak-overall-column"
-                    data-label="历史最高总 Rating"
+                    data-label="总历史最高 Rating"
                   >
                     {formatDecimal(peakOverallValue)}
                   </td>

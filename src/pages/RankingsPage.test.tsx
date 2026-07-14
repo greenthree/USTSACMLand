@@ -15,7 +15,7 @@ describe('RankingsPage', () => {
     expect(screen.getByRole('heading', { name: 'Rating 榜' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('columnheader', { name: '总 Rating' })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: '历史最高总 Rating' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '总历史最高 Rating' })).toBeInTheDocument()
     const ratingLeader = screen.getByRole('row', { name: /周知行/ })
     expect(within(ratingLeader).getByText('1,752.41')).toBeInTheDocument()
     expect(within(ratingLeader).getByText('1,771.35')).toBeInTheDocument()
