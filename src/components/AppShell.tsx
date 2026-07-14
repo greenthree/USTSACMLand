@@ -7,8 +7,8 @@ import { useAuth } from '../auth/authContextValue'
 import { Brand } from './Brand'
 
 const navItems = [
-  { to: '/rankings', label: '榜单' },
-  { to: '/members', label: '成员' },
+  { to: '/', label: '首页', end: true },
+  { to: '/rankings', label: '榜单', end: false },
 ]
 
 export function AppShell() {
@@ -29,7 +29,7 @@ export function AppShell() {
           <Brand />
           <nav className={open ? 'primary-nav is-open' : 'primary-nav'} aria-label="主导航">
             {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)}>
+              <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)}>
                 {item.label}
               </NavLink>
             ))}
@@ -69,9 +69,9 @@ export function AppShell() {
         <Outlet />
       </main>
       <footer className="site-footer">
-        <span>USTSACMLand</span>
+        <span>USTS ACM Land</span>
         <span className="site-footer-meta">
-          <span>数据仅用于集训队训练与展示</span>
+          <span>苏州科技大学 ACM 集训队官网</span>
           <NavLink to="/privacy">隐私说明</NavLink>
         </span>
       </footer>

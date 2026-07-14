@@ -6,6 +6,7 @@ import { AdminLayout } from './components/admin/AdminLayout'
 import { MembersDataProvider } from './data/MembersDataProvider'
 import { AccountPage } from './pages/AccountPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { MemberPage } from './pages/MemberPage'
 import { MembersPage } from './pages/MembersPage'
@@ -28,7 +29,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/" element={<AppShell />}>
-            <Route index element={<Navigate replace to="/rankings" />} />
+            <Route index element={<HomePage />} />
             <Route path="rankings" element={<RankingsPage />} />
             <Route path="members" element={<MembersPage />} />
             <Route path="members/:memberId" element={<MemberPage />} />
@@ -57,7 +58,7 @@ export default function App() {
               <Route path="audit" element={<AdminAuditPage />} />
             </Route>
           </Route>
-          <Route path="*" element={<Navigate replace to="/rankings" />} />
+          <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
       </MembersDataProvider>
     </AuthProvider>
