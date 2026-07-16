@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(29);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -279,9 +279,21 @@ select throws_ok(
       (select updated_at from managed_announcement_version)
     )
   $$,
-  '40001',
+  'PT409',
   'Announcement changed after it was loaded. Refresh and try again.',
   'stale announcement edits are rejected'
+);
+
+select throws_ok(
+  $$
+    select public.admin_delete_announcement(
+      (select id from managed_announcement_version),
+      (select updated_at from managed_announcement_version)
+    )
+  $$,
+  'PT409',
+  'Announcement changed after it was loaded. Refresh and try again.',
+  'stale announcement deletions are rejected'
 );
 
 reset role;
