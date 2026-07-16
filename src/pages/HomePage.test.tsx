@@ -54,7 +54,11 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: '每日一题' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'AI 学习助手' })).toBeInTheDocument()
     expect(screen.getByText(/计划接入 GPT-5.6/)).toBeInTheDocument()
-    expect(screen.getAllByText('规划中')).toHaveLength(3)
+    expect(screen.getByRole('link', { name: '进入新手学习引导' })).toHaveAttribute(
+      'href',
+      '/learning',
+    )
+    expect(screen.getAllByText('规划中')).toHaveLength(2)
     expect(screen.getByRole('heading', { name: '在比赛中找到下一段训练' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新生赛' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '练习赛' })).toBeInTheDocument()
