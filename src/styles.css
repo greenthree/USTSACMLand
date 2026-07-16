@@ -1780,8 +1780,7 @@ main {
   white-space: nowrap;
 }
 
-.member-rating-value .rating-display-number,
-.trend-summary .rating-display-number {
+.member-rating-value .rating-display-number {
   font-size: 16px;
   font-weight: 800;
 }
@@ -2024,7 +2023,6 @@ main {
 }
 
 .member-stat-section,
-.trend-section,
 .form-section,
 .admin-section {
   margin-top: 34px;
@@ -2092,7 +2090,6 @@ main {
   justify-self: end;
 }
 
-.trend-platform,
 .demo-indicator {
   min-height: 28px;
   display: inline-flex;
@@ -2104,179 +2101,6 @@ main {
   border-radius: 5px;
   font-size: 11px;
   font-weight: 750;
-}
-
-.trend-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-
-.trend-platform-tabs {
-  display: flex;
-  gap: 7px;
-  margin-bottom: 12px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.trend-platform-tabs button {
-  min-height: 40px;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  padding: 0 11px;
-  color: var(--muted);
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.trend-platform-tabs button:hover {
-  color: var(--ink);
-  border-color: #b9c8c0;
-}
-
-.trend-platform-tabs button[aria-pressed='true'] {
-  color: var(--green-dark);
-  background: var(--green-soft);
-  border-color: #b8dbc7;
-}
-
-.trend-platform-tabs small {
-  min-width: 20px;
-  padding: 2px 5px;
-  color: var(--faint);
-  background: #edf1ef;
-  border-radius: 999px;
-  font-size: 10px;
-  text-align: center;
-}
-
-.trend-platform-tabs button[aria-pressed='true'] small {
-  color: var(--green-dark);
-  background: #d6ebdf;
-}
-
-.trend-chart {
-  --trend-color: var(--green);
-
-  position: relative;
-  padding: 14px 14px 8px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow-x: auto;
-}
-
-.trend-chart[data-platform='codeforces'] {
-  --trend-color: #2563a6;
-}
-
-.trend-chart[data-platform='nowcoder'] {
-  --trend-color: #147e70;
-}
-
-.trend-chart[data-platform='atcoder'] {
-  --trend-color: #7a4b23;
-}
-
-.trend-chart[data-platform='xcpc_elo'] {
-  --trend-color: #6f4aa5;
-}
-
-.trend-chart svg {
-  display: block;
-  width: 100%;
-  min-width: 620px;
-  height: auto;
-}
-
-.trend-chart polyline {
-  fill: none;
-  stroke: var(--trend-color);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.trend-chart circle {
-  fill: #fff;
-  stroke: var(--trend-color);
-  stroke-width: 3;
-}
-
-.trend-axis line {
-  stroke: #e4ebe7;
-  stroke-width: 1;
-}
-
-.trend-axis text,
-.trend-date-label {
-  fill: #7a8981;
-  font-family: inherit;
-  font-size: 11px;
-}
-
-.trend-summary {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 10px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.trend-summary > div {
-  min-width: 0;
-  padding: 12px 15px;
-  border-right: 1px solid var(--line);
-}
-
-.trend-summary > div:last-child {
-  border-right: 0;
-}
-
-.trend-summary dt {
-  margin-bottom: 3px;
-  color: var(--faint);
-  font-size: 10px;
-}
-
-.trend-summary dd {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 800;
-}
-
-.trend-message {
-  padding: 18px;
-  color: #7b3f37;
-  background: #fff7f5;
-  border: 1px solid #efd3cd;
-  border-radius: 8px;
-}
-
-.trend-message p {
-  margin-top: 4px;
-  color: #8c5a53;
-  font-size: 13px;
-}
-
-.trend-single-point {
-  margin-top: 10px;
-  padding: 10px 12px;
-  color: var(--muted);
-  background: #f5f8f6;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 12px;
 }
 
 .primary-button,
@@ -5628,26 +5452,6 @@ fieldset.form-section {
 
   .platform-sync-cell {
     grid-column: 1;
-  }
-
-  .trend-title-row {
-    align-items: flex-start;
-  }
-
-  .trend-chart {
-    padding: 8px 8px 4px;
-  }
-
-  .trend-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .trend-summary > div:nth-child(2) {
-    border-right: 0;
-  }
-
-  .trend-summary > div:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--line);
   }
 
   .auth-page {
