@@ -276,6 +276,7 @@ select throws_ok(
     where id = '00000000-0000-0000-0000-0000000000b2'
   $$,
   '23505',
+  'duplicate key value violates unique constraint "profiles_qq_unique_idx"',
   'QQ numbers cannot be shared by two member profiles'
 );
 
@@ -292,6 +293,7 @@ select throws_ok(
     )
   $$,
   '23505',
+  'duplicate key value violates unique constraint "platform_accounts_platform_external_unique"',
   'one normalized platform account cannot be bound to two members'
 );
 
