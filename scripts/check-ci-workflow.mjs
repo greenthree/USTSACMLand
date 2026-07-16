@@ -28,6 +28,7 @@ const requiredReleaseMigrations = [
   '202607160005_admin_role_handoff.sql',
   '202607160006_prevent_admin_account_deletion.sql',
   '202607160007_account_deletion_recovery_lease_renewal.sql',
+  '202607160008_allow_auth_admin_profile_cleanup.sql',
 ]
 
 function requireMatch(source, pattern, message) {

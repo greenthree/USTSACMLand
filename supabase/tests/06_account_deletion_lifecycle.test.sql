@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(33);
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
@@ -580,6 +580,45 @@ select ok(
     ) similar to '%(00000000-0000-0000-0000-0000000000fa|Former Administrator|18888888888)%'
   ),
   'former-administrator UUID and personal fields are removed from cross-table audit rows'
+);
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-0000000000fc',
+  'authenticated',
+  'authenticated',
+  'auth-admin-cleanup@example.test',
+  'test-password',
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Auth Admin Cleanup"}'::jsonb,
+  now(),
+  now(),
+  '',
+  '',
+  '',
+  ''
+);
+
+set local session authorization supabase_auth_admin;
+
+delete from auth.users
+where id = '00000000-0000-0000-0000-0000000000fc';
+
+reset session authorization;
+
+select is(
+  (
+    (select count(*) from auth.users where id = '00000000-0000-0000-0000-0000000000fc')
+    + (select count(*) from public.profiles where id = '00000000-0000-0000-0000-0000000000fc')
+  )::integer,
+  0,
+  'Supabase Auth may delete a member while clearing managed profile references'
 );
 
 select * from finish();
