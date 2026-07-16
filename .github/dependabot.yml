@@ -17,6 +17,18 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # TypeScript 7 is outside the peer range supported by the current
+      # typescript-eslint toolchain. Re-enable this during a coordinated
+      # compiler and lint-stack migration.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+      # ESLint 10 requires a coordinated eslint/typescript-eslint/plugin
+      # migration; updating only @eslint/js leaves the current stack split.
+      - dependency-name: '@eslint/js'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
