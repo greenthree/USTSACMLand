@@ -117,6 +117,19 @@ jobs:
             exit 1
           fi
 
+          # Keep public Actions logs useful without exposing member IDs, job IDs,
+          # platform accounts, raw upstream messages, or the full function response.
+          safe_summary="$(jq -c '{
+            scope,
+            platforms,
+            requested,
+            succeeded,
+            queued,
+            failed,
+            byPlatform: (.byPlatform // [])
+          }' response.json)"
+          echo "Sync summary: $safe_summary"
+
           if [[ "$http_status" -eq 207 ]]; then
             failed_count="$(jq -r '.failed // "unknown"' response.json)"
             jq -r '
@@ -127,7 +140,7 @@ jobs:
                 elif (.body.results | type) == "array" then
                   .body.results[]
                   | select(.ok == false)
-                  | "Sync error [" + .platform + "/" + .error.code + "]: " + .error.message
+                  | "Sync error [" + .platform + "/" + .error.code + "]"
                 else
                   "Sync error: member synchronization returned HTTP " + (.status | tostring)
                 end

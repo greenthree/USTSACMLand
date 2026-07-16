@@ -4,6 +4,10 @@ export interface MemberSyncResult {
   body: unknown
 }
 
+export interface PlatformMemberSyncResult extends MemberSyncResult {
+  platform: string
+}
+
 export interface MemberSyncSummary {
   requested: number
   succeeded: number
@@ -33,4 +37,24 @@ export function summarizeMemberSyncResults(results: MemberSyncResult[]): MemberS
     queued,
     failed,
   }
+}
+
+export interface PlatformSyncSummary extends MemberSyncSummary {
+  platform: string
+}
+
+export function summarizePlatformSyncResults(
+  results: PlatformMemberSyncResult[],
+): PlatformSyncSummary[] {
+  const grouped = new Map<string, PlatformMemberSyncResult[]>()
+  for (const result of results) {
+    const platformResults = grouped.get(result.platform) ?? []
+    platformResults.push(result)
+    grouped.set(result.platform, platformResults)
+  }
+
+  return [...grouped.entries()].map(([platform, platformResults]) => ({
+    platform,
+    ...summarizeMemberSyncResults(platformResults),
+  }))
 }
