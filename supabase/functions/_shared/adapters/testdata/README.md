@@ -15,5 +15,5 @@
 | 牛客       | `nowcoder-practice-rated.html`、`nowcoder-rating-history.json`、Firecrawl rated/unrated JSON 等 |
 | AtCoder    | `atcoder-history-rated.json`、`atcoder-ac-rank.json`                                            |
 | XCPC ELO   | `xcpc-elo-data.txt`（内容保持官网 `data.js` 的 JSON 赋值格式）                                  |
-| 洛谷       | `luogu-profile.json`、`luogu-record-page.json`                                                  |
+| 洛谷       | `luogu-record-page.json`（与 `ckp.py` 一致，仅使用 Accepted 记录列表）                          |
 | QOJ        | `qoj-firecrawl-accepted.json`                                                                   |

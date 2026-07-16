@@ -1,4 +1,4 @@
-import { fetchJson, HttpError, toAdapterHttpError } from '../http.ts'
+import { fetchTextWithRetry, HttpError, toAdapterHttpError } from '../http.ts'
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
 interface LuoguRecord {
@@ -11,19 +11,11 @@ interface LuoguRecord {
 
 interface LuoguRecordListResponse {
   currentData?: {
+    errorCode?: unknown
     records?: {
       result?: unknown
       count?: unknown
     } | null
-  } | null
-}
-
-interface LuoguProfileResponse {
-  currentData?: {
-    user?: {
-      uid?: unknown
-    } | null
-    errorCode?: unknown
   } | null
 }
 
@@ -49,7 +41,6 @@ export interface LuoguSyncState {
 }
 
 export interface LuoguTransport {
-  fetchProfile(accountId: string, signal?: AbortSignal): Promise<unknown>
   fetchRecordPage(accountId: string, page: number, signal?: AbortSignal): Promise<unknown>
 }
 
@@ -91,6 +82,58 @@ const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
 
+function challengePage(body: string): boolean {
+  return (
+    body.includes('challenge-platform') ||
+    body.includes('aliyun_waf_') ||
+    body.includes('__shield') ||
+    /<title>\s*Just a moment/i.test(body)
+  )
+}
+
+export function parseLuoguJsonResponse(
+  text: string,
+  status: number,
+  contentType: string | null,
+): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    if (challengePage(text)) {
+      throw new HttpError(
+        'Luogu returned an anti-bot challenge page',
+        'source_unavailable',
+        true,
+        status,
+      )
+    }
+    if (/^\s*</.test(text) || contentType?.includes('text/html')) {
+      throw new HttpError(
+        'Luogu authentication credentials are invalid or expired',
+        'auth_expired',
+        false,
+        status,
+      )
+    }
+    throw new HttpError('Upstream returned invalid JSON', 'schema_changed', false, status)
+  }
+}
+
+async function fetchAuthenticatedJson(
+  url: URL,
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const { response, text } = await fetchTextWithRetry(url, {
+    signal,
+    timeoutMs: 15_000,
+    retries: 2,
+    retryBaseMs: 750,
+    headers,
+  })
+  return parseLuoguJsonResponse(text, response.status, response.headers.get('content-type'))
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
@@ -118,6 +161,9 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   const response = payload as LuoguRecordListResponse
   if (!isRecord(response.currentData)) {
     throw new HttpError('Luogu currentData is missing', 'schema_changed', false)
+  }
+  if (response.currentData.errorCode === 404) {
+    throw new HttpError('Luogu user was not found', 'not_found', false, 404)
   }
   if (!isRecord(response.currentData.records)) {
     throw new HttpError('Luogu records object is missing', 'schema_changed', false)
@@ -166,28 +212,6 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   }
 }
 
-export function parseLuoguProfile(payload: unknown, accountId: string): void {
-  if (!isRecord(payload)) {
-    throw new HttpError('Luogu profile response is not an object', 'schema_changed', false)
-  }
-  const response = payload as LuoguProfileResponse
-  if (response.currentData?.errorCode === 404) {
-    throw new HttpError('Luogu user was not found', 'not_found', false, 404)
-  }
-  const uid = response.currentData?.user?.uid
-  const parsedUid = typeof uid === 'number' && Number.isSafeInteger(uid) ? String(uid) : uid
-  if (typeof parsedUid !== 'string' || !/^\d{1,20}$/.test(parsedUid)) {
-    throw new HttpError('Luogu profile UID is missing or invalid', 'schema_changed', false)
-  }
-  if (parsedUid !== accountId) {
-    throw new HttpError(
-      'Luogu profile UID does not match the requested user',
-      'invalid_account',
-      false,
-    )
-  }
-}
-
 function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguTransport {
   const headers = {
     accept: 'application/json, text/plain, */*',
@@ -197,20 +221,6 @@ function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguT
     'x-requested-with': 'XMLHttpRequest',
   }
   return {
-    fetchProfile(accountId, signal) {
-      const url = new URL(`/user/${encodeURIComponent(accountId)}`, ORIGIN)
-      url.searchParams.set('_contentOnly', '1')
-      return fetchJson<unknown>(url, {
-        signal,
-        timeoutMs: 15_000,
-        retries: 2,
-        retryBaseMs: 750,
-        headers: {
-          ...headers,
-          referer: `${ORIGIN}/user/${encodeURIComponent(accountId)}`,
-        },
-      })
-    },
     fetchRecordPage(accountId, page, signal) {
       const url = new URL('/record/list', ORIGIN)
       url.searchParams.set('user', accountId)
@@ -218,16 +228,14 @@ function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguT
       url.searchParams.set('status', '12')
       url.searchParams.set('_contentOnly', '1')
 
-      return fetchJson<unknown>(url, {
-        signal,
-        timeoutMs: 15_000,
-        retries: 2,
-        retryBaseMs: 750,
-        headers: {
+      return fetchAuthenticatedJson(
+        url,
+        {
           ...headers,
           referer: `${ORIGIN}/record/list?user=${encodeURIComponent(accountId)}`,
         },
-      })
+        signal,
+      )
     },
   }
 }
@@ -615,7 +623,6 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
       }
 
       try {
-        parseLuoguProfile(await transport.fetchProfile(accountId, context?.signal), accountId)
         const maxPages = resolveMaxPages(options.maxPages, options.transport === undefined)
         const pageDelayMs =
           options.pageDelayMs ?? (options.transport === undefined ? DEFAULT_PAGE_DELAY_MS : 0)
@@ -636,7 +643,7 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           {
             fetchedAt,
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-authenticated-profile-record-list-pb-v3',
+            sourceVersion: 'luogu-authenticated-record-list-pb-v4',
             syncState: metrics.state,
             details: {
               provider: 'authenticated_record_list',
