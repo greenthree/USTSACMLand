@@ -26,6 +26,9 @@ updates:
           - version-update:semver-major
       # ESLint 10 requires a coordinated eslint/typescript-eslint/plugin
       # migration; updating only @eslint/js leaves the current stack split.
+      - dependency-name: eslint
+        update-types:
+          - version-update:semver-major
       - dependency-name: '@eslint/js'
         update-types:
           - version-update:semver-major
