@@ -1,0 +1,169 @@
+name: Encrypted database backup
+
+on:
+  schedule:
+    - cron: '30 16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
+
+    steps:
+      - name: Validate backup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_DB_URL" ]]; then
+            echo '::error::SUPABASE_DB_URL is not configured.'
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != postgresql://* ]]; then
+            echo '::error::SUPABASE_DB_URL must be a PostgreSQL connection string.'
+            exit 1
+          fi
+          if (( ${#BACKUP_ENCRYPTION_PASSPHRASE} < 32 )); then
+            echo '::error::BACKUP_ENCRYPTION_PASSPHRASE must contain at least 32 characters.'
+            exit 1
+          fi
+          if ! date -u -d "$BACKUP_RECOVERY_NOT_BEFORE" +'%Y-%m-%dT%H:%M:%SZ' > /dev/null; then
+            echo '::error::BACKUP_RECOVERY_NOT_BEFORE is not a valid timestamp.'
+            exit 1
+          fi
+
+      - name: Create and verify encrypted logical backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+
+          backup_dir="$RUNNER_TEMP/ustsacmland-db-backup"
+          archive="$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
+          encrypted="$RUNNER_TEMP/ustsacmland-database-backup.enc"
+          verification_archive="$RUNNER_TEMP/ustsacmland-database-backup.verify.tar.gz"
+
+          cleanup_plaintext() {
+            rm -rf "$backup_dir"
+            rm -f "$archive" "$verification_archive"
+          }
+          trap cleanup_plaintext EXIT
+
+          cleanup_plaintext
+          rm -f "$encrypted" "$encrypted.sha256"
+          mkdir -p "$backup_dir"
+
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/roles.sql" \
+            --role-only
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/schema.sql"
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/data.sql" \
+            --use-copy \
+            --data-only \
+            --exclude 'storage.buckets_vectors' \
+            --exclude 'storage.vector_indexes'
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/auth-data.sql" \
+            --use-copy \
+            --data-only \
+            --schema auth
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/migrations-schema.sql" \
+            --schema supabase_migrations
+          npx --yes supabase@2.109.1 db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$backup_dir/migrations-data.sql" \
+            --use-copy \
+            --data-only \
+            --schema supabase_migrations
+
+          for file in \
+            roles.sql \
+            schema.sql \
+            data.sql \
+            auth-data.sql \
+            migrations-schema.sql \
+            migrations-data.sql; do
+            test -s "$backup_dir/$file"
+          done
+
+          printf '%s\n' \
+            "created_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            "repository=$GITHUB_REPOSITORY" \
+            "commit=$GITHUB_SHA" \
+            "run_id=$GITHUB_RUN_ID" \
+            "recovery_not_before=$BACKUP_RECOVERY_NOT_BEFORE" \
+            'supabase_cli=2.109.1' \
+            > "$backup_dir/metadata.txt"
+          (
+            cd "$backup_dir"
+            sha256sum \
+              roles.sql \
+              schema.sql \
+              data.sql \
+              auth-data.sql \
+              migrations-schema.sql \
+              migrations-data.sql \
+              metadata.txt \
+              > SHA256SUMS
+          )
+
+          tar -C "$backup_dir" -czf "$archive" .
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -md sha256 \
+            -in "$archive" \
+            -out "$encrypted" \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+          test -s "$encrypted"
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
+            -in "$encrypted" \
+            -out "$verification_archive" \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+          tar -tzf "$verification_archive" > "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './roles.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './auth-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './migrations-schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './migrations-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './SHA256SUMS' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+
+          cleanup_plaintext
+          test ! -e "$backup_dir"
+          test ! -e "$archive"
+          test ! -e "$verification_archive"
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum ustsacmland-database-backup.enc \
+              > ustsacmland-database-backup.enc.sha256
+          )
+          trap - EXIT
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ustsacmland-database-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ustsacmland-database-backup.enc
+            ${{ runner.temp }}/ustsacmland-database-backup.enc.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

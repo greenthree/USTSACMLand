@@ -1,15 +1,33 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { AdminRateLimitError, consumeAdminRateLimit } from '../_shared/admin-rate-limit.ts'
+import { notifyFirecrawlCreditAlert } from '../_shared/alerts.ts'
+import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
+import { PLATFORM_IDS, type PlatformId } from '../_shared/adapters/index.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
+import { readFirecrawlCreditUsage } from '../_shared/firecrawl-usage.ts'
+import { toAdapterHttpError } from '../_shared/http.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
 import { type MemberSyncResult, summarizeMemberSyncResults } from '../_shared/sync-result.ts'
-import { normalizeSyncRequest, type SyncRequest, SyncRequestError } from './request.ts'
+import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
+import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.ts'
+import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
+import {
+  maySyncXcpcElo,
+  normalizeSyncRequest,
+  type SyncRequest,
+  SyncRequestError,
+} from './request.ts'
 
 interface AccountRow {
   profile_id: string
+  platform: PlatformId
 }
 
-interface ProfileRow {
-  id: string
+interface ClaimedQueueJobRow {
+  job_id: number
+  profile_id: string
+  platform: PlatformId | null
+  payload: unknown
 }
 
 class ApiError extends Error {
@@ -37,37 +55,138 @@ async function authorize(
   token: string,
   serviceClient: SupabaseClient,
   serviceRoleKey: string,
-): Promise<{ serviceRole: boolean }> {
+): Promise<{ serviceRole: boolean; actorId: string | null }> {
   if (token === serviceRoleKey || gatewayVerifiedJwtRole(token) === 'service_role') {
-    return { serviceRole: true }
+    return { serviceRole: true, actorId: null }
   }
 
   const { data, error } = await serviceClient.auth.getUser(token)
-  if (error || !data.user) throw new ApiError(401, 'Invalid or expired bearer token')
+  if (error || !data.user) {
+    throw new ApiError(401, 'Invalid or expired bearer token')
+  }
 
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
     .select('role, review_status')
     .eq('id', data.user.id)
     .maybeSingle()
-  if (profileError) throw new Error(`Could not authorize administrator: ${profileError.message}`)
+  if (profileError) {
+    throw new Error(`Could not authorize administrator: ${profileError.message}`)
+  }
   if (profile?.role !== 'admin' || profile.review_status !== 'approved') {
     throw new ApiError(403, 'Administrator access is required')
   }
-  return { serviceRole: false }
+  return { serviceRole: false, actorId: data.user.id }
 }
 
-function chunks<T>(items: T[], size: number): T[][] {
-  const result: T[][] = []
-  for (let index = 0; index < items.length; index += size)
-    result.push(items.slice(index, index + size))
-  return result
+function isPlatformId(value: unknown): value is PlatformId {
+  return typeof value === 'string' && PLATFORM_IDS.includes(value as PlatformId)
+}
+
+function queueJobPlatform(row: ClaimedQueueJobRow): PlatformId {
+  if (!isPlatformId(row.platform)) {
+    throw new Error(`Claimed synchronization job ${row.job_id} has no platform target`)
+  }
+  const payload =
+    row.payload !== null && typeof row.payload === 'object' && !Array.isArray(row.payload)
+      ? (row.payload as Record<string, unknown>)
+      : {}
+  if (
+    !Array.isArray(payload.platforms) ||
+    payload.platforms.length !== 1 ||
+    payload.platforms[0] !== row.platform
+  ) {
+    throw new Error(`Claimed synchronization job ${row.job_id} has an invalid payload`)
+  }
+  return row.platform
+}
+
+async function claimQueueTargets(serviceClient: SupabaseClient): Promise<SyncDispatchTarget[]> {
+  const { data, error } = await serviceClient.rpc('claim_due_sync_jobs', {
+    batch_limit: 12,
+    stale_timeout: '15 minutes',
+  })
+  if (error) {
+    throw new Error(`Could not claim synchronization queue: ${error.message}`)
+  }
+
+  return ((data ?? []) as ClaimedQueueJobRow[]).map((row) => ({
+    memberId: row.profile_id,
+    platform: queueJobPlatform(row),
+    jobId: row.job_id,
+  }))
+}
+
+async function loadRequestedTargets(
+  serviceClient: SupabaseClient,
+  platforms: PlatformId[] | undefined,
+  memberId: string | undefined,
+): Promise<SyncDispatchTarget[]> {
+  let query = serviceClient
+    .from('platform_accounts')
+    .select('profile_id, platform, profiles!inner(review_status)')
+    .eq('status', 'verified')
+    .eq('profiles.review_status', 'approved')
+  if (platforms) query = query.in('platform', platforms)
+  if (memberId) query = query.eq('profile_id', memberId)
+
+  const { data, error } = await query
+  if (error) {
+    throw new Error(`Could not load verified accounts: ${error.message}`)
+  }
+
+  const seen = new Set<string>()
+  const targets: SyncDispatchTarget[] = []
+  for (const row of (data ?? []) as AccountRow[]) {
+    const key = `${row.profile_id}:${row.platform}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    targets.push({ memberId: row.profile_id, platform: row.platform })
+  }
+  return targets
+}
+
+async function invokeSyncMember(
+  target: SyncDispatchTarget,
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  token: string,
+  triggerType: 'scheduled' | 'manual',
+): Promise<MemberSyncResult> {
+  const response = await fetch(`${supabaseUrl}/functions/v1/sync-member`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      apikey: serviceRoleKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      memberId: target.memberId,
+      platforms: [target.platform],
+      ...(target.jobId ? { jobId: target.jobId } : { triggerType }),
+    }),
+  })
+  let responseBody: unknown
+  try {
+    responseBody = await response.json()
+  } catch {
+    responseBody = { error: 'Invalid sync-member response' }
+  }
+  return {
+    memberId: target.memberId,
+    status: response.status,
+    body: responseBody,
+  }
 }
 
 Deno.serve(async (request) => {
   const respond = (body: unknown, status = 200) => jsonResponse(body, status, request)
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) })
-  if (request.method !== 'POST') return respond({ error: 'Method not allowed' }, 405)
+  if (request.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders(request) })
+  }
+  if (request.method !== 'POST') {
+    return respond({ error: 'Method not allowed' }, 405)
+  }
 
   try {
     const supabaseUrl = requiredEnv('SUPABASE_URL')
@@ -89,78 +208,111 @@ Deno.serve(async (request) => {
     try {
       normalizedRequest = normalizeSyncRequest(body)
     } catch (error) {
-      if (error instanceof SyncRequestError) throw new ApiError(400, error.message)
+      if (error instanceof SyncRequestError) {
+        throw new ApiError(400, error.message)
+      }
       throw error
     }
     const { scope, platforms, memberId } = normalizedRequest
-
-    let memberIds: string[]
-    if (scope === 'all' || platforms?.includes('xcpc_elo')) {
-      const { data: profiles, error: profilesError } = await serviceClient
-        .from('profiles')
-        .select('id')
-        .eq('review_status', 'approved')
-      if (profilesError)
-        throw new Error(`Could not load approved members: ${profilesError.message}`)
-      memberIds = ((profiles ?? []) as ProfileRow[]).map((row) => row.id)
-    } else {
-      let accountsQuery = serviceClient
-        .from('platform_accounts')
-        .select('profile_id, profiles!inner(review_status)')
-        .eq('status', 'verified')
-        .eq('profiles.review_status', 'approved')
-      if (platforms) accountsQuery = accountsQuery.in('platform', platforms)
-      if (scope === 'member') accountsQuery = accountsQuery.eq('profile_id', memberId)
-
-      const { data: accounts, error: accountsError } = await accountsQuery
-      if (accountsError) {
-        throw new Error(`Could not load verified accounts: ${accountsError.message}`)
-      }
-      memberIds = [...new Set(((accounts ?? []) as AccountRow[]).map((row) => row.profile_id))]
+    if (scope === 'queue' && !auth.serviceRole) {
+      throw new ApiError(403, 'Only the service role may process the synchronization queue')
     }
-    if (memberIds.length === 0 && !auth.serviceRole)
-      throw new ApiError(404, 'No approved members or verified accounts matched the request')
+    if (!auth.serviceRole && auth.actorId) {
+      await consumeAdminRateLimit(
+        serviceClient,
+        auth.actorId,
+        scope === 'all'
+          ? { actionKey: 'admin.sync.all', maxRequests: 2, windowSeconds: 600 }
+          : {
+              actionKey: 'admin.sync.scoped',
+              maxRequests: 12,
+              windowSeconds: 60,
+            },
+      )
+    }
 
-    if (memberIds.length === 0) {
-      const summary = summarizeMemberSyncResults([])
+    const targets =
+      scope === 'queue'
+        ? await claimQueueTargets(serviceClient)
+        : await loadRequestedTargets(serviceClient, platforms, memberId)
+    if (targets.length === 0 && !auth.serviceRole) {
+      throw new ApiError(404, 'No approved members or verified accounts matched the request')
+    }
+    if (targets.length === 0) {
       return respond({
         scope,
         platforms: platforms ?? null,
-        ...summary,
+        ...summarizeMemberSyncResults([]),
         results: [],
       })
     }
 
-    const results: MemberSyncResult[] = []
-    for (const batch of chunks(memberIds, 4)) {
-      const batchResults = await Promise.all(
-        batch.map(async (memberId) => {
-          const response = await fetch(`${supabaseUrl}/functions/v1/sync-member`, {
-            method: 'POST',
-            headers: {
-              authorization: `Bearer ${token}`,
-              apikey: serviceRoleKey,
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              memberId,
-              platforms,
-              triggerType: auth.serviceRole ? 'scheduled' : 'manual',
-            }),
-          })
-          let responseBody: unknown
-          try {
-            responseBody = await response.json()
-          } catch {
-            responseBody = { error: 'Invalid sync-member response' }
-          }
-          return { memberId, status: response.status, body: responseBody }
-        }),
-      )
-      results.push(...batchResults)
+    if (
+      maySyncXcpcElo(normalizedRequest) &&
+      targets.some((target) => target.platform === 'xcpc_elo')
+    ) {
+      try {
+        await createSupabaseXcpcDatasetLoader(serviceClient)()
+      } catch (error) {
+        const normalized = toAdapterHttpError(error)
+        console.warn(
+          `XCPC ELO cache preparation failed (${normalized.code}): ${normalized.message}`,
+        )
+      }
     }
 
+    if (shouldCheckFirecrawlCredits(auth.serviceRole, scope, targets)) {
+      try {
+        const usage = await readFirecrawlCreditUsage()
+        if (
+          usage.configured &&
+          usage.severity &&
+          usage.remainingCredits !== null &&
+          usage.planCredits !== null &&
+          usage.percentRemaining !== null
+        ) {
+          await notifyFirecrawlCreditAlert({
+            checkedAt: new Date().toISOString(),
+            remainingCredits: usage.remainingCredits,
+            planCredits: usage.planCredits,
+            percentRemaining: Number(usage.percentRemaining.toFixed(2)),
+            billingPeriodEnd: usage.billingPeriodEnd,
+            severity: usage.severity,
+          })
+        }
+      } catch {
+        console.warn(JSON.stringify({ event: 'firecrawl_credit_check_failed' }))
+      }
+    }
+
+    const triggerType = auth.serviceRole ? 'scheduled' : 'manual'
+    const results = await dispatchWithPlatformLimits(
+      targets,
+      (target) => invokeSyncMember(target, supabaseUrl, serviceRoleKey, token, triggerType),
+      (target, error): MemberSyncResult => {
+        console.error(
+          JSON.stringify({
+            event: 'sync_member_transport_failed',
+            platform: target.platform,
+            jobId: target.jobId ?? null,
+            errorType: error instanceof Error ? error.name : typeof error,
+          }),
+        )
+        return {
+          memberId: target.memberId,
+          status: 502,
+          body: {
+            status: 'failed',
+            error: 'sync-member transport request failed',
+            errorCode: 'network_error',
+            platform: target.platform,
+            jobId: target.jobId ?? null,
+          },
+        }
+      },
+    )
     const summary = summarizeMemberSyncResults(results)
+    const responseStatus = summary.failed > 0 ? 207 : summary.queued > 0 ? 202 : 200
     return respond(
       {
         scope,
@@ -168,11 +320,23 @@ Deno.serve(async (request) => {
         ...summary,
         results,
       },
-      summary.failed === 0 ? 200 : 207,
+      responseStatus,
     )
   } catch (error) {
+    if (error instanceof AdminRateLimitError) {
+      return respond(
+        {
+          error: error.message,
+          retryAfterSeconds: error.retryAfterSeconds,
+        },
+        429,
+      )
+    }
     const status = error instanceof ApiError ? error.status : 500
     const message = error instanceof Error ? error.message : 'Unknown batch sync error'
+    if (!(error instanceof ApiError)) {
+      await notifyRuntimeError(runtimeErrorAlert('sync-stats', request, error))
+    }
     return respond({ error: message }, status)
   }
 })

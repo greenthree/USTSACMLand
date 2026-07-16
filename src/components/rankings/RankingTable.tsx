@@ -2,22 +2,25 @@ import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right'
 import { Link } from 'react-router-dom'
 import { formatDateTime, formatInteger } from '../../lib/format'
 import { platformLabels, platformUrls } from '../../lib/platforms'
+import { isRatingPlatform } from '../../lib/ratingTiers'
 import type { Member, Platform } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
 import { PlatformMark } from '../PlatformMark'
+import { RatingValue } from '../RatingValue'
 import { StatusBadge } from '../StatusBadge'
 
 interface RankingTableProps {
   members: Member[]
   platform: Platform
   metric: 'rating' | 'solved'
+  rankOffset?: number
 }
 
 function RankNumber({ rank }: { rank: number }) {
   return <span className={rank <= 3 ? `rank-number rank-${rank}` : 'rank-number'}>{rank}</span>
 }
 
-export function RankingTable({ members, platform, metric }: RankingTableProps) {
+export function RankingTable({ members, platform, metric, rankOffset = 0 }: RankingTableProps) {
   if (members.length === 0) {
     return <EmptyState title="没有匹配的成员" description="调整搜索词、专业、年级或平台后重试。" />
   }
@@ -44,10 +47,11 @@ export function RankingTable({ members, platform, metric }: RankingTableProps) {
           {members.map((member, index) => {
             const current = member.stats[platform]
             const accountLabel = platform === 'xcpc_elo' ? member.name : current.externalId
+            const rank = rankOffset + index + 1
             return (
               <tr key={member.id}>
                 <td data-label="排名">
-                  <RankNumber rank={index + 1} />
+                  <RankNumber rank={rank} />
                 </td>
                 <td className="member-column" data-label="成员">
                   <Link className="member-cell" to={`/members/${member.id}`}>
@@ -88,11 +92,19 @@ export function RankingTable({ members, platform, metric }: RankingTableProps) {
                   className="metric-value"
                   data-label={metric === 'rating' ? '当前分' : '通过题数'}
                 >
-                  {formatInteger(metric === 'rating' ? current.rating : current.solved)}
+                  {metric === 'rating' && isRatingPlatform(platform) ? (
+                    <RatingValue platform={platform} value={current.rating} />
+                  ) : (
+                    formatInteger(current.solved)
+                  )}
                 </td>
                 {metric === 'rating' ? (
                   <td className="secondary-number" data-label="历史最高">
-                    {formatInteger(current.peakRating)}
+                    {isRatingPlatform(platform) ? (
+                      <RatingValue platform={platform} value={current.peakRating} />
+                    ) : (
+                      formatInteger(current.peakRating)
+                    )}
                   </td>
                 ) : null}
                 <td className="status-column" data-label="数据状态">

@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { demoAuthEnabled, supabase } from '../lib/supabase'
+import { clearAccountDraft } from '../lib/accountDraft'
 import type { ReviewStatus } from '../types/domain'
 import {
   AuthContext,
@@ -8,8 +9,18 @@ import {
   type AuthStatus,
   type AuthUser,
 } from './authContextValue'
+import { storePasswordChangeNotice } from './passwordChangeNotice'
 
 const demoSessionKey = 'usts-acm-land-demo-session:v1'
+const passwordRecoverySessionKey = 'usts-acm-land-password-recovery:v1'
+
+function clearPasswordRecoverySession() {
+  sessionStorage.removeItem(passwordRecoverySessionKey)
+}
+
+function markPasswordRecoverySession() {
+  sessionStorage.setItem(passwordRecoverySessionKey, 'active')
+}
 
 function demoUser(email: string): AuthUser {
   const normalizedEmail = email.trim().toLocaleLowerCase('en-US')
@@ -60,6 +71,9 @@ async function startRegistrationXcpcSync(memberId: string) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(
+    () => sessionStorage.getItem(passwordRecoverySessionKey) === 'active',
+  )
 
   const applySupabaseUser = useCallback(async (nextUser: User | null) => {
     if (!nextUser) {
@@ -79,6 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!supabase) {
+      clearPasswordRecoverySession()
+      setIsPasswordRecovery(false)
       if (!demoAuthEnabled) {
         setStatus('unavailable')
         return
@@ -96,11 +112,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let active = true
     void supabase.auth.getSession().then(({ data }) => {
-      if (active) void applySupabaseUser(data.session?.user ?? null)
+      if (!active) return
+      if (!data.session) {
+        clearPasswordRecoverySession()
+        setIsPasswordRecovery(false)
+      }
+      void applySupabaseUser(data.session?.user ?? null)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) void applySupabaseUser(session?.user ?? null)
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        markPasswordRecoverySession()
+        setIsPasswordRecovery(true)
+      } else if (event === 'SIGNED_OUT') {
+        clearPasswordRecoverySession()
+        setIsPasswordRecovery(false)
+      }
+      void applySupabaseUser(session?.user ?? null)
     })
 
     return () => {
@@ -121,6 +150,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+      clearPasswordRecoverySession()
+      setIsPasswordRecovery(false)
       await applySupabaseUser(data.user)
     },
     [applySupabaseUser],
@@ -148,6 +179,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error
       if (!data.session || !data.user) return false
 
+      clearPasswordRecoverySession()
+      setIsPasswordRecovery(false)
       await applySupabaseUser(data.user)
       void startRegistrationXcpcSync(data.user.id)
       return true
@@ -157,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string) => {
-      if (!user?.email) throw new Error('当前账号没有可用邮箱。')
+      if (!user) throw new Error('请先登录后再修改密码。')
       if (newPassword.length < 8) throw new Error('新密码至少需要 8 位。')
 
       if (!supabase) {
@@ -165,18 +198,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const { error: reauthenticationError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
+      const { data, error } = await supabase.functions.invoke('change-password', {
+        body: { currentPassword, newPassword },
       })
-      if (reauthenticationError) {
-        throw new Error(`当前密码验证失败：${reauthenticationError.message}`)
+      currentPassword = ''
+      newPassword = ''
+      if (error) throw new Error(`密码更新失败：${error.message}`)
+      const result = data as { updated?: unknown; sessionsRevoked?: unknown } | null
+      if (result?.updated !== true) throw new Error('密码更新失败：服务端未确认修改结果')
+
+      storePasswordChangeNotice(result.sessionsRevoked === true ? 'success' : 'revocation-warning')
+      clearAccountDraft(user.id)
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      setUser(null)
+      setStatus('anonymous')
+    },
+    [user],
+  )
+
+  const deleteAccount = useCallback(
+    async (currentPassword: string) => {
+      if (!user) throw new Error('请先登录后再注销账号。')
+      if (!currentPassword) throw new Error('请输入当前密码。')
+
+      if (!supabase) {
+        if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，账号注销暂不可用。')
+        clearAccountDraft(user.id)
+        sessionStorage.removeItem(demoSessionKey)
+        setUser(null)
+        setStatus('anonymous')
+        return
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
-      if (updateError) throw new Error(`密码更新失败：${updateError.message}`)
+      const { error } = await supabase.functions.invoke('delete-account', {
+        body: { currentPassword },
+      })
+      currentPassword = ''
+      if (error) throw new Error(`账号注销失败：${error.message}`)
+
+      clearAccountDraft(user.id)
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      setUser(null)
+      setStatus('anonymous')
     },
-    [user?.email],
+    [user],
+  )
+
+  const completePasswordRecovery = useCallback(
+    async (newPassword: string) => {
+      if (!supabase) {
+        throw new Error('系统尚未配置 Supabase，密码重置暂不可用。')
+      }
+      if (!isPasswordRecovery) throw new Error('密码重置链接无效或已过期。')
+      if (newPassword.length < 8) throw new Error('新密码至少需要 8 位。')
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+      newPassword = ''
+      if (updateError) throw new Error(`密码重置失败：${updateError.message}`)
+
+      clearPasswordRecoverySession()
+      setIsPasswordRecovery(false)
+      const { error: globalSignOutError } = await supabase.auth.signOut({ scope: 'global' })
+      if (globalSignOutError) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      }
+      setUser(null)
+      setStatus('anonymous')
+    },
+    [isPasswordRecovery],
   )
 
   const signOut = useCallback(async () => {
@@ -186,21 +275,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (demoAuthEnabled) {
       sessionStorage.removeItem(demoSessionKey)
     }
+    if (user?.id) clearAccountDraft(user.id)
+    clearPasswordRecoverySession()
+    setIsPasswordRecovery(false)
     setUser(null)
     setStatus(supabase || demoAuthEnabled ? 'anonymous' : 'unavailable')
-  }, [])
+  }, [user?.id])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
       user,
       isDemo: demoAuthEnabled,
+      isPasswordRecovery,
       signUp,
       signIn,
       changePassword,
+      completePasswordRecovery,
+      deleteAccount,
       signOut,
     }),
-    [changePassword, signIn, signOut, signUp, status, user],
+    [
+      changePassword,
+      completePasswordRecovery,
+      deleteAccount,
+      isPasswordRecovery,
+      signIn,
+      signOut,
+      signUp,
+      status,
+      user,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

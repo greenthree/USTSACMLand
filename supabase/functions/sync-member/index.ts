@@ -1,26 +1,38 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { AdminRateLimitError, consumeAdminRateLimit } from '../_shared/admin-rate-limit.ts'
 import {
   type AdapterResult,
   adapters,
-  failure,
   PLATFORM_IDS,
+  type PlatformAdapter,
   type PlatformId,
 } from '../_shared/adapters/index.ts'
+import { notifySyncFailure, shouldNotifySyncFailure } from '../_shared/alerts.ts'
+import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
+import { createXcpcEloAdapter } from '../_shared/adapters/xcpc-elo.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
-import { freshnessDeadline, retainedFreshness } from '../_shared/freshness.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
+import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
 import {
   canRequestSync,
   isRegistrationSyncWindowOpen,
   SYNC_TRIGGER_TYPES,
   type SyncTriggerType,
 } from './access.ts'
+import {
+  buildPlatformAccountVerificationUpdate,
+  duplicatePlatformAccountFailure,
+  isPlatformAccountEligible,
+} from './account-verification.ts'
 import { buildSyncJobTarget } from './job.ts'
+import { buildPlatformPersistenceState, persistNonLuoguResult } from './persistence.ts'
+import { maxAttemptsForPlatforms, nextRetryAt } from './retry.ts'
 
 interface SyncRequest {
   memberId?: string
   platforms?: PlatformId[]
   triggerType?: SyncTriggerType
+  jobId?: number
 }
 
 interface PlatformAccount {
@@ -29,6 +41,7 @@ interface PlatformAccount {
   platform: PlatformId
   external_id: string
   status: 'pending' | 'verified' | 'invalid' | 'disabled'
+  updated_at: string
 }
 
 interface ExistingStat {
@@ -51,6 +64,16 @@ interface LuoguSyncStateRow {
   total_records: number | null
   problem_ids: string[]
   last_full_sync_at: string
+}
+
+interface ClaimedSyncJob {
+  id: number
+  profile_id: string | null
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  trigger_type: SyncTriggerType
+  attempt_count: number
+  max_attempts: number
+  payload: unknown
 }
 
 class ApiError extends Error {
@@ -132,8 +155,9 @@ async function authorize(
   if (profileError) {
     throw new Error(`Could not authorize administrator: ${profileError.message}`)
   }
-  if (profile?.review_status !== 'approved')
+  if (profile?.review_status !== 'approved') {
     throw new ApiError(403, 'Approved membership is required')
+  }
   const admin = profile.role === 'admin'
   if (!admin && userData.user.id !== memberId) {
     throw new ApiError(403, 'Members may only synchronize their own account')
@@ -146,71 +170,53 @@ async function authorize(
   }
 }
 
-function eligibleAccount(account: PlatformAccount): boolean {
-  return (
-    account.status === 'verified' ||
-    (account.platform === 'xcpc_elo' && ['pending', 'invalid'].includes(account.status))
-  )
-}
-
-async function persistXcpcAccountResolution(
+async function persistPlatformAccountVerification(
   client: SupabaseClient,
   account: PlatformAccount,
   result: AdapterResult,
+  triggerType: SyncTriggerType,
 ): Promise<AdapterResult> {
-  if (account.platform !== 'xcpc_elo') return result
+  const update = buildPlatformAccountVerificationUpdate(account, result, triggerType)
+  if (!update) return result
 
-  if (result.ok) {
-    const { error } = await client
-      .from('platform_accounts')
-      .update({
-        external_id: result.accountId,
-        status: 'verified',
-        verification_error_code: null,
-        verification_error_message: null,
-      })
-      .eq('id', account.id)
-    if (!error) return result
-    if (error.code !== '23505') {
-      throw new Error(`Could not persist XCPC ELO account resolution: ${error.message}`)
-    }
+  const updateResult = await client
+    .from('platform_accounts')
+    .update(update)
+    .eq('id', account.id)
+    .eq('external_id', account.external_id)
+    .eq('updated_at', account.updated_at)
+    .select('id')
+    .maybeSingle()
+  const { data: updatedAccount, error } = updateResult
+  if (!error && updatedAccount) return result
+  if (!error) {
+    throw new Error(`The ${account.platform} account changed while verification was running`)
+  }
+  if (!result.ok || error.code !== '23505') {
+    throw new Error(`Could not persist ${account.platform} account verification: ${error.message}`)
+  }
 
-    const duplicate = failure(
-      'xcpc_elo',
-      result.accountId,
-      'invalid_account',
-      'The matched XCPC ELO player is already linked to another member',
-      false,
+  const duplicate = duplicatePlatformAccountFailure(account.platform, result.accountId)
+  const { data: invalidAccount, error: invalidError } = await client
+    .from('platform_accounts')
+    .update({
+      status: 'invalid',
+      verification_error_code: duplicate.error.code,
+      verification_error_message: duplicate.error.message,
+    })
+    .eq('id', account.id)
+    .eq('external_id', account.external_id)
+    .eq('updated_at', account.updated_at)
+    .select('id')
+    .maybeSingle()
+  if (invalidError || !invalidAccount) {
+    throw new Error(
+      invalidError
+        ? `Could not persist ${account.platform} account conflict: ${invalidError.message}`
+        : `The ${account.platform} account changed while verification was running`,
     )
-    const { error: invalidError } = await client
-      .from('platform_accounts')
-      .update({
-        status: 'invalid',
-        verification_error_code: duplicate.error.code,
-        verification_error_message: duplicate.error.message,
-      })
-      .eq('id', account.id)
-    if (invalidError) {
-      throw new Error(`Could not persist XCPC ELO account conflict: ${invalidError.message}`)
-    }
-    return duplicate
   }
-
-  const identityFailure = ['invalid_account', 'not_found'].includes(result.error.code)
-  if (account.status !== 'verified' || identityFailure) {
-    const { error } = await client
-      .from('platform_accounts')
-      .update({
-        status: identityFailure ? 'invalid' : account.status,
-        verification_error_code: result.error.code,
-        verification_error_message: result.error.message.slice(0, 2_000),
-      })
-      .eq('id', account.id)
-    if (error) {
-      throw new Error(`Could not persist XCPC ELO account failure: ${error.message}`)
-    }
-  }
-  return result
+  return duplicate
 }
 
 function luoguAdapterState(state: LuoguSyncStateRow | undefined): unknown {
@@ -304,10 +310,13 @@ function publicAdapterResult(result: AdapterResult): AdapterResult {
 async function persistResult(
   client: SupabaseClient,
   jobId: number,
+  attempt: number,
   account: PlatformAccount,
   existing: ExistingStat | undefined,
   luoguState: LuoguSyncStateRow | undefined,
   memberName: string | undefined,
+  xcpcAdapter: PlatformAdapter | null,
+  triggerType: SyncTriggerType,
 ): Promise<{ result: AdapterResult; runId: number }> {
   const startedAt = new Date().toISOString()
   const { data: run, error: runError } = await client
@@ -317,7 +326,7 @@ async function persistResult(
       profile_id: account.profile_id,
       platform: account.platform,
       platform_account_id: account.id,
-      attempt: 1,
+      attempt,
       status: 'running',
       started_at: startedAt,
     })
@@ -330,47 +339,37 @@ async function persistResult(
   try {
     // external_id preserves case for case-sensitive platforms. The normalized
     // value exists for uniqueness checks, not for upstream requests.
-    const adapterResult = await adapters[account.platform].sync(account.external_id, {
+    const adapter = account.platform === 'xcpc_elo' ? xcpcAdapter : adapters[account.platform]
+    if (!adapter) {
+      throw new Error('XCPC ELO shared cache adapter is unavailable')
+    }
+    const adapterResult = await adapter.sync(account.external_id, {
       memberName,
       syncState: luoguAdapterState(luoguState),
     })
-    const result = await persistXcpcAccountResolution(client, account, adapterResult)
+    const result = await persistPlatformAccountVerification(
+      client,
+      account,
+      adapterResult,
+      triggerType,
+    )
     const finishedAt = new Date().toISOString()
     const durationMs = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt))
-    const currentRating = result.ok
-      ? result.metrics.currentRating
-      : (existing?.current_rating ?? null)
-    const maxRating = result.ok ? result.metrics.maxRating : (existing?.max_rating ?? null)
-    const solvedCount = result.ok ? result.metrics.solvedCount : (existing?.solved_count ?? null)
-    const retained = result.ok
-      ? null
-      : retainedFreshness(account.platform, existing?.last_success_at ?? null)
-    const status = result.ok ? 'fresh' : (retained?.status ?? 'unavailable')
-    const sourceObservedAt = result.ok
-      ? result.sourceUpdatedAt
-      : (existing?.source_observed_at ?? null)
-    const lastSuccessAt = result.ok ? result.fetchedAt : (existing?.last_success_at ?? null)
-    const staleAfter = result.ok
-      ? freshnessDeadline(account.platform, result.fetchedAt)
-      : (retained?.staleAfter ?? null)
-    const sourceVersion = result.ok ? result.sourceVersion : (existing?.source_version ?? null)
-
-    const statRow = {
-      profile_id: account.profile_id,
-      platform: account.platform,
-      current_rating: currentRating,
-      max_rating: maxRating,
-      solved_count: solvedCount,
-      status,
-      source_observed_at: sourceObservedAt,
-      fetched_at: result.fetchedAt,
-      last_success_at: lastSuccessAt,
-      stale_after: staleAfter,
-      error_code: result.ok ? null : result.error.code,
-      error_message: result.ok ? null : result.error.message.slice(0, 4_000),
-      source_version: sourceVersion,
-      updated_at: finishedAt,
-    }
+    const persistenceState = buildPlatformPersistenceState(
+      account.platform,
+      existing
+        ? {
+            currentRating: existing.current_rating,
+            maxRating: existing.max_rating,
+            solvedCount: existing.solved_count,
+            sourceObservedAt: existing.source_observed_at,
+            lastSuccessAt: existing.last_success_at,
+            sourceVersion: existing.source_version,
+          }
+        : undefined,
+      result,
+      finishedAt,
+    )
 
     if (account.platform === 'luogu') {
       await commitLuoguSyncResult(
@@ -382,62 +381,32 @@ async function persistResult(
         result,
         finishedAt,
         durationMs,
-        currentRating,
-        maxRating,
-        solvedCount,
-        status,
-        sourceObservedAt,
-        lastSuccessAt,
-        staleAfter,
-        sourceVersion,
+        persistenceState.currentRating,
+        persistenceState.maxRating,
+        persistenceState.solvedCount,
+        persistenceState.status,
+        persistenceState.sourceObservedAt,
+        persistenceState.lastSuccessAt,
+        persistenceState.staleAfter,
+        persistenceState.sourceVersion,
       )
       return { result, runId: run.id as number }
     }
 
-    const { error: statError } = await client
-      .from('platform_stats')
-      .upsert(statRow, { onConflict: 'profile_id,platform' })
-    if (statError) {
-      throw new Error(`Could not persist ${account.platform} stats: ${statError.message}`)
-    }
-
-    const snapshotRow = {
-      profile_id: account.profile_id,
-      platform: account.platform,
-      sync_run_id: run.id,
-      current_rating: currentRating,
-      max_rating: maxRating,
-      solved_count: solvedCount,
-      status,
-      source_observed_at: sourceObservedAt,
-      recorded_at: finishedAt,
-    }
-    const { error: snapshotError } = await client
-      .from('stat_snapshots')
-      .upsert(snapshotRow, { onConflict: 'profile_id,platform,sync_run_id' })
-    if (snapshotError) {
-      throw new Error(`Could not persist ${account.platform} snapshot: ${snapshotError.message}`)
-    }
-
-    const { error: finishRunError } = await client
-      .from('sync_runs')
-      .update({
-        status: result.ok ? 'succeeded' : 'failed',
-        finished_at: finishedAt,
-        duration_ms: durationMs,
-        error_code: result.ok ? null : result.error.code,
-        error_message: result.ok ? null : result.error.message.slice(0, 4_000),
-        source_version: sourceVersion,
-        metrics: result.ok
-          ? result.metrics
-          : result.error.details
-            ? { diagnostics: result.error.details }
-            : null,
-      })
-      .eq('id', run.id)
-    if (finishRunError) {
-      throw new Error(`Could not finish ${account.platform} sync run: ${finishRunError.message}`)
-    }
+    await persistNonLuoguResult(
+      client,
+      jobId,
+      run.id as number,
+      {
+        id: account.id,
+        platform: account.platform,
+        externalId: account.external_id,
+      },
+      result,
+      persistenceState,
+      startedAt,
+      finishedAt,
+    )
 
     return { result, runId: run.id as number }
   } catch (error) {
@@ -454,6 +423,7 @@ async function persistResult(
         metrics: null,
       })
       .eq('id', run.id)
+      .eq('status', 'running')
     throw error
   }
 }
@@ -468,6 +438,10 @@ Deno.serve(async (request) => {
   }
 
   let jobId: number | null = null
+  let jobAttempt = 1
+  let jobMaxAttempts = 1
+  let jobPlatforms: PlatformId[] = []
+  let jobTriggerType: SyncTriggerType = 'scheduled'
   let serviceClient: SupabaseClient | null = null
   try {
     const supabaseUrl = requiredEnv('SUPABASE_URL')
@@ -485,11 +459,55 @@ Deno.serve(async (request) => {
       throw new ApiError(400, 'memberId must be a UUID')
     }
     const auth = await authorize(request, serviceClient, body.memberId, serviceRoleKey)
-    const platforms = selectedPlatforms(body.platforms)
-    const triggerType = body.triggerType ?? (auth.serviceRole ? 'scheduled' : 'manual')
+    let platforms = selectedPlatforms(body.platforms)
+    let triggerType = body.triggerType ?? (auth.serviceRole ? 'scheduled' : 'manual')
+
+    if (body.jobId !== undefined) {
+      if (!auth.serviceRole) {
+        throw new ApiError(403, 'Only the queue worker may resume a job')
+      }
+      if (!Number.isSafeInteger(body.jobId) || body.jobId < 1) {
+        throw new ApiError(400, 'jobId must be a positive integer')
+      }
+      const { data: claimedJob, error: claimedJobError } = await serviceClient
+        .from('sync_jobs')
+        .select('id, profile_id, status, trigger_type, attempt_count, max_attempts, payload')
+        .eq('id', body.jobId)
+        .maybeSingle()
+      if (claimedJobError) {
+        throw new Error(`Could not load claimed sync job: ${claimedJobError.message}`)
+      }
+      const existingJob = claimedJob as ClaimedSyncJob | null
+      if (!existingJob) {
+        throw new ApiError(404, 'Claimed synchronization job was not found')
+      }
+      if (existingJob.status !== 'running' || existingJob.profile_id !== body.memberId) {
+        throw new ApiError(409, 'Synchronization job is not claimed for this member')
+      }
+      const payload =
+        existingJob.payload !== null &&
+        typeof existingJob.payload === 'object' &&
+        !Array.isArray(existingJob.payload)
+          ? (existingJob.payload as Record<string, unknown>)
+          : {}
+      const claimedPlatforms = selectedPlatforms(payload.platforms)
+      if (
+        !platforms ||
+        platforms.length !== claimedPlatforms?.length ||
+        platforms.some((platform, index) => platform !== claimedPlatforms[index])
+      ) {
+        throw new ApiError(409, 'Synchronization job payload does not match the worker request')
+      }
+      platforms = claimedPlatforms
+      triggerType = existingJob.trigger_type
+      jobId = existingJob.id
+      jobAttempt = existingJob.attempt_count
+      jobMaxAttempts = existingJob.max_attempts
+    }
     if (!SYNC_TRIGGER_TYPES.includes(triggerType)) {
       throw new ApiError(400, 'Unsupported triggerType')
     }
+    jobTriggerType = triggerType
     if (!canRequestSync(auth, triggerType, platforms)) {
       if (!auth.admin) {
         throw new ApiError(
@@ -507,6 +525,18 @@ Deno.serve(async (request) => {
     if (memberRegistrationSync && !isRegistrationSyncWindowOpen(auth.profileCreatedAt)) {
       throw new ApiError(403, 'The XCPC ELO registration synchronization window has expired')
     }
+    if (!auth.serviceRole && auth.admin && auth.requestedBy) {
+      await consumeAdminRateLimit(serviceClient, auth.requestedBy, {
+        actionKey: 'admin.sync.member-total',
+        maxRequests: 300,
+        windowSeconds: 3600,
+      })
+      await consumeAdminRateLimit(serviceClient, auth.requestedBy, {
+        actionKey: `admin.sync.member:${body.memberId}`,
+        maxRequests: 12,
+        windowSeconds: 60,
+      })
+    }
 
     const { data: memberProfile, error: memberProfileError } = await serviceClient
       .from('profiles')
@@ -522,14 +552,16 @@ Deno.serve(async (request) => {
 
     let accountsQuery = serviceClient
       .from('platform_accounts')
-      .select('id, profile_id, platform, external_id, status')
+      .select('id, profile_id, platform, external_id, status, updated_at')
       .eq('profile_id', body.memberId)
     if (platforms) accountsQuery = accountsQuery.in('platform', platforms)
     const { data: accountRows, error: accountsError } = await accountsQuery
     if (accountsError) {
       throw new Error(`Could not load platform accounts: ${accountsError.message}`)
     }
-    const accounts = ((accountRows ?? []) as PlatformAccount[]).filter(eligibleAccount)
+    const accounts = ((accountRows ?? []) as PlatformAccount[]).filter((account) =>
+      isPlatformAccountEligible(account, triggerType),
+    )
     if (accounts.length === 0) {
       throw new ApiError(404, 'No eligible platform accounts matched the request')
     }
@@ -540,34 +572,53 @@ Deno.serve(async (request) => {
     }
 
     const syncedPlatforms = accounts.map((account) => account.platform).sort()
-    const jobTarget = buildSyncJobTarget(body.memberId, platforms, syncedPlatforms)
+    jobPlatforms = syncedPlatforms
+    if (jobId === null) {
+      const jobTarget = buildSyncJobTarget(body.memberId, platforms, syncedPlatforms)
+      jobMaxAttempts = maxAttemptsForPlatforms(syncedPlatforms)
 
-    const { data: job, error: jobError } = await serviceClient
-      .from('sync_jobs')
-      .insert({
-        ...jobTarget,
-        status: 'queued',
-        trigger_type: triggerType,
-        requested_by: auth.requestedBy,
-      })
-      .select('id, created_at')
-      .single()
-    if (jobError) {
-      if (jobError.code === '23505') {
-        if (memberRegistrationSync) {
-          throw new ApiError(409, 'XCPC ELO registration synchronization was already requested')
+      const { data: job, error: jobError } = await serviceClient
+        .from('sync_jobs')
+        .insert({
+          ...jobTarget,
+          status: 'queued',
+          trigger_type: triggerType,
+          requested_by: auth.requestedBy,
+          attempt_count: 0,
+          max_attempts: jobMaxAttempts,
+          scheduled_for: new Date(Date.now() + 60_000).toISOString(),
+        })
+        .select('id, created_at')
+        .single()
+      if (jobError) {
+        if (jobError.code === '23505') {
+          if (memberRegistrationSync) {
+            throw new ApiError(409, 'XCPC ELO registration synchronization was already requested')
+          }
+          throw new ApiError(409, 'A synchronization job is already active for this member')
         }
-        throw new ApiError(409, 'A synchronization job is already active for this member')
+        throw new Error(`Could not create sync job: ${jobError.message}`)
       }
-      throw new Error(`Could not create sync job: ${jobError.message}`)
-    }
-    jobId = job.id as number
-    const { error: startJobError } = await serviceClient
-      .from('sync_jobs')
-      .update({ status: 'running', started_at: job.created_at })
-      .eq('id', jobId)
-    if (startJobError) {
-      throw new Error(`Could not start sync job: ${startJobError.message}`)
+      jobId = job.id as number
+      const { data: startedJob, error: startJobError } = await serviceClient
+        .from('sync_jobs')
+        .update({
+          status: 'running',
+          attempt_count: jobAttempt,
+          started_at: job.created_at,
+        })
+        .eq('id', jobId)
+        .eq('status', 'queued')
+        .eq('attempt_count', 0)
+        .select('id')
+        .maybeSingle()
+      if (startJobError || !startedJob) {
+        throw new Error(
+          startJobError
+            ? `Could not start sync job: ${startJobError.message}`
+            : 'Synchronization job was claimed before its initial attempt started',
+        )
+      }
     }
 
     const { data: statsRows, error: statsError } = await serviceClient
@@ -606,16 +657,22 @@ Deno.serve(async (request) => {
     const luoguStateByAccount = new Map(
       luoguStateRows.map((state) => [state.platform_account_id, state]),
     )
+    const xcpcAdapter = accounts.some((account) => account.platform === 'xcpc_elo')
+      ? createXcpcEloAdapter(createSupabaseXcpcDatasetLoader(serviceClient))
+      : null
 
     const persisted = await Promise.all(
       accounts.map(async (account) => {
         return await persistResult(
           serviceClient!,
           jobId!,
+          jobAttempt,
           account,
           existingByPlatform.get(account.platform),
           luoguStateByAccount.get(account.id),
           memberName,
+          xcpcAdapter,
+          triggerType,
         )
       }),
     )
@@ -623,11 +680,30 @@ Deno.serve(async (request) => {
     const failures = persisted.filter(({ result }) => !result.ok)
     const finishedAt = new Date().toISOString()
     const firstFailure = failures[0]?.result
+    const retryAt =
+      jobAttempt < jobMaxAttempts
+        ? nextRetryAt(
+            syncedPlatforms,
+            persisted.map(({ result }) => result),
+            jobAttempt,
+            new Date(finishedAt),
+          )
+        : null
+    const jobCompletion = retryAt
+      ? {
+          status: 'queued' as const,
+          scheduled_for: retryAt,
+          started_at: null,
+          finished_at: null,
+        }
+      : {
+          status: (failures.length === 0 ? 'succeeded' : 'failed') as 'succeeded' | 'failed',
+          finished_at: finishedAt,
+        }
     const { error: finishJobError } = await serviceClient
       .from('sync_jobs')
       .update({
-        status: failures.length === 0 ? 'succeeded' : 'failed',
-        finished_at: finishedAt,
+        ...jobCompletion,
         last_error_code: firstFailure && !firstFailure.ok ? firstFailure.error.code : null,
         last_error_message:
           firstFailure && !firstFailure.ok ? firstFailure.error.message.slice(0, 4_000) : null,
@@ -637,27 +713,75 @@ Deno.serve(async (request) => {
       throw new Error(`Could not finish sync job: ${finishJobError.message}`)
     }
 
+    const alertFailures = failures.flatMap(({ result }) =>
+      result.ok || !shouldNotifySyncFailure(result.error.code)
+        ? []
+        : [{ platform: result.platform, code: result.error.code }],
+    )
+    if (!retryAt && alertFailures.length > 0) {
+      await notifySyncFailure({
+        jobId,
+        triggerType,
+        attempt: jobAttempt,
+        maxAttempts: jobMaxAttempts,
+        failedAt: finishedAt,
+        failures: alertFailures,
+      })
+    }
+
     return respond(
       {
         jobId,
         memberId: body.memberId,
-        status: failures.length === 0 ? 'succeeded' : 'failed',
-        results: persisted.map(({ result, runId }) => ({ runId, ...publicAdapterResult(result) })),
+        status: retryAt ? 'queued' : failures.length === 0 ? 'succeeded' : 'failed',
+        attempt: jobAttempt,
+        maxAttempts: jobMaxAttempts,
+        retryAt,
+        results: persisted.map(({ result, runId }) => ({
+          runId,
+          ...publicAdapterResult(result),
+        })),
       },
-      failures.length === 0 ? 200 : 207,
+      retryAt ? 202 : failures.length === 0 ? 200 : 207,
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown sync error'
+    if (!(error instanceof ApiError) && !(error instanceof AdminRateLimitError)) {
+      await notifyRuntimeError(runtimeErrorAlert('sync-member', request, error))
+    }
     if (jobId !== null && serviceClient) {
-      await serviceClient
+      const failedAt = new Date().toISOString()
+      const { error: failJobError } = await serviceClient
         .from('sync_jobs')
         .update({
           status: 'failed',
-          finished_at: new Date().toISOString(),
+          finished_at: failedAt,
           last_error_code: 'unknown',
           last_error_message: message.slice(0, 1_000),
         })
         .eq('id', jobId)
+      if (!failJobError && jobPlatforms.length > 0) {
+        await notifySyncFailure({
+          jobId,
+          triggerType: jobTriggerType,
+          attempt: jobAttempt,
+          maxAttempts: jobMaxAttempts,
+          failedAt,
+          failures: jobPlatforms.map((platform) => ({
+            platform,
+            code: 'unknown',
+          })),
+        })
+      }
+    }
+    if (error instanceof AdminRateLimitError) {
+      return respond(
+        {
+          error: error.message,
+          retryAfterSeconds: error.retryAfterSeconds,
+        },
+        429,
+      )
     }
     const status = error instanceof ApiError ? error.status : 500
     return respond({ error: message }, status)

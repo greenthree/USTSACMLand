@@ -9,10 +9,13 @@ export type SolvedPlatform = Extract<
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'suspended'
 export type AccountVerificationStatus = 'pending' | 'verified' | 'invalid' | 'disabled'
 export type AdminMemberStatus = 'active' | 'suspended'
+export type AdminMemberRole = 'member' | 'admin'
+export type AnnouncementStatus = 'draft' | 'published' | 'archived'
 export type SyncStatus = 'fresh' | 'stale' | 'error' | 'missing' | 'syncing'
 export type SyncRunStatus = 'success' | 'running' | 'failed' | 'queued' | 'skipped'
 export type SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 export type SyncTriggerType = 'scheduled' | 'manual' | 'registration' | 'account_changed' | 'retry'
+export type SyncJobScope = 'account' | 'member' | 'platform' | 'all'
 
 export interface PlatformStat {
   platform: Platform
@@ -33,6 +36,15 @@ export interface Member {
   reviewStatus: ReviewStatus
   joinedAt: string
   stats: Record<Platform, PlatformStat>
+}
+
+export interface RatingSnapshot {
+  id: number | null
+  platform: RatingPlatform
+  rating: number
+  peakRating: number | null
+  recordedAt: string
+  sourceObservedAt: string | null
 }
 
 export interface AdminPlatformAccount {
@@ -57,6 +69,7 @@ export interface AdminMember {
   qq: string
   major: string
   grade: string
+  role: AdminMemberRole
   status: AdminMemberStatus
   suspensionNote: string | null
   isPublic: boolean
@@ -72,6 +85,31 @@ export interface AdminMemberProfileUpdate {
   grade: string
   major: string
   isPublic: boolean
+}
+
+export interface AdminAnnouncement {
+  id: number
+  title: string
+  body: string
+  status: AnnouncementStatus
+  publishedAt: string | null
+  expiresAt: string | null
+  createdBy: string | null
+  createdByLabel: string
+  updatedBy: string | null
+  updatedByLabel: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminAnnouncementInput {
+  id: number | null
+  title: string
+  body: string
+  status: AnnouncementStatus
+  publishedAt: string | null
+  expiresAt: string | null
+  expectedUpdatedAt: string | null
 }
 
 export type AdminMemberAccountStatus = AccountVerificationStatus | 'missing'
@@ -139,6 +177,22 @@ export interface SyncRun {
   sourceVersion: string | null
 }
 
+export interface SyncQueueJob {
+  id: number
+  profileId: string | null
+  memberName: string
+  scope: SyncJobScope
+  platform: Platform | null
+  status: Extract<SyncJobStatus, 'queued' | 'running'>
+  triggerType: SyncTriggerType
+  attemptCount: number
+  maxAttempts: number
+  scheduledAt: string
+  startedAt: string | null
+  createdAt: string
+  errorCode: string | null
+}
+
 export interface AdminOverview {
   approvedMemberCount: number
   pendingMemberCount: number
@@ -179,13 +233,14 @@ export interface AdminSourceHealthGroup {
 export interface AdminSyncBatchResult {
   requested: number
   succeeded: number
+  queued: number
   failed: number
 }
 
 export interface AdminSyncRetryResult {
   jobId: number | null
   memberId: string
-  status: 'success' | 'failed'
+  status: 'success' | 'queued' | 'failed'
 }
 
 export interface AuditEntry {

@@ -1,6 +1,7 @@
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Save from 'lucide-react/dist/esm/icons/save'
 import KeyRound from 'lucide-react/dist/esm/icons/key-round'
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
@@ -16,6 +17,13 @@ import {
   type AccountFormValues,
 } from '../lib/accountDraft'
 import { platformLabels } from '../lib/platforms'
+import {
+  normalizePlatformAccountId,
+  platformAccountSaveErrorMessage,
+  platformAccountMaxLengths,
+  validatePlatformAccountId,
+  validatePlatformAccounts,
+} from '../lib/platformAccounts'
 import { gradeOptions, majorSuggestions, normalizeGrade } from '../lib/profileFields'
 import { supabase } from '../lib/supabase'
 import { platforms, type AccountVerificationStatus, type Platform } from '../types/domain'
@@ -48,6 +56,10 @@ const demoAccounts: Record<Platform, string> = {
 }
 
 const editablePlatforms = accountDraftPlatforms
+
+const emptyValidationErrors = Object.fromEntries(
+  accountDraftPlatforms.map((platform) => [platform, null]),
+) as Record<(typeof accountDraftPlatforms)[number], string | null>
 
 const emptyAccountStatuses: Record<Platform, AccountDisplayStatus> = {
   codeforces: 'missing',
@@ -145,7 +157,7 @@ function AccountStatusBadge({
 }
 
 export function AccountPage() {
-  const { user, isDemo, changePassword } = useAuth()
+  const { user, isDemo, changePassword, deleteAccount } = useAuth()
   const userId = user?.id
   const [name, setName] = useState('')
   const [qq, setQq] = useState('')
@@ -158,6 +170,9 @@ export function AccountPage() {
   const [accountErrors, setAccountErrors] = useState<Record<Platform, string | null>>({
     ...emptyAccountErrors,
   })
+  const [accountValidationErrors, setAccountValidationErrors] = useState({
+    ...emptyValidationErrors,
+  })
   const [notice, setNotice] = useState('')
   const [noticeKind, setNoticeKind] = useState<'success' | 'error'>('success')
   const [loadingProfile, setLoadingProfile] = useState(true)
@@ -169,6 +184,11 @@ export function AccountPage() {
   const [passwordNotice, setPasswordNotice] = useState('')
   const [passwordNoticeKind, setPasswordNoticeKind] = useState<'success' | 'error'>('success')
   const [changingPassword, setChangingPassword] = useState(false)
+  const [showDeletionConfirmation, setShowDeletionConfirmation] = useState(false)
+  const [deletionPassword, setDeletionPassword] = useState('')
+  const [deletionConfirmed, setDeletionConfirmed] = useState(false)
+  const [deletionNotice, setDeletionNotice] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
   const [draftReady, setDraftReady] = useState(false)
   const baselineValuesRef = useRef<AccountFormValues | null>(null)
 
@@ -215,6 +235,7 @@ export function AccountPage() {
       setAccounts(accountState.accounts)
       setAccountStatuses(accountState.statuses)
       setAccountErrors(accountState.errors)
+      setAccountValidationErrors({ ...emptyValidationErrors })
       baselineValuesRef.current = serverValues
       setDraftReady(true)
       setLoadingProfile(false)
@@ -288,13 +309,25 @@ export function AccountPage() {
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const normalizedGrade = normalizeGrade(grade)
-    const submittedValues = formValues(
-      name.trim(),
-      qq.trim(),
-      major.trim(),
-      normalizedGrade,
-      accounts,
-    )
+    const normalizedAccounts = Object.fromEntries(
+      accountDraftPlatforms.map((platform) => [
+        platform,
+        normalizePlatformAccountId(accounts[platform], platform),
+      ]),
+    ) as AccountFormValues['accounts']
+    const validationErrors = validatePlatformAccounts(normalizedAccounts)
+    setAccountValidationErrors(validationErrors)
+
+    if (Object.values(validationErrors).some(Boolean)) {
+      setNoticeKind('error')
+      setNotice('请先修正平台账号格式。')
+      return
+    }
+
+    const submittedValues = formValues(name.trim(), qq.trim(), major.trim(), normalizedGrade, {
+      ...accounts,
+      ...normalizedAccounts,
+    })
     const baseline = baselineValuesRef.current
     setSaving(true)
     setNotice('')
@@ -347,7 +380,7 @@ export function AccountPage() {
         if (accountError) {
           setSaving(false)
           setNoticeKind('error')
-          setNotice(`平台绑定保存失败：${accountError.message}`)
+          setNotice(platformAccountSaveErrorMessage(accountError))
           return
         }
       }
@@ -400,6 +433,7 @@ export function AccountPage() {
       setAccounts(accountState.accounts)
       setAccountStatuses(accountState.statuses)
       setAccountErrors(accountState.errors)
+      setAccountValidationErrors({ ...emptyValidationErrors })
       baselineValuesRef.current = savedValues
       clearAccountDraft(userId)
     } else if (userId) {
@@ -477,10 +511,29 @@ export function AccountPage() {
       setPasswordNoticeKind('success')
       setPasswordNotice('密码已更新。')
     } catch (error) {
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmedPassword('')
       setPasswordNoticeKind('error')
       setPasswordNotice(error instanceof Error ? error.message : '密码更新失败，请稍后重试。')
     } finally {
       setChangingPassword(false)
+    }
+  }
+
+  async function handleAccountDeletion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (user?.role !== 'member' || !deletionConfirmed || !deletionPassword) return
+
+    setDeletingAccount(true)
+    setDeletionNotice('')
+    try {
+      await deleteAccount(deletionPassword)
+      if (userId) clearAccountDraft(userId)
+    } catch (error) {
+      setDeletionPassword('')
+      setDeletionNotice(error instanceof Error ? error.message : '账号注销失败，请稍后重试。')
+      setDeletingAccount(false)
     }
   }
 
@@ -612,6 +665,16 @@ export function AccountPage() {
                   </span>
                   <input
                     aria-label={`${platformLabels[platform]} 账号`}
+                    aria-invalid={accountValidationErrors[platform] ? 'true' : undefined}
+                    aria-describedby={
+                      accountValidationErrors[platform]
+                        ? `platform-${platform}-validation-error`
+                        : undefined
+                    }
+                    autoCapitalize="none"
+                    inputMode={platform === 'nowcoder' || platform === 'luogu' ? 'numeric' : 'text'}
+                    maxLength={platformAccountMaxLengths[platform]}
+                    spellCheck={false}
                     value={accounts[platform]}
                     onChange={(event) => {
                       const value = event.target.value
@@ -623,12 +686,39 @@ export function AccountPage() {
                         [platform]: value.trim() ? 'pending' : 'missing',
                       }))
                       setAccountErrors((current) => ({ ...current, [platform]: null }))
+                      setAccountValidationErrors((current) => ({
+                        ...current,
+                        [platform]: null,
+                      }))
+                    }}
+                    onBlur={(event) => {
+                      const normalizedValue = normalizePlatformAccountId(
+                        event.target.value,
+                        platform,
+                      )
+                      if (normalizedValue !== accounts[platform]) {
+                        const nextAccounts = { ...accounts, [platform]: normalizedValue }
+                        setAccounts(nextAccounts)
+                        persistFormDraft({ accounts: nextAccounts })
+                      }
+                      setAccountValidationErrors((current) => ({
+                        ...current,
+                        [platform]: validatePlatformAccountId(platform, normalizedValue),
+                      }))
                     }}
                   />
                   <AccountStatusBadge
                     status={accounts[platform] ? accountStatuses[platform] : 'missing'}
                     error={accountErrors[platform]}
                   />
+                  {accountValidationErrors[platform] ? (
+                    <span
+                      className="platform-validation-error"
+                      id={`platform-${platform}-validation-error`}
+                    >
+                      {accountValidationErrors[platform]}
+                    </span>
+                  ) : null}
                 </label>
               )
             })}
@@ -684,16 +774,18 @@ export function AccountPage() {
               />
             </label>
             <label>
-              <span>新密码</span>
+              <span id="account-new-password-label">新密码</span>
               <input
                 type="password"
                 autoComplete="new-password"
                 minLength={8}
                 required
+                aria-labelledby="account-new-password-label"
+                aria-describedby="account-new-password-help"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
               />
-              <small>至少 8 位，不要与其他网站共用。</small>
+              <small id="account-new-password-help">至少 8 位，不要与其他网站共用。</small>
             </label>
             <label className="span-two">
               <span>确认新密码</span>
@@ -708,7 +800,10 @@ export function AccountPage() {
             </label>
           </div>
           {passwordNotice ? (
-            <p className={`form-${passwordNoticeKind} account-password-notice`} role="status">
+            <p
+              className={`form-${passwordNoticeKind} account-password-notice`}
+              role={passwordNoticeKind === 'error' ? 'alert' : 'status'}
+            >
               {passwordNotice}
             </p>
           ) : null}
@@ -718,6 +813,85 @@ export function AccountPage() {
               {changingPassword ? '更新中' : '修改密码'}
             </button>
           </div>
+        </fieldset>
+      </form>
+
+      <form className="account-form account-danger-form" onSubmit={handleAccountDeletion}>
+        <fieldset className="form-section danger-zone" disabled={deletingAccount}>
+          <div className="section-title-row">
+            <div>
+              <h2>注销账号</h2>
+              <p>注销后，账号、个人资料、平台绑定和全部统计记录将永久删除。</p>
+            </div>
+          </div>
+
+          {user?.role === 'admin' ? (
+            <p className="danger-zone-note">
+              管理员账号不能自助注销；请先完成管理员交接并移除管理员身份。
+            </p>
+          ) : showDeletionConfirmation ? (
+            <div className="account-deletion-confirmation">
+              <label>
+                <span>账号密码</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  maxLength={256}
+                  value={deletionPassword}
+                  onChange={(event) => setDeletionPassword(event.target.value)}
+                />
+              </label>
+              <label className="account-deletion-checkbox">
+                <input
+                  type="checkbox"
+                  required
+                  checked={deletionConfirmed}
+                  onChange={(event) => setDeletionConfirmed(event.target.checked)}
+                />
+                <span>我确认永久删除账号及全部训练数据，此操作无法撤销。</span>
+              </label>
+              {deletionNotice ? (
+                <p className="form-error account-deletion-notice" role="alert">
+                  {deletionNotice}
+                </p>
+              ) : null}
+              <div className="form-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={deletingAccount}
+                  onClick={() => {
+                    setShowDeletionConfirmation(false)
+                    setDeletionPassword('')
+                    setDeletionConfirmed(false)
+                    setDeletionNotice('')
+                  }}
+                >
+                  取消
+                </button>
+                <button
+                  className="danger-button"
+                  type="submit"
+                  disabled={deletingAccount || !deletionPassword || !deletionConfirmed}
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                  {deletingAccount ? '正在注销' : '永久注销账号'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="form-actions">
+              <button
+                className="danger-button"
+                type="button"
+                onClick={() => setShowDeletionConfirmation(true)}
+              >
+                <Trash2 size={17} aria-hidden="true" />
+                注销账号
+              </button>
+            </div>
+          )}
         </fieldset>
       </form>
     </div>

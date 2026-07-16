@@ -15,9 +15,12 @@ export interface AuthContextValue {
   status: AuthStatus
   user: AuthUser | null
   isDemo: boolean
+  isPasswordRecovery: boolean
   signUp: (fullName: string, email: string, password: string) => Promise<boolean>
   signIn: (email: string, password: string) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  completePasswordRecovery: (newPassword: string) => Promise<void>
+  deleteAccount: (currentPassword: string) => Promise<void>
   signOut: () => Promise<void>
 }
 

@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
 import { mockAdminPlatformAccounts } from '../../data/mock'
+import { useDialogFocus } from '../../hooks/useDialogFocus'
 import { triggerAdminImmediateSync } from '../../lib/adminImmediateSync'
 import { formatDateTime } from '../../lib/format'
 import {
@@ -54,6 +55,7 @@ export function AdminAccountsPage() {
   const [invalidAccount, setInvalidAccount] = useState<AdminPlatformAccount | null>(null)
   const [invalidReason, setInvalidReason] = useState('')
   const [disabledAccount, setDisabledAccount] = useState<AdminPlatformAccount | null>(null)
+  const { closeDialog, dialogRef, handleDialogKeyDown, rememberDialogTrigger } = useDialogFocus()
 
   const loadAccounts = useCallback(async () => {
     if (demo) return
@@ -89,7 +91,7 @@ export function AdminAccountsPage() {
 
   async function updateStatus(
     account: AdminPlatformAccount,
-    nextStatus: AccountVerificationStatus,
+    nextStatus: Exclude<AccountVerificationStatus, 'verified'>,
     errorMessage: string | null = null,
   ) {
     setBusyAccountIds((current) => new Set(current).add(account.id))
@@ -100,19 +102,6 @@ export function AdminAccountsPage() {
       const successNotice = `${account.memberName} 的 ${platformLabels[account.platform]} 账号已更新为“${statusLabels[nextStatus]}”。`
       const followUpErrors: string[] = []
 
-      if (nextStatus === 'verified') {
-        try {
-          await triggerAdminImmediateSync({
-            memberId: account.profileId,
-            platforms: [account.platform],
-            triggerType: 'account_changed',
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : '未知同步错误'
-          followUpErrors.push(`首次同步失败：${message}。`)
-        }
-      }
-
       if (demo) {
         const now = new Date().toISOString()
         setAccounts((current) =>
@@ -121,7 +110,7 @@ export function AdminAccountsPage() {
               ? {
                   ...item,
                   status: nextStatus,
-                  verifiedAt: nextStatus === 'verified' ? now : null,
+                  verifiedAt: null,
                   verificationErrorCode: nextStatus === 'invalid' ? 'invalid_account' : null,
                   verificationErrorMessage: nextStatus === 'invalid' ? errorMessage : null,
                   updatedAt: now,
@@ -152,9 +141,92 @@ export function AdminAccountsPage() {
     }
   }
 
-  function openInvalidDialog(account: AdminPlatformAccount) {
+  async function verifyAccount(account: AdminPlatformAccount) {
+    setBusyAccountIds((current) => new Set(current).add(account.id))
+    setNotice('')
+
+    let verificationFailure = ''
+    let refreshFailure = ''
+    try {
+      if (demo) {
+        const now = new Date().toISOString()
+        setAccounts((current) =>
+          current.map((item) =>
+            item.id === account.id
+              ? {
+                  ...item,
+                  status: 'verified',
+                  verifiedAt: now,
+                  verificationErrorCode: null,
+                  verificationErrorMessage: null,
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        )
+      } else {
+        try {
+          await triggerAdminImmediateSync({
+            memberId: account.profileId,
+            platforms: [account.platform],
+            triggerType: 'account_changed',
+          })
+        } catch (error) {
+          verificationFailure = error instanceof Error ? error.message : '未知验证错误'
+        }
+
+        try {
+          setAccounts(await fetchAdminPlatformAccounts())
+        } catch (error) {
+          refreshFailure = error instanceof Error ? error.message : '未知刷新错误'
+        }
+      }
+
+      if (verificationFailure) {
+        setNoticeKind('error')
+        setNotice(
+          `${account.memberName} 的 ${platformLabels[account.platform]} 账号验证未通过：${verificationFailure}${refreshFailure ? `。列表刷新失败：${refreshFailure}` : ''}`,
+        )
+      } else if (refreshFailure) {
+        setNoticeKind('error')
+        setNotice(
+          `${account.memberName} 的 ${platformLabels[account.platform]} 账号已验证并完成首次同步。列表刷新失败：${refreshFailure}`,
+        )
+      } else {
+        setNoticeKind('success')
+        setNotice(
+          `${account.memberName} 的 ${platformLabels[account.platform]} 账号已验证并完成首次同步。`,
+        )
+      }
+    } finally {
+      setBusyAccountIds((current) => {
+        const next = new Set(current)
+        next.delete(account.id)
+        return next
+      })
+    }
+  }
+
+  function openInvalidDialog(account: AdminPlatformAccount, trigger: HTMLButtonElement) {
+    rememberDialogTrigger(trigger)
     setInvalidAccount(account)
     setInvalidReason(account.verificationErrorMessage ?? '')
+  }
+
+  function closeInvalidDialog() {
+    closeDialog(() => {
+      setInvalidAccount(null)
+      setInvalidReason('')
+    })
+  }
+
+  function openDisabledDialog(account: AdminPlatformAccount, trigger: HTMLButtonElement) {
+    rememberDialogTrigger(trigger)
+    setDisabledAccount(account)
+  }
+
+  function closeDisabledDialog() {
+    closeDialog(() => setDisabledAccount(null))
   }
 
   function submitInvalid(event: FormEvent<HTMLFormElement>) {
@@ -164,8 +236,7 @@ export function AdminAccountsPage() {
     if (!reason) return
 
     const account = invalidAccount
-    setInvalidAccount(null)
-    setInvalidReason('')
+    closeInvalidDialog()
     void updateStatus(account, 'invalid', reason)
   }
 
@@ -174,7 +245,7 @@ export function AdminAccountsPage() {
     if (!disabledAccount) return
 
     const account = disabledAccount
-    setDisabledAccount(null)
+    closeDisabledDialog()
     void updateStatus(account, 'disabled')
   }
 
@@ -316,14 +387,14 @@ export function AdminAccountsPage() {
                         <span className="automatic-account-note">同步服务自动维护</span>
                       ) : (
                         <div className="row-actions">
-                          {account.status !== 'verified' ? (
+                          {account.status === 'pending' || account.status === 'invalid' ? (
                             <button
                               className="icon-button approve-button"
                               type="button"
-                              title="标记为已验证"
+                              title="校验账号并同步"
                               aria-label={`验证 ${account.memberName} 的 ${platformLabels[account.platform]} 账号`}
                               disabled={busy}
-                              onClick={() => void updateStatus(account, 'verified')}
+                              onClick={() => void verifyAccount(account)}
                             >
                               <Check size={16} />
                             </button>
@@ -335,7 +406,7 @@ export function AdminAccountsPage() {
                               title="标记为无效"
                               aria-label={`标记 ${account.memberName} 的 ${platformLabels[account.platform]} 账号无效`}
                               disabled={busy}
-                              onClick={() => openInvalidDialog(account)}
+                              onClick={(event) => openInvalidDialog(account, event.currentTarget)}
                             >
                               <X size={16} />
                             </button>
@@ -347,7 +418,7 @@ export function AdminAccountsPage() {
                               title="停用账号"
                               aria-label={`停用 ${account.memberName} 的 ${platformLabels[account.platform]} 账号`}
                               disabled={busy}
-                              onClick={() => setDisabledAccount(account)}
+                              onClick={(event) => openDisabledDialog(account, event.currentTarget)}
                             >
                               <Ban size={16} />
                             </button>
@@ -376,18 +447,19 @@ export function AdminAccountsPage() {
       ) : null}
 
       {invalidAccount ? (
-        <div
-          className="admin-dialog-backdrop"
-          role="presentation"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setInvalidAccount(null)
-          }}
-        >
+        <div className="admin-dialog-backdrop" role="presentation">
           <section
             className="admin-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="invalid-account-dialog-title"
+            ref={dialogRef}
+            onKeyDown={(event) =>
+              handleDialogKeyDown(event, () => {
+                setInvalidAccount(null)
+                setInvalidReason('')
+              })
+            }
           >
             <form onSubmit={submitInvalid}>
               <div className="admin-dialog-header">
@@ -400,7 +472,7 @@ export function AdminAccountsPage() {
                   type="button"
                   title="关闭"
                   aria-label="关闭无效账号对话框"
-                  onClick={() => setInvalidAccount(null)}
+                  onClick={closeInvalidDialog}
                 >
                   <X size={17} />
                 </button>
@@ -417,11 +489,7 @@ export function AdminAccountsPage() {
                 />
               </label>
               <div className="admin-dialog-actions">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => setInvalidAccount(null)}
-                >
+                <button className="secondary-button" type="button" onClick={closeInvalidDialog}>
                   取消
                 </button>
                 <button
@@ -439,18 +507,14 @@ export function AdminAccountsPage() {
       ) : null}
 
       {disabledAccount ? (
-        <div
-          className="admin-dialog-backdrop"
-          role="presentation"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setDisabledAccount(null)
-          }}
-        >
+        <div className="admin-dialog-backdrop" role="presentation">
           <section
             className="admin-dialog admin-confirm-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="disable-account-dialog-title"
+            ref={dialogRef}
+            onKeyDown={(event) => handleDialogKeyDown(event, () => setDisabledAccount(null))}
           >
             <form onSubmit={submitDisabled}>
               <div className="admin-dialog-header">
@@ -465,7 +529,7 @@ export function AdminAccountsPage() {
                   autoFocus
                   className="secondary-button"
                   type="button"
-                  onClick={() => setDisabledAccount(null)}
+                  onClick={closeDisabledDialog}
                 >
                   取消
                 </button>

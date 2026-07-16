@@ -1,0 +1,25 @@
+{
+  "status": "OK",
+  "result": [
+    {
+      "id": 10004,
+      "verdict": "OK",
+      "problem": { "contestId": 1000, "index": "A", "name": "脱敏题目 A" }
+    },
+    {
+      "id": 10003,
+      "verdict": "OK",
+      "problem": { "contestId": 1000, "index": "A", "name": "脱敏题目 A" }
+    },
+    {
+      "id": 10002,
+      "verdict": "OK",
+      "problem": { "problemsetName": "acmsguru", "index": "100", "name": "脱敏题目 B" }
+    },
+    {
+      "id": 10001,
+      "verdict": "WRONG_ANSWER",
+      "problem": { "contestId": 1001, "index": "B", "name": "脱敏题目 C" }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatDecimal, formatInteger } from '../../lib/format'
 import { platformLabels, ratingPlatforms, solvedPlatforms } from '../../lib/platforms'
+import { isRatingPlatform } from '../../lib/ratingTiers'
 import {
   calculateOverallRating,
   calculateOverallPeakRating,
@@ -9,12 +10,14 @@ import {
 } from '../../lib/rankings'
 import type { Member } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
+import { RatingValue } from '../RatingValue'
 
 interface OverallRankingTableProps {
   members: Member[]
   metric: 'rating' | 'solved'
   ratingBenchmarks: RatingBenchmarks
   peakRatingBenchmarks: RatingBenchmarks
+  rankOffset?: number
 }
 
 function RankNumber({ rank }: { rank: number }) {
@@ -26,6 +29,7 @@ export function OverallRankingTable({
   metric,
   ratingBenchmarks,
   peakRatingBenchmarks,
+  rankOffset = 0,
 }: OverallRankingTableProps) {
   if (members.length === 0) {
     return <EmptyState title="没有匹配的成员" description="调整搜索词、专业或年级后重试。" />
@@ -61,6 +65,7 @@ export function OverallRankingTable({
         </thead>
         <tbody>
           {members.map((member, index) => {
+            const rank = rankOffset + index + 1
             const overallValue =
               metric === 'rating'
                 ? calculateOverallRating(member, ratingBenchmarks)
@@ -70,7 +75,7 @@ export function OverallRankingTable({
             return (
               <tr key={member.id}>
                 <td data-label="排名">
-                  <RankNumber rank={index + 1} />
+                  <RankNumber rank={rank} />
                 </td>
                 <td className="member-column" data-label="成员">
                   <Link className="member-cell" to={`/members/${member.id}`}>
@@ -93,17 +98,21 @@ export function OverallRankingTable({
                   {metric === 'rating' ? formatDecimal(overallValue) : formatInteger(overallValue)}
                 </td>
                 {displayedPlatforms.map((platform) => {
-                  const value =
-                    metric === 'rating'
-                      ? member.stats[platform].rating
-                      : member.stats[platform].solved
+                  const ratingMetric = metric === 'rating' && isRatingPlatform(platform)
+                  const value = ratingMetric
+                    ? member.stats[platform].rating
+                    : member.stats[platform].solved
                   return (
                     <td
                       className="secondary-number"
                       data-label={platformLabels[platform]}
                       key={platform}
                     >
-                      {formatInteger(value)}
+                      {ratingMetric ? (
+                        <RatingValue platform={platform} value={value} />
+                      ) : (
+                        formatInteger(value)
+                      )}
                     </td>
                   )
                 })}

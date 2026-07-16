@@ -1,5 +1,5 @@
-import { deepStrictEqual, throws } from 'node:assert/strict'
-import { normalizeSyncRequest, SyncRequestError } from './request.ts'
+import { deepStrictEqual, strictEqual, throws } from 'node:assert/strict'
+import { maySyncXcpcElo, normalizeSyncRequest, SyncRequestError } from './request.ts'
 
 Deno.test('platforms scope removes duplicate platforms while preserving order', () => {
   deepStrictEqual(
@@ -52,4 +52,23 @@ Deno.test('member scope validates and normalizes its UUID', () => {
       memberId: '8a7c4494-97b0-4c5e-a386-02b0efcf22c7',
     },
   )
+})
+
+Deno.test('XCPC cache preparation is selected only when the request can include XCPC ELO', () => {
+  strictEqual(maySyncXcpcElo(normalizeSyncRequest({ scope: 'all' })), true)
+  strictEqual(
+    maySyncXcpcElo(
+      normalizeSyncRequest({ scope: 'platforms', platforms: ['codeforces', 'xcpc_elo'] }),
+    ),
+    true,
+  )
+  strictEqual(
+    maySyncXcpcElo(normalizeSyncRequest({ scope: 'platform', platform: 'codeforces' })),
+    false,
+  )
+  strictEqual(maySyncXcpcElo(normalizeSyncRequest({ scope: 'queue' })), false)
+})
+
+Deno.test('queue scope does not require a member target', () => {
+  deepStrictEqual(normalizeSyncRequest({ scope: 'queue' }), { scope: 'queue' })
 })

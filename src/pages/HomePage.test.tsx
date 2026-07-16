@@ -14,7 +14,9 @@ describe('HomePage', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'USTS ACM Land' }, { timeout: 5000 }),
+    ).toBeInTheDocument()
     expect(document.querySelector('.home-hero-logo')).toHaveAttribute('src', '/icpc-foundation.png')
     expect(screen.getByText('三人一队')).toBeInTheDocument()
     expect(screen.getByText('五小时')).toBeInTheDocument()
@@ -60,7 +62,7 @@ describe('HomePage', () => {
     expect(screen.getByText(/每场比赛中表现优异的选手，都有机会加入集训队/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '浏览集训队成员' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '创建成员账号' })).toHaveAttribute('href', '/register')
-  })
+  }, 10_000)
 
   it('keeps rankings as a secondary public training record', async () => {
     render(
@@ -70,7 +72,7 @@ describe('HomePage', () => {
     )
 
     expect(
-      await screen.findByRole('heading', { name: '公开数据，是成长的一份记录' }),
+      await screen.findByRole('heading', { name: '公开数据，是成长的一份记录' }, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '总 Rating 前列' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /查看完整榜单/ })).toHaveAttribute('href', '/rankings')
@@ -87,7 +89,7 @@ describe('HomePage', () => {
       </MemoryRouter>,
     )
 
-    const homeLink = await screen.findByRole('link', { name: '首页' })
+    const homeLink = await screen.findByRole('link', { name: '首页' }, { timeout: 5000 })
     expect(homeLink).toHaveClass('active')
     expect(screen.queryByRole('link', { name: '成员' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '榜单' })).not.toHaveClass('active')

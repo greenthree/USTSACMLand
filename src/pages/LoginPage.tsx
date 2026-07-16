@@ -2,6 +2,7 @@ import LogIn from 'lucide-react/dist/esm/icons/log-in'
 import { FormEvent, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
+import { consumePasswordChangeNotice } from '../auth/passwordChangeNotice'
 import { SiteLogo } from '../components/SiteLogo'
 import { hasSupabaseConfig } from '../lib/supabase'
 
@@ -13,6 +14,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [passwordChangeNotice] = useState(consumePasswordChangeNotice)
+  const passwordResetCompleted = searchParams.get('reset') === 'success'
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -34,7 +37,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
+    <main id="main-content" className="auth-page" tabIndex={-1}>
       <section className="auth-context">
         <div className="auth-context-inner">
           <SiteLogo className="auth-logo" />
@@ -84,7 +87,26 @@ export function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          {error ? <p className="form-error">{error}</p> : null}
+          {passwordResetCompleted ? (
+            <p className="form-success" role="status">
+              密码已重置，请使用新密码登录。
+            </p>
+          ) : null}
+          {passwordChangeNotice === 'success' ? (
+            <p className="form-success" role="status">
+              密码已更新，所有设备均已退出，请使用新密码登录。
+            </p>
+          ) : null}
+          {passwordChangeNotice === 'revocation-warning' ? (
+            <p className="form-error" role="alert">
+              密码已更新，本设备已退出，但无法确认其他设备会话均已撤销。请使用新密码重新登录并检查账号安全。
+            </p>
+          ) : null}
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
           <button
             className="primary-button full-button"
             type="submit"
@@ -100,6 +122,6 @@ export function LoginPage() {
           </div>
         </form>
       </section>
-    </div>
+    </main>
   )
 }

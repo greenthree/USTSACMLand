@@ -28,7 +28,6 @@ import {
   upsertAdminMemberPlatformAccount,
 } from '../../lib/adminMemberDetail'
 import { triggerAdminImmediateSync } from '../../lib/adminImmediateSync'
-import { setAdminPlatformAccountStatus } from '../../lib/adminPlatformAccounts'
 import { formatDateTime, formatInteger } from '../../lib/format'
 import { platformLabels, platformUrls } from '../../lib/platforms'
 import { supabase } from '../../lib/supabase'
@@ -89,6 +88,24 @@ function optionalInteger(value: string, label: string): number | null {
   if (!normalized) return null
   const parsed = Number(normalized)
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label}必须是非负整数。`)
+  return parsed
+}
+
+function optionalRating(value: string, label: string, platform: Platform): number | null {
+  const normalized = value.trim()
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  const decimalPlaces = normalized.match(/\.(\d+)$/)?.[1].length ?? 0
+  const supportsDecimals = platform === 'xcpc_elo'
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0 ||
+    (supportsDecimals ? decimalPlaces > 2 : !Number.isInteger(parsed))
+  ) {
+    throw new Error(
+      supportsDecimals ? `${label}必须是非负数，且最多保留两位小数。` : `${label}必须是非负整数。`,
+    )
+  }
   return parsed
 }
 
@@ -296,10 +313,10 @@ export function AdminMemberDetailPage() {
 
     try {
       const nextCurrentRating = ratingPlatforms.has(platform)
-        ? optionalInteger(currentRating, '当前 Rating')
+        ? optionalRating(currentRating, '当前 Rating', platform)
         : null
       const nextMaxRating = ratingPlatforms.has(platform)
-        ? optionalInteger(maxRating, '历史最高 Rating')
+        ? optionalRating(maxRating, '历史最高 Rating', platform)
         : null
       const nextSolvedCount = solvedPlatforms.has(platform)
         ? optionalInteger(solvedCount, '通过题数')
@@ -399,6 +416,8 @@ export function AdminMemberDetailPage() {
     if (!member || item.accountId === null || !item.accountUpdatedAt) return
     setBusyPlatform(item.platform)
     setNotice('')
+    let verificationFailure = ''
+    let refreshFailure = ''
     try {
       if (demo) {
         updateDemoPlatform(item.platform, {
@@ -407,29 +426,37 @@ export function AdminMemberDetailPage() {
           accountUpdatedAt: new Date().toISOString(),
         })
       } else {
-        await setAdminPlatformAccountStatus(item.accountId, 'verified', null, item.accountUpdatedAt)
+        try {
+          await triggerAdminImmediateSync({
+            memberId: member.id,
+            platforms: [item.platform],
+            triggerType: 'account_changed',
+          })
+        } catch (error) {
+          verificationFailure = error instanceof Error ? error.message : '未知验证错误'
+        }
+
+        try {
+          await loadMember(false)
+        } catch (error) {
+          refreshFailure = error instanceof Error ? error.message : '未知刷新错误'
+        }
       }
 
-      let syncFailure = ''
-      try {
-        await triggerAdminImmediateSync({
-          memberId: member.id,
-          platforms: [item.platform],
-          triggerType: 'account_changed',
-        })
-      } catch (error) {
-        syncFailure = error instanceof Error ? error.message : '未知同步错误'
+      if (verificationFailure) {
+        setNoticeKind('error')
+        setNotice(
+          `${platformLabels[item.platform]} 账号验证未通过：${verificationFailure}${refreshFailure ? `。成员数据刷新失败：${refreshFailure}` : ''}`,
+        )
+      } else if (refreshFailure) {
+        setNoticeKind('error')
+        setNotice(
+          `${platformLabels[item.platform]} 账号已验证并完成首次同步，但成员数据刷新失败：${refreshFailure}`,
+        )
+      } else {
+        setNoticeKind('success')
+        setNotice(`${platformLabels[item.platform]} 账号已验证并完成首次同步。`)
       }
-      if (!demo) await loadMember(false)
-      setNoticeKind(syncFailure ? 'error' : 'success')
-      setNotice(
-        syncFailure
-          ? `${platformLabels[item.platform]} 账号已验证，但首次同步失败：${syncFailure}`
-          : `${platformLabels[item.platform]} 账号已验证并完成首次同步。`,
-      )
-    } catch (error) {
-      setNoticeKind('error')
-      setNotice(error instanceof Error ? error.message : '平台账号验证失败。')
     } finally {
       setBusyPlatform(null)
     }
@@ -624,11 +651,12 @@ export function AdminMemberDetailPage() {
                             ) : null}
                             {!isXcpc &&
                             item.accountId !== null &&
-                            item.accountStatus !== 'verified' ? (
+                            (item.accountStatus === 'pending' ||
+                              item.accountStatus === 'invalid') ? (
                               <button
                                 className="icon-button approve-button"
                                 type="button"
-                                title="验证通过"
+                                title="校验账号并同步"
                                 aria-label={`验证 ${platformLabels[item.platform]} 账号`}
                                 disabled={busy}
                                 onClick={() => void verifyAccount(item)}
@@ -784,9 +812,9 @@ export function AdminMemberDetailPage() {
                         <span>当前 Rating</span>
                         <input
                           autoFocus
-                          inputMode="numeric"
+                          inputMode={dialog.item.platform === 'xcpc_elo' ? 'decimal' : 'numeric'}
                           min="0"
-                          step="1"
+                          step={dialog.item.platform === 'xcpc_elo' ? '0.01' : '1'}
                           type="number"
                           value={currentRating}
                           onChange={(event) => setCurrentRating(event.target.value)}
@@ -795,9 +823,9 @@ export function AdminMemberDetailPage() {
                       <label className="admin-dialog-field">
                         <span>历史最高 Rating</span>
                         <input
-                          inputMode="numeric"
+                          inputMode={dialog.item.platform === 'xcpc_elo' ? 'decimal' : 'numeric'}
                           min="0"
-                          step="1"
+                          step={dialog.item.platform === 'xcpc_elo' ? '0.01' : '1'}
                           type="number"
                           value={maxRating}
                           onChange={(event) => setMaxRating(event.target.value)}

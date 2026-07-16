@@ -1,4 +1,5 @@
 import type { Platform, SyncTriggerType } from '../types/domain'
+import { adminFunctionError } from './adminRateLimit'
 import { supabase } from './supabase'
 
 type ImmediateSyncTrigger = Extract<SyncTriggerType, 'registration' | 'account_changed'>
@@ -36,7 +37,7 @@ export async function triggerAdminImmediateSync(request: ImmediateSyncRequest): 
       triggerType: request.triggerType,
     },
   })
-  if (error) throw new Error(error.message)
+  if (error) throw await adminFunctionError('首次同步失败', error)
 
   const failureMessage = responseFailureMessage(data)
   if (failureMessage) throw new Error(failureMessage)

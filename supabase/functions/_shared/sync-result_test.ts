@@ -26,6 +26,7 @@ Deno.test('an empty scheduled member set produces a successful no-op summary', (
   deepStrictEqual(summarizeMemberSyncResults([]), {
     requested: 0,
     succeeded: 0,
+    queued: 0,
     failed: 0,
   })
 })
@@ -39,7 +40,23 @@ Deno.test('member sync summaries count successful and failed members', () => {
     {
       requested: 2,
       succeeded: 1,
+      queued: 0,
       failed: 1,
+    },
+  )
+})
+
+Deno.test('member sync summaries keep scheduled retries separate from successes', () => {
+  deepStrictEqual(
+    summarizeMemberSyncResults([
+      { memberId: 'member-1', status: 202, body: { status: 'queued' } },
+      { memberId: 'member-2', status: 200, body: { status: 'succeeded' } },
+    ]),
+    {
+      requested: 2,
+      succeeded: 1,
+      queued: 1,
+      failed: 0,
     },
   )
 })

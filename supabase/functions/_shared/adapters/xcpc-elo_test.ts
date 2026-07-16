@@ -141,6 +141,66 @@ Deno.test(
   },
 )
 
+Deno.test('XCPC adapter uses the precomputed historical max from a cache version', async () => {
+  const result = await adapterFor({
+    generatedAt: '2026-07-13T00:00:00Z',
+    cacheVersion: 7,
+    players: [{ ...ratedPlayer, maxRating: 1483, history: undefined }],
+  }).sync('auto:placeholder', { memberName: '王五' })
+
+  deepStrictEqual(result.ok, true)
+  if (!result.ok) return
+  deepStrictEqual(result.metrics.maxRating, 1483)
+  deepStrictEqual(result.sourceVersion, 'xcpc-elo-data-js-v2-cache-7')
+})
+
+Deno.test('XCPC adapter rejects a matched player with an invalid stable ID', async () => {
+  const result = await adapterFor({
+    players: [{ ...ratedPlayer, id: 'legacy-player-id' }],
+  }).sync('auto:placeholder', { memberName: '王五' })
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'schema_changed')
+  deepStrictEqual(result.error.retryable, false)
+})
+
+Deno.test('XCPC adapter rejects a matched player with an invalid Rating', async () => {
+  const result = await adapterFor({
+    players: [{ ...ratedPlayer, rating: Number.NaN }],
+  }).sync('auto:placeholder', { memberName: '王五' })
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'schema_changed')
+  deepStrictEqual(result.error.retryable, false)
+})
+
+Deno.test('XCPC adapter rejects an invalid source generation time', async () => {
+  const result = await adapterFor({
+    generatedAt: 'not-a-date',
+    players: [ratedPlayer],
+  }).sync('auto:placeholder', { memberName: '王五' })
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'schema_changed')
+  deepStrictEqual(result.error.retryable, false)
+})
+
+Deno.test('XCPC adapter rejects an invalid cached historical maximum', async () => {
+  const result = await adapterFor({
+    generatedAt: '2026-07-13T00:00:00Z',
+    cacheVersion: 7,
+    players: [{ ...ratedPlayer, maxRating: Number.NaN }],
+  }).sync('auto:placeholder', { memberName: '王五' })
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'schema_changed')
+  deepStrictEqual(result.error.retryable, false)
+})
+
 Deno.test(
   'XCPC adapter reports not_found when no same-school player has the member name',
   async () => {

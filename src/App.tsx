@@ -1,38 +1,109 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import { RequireAdmin, RequireAuth } from './auth/RouteGuards'
 import { AppShell } from './components/AppShell'
+import { RouteAccessibility } from './components/RouteAccessibility'
+import { StandaloneRouteLoading } from './components/RouteLoading'
 import { AdminLayout } from './components/admin/AdminLayout'
 import { MembersDataProvider } from './data/MembersDataProvider'
-import { AccountPage } from './pages/AccountPage'
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { HomePage } from './pages/HomePage'
-import { LoginPage } from './pages/LoginPage'
-import { MemberPage } from './pages/MemberPage'
-import { MembersPage } from './pages/MembersPage'
-import { PrivacyPage } from './pages/PrivacyPage'
-import { RankingsPage } from './pages/RankingsPage'
-import { RegisterPage } from './pages/RegisterPage'
-import { AdminAuditPage } from './pages/admin/AdminAuditPage'
-import { AdminAccountsPage } from './pages/admin/AdminAccountsPage'
-import { AdminMemberDetailPage } from './pages/admin/AdminMemberDetailPage'
-import { AdminMembersPage } from './pages/admin/AdminMembersPage'
-import { AdminOverviewPage } from './pages/admin/AdminOverviewPage'
-import { AdminSyncPage } from './pages/admin/AdminSyncPage'
+
+const AccountPage = lazy(() =>
+  import('./pages/AccountPage').then((module) => ({ default: module.AccountPage })),
+)
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/ForgotPasswordPage').then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+)
+const HomePage = lazy(() =>
+  import('./pages/HomePage').then((module) => ({ default: module.HomePage })),
+)
+const LoginPage = lazy(() =>
+  import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
+)
+const MemberPage = lazy(() =>
+  import('./pages/MemberPage').then((module) => ({ default: module.MemberPage })),
+)
+const MembersPage = lazy(() =>
+  import('./pages/MembersPage').then((module) => ({ default: module.MembersPage })),
+)
+const PrivacyPage = lazy(() =>
+  import('./pages/PrivacyPage').then((module) => ({ default: module.PrivacyPage })),
+)
+const RankingsPage = lazy(() =>
+  import('./pages/RankingsPage').then((module) => ({ default: module.RankingsPage })),
+)
+const RegisterPage = lazy(() =>
+  import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })),
+)
+const ResetPasswordPage = lazy(() =>
+  import('./pages/ResetPasswordPage').then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+)
+const AdminAuditPage = lazy(() =>
+  import('./pages/admin/AdminAuditPage').then((module) => ({ default: module.AdminAuditPage })),
+)
+const AdminAccountsPage = lazy(() =>
+  import('./pages/admin/AdminAccountsPage').then((module) => ({
+    default: module.AdminAccountsPage,
+  })),
+)
+const AdminAnnouncementsPage = lazy(() =>
+  import('./pages/admin/AdminAnnouncementsPage').then((module) => ({
+    default: module.AdminAnnouncementsPage,
+  })),
+)
+const AdminMemberDetailPage = lazy(() =>
+  import('./pages/admin/AdminMemberDetailPage').then((module) => ({
+    default: module.AdminMemberDetailPage,
+  })),
+)
+const AdminMembersPage = lazy(() =>
+  import('./pages/admin/AdminMembersPage').then((module) => ({
+    default: module.AdminMembersPage,
+  })),
+)
+const AdminOverviewPage = lazy(() =>
+  import('./pages/admin/AdminOverviewPage').then((module) => ({
+    default: module.AdminOverviewPage,
+  })),
+)
+const AdminSourceHealthPage = lazy(() =>
+  import('./pages/admin/AdminSourceHealthPage').then((module) => ({
+    default: module.AdminSourceHealthPage,
+  })),
+)
+const AdminSyncPage = lazy(() =>
+  import('./pages/admin/AdminSyncPage').then((module) => ({ default: module.AdminSyncPage })),
+)
+
+function PublicMembersOutlet() {
+  return (
+    <MembersDataProvider>
+      <Outlet />
+    </MembersDataProvider>
+  )
+}
 
 export default function App() {
   return (
     <AuthProvider>
-      <MembersDataProvider>
+      <RouteAccessibility />
+      <Suspense fallback={<StandaloneRouteLoading />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/" element={<AppShell />}>
-            <Route index element={<HomePage />} />
-            <Route path="rankings" element={<RankingsPage />} />
-            <Route path="members" element={<MembersPage />} />
-            <Route path="members/:memberId" element={<MemberPage />} />
+            <Route element={<PublicMembersOutlet />}>
+              <Route index element={<HomePage />} />
+              <Route path="rankings" element={<RankingsPage />} />
+              <Route path="members" element={<MembersPage />} />
+              <Route path="members/:memberId" element={<MemberPage />} />
+            </Route>
             <Route path="privacy" element={<PrivacyPage />} />
             <Route
               path="account"
@@ -54,13 +125,15 @@ export default function App() {
               <Route path="members" element={<AdminMembersPage />} />
               <Route path="members/:memberId" element={<AdminMemberDetailPage />} />
               <Route path="accounts" element={<AdminAccountsPage />} />
+              <Route path="announcements" element={<AdminAnnouncementsPage />} />
               <Route path="sync" element={<AdminSyncPage />} />
+              <Route path="health" element={<AdminSourceHealthPage />} />
               <Route path="audit" element={<AdminAuditPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate replace to="/" />} />
         </Routes>
-      </MembersDataProvider>
+      </Suspense>
     </AuthProvider>
   )
 }

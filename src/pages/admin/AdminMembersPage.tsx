@@ -1,9 +1,12 @@
 import Ban from 'lucide-react/dist/esm/icons/ban'
+import Download from 'lucide-react/dist/esm/icons/download'
 import Eye from 'lucide-react/dist/esm/icons/eye'
 import Pencil from 'lucide-react/dist/esm/icons/pencil'
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
 import Save from 'lucide-react/dist/esm/icons/save'
 import Search from 'lucide-react/dist/esm/icons/search'
+import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
+import UserRound from 'lucide-react/dist/esm/icons/user-round'
 import X from 'lucide-react/dist/esm/icons/x'
 import {
   type FormEvent,
@@ -19,18 +22,30 @@ import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { mockAdminMembers } from '../../data/mock'
 import {
+  buildAdminMembersCsv,
   fetchAdminMembers,
+  setAdminMemberRole,
   setAdminMemberSuspension,
   updateAdminMemberProfile,
 } from '../../lib/adminMembers'
 import { formatDateTime } from '../../lib/format'
 import { gradeOptions, majorSuggestions } from '../../lib/profileFields'
 import { supabase } from '../../lib/supabase'
-import type { AdminMember, AdminMemberProfileUpdate, AdminMemberStatus } from '../../types/domain'
+import type {
+  AdminMember,
+  AdminMemberProfileUpdate,
+  AdminMemberRole,
+  AdminMemberStatus,
+} from '../../types/domain'
 
 const memberStatusLabels: Record<AdminMemberStatus, string> = {
   active: '正常',
   suspended: '已停用',
+}
+
+const memberRoleLabels: Record<AdminMemberRole, string> = {
+  member: '成员',
+  admin: '管理员',
 }
 
 function MemberStatusBadge({ status }: { status: AdminMemberStatus }) {
@@ -53,10 +68,16 @@ export function AdminMembersPage() {
   const [editValues, setEditValues] = useState<AdminMemberProfileUpdate | null>(null)
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [roleMember, setRoleMember] = useState<AdminMember | null>(null)
+  const [roleReason, setRoleReason] = useState('')
+  const [roleConfirmed, setRoleConfirmed] = useState(false)
+  const [savingRole, setSavingRole] = useState(false)
   const suspensionDialogRef = useRef<HTMLElement | null>(null)
   const suspensionTriggerRef = useRef<HTMLElement | null>(null)
   const editDialogRef = useRef<HTMLElement | null>(null)
   const editTriggerRef = useRef<HTMLElement | null>(null)
+  const roleDialogRef = useRef<HTMLElement | null>(null)
+  const roleTriggerRef = useRef<HTMLElement | null>(null)
 
   const loadMembers = useCallback(async () => {
     if (demo) return
@@ -145,6 +166,98 @@ export function AdminMembersPage() {
     window.setTimeout(() => {
       if (trigger && document.contains(trigger)) trigger.focus()
     }, 0)
+  }
+
+  function openRoleDialog(member: AdminMember, trigger: HTMLElement) {
+    roleTriggerRef.current = trigger
+    setRoleMember(member)
+    setRoleReason('')
+    setRoleConfirmed(false)
+  }
+
+  function closeRoleDialog() {
+    if (savingRole) return
+    setRoleMember(null)
+    setRoleReason('')
+    setRoleConfirmed(false)
+    const trigger = roleTriggerRef.current
+    roleTriggerRef.current = null
+    window.setTimeout(() => {
+      if (trigger && document.contains(trigger)) trigger.focus()
+    }, 0)
+  }
+
+  function handleRoleDialogKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape' && !savingRole) {
+      event.preventDefault()
+      closeRoleDialog()
+      return
+    }
+    if (event.key !== 'Tab') return
+
+    const focusableElements = Array.from(
+      roleDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    )
+    if (focusableElements.length === 0) return
+
+    const first = focusableElements[0]
+    const last = focusableElements[focusableElements.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  async function submitRoleChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!roleMember || !roleConfirmed || roleReason.trim().length < 3) return
+
+    const member = roleMember
+    const nextRole: AdminMemberRole = member.role === 'admin' ? 'member' : 'admin'
+    setSavingRole(true)
+    setBusyMemberIds((current) => new Set(current).add(member.id))
+    setNotice('')
+    try {
+      const updatedAt = await setAdminMemberRole(
+        member.id,
+        nextRole,
+        member.updatedAt,
+        roleReason.trim(),
+      )
+      setMembers((current) =>
+        current.map((item) =>
+          item.id === member.id ? { ...item, role: nextRole, updatedAt } : item,
+        ),
+      )
+      setNoticeKind('success')
+      setNotice(
+        nextRole === 'admin' ? `${member.name} 已设为管理员。` : `${member.name} 已降为普通成员。`,
+      )
+      setRoleMember(null)
+      setRoleReason('')
+      setRoleConfirmed(false)
+      const trigger = roleTriggerRef.current
+      roleTriggerRef.current = null
+      window.setTimeout(() => {
+        if (trigger && document.contains(trigger)) trigger.focus()
+      }, 0)
+    } catch (error) {
+      if (!demo) await loadMembers()
+      setNoticeKind('error')
+      setNotice(error instanceof Error ? error.message : '成员角色更新失败。')
+    } finally {
+      setSavingRole(false)
+      setBusyMemberIds((current) => {
+        const next = new Set(current)
+        next.delete(member.id)
+        return next
+      })
+    }
   }
 
   function handleSuspensionDialogKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
@@ -271,6 +384,21 @@ export function AdminMembersPage() {
     void updateSuspension(member, true, note)
   }
 
+  function exportMembersCsv() {
+    if (filteredMembers.length === 0) return
+
+    const url = URL.createObjectURL(
+      new Blob([buildAdminMembersCsv(filteredMembers)], { type: 'text/csv;charset=utf-8' }),
+    )
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'usts-acm-land-members.csv'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="admin-page">
       <section className="admin-page-heading">
@@ -278,7 +406,18 @@ export function AdminMembersPage() {
           <h1>成员管理</h1>
           <p>查看成员资料与平台绑定，并管理公开参榜和数据同步资格。</p>
         </div>
-        <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
+        <div className="admin-heading-actions">
+          <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={exportMembersCsv}
+            disabled={loading || filteredMembers.length === 0}
+          >
+            <Download size={16} aria-hidden="true" />
+            导出当前列表
+          </button>
+        </div>
       </section>
 
       <div className="admin-toolbar">
@@ -325,6 +464,7 @@ export function AdminMembersPage() {
                 <th>年级</th>
                 <th>专业</th>
                 <th>QQ</th>
+                <th>角色</th>
                 <th>平台账号</th>
                 <th>公开</th>
                 <th>状态</th>
@@ -347,6 +487,13 @@ export function AdminMembersPage() {
                     <td data-label="年级">{member.grade}</td>
                     <td data-label="专业">{member.major}</td>
                     <td data-label="QQ">{member.qq}</td>
+                    <td data-label="角色">
+                      <span
+                        className={`status ${member.role === 'admin' ? 'status-verified' : 'status-missing'}`}
+                      >
+                        {memberRoleLabels[member.role]}
+                      </span>
+                    </td>
                     <td data-label="平台账号">
                       <span className="admin-member-platform-count">
                         <strong>{member.verifiedPlatformCount}</strong>
@@ -363,25 +510,27 @@ export function AdminMembersPage() {
                     </td>
                     <td data-label="操作">
                       <div className="row-actions">
-                        <Link
-                          className="icon-button"
-                          to={`/admin/members/${member.id}`}
-                          title="查看成员详情"
-                          aria-label={`查看 ${member.name} 详情`}
-                        >
-                          <Eye size={16} aria-hidden="true" />
-                        </Link>
+                        {member.role === 'member' ? (
+                          <Link
+                            className="icon-button"
+                            to={`/admin/members/${member.id}`}
+                            title="查看成员详情"
+                            aria-label={`查看 ${member.name} 详情`}
+                          >
+                            <Eye size={16} aria-hidden="true" />
+                          </Link>
+                        ) : null}
                         <button
                           className="icon-button"
                           type="button"
                           title="编辑成员"
                           aria-label={`编辑 ${member.name}`}
-                          disabled={busy}
+                          disabled={busy || member.role === 'admin'}
                           onClick={() => openEditDialog(member)}
                         >
                           <Pencil size={16} aria-hidden="true" />
                         </button>
-                        {member.status === 'active' ? (
+                        {member.role === 'member' && member.status === 'active' ? (
                           <button
                             className="icon-button suspend-button"
                             type="button"
@@ -392,7 +541,7 @@ export function AdminMembersPage() {
                           >
                             <Ban size={16} />
                           </button>
-                        ) : (
+                        ) : member.role === 'member' ? (
                           <button
                             className="icon-button"
                             type="button"
@@ -403,7 +552,21 @@ export function AdminMembersPage() {
                           >
                             <RotateCcw size={16} />
                           </button>
-                        )}
+                        ) : null}
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title={member.role === 'admin' ? '降为普通成员' : '设为管理员'}
+                          aria-label={`${member.role === 'admin' ? '降级' : '提升'} ${member.name}`}
+                          disabled={busy || member.status !== 'active'}
+                          onClick={(event) => openRoleDialog(member, event.currentTarget)}
+                        >
+                          {member.role === 'admin' ? (
+                            <UserRound size={16} aria-hidden="true" />
+                          ) : (
+                            <ShieldCheck size={16} aria-hidden="true" />
+                          )}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -411,6 +574,87 @@ export function AdminMembersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {roleMember ? (
+        <div className="admin-dialog-backdrop" role="presentation">
+          <section
+            className="admin-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-member-dialog-title"
+            ref={roleDialogRef}
+            onKeyDown={handleRoleDialogKeyDown}
+          >
+            <form onSubmit={submitRoleChange}>
+              <div className="admin-dialog-header">
+                <h2 id="role-member-dialog-title">
+                  {roleMember.role === 'admin' ? '移除管理员权限' : '授予管理员权限'}
+                </h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  title="关闭"
+                  aria-label="关闭成员角色对话框"
+                  disabled={savingRole}
+                  onClick={closeRoleDialog}
+                >
+                  <X size={17} aria-hidden="true" />
+                </button>
+              </div>
+              <p>
+                {roleMember.role === 'admin'
+                  ? `确认将 ${roleMember.name} 降为普通成员。系统会拒绝移除最后一名启用管理员。`
+                  : `确认将 ${roleMember.name} 设为管理员。管理员可查看私有资料并执行高风险后台操作。`}
+              </p>
+              <label className="admin-dialog-field">
+                <span>变更原因</span>
+                <textarea
+                  autoFocus
+                  required
+                  minLength={3}
+                  maxLength={500}
+                  rows={3}
+                  value={roleReason}
+                  onChange={(event) => setRoleReason(event.target.value)}
+                />
+              </label>
+              <label className="admin-member-public-field">
+                <input
+                  type="checkbox"
+                  checked={roleConfirmed}
+                  onChange={(event) => setRoleConfirmed(event.target.checked)}
+                />
+                <span>
+                  <strong>我已核对目标账号与权限影响</strong>
+                  <small>角色变更会记录操作者、目标、前后角色和原因。</small>
+                </span>
+              </label>
+              <div className="admin-dialog-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={savingRole}
+                  onClick={closeRoleDialog}
+                >
+                  取消
+                </button>
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={savingRole || !roleConfirmed || roleReason.trim().length < 3}
+                >
+                  {roleMember.role === 'admin' ? (
+                    <UserRound size={16} aria-hidden="true" />
+                  ) : (
+                    <ShieldCheck size={16} aria-hidden="true" />
+                  )}
+                  {savingRole ? '处理中' : roleMember.role === 'admin' ? '确认降级' : '确认授权'}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       ) : null}
 

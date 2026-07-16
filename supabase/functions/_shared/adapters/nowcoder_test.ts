@@ -226,6 +226,60 @@ Deno.test('Nowcoder adapter falls back to Firecrawl after an anti-bot response',
   deepStrictEqual(result.details?.provider, 'firecrawl')
 })
 
+Deno.test('Nowcoder adapter does not hide a definitive missing user behind fallback', async () => {
+  let fallbackRequests = 0
+  const primary: NowcoderMetricsProvider = {
+    fetchMetrics() {
+      throw new HttpError('Nowcoder user was not found', 'not_found', false, 404)
+    },
+  }
+  const fallback: NowcoderMetricsProvider = {
+    fetchMetrics() {
+      fallbackRequests += 1
+      throw new Error('fallback must not run')
+    },
+  }
+
+  const result = await createNowcoderAdapter({ primary, fallback }).sync('123456789')
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'not_found')
+  deepStrictEqual(result.error.retryable, false)
+  deepStrictEqual(result.error.details, {
+    httpStatus: 404,
+    firecrawlFallbackConfigured: true,
+  })
+  deepStrictEqual(fallbackRequests, 0)
+})
+
+Deno.test('Nowcoder adapter preserves both diagnoses when primary and fallback fail', async () => {
+  const primary: NowcoderMetricsProvider = {
+    fetchMetrics() {
+      throw new HttpError('Direct source unavailable', 'source_unavailable', true)
+    },
+  }
+  const fallback: NowcoderMetricsProvider = {
+    fetchMetrics() {
+      throw new HttpError('Firecrawl session expired', 'auth_expired', false, 401, undefined, {
+        provider: 'firecrawl',
+      })
+    },
+  }
+
+  const result = await createNowcoderAdapter({ primary, fallback }).sync('123456789')
+
+  deepStrictEqual(result.ok, false)
+  if (result.ok) return
+  deepStrictEqual(result.error.code, 'auth_expired')
+  deepStrictEqual(result.error.retryable, false)
+  deepStrictEqual(result.error.details, {
+    httpStatus: 401,
+    provider: 'firecrawl',
+    primaryErrorCode: 'source_unavailable',
+  })
+})
+
 Deno.test('Nowcoder parser reports a changed practice-page structure', () => {
   throws(
     () =>

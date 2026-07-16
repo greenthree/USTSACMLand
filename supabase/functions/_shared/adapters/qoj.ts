@@ -167,21 +167,30 @@ function qojInteractCode(
     const navigationError = error instanceof Error
       ? (error.name + ': ' + error.message).slice(0, 500)
       : 'Unknown login-form error';
-    process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify({
-      pathname: new URL(page.url()).pathname.replace(/\/+$/, '') || '/',
-      profileUsername: null,
-      isLogin: true,
-      hasLogout: false,
-      loginFailure: null,
-      notFound: false,
-      challenge: false,
-      rateLimited: false,
-      fetchFailed: true,
-      failureStage: 'login_form',
-      responseStatus: null,
-      navigationError,
-      acceptedCount: null,
-    }) + '\n');
+    let loginFormState;
+    try {
+      const inspectedLoginState = await inspect(null, 'login_form', navigationError);
+      loginFormState = inspectedLoginState.challenge || inspectedLoginState.loginFailure
+        ? inspectedLoginState
+        : { ...inspectedLoginState, fetchFailed: true };
+    } catch {
+      loginFormState = {
+        pathname: new URL(page.url()).pathname.replace(/\/+$/, '') || '/',
+        profileUsername: null,
+        isLogin: true,
+        hasLogout: false,
+        loginFailure: null,
+        notFound: false,
+        challenge: false,
+        rateLimited: false,
+        fetchFailed: true,
+        failureStage: 'login_form',
+        responseStatus: null,
+        navigationError,
+        acceptedCount: null,
+      };
+    }
+    process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify(loginFormState) + '\n');
   }
 `
 }

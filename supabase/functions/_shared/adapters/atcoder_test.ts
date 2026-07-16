@@ -93,6 +93,45 @@ Deno.test('AtCoder adapter rejects malformed AC rank counts', async () => {
   equal(result.error.code, 'schema_changed')
 })
 
+for (const [name, history] of [
+  ['non-array history', { contests: [] }],
+  ['null history entry', [null]],
+  ['missing rated flag', [{ NewRating: 1200, EndTime: '2026-01-01T12:00:00+09:00' }]],
+  [
+    'non-numeric rated Rating',
+    [{ IsRated: true, NewRating: '1200', EndTime: '2026-01-01T12:00:00+09:00' }],
+  ],
+  ['invalid rated contest time', [{ IsRated: true, NewRating: 1200, EndTime: 'not-a-date' }]],
+] as const) {
+  Deno.test(`AtCoder adapter rejects ${name} as a schema change`, async () => {
+    const result = await createAtCoderAdapter(
+      transport({ fetchHistory: () => Promise.resolve(history) }),
+    ).sync('test_user')
+
+    equal(result.ok, false)
+    if (result.ok) return
+    equal(result.error.code, 'schema_changed')
+    equal(result.error.retryable, false)
+  })
+}
+
+Deno.test('AtCoder adapter rejects out-of-order rated history', async () => {
+  const result = await createAtCoderAdapter(
+    transport({
+      fetchHistory: () =>
+        Promise.resolve([
+          { IsRated: true, NewRating: 1300, EndTime: '2026-03-01T12:00:00+09:00' },
+          { IsRated: true, NewRating: 1200, EndTime: '2026-01-01T12:00:00+09:00' },
+        ]),
+    }),
+  ).sync('test_user')
+
+  equal(result.ok, false)
+  if (result.ok) return
+  equal(result.error.code, 'schema_changed')
+  equal(result.error.retryable, false)
+})
+
 Deno.test('AtCoder adapter rejects invalid usernames before requesting data', async () => {
   let requests = 0
   const result = await createAtCoderAdapter(

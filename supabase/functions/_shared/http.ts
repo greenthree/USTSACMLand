@@ -5,6 +5,14 @@ export interface FetchWithRetryOptions extends RequestInit {
   retries?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  acceptedStatuses?: readonly number[]
+  fetcher?: typeof fetch
+  maxResponseBytes?: number
+}
+
+export interface FetchTextResult {
+  response: Response
+  text: string
 }
 
 export class HttpError extends Error {
@@ -79,15 +87,19 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-export async function fetchWithRetry(
+async function requestWithRetry<T>(
   input: string | URL | Request,
-  options: FetchWithRetryOptions = {},
-): Promise<Response> {
+  options: FetchWithRetryOptions,
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
   const {
     timeoutMs = 12_000,
     retries = 2,
     retryBaseMs = 350,
     retryMaxMs = 4_000,
+    acceptedStatuses = [],
+    fetcher = fetch,
+    maxResponseBytes: _maxResponseBytes,
     signal: parentSignal,
     ...init
   } = options
@@ -96,8 +108,10 @@ export async function fetchWithRetry(
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const scoped = abortSignal(timeoutMs, parentSignal ?? undefined)
     try {
-      const response = await fetch(input, { ...init, signal: scoped.signal })
-      if (response.ok) return response
+      const response = await fetcher(input, { ...init, signal: scoped.signal })
+      if (response.ok || acceptedStatuses.includes(response.status)) {
+        return await consume(response)
+      }
 
       const body = (await response.text()).slice(0, 2_000)
       const retryable = RETRYABLE_STATUS.has(response.status)
@@ -138,6 +152,43 @@ export async function fetchWithRetry(
   }
 
   throw lastError
+}
+
+export function fetchWithRetry(
+  input: string | URL | Request,
+  options: FetchWithRetryOptions = {},
+): Promise<Response> {
+  return requestWithRetry(input, options, (response) => Promise.resolve(response))
+}
+
+export function fetchTextWithRetry(
+  input: string | URL | Request,
+  options: FetchWithRetryOptions = {},
+): Promise<FetchTextResult> {
+  const maximumBytes = options.maxResponseBytes
+  return requestWithRetry(input, options, async (response) => {
+    if (maximumBytes !== undefined) {
+      const contentLength = Number(response.headers.get('content-length'))
+      if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
+        await response.body?.cancel()
+        throw new HttpError(
+          'Upstream response exceeds the configured size limit',
+          'schema_changed',
+          false,
+        )
+      }
+    }
+
+    const text = await response.text()
+    if (maximumBytes !== undefined && new TextEncoder().encode(text).byteLength > maximumBytes) {
+      throw new HttpError(
+        'Upstream response exceeds the configured size limit',
+        'schema_changed',
+        false,
+      )
+    }
+    return { response, text }
+  })
 }
 
 export async function fetchJson<T>(

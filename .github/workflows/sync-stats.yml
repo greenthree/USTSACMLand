@@ -6,6 +6,8 @@ on:
     - cron: '0 11,23 * * *'
     # 00:00 UTC Tuesday is 08:00 Asia/Shanghai Tuesday.
     - cron: '0 0 * * 2'
+    # Drain retry work frequently; jobs still respect their scheduled backoff.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       scope:
@@ -45,7 +47,7 @@ jobs:
     env:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SYNC_SCOPE: ${{ github.event_name == 'schedule' && 'platforms' || inputs.scope || 'all' }}
+      SYNC_SCOPE: ${{ github.event.schedule == '*/5 * * * *' && 'queue' || github.event_name == 'schedule' && 'platforms' || inputs.scope || 'all' }}
       SYNC_PLATFORM: ${{ inputs.platform || '' }}
       SYNC_PLATFORMS: ${{ github.event.schedule == '0 11,23 * * *' && 'codeforces,nowcoder,luogu,atcoder' || github.event.schedule == '0 0 * * 2' && 'xcpc_elo,qoj' || inputs.platforms || '' }}
       SYNC_MEMBER_ID: ${{ inputs.member_id || '' }}
@@ -94,11 +96,11 @@ jobs:
             + (if ($platforms | length) == 0 then {} else {platforms: $platforms} end)
             + (if $member_id == "" then {} else {member_id: $member_id} end)')"
 
+          # This POST is intentionally sent once. Platform jobs own their retry policy,
+          # and QOJ must never be recreated by a transport-level curl retry.
           http_status="$(curl \
             --silent \
             --show-error \
-            --retry 2 \
-            --retry-all-errors \
             --connect-timeout 10 \
             --max-time 300 \
             --output response.json \

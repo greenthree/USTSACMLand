@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { adminRpcError } from './adminRateLimit'
 import {
   platforms,
   type AccountVerificationStatus,
@@ -105,6 +106,7 @@ export function mapAdminMemberDetail(
     qq: first.qq ?? '--',
     grade: first.grade ?? '未填写年级',
     major: first.major ?? '未填写专业',
+    role: 'member',
     status: first.review_status === 'suspended' ? 'suspended' : 'active',
     suspensionNote: first.suspension_note,
     isPublic: first.is_public,
@@ -151,7 +153,7 @@ export async function upsertAdminMemberPlatformAccount(
     new_external_id: externalId,
     expected_updated_at: expectedUpdatedAt ?? undefined,
   })
-  if (error) throw new Error(`平台账号保存失败：${error.message}`)
+  if (error) throw adminRpcError('平台账号保存失败', error)
 }
 
 export async function unbindAdminMemberPlatformAccount(
@@ -166,7 +168,7 @@ export async function unbindAdminMemberPlatformAccount(
     target_platform: platform,
     expected_updated_at: expectedUpdatedAt,
   })
-  if (error) throw new Error(`平台账号解绑失败：${error.message}`)
+  if (error) throw adminRpcError('平台账号解绑失败', error)
 }
 
 export async function setAdminManualPlatformStats(
@@ -187,5 +189,5 @@ export async function setAdminManualPlatformStats(
     manual_note: values.note,
     expected_stat_updated_at: expectedUpdatedAt ?? undefined,
   })
-  if (error) throw new Error(`手工数据保存失败：${error.message}`)
+  if (error) throw adminRpcError('手工数据保存失败', error)
 }

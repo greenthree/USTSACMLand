@@ -7,6 +7,8 @@ const authMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
   signUp: vi.fn(),
+  signOut: vi.fn(),
+  updateUser: vi.fn(),
   profileMaybeSingle: vi.fn(),
   invoke: vi.fn(),
 }))
@@ -48,13 +50,51 @@ function InvalidSignUpProbe() {
   )
 }
 
+function DeleteAccountProbe() {
+  const { user, deleteAccount } = useAuth()
+  return (
+    <button type="button" disabled={!user} onClick={() => void deleteAccount('current-password')}>
+      注销测试账号
+    </button>
+  )
+}
+
+function ChangePasswordProbe() {
+  const { user, changePassword } = useAuth()
+  return (
+    <button
+      type="button"
+      disabled={!user}
+      onClick={() => void changePassword('current-password', 'new-password')}
+    >
+      修改测试密码
+    </button>
+  )
+}
+
+function PasswordRecoveryProbe() {
+  const { completePasswordRecovery, isPasswordRecovery } = useAuth()
+  return (
+    <button
+      type="button"
+      disabled={!isPasswordRecovery}
+      onClick={() => void completePasswordRecovery('recovered-password')}
+    >
+      完成密码恢复
+    </button>
+  )
+}
+
 describe('AuthProvider registration metadata', () => {
   beforeEach(() => {
+    sessionStorage.clear()
     authMocks.getSession.mockResolvedValue({ data: { session: null } })
     authMocks.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
     })
     authMocks.signUp.mockReset()
+    authMocks.signOut.mockReset().mockResolvedValue({ error: null })
+    authMocks.updateUser.mockReset().mockResolvedValue({ error: null })
     authMocks.profileMaybeSingle.mockReset()
     authMocks.invoke.mockReset()
     authMocks.signUp.mockResolvedValue({ data: { session: null }, error: null })
@@ -140,5 +180,128 @@ describe('AuthProvider registration metadata', () => {
     await user.click(screen.getByRole('button', { name: '注册' }))
 
     await waitFor(() => expect(authMocks.invoke).toHaveBeenCalledTimes(2))
+  })
+
+  it('invokes password-verified account deletion and clears the local session', async () => {
+    const user = userEvent.setup()
+    const existingUser = {
+      id: '33333333-3333-4333-8333-333333333333',
+      email: 'member@example.com',
+    }
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: existingUser } },
+    })
+    authMocks.invoke.mockResolvedValueOnce({ data: { deleted: true }, error: null })
+
+    render(
+      <AuthProvider>
+        <DeleteAccountProbe />
+      </AuthProvider>,
+    )
+
+    const deleteButton = screen.getByRole('button', { name: '注销测试账号' })
+    await waitFor(() => expect(deleteButton).toBeEnabled())
+    await user.click(deleteButton)
+
+    await waitFor(() =>
+      expect(authMocks.invoke).toHaveBeenCalledWith('delete-account', {
+        body: { currentPassword: 'current-password' },
+      }),
+    )
+    expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
+  it('uses the password-verified Edge Function instead of updating Auth directly', async () => {
+    const user = userEvent.setup()
+    const existingUser = {
+      id: '44444444-4444-4444-8444-444444444444',
+      email: 'member@example.com',
+    }
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: existingUser } },
+    })
+    authMocks.invoke.mockResolvedValueOnce({
+      data: { updated: true, sessionsRevoked: true },
+      error: null,
+    })
+
+    render(
+      <AuthProvider>
+        <ChangePasswordProbe />
+      </AuthProvider>,
+    )
+
+    const changeButton = screen.getByRole('button', { name: '修改测试密码' })
+    await waitFor(() => expect(changeButton).toBeEnabled())
+    await user.click(changeButton)
+
+    await waitFor(() =>
+      expect(authMocks.invoke).toHaveBeenCalledWith('change-password', {
+        body: {
+          currentPassword: 'current-password',
+          newPassword: 'new-password',
+        },
+      }),
+    )
+    expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(sessionStorage.getItem('usts-acm-land-password-change-notice:v1')).toBe('success')
+  })
+
+  it('forces a local sign-out when global password-session revocation is unconfirmed', async () => {
+    const user = userEvent.setup()
+    const existingUser = {
+      id: '66666666-6666-4666-8666-666666666666',
+      email: 'member@example.com',
+    }
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: existingUser } },
+    })
+    authMocks.invoke.mockResolvedValueOnce({
+      data: { updated: true, sessionsRevoked: false },
+      error: null,
+    })
+
+    render(
+      <AuthProvider>
+        <ChangePasswordProbe />
+      </AuthProvider>,
+    )
+
+    const changeButton = screen.getByRole('button', { name: '修改测试密码' })
+    await waitFor(() => expect(changeButton).toBeEnabled())
+    await user.click(changeButton)
+
+    await waitFor(() => expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' }))
+    expect(sessionStorage.getItem('usts-acm-land-password-change-notice:v1')).toBe(
+      'revocation-warning',
+    )
+  })
+
+  it('completes a marked recovery session and revokes existing sessions', async () => {
+    const user = userEvent.setup()
+    const existingUser = {
+      id: '55555555-5555-4555-8555-555555555555',
+      email: 'member@example.com',
+    }
+    sessionStorage.setItem('usts-acm-land-password-recovery:v1', 'active')
+    authMocks.getSession.mockResolvedValue({
+      data: { session: { user: existingUser } },
+    })
+
+    render(
+      <AuthProvider>
+        <PasswordRecoveryProbe />
+      </AuthProvider>,
+    )
+
+    const recoveryButton = screen.getByRole('button', { name: '完成密码恢复' })
+    await waitFor(() => expect(recoveryButton).toBeEnabled())
+    await user.click(recoveryButton)
+
+    await waitFor(() =>
+      expect(authMocks.updateUser).toHaveBeenCalledWith({ password: 'recovered-password' }),
+    )
+    expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'global' })
+    expect(sessionStorage.getItem('usts-acm-land-password-recovery:v1')).toBeNull()
   })
 })

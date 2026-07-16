@@ -16,7 +16,13 @@ export function ForgotPasswordPage() {
       return
     }
     if (supabase) {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
+      const redirectTo = new URL(
+        `${import.meta.env.BASE_URL}reset-password`,
+        window.location.origin,
+      ).toString()
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
       if (resetError) {
         setError(resetError.message)
         return
@@ -26,7 +32,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="simple-auth-page">
+    <main id="main-content" className="simple-auth-page" tabIndex={-1}>
       <form className="auth-form standalone-form" onSubmit={handleSubmit}>
         <div>
           <h1>找回密码</h1>
@@ -36,13 +42,22 @@ export function ForgotPasswordPage() {
           <span>邮箱</span>
           <input
             type="email"
+            autoComplete="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
-        {message ? <p className="form-success">{message}</p> : null}
-        {error ? <p className="form-error">{error}</p> : null}
+        {message ? (
+          <p className="form-success" role="status">
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <button className="primary-button full-button" type="submit">
           <MailCheck size={17} aria-hidden="true" />
           发送重置邮件
@@ -51,6 +66,6 @@ export function ForgotPasswordPage() {
           <Link to="/login">返回登录</Link>
         </p>
       </form>
-    </div>
+    </main>
   )
 }

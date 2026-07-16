@@ -3,22 +3,43 @@ import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right'
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days'
 import { Link, useParams } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
+import { LoadingState } from '../components/LoadingState'
 import { PlatformMark } from '../components/PlatformMark'
+import { RatingValue } from '../components/RatingValue'
+import { RatingTrendSection } from '../components/RatingTrendSection'
 import { StatusBadge } from '../components/StatusBadge'
+import { useMemberRatingTrends } from '../data/useMemberRatingTrends'
 import { useMembersData } from '../data/useMembersData'
 import { formatDateTime, formatInteger } from '../lib/format'
-import { platformLabels, platformUrls } from '../lib/platforms'
+import { platformUrls } from '../lib/platforms'
+import { isRatingPlatform } from '../lib/ratingTiers'
 import { platforms } from '../types/domain'
 
 export function MemberPage() {
   const { memberId } = useParams()
-  const { members } = useMembersData()
+  const { members, loading, error, demo } = useMembersData()
   const member = members.find((item) => item.id === memberId)
+  const ratingTrends = useMemberRatingTrends(member)
+
+  if (loading) {
+    return (
+      <div className="page narrow-page">
+        <LoadingState label="正在读取成员资料" />
+      </div>
+    )
+  }
 
   if (!member) {
     return (
       <div className="page narrow-page">
-        <EmptyState title="成员不存在" description="该成员可能尚未完善公开资料或已被停用。" />
+        <EmptyState
+          title={error ? '成员资料暂不可用' : '成员不存在'}
+          description={
+            error
+              ? '公开成员数据读取失败，请稍后刷新重试。'
+              : '该成员可能尚未完善公开资料或已被停用。'
+          }
+        />
       </div>
     )
   }
@@ -29,6 +50,12 @@ export function MemberPage() {
         <ArrowLeft size={16} aria-hidden="true" />
         返回成员列表
       </Link>
+
+      {error && demo ? (
+        <p className="home-data-warning" role="status">
+          实时成员资料读取失败，当前展示演示数据。
+        </p>
+      ) : null}
 
       <section className="member-profile-header">
         <span className="member-avatar member-profile-avatar">{member.name.slice(-1)}</span>
@@ -72,11 +99,27 @@ export function MemberPage() {
                 <div className="stat-pair">
                   <span>
                     <small>当前 Rating</small>
-                    <strong>{formatInteger(item.rating)}</strong>
+                    {isRatingPlatform(platform) ? (
+                      <RatingValue
+                        className="member-rating-value"
+                        platform={platform}
+                        value={item.rating}
+                      />
+                    ) : (
+                      <strong>{formatInteger(item.rating)}</strong>
+                    )}
                   </span>
                   <span>
                     <small>历史最高</small>
-                    <strong>{formatInteger(item.peakRating)}</strong>
+                    {isRatingPlatform(platform) ? (
+                      <RatingValue
+                        className="member-rating-value"
+                        platform={platform}
+                        value={item.peakRating}
+                      />
+                    ) : (
+                      <strong>{formatInteger(item.peakRating)}</strong>
+                    )}
                   </span>
                   <span>
                     <small>通过题数</small>
@@ -93,31 +136,7 @@ export function MemberPage() {
         </div>
       </section>
 
-      <section className="trend-section">
-        <div className="section-title-row">
-          <div>
-            <h2>Rating 趋势</h2>
-            <p>历史快照接入后将按比赛和同步时间绘制。</p>
-          </div>
-          <span className="trend-platform">{platformLabels.codeforces}</span>
-        </div>
-        <div className="trend-chart" aria-label="Codeforces Rating 趋势示意">
-          <div className="trend-grid" aria-hidden="true" />
-          <svg viewBox="0 0 800 220" role="img" aria-label="最近六次 Rating 总体上升">
-            <polyline points="20,180 160,146 300,158 440,104 580,80 780,42" />
-            {[
-              [20, 180],
-              [160, 146],
-              [300, 158],
-              [440, 104],
-              [580, 80],
-              [780, 42],
-            ].map(([x, y]) => (
-              <circle key={`${x}-${y}`} cx={x} cy={y} r="5" />
-            ))}
-          </svg>
-        </div>
-      </section>
+      <RatingTrendSection memberName={member.name} memberStats={member.stats} {...ratingTrends} />
     </div>
   )
 }

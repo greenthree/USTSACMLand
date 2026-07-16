@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AdminPlatformAccount } from '../../types/domain'
 
@@ -81,6 +81,34 @@ describe('AdminAccountsPage with Supabase configured', () => {
     expect(screen.getByRole('status')).toHaveTextContent('测试成员 的 洛谷 账号已更新为“无效”')
   })
 
+  it('traps invalid-dialog focus and restores the opening control after Escape', async () => {
+    const user = userEvent.setup()
+    adminAccountMocks.fetchAccounts.mockResolvedValue([pendingAccount])
+
+    render(<AdminAccountsPage />)
+
+    await screen.findByRole('row', { name: /测试成员/ })
+    const trigger = screen.getByRole('button', { name: '标记 测试成员 的 洛谷 账号无效' })
+    await user.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: '标记 测试成员 的 洛谷 账号无效' })
+    const reason = within(dialog).getByRole('textbox', { name: '无效原因' })
+    const close = within(dialog).getByRole('button', { name: '关闭无效账号对话框' })
+    const confirm = within(dialog).getByRole('button', { name: '确认无效' })
+    expect(reason).toHaveFocus()
+
+    await user.type(reason, '测试原因')
+    close.focus()
+    await user.tab({ shift: true })
+    expect(confirm).toHaveFocus()
+    await user.tab()
+    expect(close).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
   it('filters live rows by platform and verification status', async () => {
     const user = userEvent.setup()
     adminAccountMocks.fetchAccounts.mockResolvedValue([
@@ -157,39 +185,34 @@ describe('AdminAccountsPage with Supabase configured', () => {
     expect(adminAccountMocks.setStatus).not.toHaveBeenCalled()
   })
 
-  it('keeps a verified account verified when its first synchronization fails', async () => {
+  it('does not pre-verify an account when upstream validation fails', async () => {
     const user = userEvent.setup()
-    const verifiedAccount = {
+    const invalidAccount = {
       ...pendingAccount,
-      status: 'verified' as const,
-      verifiedAt: '2026-07-13T12:02:00Z',
+      status: 'invalid' as const,
+      verificationErrorCode: 'not_found',
+      verificationErrorMessage: '用户不存在',
       updatedAt: '2026-07-13T12:02:00Z',
     }
     adminAccountMocks.fetchAccounts
       .mockResolvedValueOnce([pendingAccount])
-      .mockResolvedValueOnce([verifiedAccount])
-    adminAccountMocks.setStatus.mockResolvedValue(undefined)
-    adminAccountMocks.syncMember.mockRejectedValue(new Error('上游暂不可用'))
+      .mockResolvedValueOnce([invalidAccount])
+    adminAccountMocks.syncMember.mockRejectedValue(new Error('用户不存在'))
 
     render(<AdminAccountsPage />)
 
     const row = await screen.findByRole('row', { name: /测试成员/ })
     await user.click(screen.getByRole('button', { name: '验证 测试成员 的 洛谷 账号' }))
 
-    expect(adminAccountMocks.setStatus).toHaveBeenCalledWith(
-      42,
-      'verified',
-      null,
-      '2026-07-13T12:00:00Z',
-    )
+    expect(adminAccountMocks.setStatus).not.toHaveBeenCalled()
     expect(adminAccountMocks.syncMember).toHaveBeenCalledWith({
       memberId: 'member-1',
       platforms: ['luogu'],
       triggerType: 'account_changed',
     })
-    expect(await within(row).findByText('已验证')).toBeInTheDocument()
+    expect(await within(row).findByText('无效')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(
-      '测试成员 的 洛谷 账号已更新为“已验证”。 首次同步失败：上游暂不可用。',
+      '测试成员 的 洛谷 账号验证未通过：用户不存在',
     )
   })
 
@@ -205,13 +228,14 @@ describe('AdminAccountsPage with Supabase configured', () => {
     await screen.findByRole('row', { name: /测试成员/ })
     await user.click(screen.getByRole('button', { name: '验证 测试成员 的 洛谷 账号' }))
 
+    expect(adminAccountMocks.setStatus).not.toHaveBeenCalled()
     expect(adminAccountMocks.syncMember).toHaveBeenCalledWith({
       memberId: 'member-1',
       platforms: ['luogu'],
       triggerType: 'account_changed',
     })
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '测试成员 的 洛谷 账号已更新为“已验证”。 列表刷新失败：平台账号列表读取失败：网络中断。',
+      '测试成员 的 洛谷 账号已验证并完成首次同步。列表刷新失败：平台账号列表读取失败：网络中断',
     )
   })
 
@@ -230,9 +254,9 @@ describe('AdminAccountsPage with Supabase configured', () => {
 
     await screen.findByRole('row', { name: /409073/ })
     await user.click(screen.getByRole('button', { name: '验证 测试成员 的 洛谷 账号' }))
-    await screen.findByText('测试成员 的 洛谷 账号已更新为“已验证”。')
+    await screen.findByText('测试成员 的 洛谷 账号已验证并完成首次同步。')
     await user.click(screen.getByRole('button', { name: '验证 测试成员 的 QOJ 账号' }))
-    await screen.findByText('测试成员 的 QOJ 账号已更新为“已验证”。')
+    await screen.findByText('测试成员 的 QOJ 账号已验证并完成首次同步。')
 
     expect(adminAccountMocks.syncMember).toHaveBeenNthCalledWith(1, {
       memberId: 'member-1',
@@ -244,6 +268,7 @@ describe('AdminAccountsPage with Supabase configured', () => {
       platforms: ['qoj'],
       triggerType: 'account_changed',
     })
+    expect(adminAccountMocks.setStatus).not.toHaveBeenCalled()
   })
 
   it('shows the loading failure and an empty recovery state', async () => {
