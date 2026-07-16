@@ -13,6 +13,8 @@
   - `CI / verify`
   - `CI / database-security`
   - `Secret scan / gitleaks`
+- 使用 Rulesets API 配置时，上述检查的 `context` 分别是作业名
+  `verify`、`database-security`、`gitleaks`；不要填写界面展示的“工作流 / 作业”组合。
 - 禁止 force push 和删除默认分支。
 - 不允许管理员默认绕过；紧急绕过只在故障处理中临时启用并记录原因。
 
