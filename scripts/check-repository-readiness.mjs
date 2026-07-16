@@ -22,7 +22,9 @@ export const requiredActionSecrets = [
 
 export const requiredActionVariables = ['BACKUP_RECOVERY_NOT_BEFORE']
 
-const requiredChecks = ['CI / verify', 'CI / database-security', 'Secret scan / gitleaks']
+// GitHub's ruleset API stores the check-run names, not the UI's
+// "workflow / job" labels.
+const requiredChecks = ['verify', 'database-security', 'gitleaks']
 const scheduledWorkflowMaxAgeHours = new Map([
   ['Sync platform statistics', 0.75],
   ['Encrypted database backup', 30],
@@ -187,6 +189,7 @@ function runGhJson(args, label) {
   try {
     const output = execFileSync('gh', args, {
       encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })

@@ -57,9 +57,9 @@ function createReadyState() {
             type: 'required_status_checks',
             parameters: {
               required_status_checks: [
-                { context: 'CI / verify' },
-                { context: 'CI / database-security' },
-                { context: 'Secret scan / gitleaks' },
+                { context: 'verify' },
+                { context: 'database-security' },
+                { context: 'gitleaks' },
               ],
             },
           },
