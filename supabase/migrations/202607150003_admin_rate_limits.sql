@@ -88,10 +88,10 @@ begin
 
   resets_at := active_window_started_at
     + pg_catalog.make_interval(secs => rate_window_seconds);
-  remaining_requests := pg_catalog.greatest(rate_max_requests - next_count, 0);
+  remaining_requests := greatest(rate_max_requests - next_count, 0);
 
   if next_count > rate_max_requests then
-    retry_after_seconds := pg_catalog.greatest(
+    retry_after_seconds := greatest(
       1,
       pg_catalog.ceil(pg_catalog.date_part('epoch', resets_at - checked_at))::integer
     );
