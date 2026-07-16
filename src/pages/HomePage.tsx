@@ -269,7 +269,10 @@ export function HomePage() {
                 <h3>学习引导</h3>
                 <p>按知识点组织学习路线、资料与阶段目标。</p>
               </div>
-              <span>规划中</span>
+              <Link to="/learning" aria-label="进入新手学习引导">
+                已上线
+                <ArrowRight size={13} aria-hidden="true" />
+              </Link>
             </article>
             <article>
               <CalendarDays size={21} aria-hidden="true" />

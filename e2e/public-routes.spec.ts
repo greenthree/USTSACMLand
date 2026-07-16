@@ -98,6 +98,7 @@ test('anonymous account navigation returns after demo login', async ({ page }, t
 test('public pages do not create page-level horizontal overflow', async ({ page }) => {
   for (const route of [
     '/',
+    '/learning',
     '/rankings',
     '/members',
     '/privacy',

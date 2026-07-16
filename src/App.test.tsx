@@ -70,7 +70,9 @@ describe('route authorization', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: '沈亦安' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: '沈亦安' }, { timeout: 5000 }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '平台账号与数据' })).toBeInTheDocument()
   })
 

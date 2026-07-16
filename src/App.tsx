@@ -22,6 +22,9 @@ const HomePage = lazy(() =>
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
 )
+const LearningPage = lazy(() =>
+  import('./pages/LearningPage').then((module) => ({ default: module.LearningPage })),
+)
 const MemberPage = lazy(() =>
   import('./pages/MemberPage').then((module) => ({ default: module.MemberPage })),
 )
@@ -104,6 +107,7 @@ export default function App() {
               <Route path="members" element={<MembersPage />} />
               <Route path="members/:memberId" element={<MemberPage />} />
             </Route>
+            <Route path="learning" element={<LearningPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
             <Route
               path="account"
