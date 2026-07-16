@@ -1,10 +1,11 @@
 import LogOut from 'lucide-react/dist/esm/icons/log-out'
 import Menu from 'lucide-react/dist/esm/icons/menu'
 import X from 'lucide-react/dist/esm/icons/x'
-import { useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { Brand } from './Brand'
+import { RouteLoading } from './RouteLoading'
 
 const navItems = [
   { to: '/', label: '首页', end: true },
@@ -13,8 +14,22 @@ const navItems = [
 
 export function AppShell() {
   const [open, setOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      menuButtonRef.current?.focus()
+    }
+
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [open])
 
   async function handleSignOut() {
     await signOut()
@@ -24,10 +39,17 @@ export function AppShell() {
 
   return (
     <div className="site-shell">
+      <a className="skip-link" href="#main-content">
+        跳转到主要内容
+      </a>
       <header className="site-header">
         <div className="site-header-inner">
           <Brand />
-          <nav className={open ? 'primary-nav is-open' : 'primary-nav'} aria-label="主导航">
+          <nav
+            id="primary-navigation"
+            className={open ? 'primary-nav is-open' : 'primary-nav'}
+            aria-label="主导航"
+          >
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setOpen(false)}>
                 {item.label}
@@ -55,18 +77,23 @@ export function AppShell() {
             )}
           </nav>
           <button
+            ref={menuButtonRef}
             className="icon-button menu-button"
             type="button"
             aria-label={open ? '关闭导航' : '打开导航'}
+            aria-expanded={open}
+            aria-controls="primary-navigation"
             title={open ? '关闭导航' : '打开导航'}
             onClick={() => setOpen((value) => !value)}
           >
-            {open ? <X size={20} /> : <Menu size={20} />}
+            {open ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
           </button>
         </div>
       </header>
-      <main>
-        <Outlet />
+      <main id="main-content" tabIndex={-1}>
+        <Suspense fallback={<RouteLoading />}>
+          <Outlet />
+        </Suspense>
       </main>
       <footer className="site-footer">
         <span>USTS ACM Land</span>

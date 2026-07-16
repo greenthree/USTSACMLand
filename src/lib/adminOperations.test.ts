@@ -2,6 +2,7 @@ import type { AdminSourceHealth, AuditEntry } from '../types/domain'
 import {
   buildAuditCsv,
   groupSourceHealth,
+  mapAdminActiveSyncJob,
   mapAdminAuditEntry,
   mapAdminOverview,
   mapAdminSourceHealth,
@@ -81,6 +82,64 @@ describe('admin operations mapping', () => {
       memberName: '未填写姓名',
       status: 'skipped',
       jobStatus: 'cancelled',
+    })
+
+    expect(
+      mapAdminSyncRun({
+        run_id: 44,
+        job_id: 23,
+        profile_id: 'member-3',
+        member_name: '等待重试成员',
+        platform: 'codeforces',
+        run_status: 'failed',
+        job_status: 'queued',
+        trigger_type: 'scheduled',
+        requested_by: null,
+        duration_ms: 3_000,
+        started_at: '2026-07-13T12:10:00Z',
+        finished_at: '2026-07-13T12:10:03Z',
+        error_code: 'timeout',
+        error_message: 'temporary timeout',
+        source_version: null,
+      }),
+    ).toMatchObject({
+      status: 'queued',
+      jobStatus: 'queued',
+      errorCode: 'timeout',
+    })
+  })
+
+  it('maps active queue progress without requiring a run row', () => {
+    expect(
+      mapAdminActiveSyncJob({
+        job_id: '51',
+        profile_id: 'member-1',
+        member_name: '排队成员',
+        scope: 'account',
+        platform: 'codeforces',
+        status: 'queued',
+        trigger_type: 'scheduled',
+        attempt_count: '1',
+        max_attempts: '3',
+        scheduled_for: '2026-07-15T10:02:00Z',
+        started_at: null,
+        created_at: '2026-07-15T10:00:00Z',
+        last_error_code: 'timeout',
+      }),
+    ).toEqual({
+      id: 51,
+      profileId: 'member-1',
+      memberName: '排队成员',
+      scope: 'account',
+      platform: 'codeforces',
+      status: 'queued',
+      triggerType: 'scheduled',
+      attemptCount: 1,
+      maxAttempts: 3,
+      scheduledAt: '2026-07-15T10:02:00Z',
+      startedAt: null,
+      createdAt: '2026-07-15T10:00:00Z',
+      errorCode: 'timeout',
     })
   })
 
@@ -226,7 +285,7 @@ describe('admin audit CSV', () => {
     }
 
     const csv = buildAuditCsv([entry])
-    expect(csv.startsWith('\uFEFFactor,action,target,created_at,summary\r\n')).toBe(true)
+    expect(csv.startsWith('\uFEFF"actor","action","target","created_at","summary"\r\n')).toBe(true)
     expect(csv).toContain('"\'=2+2"')
     expect(csv).toContain('"\'+SUM(A1:A2)"')
     expect(csv).toContain('"\'@member"')

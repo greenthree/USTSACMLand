@@ -1,0 +1,14 @@
+{
+  "currentData": {
+    "records": {
+      "count": 5,
+      "result": [
+        { "id": 105, "submitTime": 1752451500, "problem": { "pid": "P1000" } },
+        { "id": 104, "submitTime": 1752451400, "problem": { "pid": "B2000" } },
+        { "id": 103, "submitTime": 1752451300, "problem": { "pid": "P1000" } },
+        { "id": 102, "submitTime": 1752451200, "problem": { "pid": "CF1000" } },
+        { "id": 101, "submitTime": 1752451100, "problem": { "pid": "AT_arc001_a" } }
+      ]
+    }
+  }
+}

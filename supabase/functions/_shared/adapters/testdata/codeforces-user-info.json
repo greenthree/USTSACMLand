@@ -1,0 +1,11 @@
+{
+  "status": "OK",
+  "result": [
+    {
+      "handle": "Contract_User",
+      "rating": 1500,
+      "maxRating": 1600,
+      "rank": "specialist"
+    }
+  ]
+}

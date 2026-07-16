@@ -32,9 +32,12 @@ const authValue: AuthContextValue = {
     reviewStatus: 'approved',
   },
   isDemo: false,
+  isPasswordRecovery: false,
   signUp: vi.fn(),
   signIn: vi.fn(),
   changePassword: vi.fn(),
+  completePasswordRecovery: vi.fn(),
+  deleteAccount: vi.fn(),
   signOut: vi.fn(),
 }
 
@@ -70,6 +73,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     accountMocks.from.mockReset()
     accountMocks.invoke.mockReset()
     vi.mocked(authValue.changePassword).mockReset()
+    vi.mocked(authValue.deleteAccount).mockReset()
     accountMocks.profileSingle.mockReset()
     accountMocks.profileUpdate.mockReset()
     accountMocks.profileUpdateEq.mockReset()
@@ -156,6 +160,56 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(accountMocks.accountsDeleteIn).not.toHaveBeenCalled()
   })
 
+  it('rejects invalid platform identifiers before saving', async () => {
+    const user = userEvent.setup()
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    const luoguInput = screen.getByRole('textbox', { name: '洛谷 账号' })
+    await user.type(luoguInput, 'P1000')
+    await user.click(screen.getByRole('button', { name: '保存资料' }))
+
+    expect(await screen.findByText(/洛谷 UID 只能包含数字/)).toBeInTheDocument()
+    expect(luoguInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('请先修正平台账号格式。')).toBeInTheDocument()
+    expect(accountMocks.accountsUpsert).not.toHaveBeenCalled()
+  })
+
+  it('does not expose another member when a platform account is already bound', async () => {
+    const user = userEvent.setup()
+    accountMocks.accountsUpsert.mockResolvedValueOnce({
+      error: {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint platform_accounts_platform_external_unique',
+      },
+    })
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.type(screen.getByRole('textbox', { name: 'Codeforces 账号' }), 'TakenHandle')
+    await user.click(screen.getByRole('button', { name: '保存资料' }))
+
+    expect(
+      await screen.findByText('该平台账号已被绑定，请检查填写内容或联系管理员。'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/platform_accounts_platform_external_unique/)).not.toBeInTheDocument()
+  })
+
+  it('marks UID fields for numeric keyboard input', async () => {
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    expect(screen.getByRole('textbox', { name: '牛客 账号' })).toHaveAttribute(
+      'inputmode',
+      'numeric',
+    )
+    expect(screen.getByRole('textbox', { name: '洛谷 账号' })).toHaveAttribute(
+      'inputmode',
+      'numeric',
+    )
+  })
+
   it('allows a custom major and exposes matching suggestions', async () => {
     const user = userEvent.setup()
     renderAccountPage()
@@ -235,12 +289,14 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     await screen.findByDisplayValue('测试成员')
     await user.type(screen.getByLabelText('当前密码'), 'old-password')
-    await user.type(screen.getByLabelText(/^新密码/), 'new-password')
+    const newPasswordInput = screen.getByLabelText('新密码')
+    expect(newPasswordInput).toHaveAccessibleDescription('至少 8 位，不要与其他网站共用。')
+    await user.type(newPasswordInput, 'new-password')
     await user.type(screen.getByLabelText('确认新密码'), 'new-password')
     await user.click(screen.getByRole('button', { name: '修改密码' }))
 
     expect(authValue.changePassword).toHaveBeenCalledWith('old-password', 'new-password')
-    expect(await screen.findByText('密码已更新。')).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('密码已更新。')
     expect(screen.getByLabelText('当前密码')).toHaveValue('')
     expect(accountMocks.profileUpdate).not.toHaveBeenCalled()
   })
@@ -251,11 +307,78 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     await screen.findByDisplayValue('测试成员')
     await user.type(screen.getByLabelText('当前密码'), 'old-password')
-    await user.type(screen.getByLabelText(/^新密码/), 'new-password')
+    await user.type(screen.getByLabelText('新密码'), 'new-password')
     await user.type(screen.getByLabelText('确认新密码'), 'different-password')
     await user.click(screen.getByRole('button', { name: '修改密码' }))
 
-    expect(await screen.findByText('两次输入的新密码不一致。')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('两次输入的新密码不一致。')
     expect(authValue.changePassword).not.toHaveBeenCalled()
+  })
+
+  it('clears every password field after a failed password change', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authValue.changePassword).mockRejectedValue(new Error('当前密码错误'))
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.type(screen.getByLabelText('当前密码'), 'wrong-password')
+    await user.type(screen.getByLabelText('新密码'), 'new-password')
+    await user.type(screen.getByLabelText('确认新密码'), 'new-password')
+    await user.click(screen.getByRole('button', { name: '修改密码' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前密码错误')
+    expect(screen.getByLabelText('当前密码')).toHaveValue('')
+    expect(screen.getByLabelText('新密码')).toHaveValue('')
+    expect(screen.getByLabelText('确认新密码')).toHaveValue('')
+  })
+
+  it('requires password and explicit confirmation before deleting a member account', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authValue.deleteAccount).mockResolvedValue(undefined)
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.click(screen.getByRole('button', { name: '注销账号' }))
+    const deleteButton = screen.getByRole('button', { name: '永久注销账号' })
+    expect(deleteButton).toBeDisabled()
+
+    await user.type(screen.getByLabelText('账号密码'), 'current-password')
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: '我确认永久删除账号及全部训练数据，此操作无法撤销。',
+      }),
+    )
+    expect(deleteButton).toBeEnabled()
+    await user.click(deleteButton)
+
+    expect(authValue.deleteAccount).toHaveBeenCalledTimes(1)
+    expect(authValue.deleteAccount).toHaveBeenCalledWith('current-password')
+  })
+
+  it('clears the deletion password after a failed deletion attempt', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authValue.deleteAccount).mockRejectedValue(new Error('账号注销暂不可用'))
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.click(screen.getByRole('button', { name: '注销账号' }))
+    const passwordInput = screen.getByLabelText('账号密码')
+    await user.type(passwordInput, 'current-password')
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: '我确认永久删除账号及全部训练数据，此操作无法撤销。',
+      }),
+    )
+    await user.click(screen.getByRole('button', { name: '永久注销账号' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('账号注销暂不可用')
+    expect(passwordInput).toHaveValue('')
+  })
+
+  it('does not expose self-service deletion for administrator accounts', async () => {
+    renderAccountPage(adminAuthValue)
+
+    expect(await screen.findByText(/管理员账号不能自助注销/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '注销账号' })).not.toBeInTheDocument()
   })
 })

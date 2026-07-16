@@ -8,6 +8,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_rate_limit_buckets: {
+        Row: {
+          action_key: string
+          actor_id: string
+          request_count: number
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          action_key: string
+          actor_id: string
+          request_count: number
+          updated_at?: string
+          window_started_at: string
+        }
+        Update: {
+          action_key?: string
+          actor_id?: string
+          request_count?: number
+          updated_at?: string
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'admin_rate_limit_buckets_actor_id_fkey'
+            columns: ['actor_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       announcements: {
         Row: {
           body: string
@@ -526,6 +558,87 @@ export type Database = {
           },
         ]
       }
+      xcpc_elo_cache_players: {
+        Row: {
+          contests: number | null
+          display_name: string
+          max_rating: number | null
+          normalized_name: string
+          organization: string
+          player_id: string
+          rating: number
+          version: number
+        }
+        Insert: {
+          contests?: number | null
+          display_name: string
+          max_rating?: number | null
+          normalized_name: string
+          organization: string
+          player_id: string
+          rating: number
+          version: number
+        }
+        Update: {
+          contests?: number | null
+          display_name?: string
+          max_rating?: number | null
+          normalized_name?: string
+          organization?: string
+          player_id?: string
+          rating?: number
+          version?: number
+        }
+        Relationships: []
+      }
+      xcpc_elo_cache_state: {
+        Row: {
+          active_version: number
+          cache_key: boolean
+          etag: string | null
+          expires_at: string | null
+          last_error_code: Database['public']['Enums']['sync_error_code'] | null
+          last_error_message: string | null
+          last_modified: string | null
+          refresh_lease_expires_at: string | null
+          refresh_owner: string | null
+          refresh_retry_after: string | null
+          source_generated_at: string | null
+          updated_at: string
+          validated_at: string | null
+        }
+        Insert: {
+          active_version?: number
+          cache_key?: boolean
+          etag?: string | null
+          expires_at?: string | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
+          last_error_message?: string | null
+          last_modified?: string | null
+          refresh_lease_expires_at?: string | null
+          refresh_owner?: string | null
+          refresh_retry_after?: string | null
+          source_generated_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Update: {
+          active_version?: number
+          cache_key?: boolean
+          etag?: string | null
+          expires_at?: string | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
+          last_error_message?: string | null
+          last_modified?: string | null
+          refresh_lease_expires_at?: string | null
+          refresh_owner?: string | null
+          refresh_retry_after?: string | null
+          source_generated_at?: string | null
+          updated_at?: string
+          validated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       public_announcements: {
@@ -673,6 +786,30 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_account_deletion_recovery_lease: {
+        Args: { p_owner_token: string }
+        Returns: boolean
+      }
+      release_account_deletion_recovery_lease: {
+        Args: { p_owner_token: string }
+        Returns: boolean
+      }
+      renew_account_deletion_recovery_lease: {
+        Args: { p_owner_token: string }
+        Returns: boolean
+      }
+      consume_admin_rate_limit: {
+        Args: {
+          rate_action_key: string
+          rate_actor_id: string
+          rate_max_requests: number
+          rate_window_seconds: number
+        }
+        Returns: {
+          remaining_requests: number
+          resets_at: string
+        }[]
+      }
       admin_get_overview: {
         Args: never
         Returns: {
@@ -774,10 +911,28 @@ export type Database = {
           major: string
           platform_count: number
           qq: string
+          role: Database['public']['Enums']['app_role']
           review_status: Database['public']['Enums']['profile_review_status']
           suspension_note: string
           updated_at: string
           verified_platform_count: number
+        }[]
+      }
+      admin_list_announcements: {
+        Args: { before_announcement_id?: number; row_limit?: number }
+        Returns: {
+          announcement_id: number
+          body: string
+          created_at: string
+          created_by: string | null
+          created_by_label: string
+          expires_at: string | null
+          published_at: string | null
+          status: Database['public']['Enums']['announcement_status']
+          title: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_label: string
         }[]
       }
       admin_list_member_activity: {
@@ -792,6 +947,24 @@ export type Database = {
           run_status: string
           source_version: string
           target_table: string
+        }[]
+      }
+      admin_list_active_sync_jobs: {
+        Args: { before_job_id?: number; row_limit?: number }
+        Returns: {
+          attempt_count: number
+          created_at: string
+          job_id: number
+          last_error_code: Database['public']['Enums']['sync_error_code'] | null
+          max_attempts: number
+          member_name: string | null
+          platform: Database['public']['Enums']['platform_name'] | null
+          profile_id: string | null
+          scheduled_for: string
+          scope: Database['public']['Enums']['sync_job_scope']
+          started_at: string | null
+          status: Database['public']['Enums']['sync_job_status']
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
       admin_list_sync_runs: {
@@ -832,6 +1005,15 @@ export type Database = {
         }
         Returns: string
       }
+      admin_set_member_role: {
+        Args: {
+          expected_updated_at: string
+          next_role: Database['public']['Enums']['app_role']
+          reason: string
+          target_profile_id: string
+        }
+        Returns: string
+      }
       admin_set_manual_platform_stats: {
         Args: {
           expected_stat_updated_at?: string
@@ -868,6 +1050,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      admin_delete_announcement: {
+        Args: { expected_updated_at: string; target_announcement_id: number }
+        Returns: boolean
+      }
+      admin_upsert_announcement: {
+        Args: {
+          announcement_body: string
+          announcement_expires_at: string | null
+          announcement_published_at: string | null
+          announcement_status: Database['public']['Enums']['announcement_status']
+          announcement_title: string
+          expected_updated_at: string | null
+          target_announcement_id: number | null
+        }
+        Returns: {
+          announcement_id: number
+          announcement_updated_at: string
+        }[]
+      }
       admin_upsert_member_platform_account: {
         Args: {
           expected_updated_at?: string
@@ -880,6 +1081,30 @@ export type Database = {
           account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
         }[]
+      }
+      commit_platform_sync_result: {
+        Args: {
+          expected_external_id: string
+          run_duration_ms: number
+          run_finished_at: string
+          run_metrics: Json | null
+          stat_current_rating: number | null
+          stat_error_code: Database['public']['Enums']['sync_error_code'] | null
+          stat_error_message: string | null
+          stat_fetched_at: string
+          stat_last_success_at: string | null
+          stat_max_rating: number | null
+          stat_solved_count: number | null
+          stat_source_observed_at: string | null
+          stat_source_version: string | null
+          stat_stale_after: string | null
+          stat_status: Database['public']['Enums']['stat_freshness_status']
+          sync_succeeded: boolean
+          target_job_id: number
+          target_platform_account_id: number
+          target_run_id: number
+        }
+        Returns: undefined
       }
       commit_luogu_sync_result: {
         Args: {
@@ -911,9 +1136,54 @@ export type Database = {
         }
         Returns: number
       }
+      claim_due_sync_jobs: {
+        Args: { batch_limit?: number; stale_timeout?: string }
+        Returns: {
+          attempt_count: number
+          job_id: number
+          max_attempts: number
+          payload: Json
+          platform: Database['public']['Enums']['platform_name']
+          profile_id: string
+        }[]
+      }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
+      acquire_xcpc_elo_cache_refresh: {
+        Args: { cache_ttl_seconds: number; lease_seconds: number; requested_owner: string }
+        Returns: Json
+      }
       can_edit_own_data: { Args: never; Returns: boolean }
+      commit_xcpc_elo_cache_refresh: {
+        Args: {
+          cache_ttl_seconds: number
+          requested_owner: string
+          response_etag: string | null
+          response_last_modified: string | null
+          response_players: Json
+          response_source_generated_at: string
+        }
+        Returns: number
+      }
+      fail_xcpc_elo_cache_refresh: {
+        Args: {
+          failure_code: Database['public']['Enums']['sync_error_code']
+          failure_message: string | null
+          requested_owner: string
+          retry_after_seconds: number
+        }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
+      read_xcpc_elo_cache: { Args: never; Returns: Json }
+      validate_xcpc_elo_cache_refresh: {
+        Args: {
+          cache_ttl_seconds: number
+          requested_owner: string
+          response_etag: string | null
+          response_last_modified: string | null
+        }
+        Returns: number
+      }
     }
     Enums: {
       account_verification_status: 'pending' | 'verified' | 'invalid' | 'disabled'

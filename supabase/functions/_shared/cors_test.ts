@@ -28,3 +28,18 @@ Deno.test('CORS response headers vary by an approved request origin', () => {
     'access-control-allow-methods': 'POST, OPTIONS',
   })
 })
+
+Deno.test('CORS does not authorize a hostile preflight origin', () => {
+  const request = new Request('https://project.supabase.co/functions/v1/sync-member', {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://attacker.example',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'authorization,content-type',
+    },
+  })
+  const headers = corsHeaders(request, 'https://greenthree.github.io')
+
+  equal(headers['access-control-allow-origin'], undefined)
+  equal(headers['access-control-allow-methods'], 'POST, OPTIONS')
+})

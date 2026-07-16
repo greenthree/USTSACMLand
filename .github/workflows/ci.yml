@@ -16,14 +16,14 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -37,8 +37,23 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check synchronization workflow invariants
+        run: npm run check:sync-workflow
+
+      - name: Check CI workflow invariants
+        run: npm run check:ci-workflow
+
+      - name: Check encrypted backup workflow invariants
+        run: npm run check:backup-workflow
+
       - name: Test
         run: npm test
+
+      - name: Install browser test engines
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Test browser flows and accessibility
+        run: npm run test:e2e
 
       - name: Build
         run: npm run build
@@ -47,7 +62,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Set up Deno
-        uses: denoland/setup-deno@v2
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
         with:
           deno-version: v2.x
 
@@ -56,9 +71,38 @@ jobs:
           deno check --config supabase/functions/deno.json
           supabase/functions/sync-member/index.ts
           supabase/functions/sync-stats/index.ts
+          supabase/functions/delete-account/index.ts
+          supabase/functions/change-password/index.ts
 
       - name: Lint Edge Functions
         run: deno lint --config supabase/functions/deno.json supabase/functions
 
       - name: Test Edge Functions
-        run: deno test --allow-read --config supabase/functions/deno.json supabase/functions
+        run: >-
+          deno test --allow-read --allow-env
+          --config supabase/functions/deno.json supabase/functions
+
+  database-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Start local Supabase
+        run: >-
+          npx --yes supabase@2.109.1 start
+          --exclude analytics,edge-runtime,functions,imgproxy,inbucket,realtime,storage,studio,vector
+
+      - name: Test database security
+        run: npm run test:db
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.109.1 stop --no-backup

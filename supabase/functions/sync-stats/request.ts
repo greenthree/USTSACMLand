@@ -1,6 +1,6 @@
 import { PLATFORM_IDS, type PlatformId } from '../_shared/adapters/index.ts'
 
-export type SyncScope = 'all' | 'platform' | 'platforms' | 'member'
+export type SyncScope = 'all' | 'platform' | 'platforms' | 'member' | 'queue'
 
 export interface SyncRequest {
   scope?: SyncScope
@@ -13,6 +13,11 @@ export interface NormalizedSyncRequest {
   scope: SyncScope
   platforms?: PlatformId[]
   memberId?: string
+}
+
+export function maySyncXcpcElo(request: NormalizedSyncRequest): boolean {
+  if (request.scope === 'queue') return false
+  return request.platforms === undefined || request.platforms.includes('xcpc_elo')
 }
 
 export class SyncRequestError extends Error {}
@@ -42,7 +47,7 @@ function normalizePlatforms(value: unknown): PlatformId[] {
 
 export function normalizeSyncRequest(body: SyncRequest): NormalizedSyncRequest {
   const scope = body.scope ?? 'all'
-  if (!['all', 'platform', 'platforms', 'member'].includes(scope)) {
+  if (!['all', 'platform', 'platforms', 'member', 'queue'].includes(scope)) {
     throw new SyncRequestError('Unsupported scope')
   }
 
@@ -63,6 +68,8 @@ export function normalizeSyncRequest(body: SyncRequest): NormalizedSyncRequest {
     }
     return { scope, memberId: body.member_id }
   }
+
+  if (scope === 'queue') return { scope }
 
   return { scope }
 }

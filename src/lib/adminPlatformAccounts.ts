@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { adminRpcError } from './adminRateLimit'
 import type { AccountVerificationStatus, AdminPlatformAccount, Platform } from '../types/domain'
 
 interface AdminPlatformAccountRow {
@@ -57,5 +58,5 @@ export async function setAdminPlatformAccountStatus(
     expected_updated_at: expectedUpdatedAt,
   })
 
-  if (error) throw new Error(`平台账号审核失败：${error.message}`)
+  if (error) throw adminRpcError('平台账号审核失败', error)
 }

@@ -4,7 +4,9 @@ import { MemoryRouter } from 'react-router-dom'
 import type { AdminMember } from '../../types/domain'
 
 const memberMocks = vi.hoisted(() => ({
+  buildCsv: vi.fn(),
   fetchMembers: vi.fn(),
+  setRole: vi.fn(),
   setSuspension: vi.fn(),
   updateProfile: vi.fn(),
 }))
@@ -14,7 +16,9 @@ vi.mock('../../lib/supabase', () => ({
 }))
 
 vi.mock('../../lib/adminMembers', () => ({
+  buildAdminMembersCsv: memberMocks.buildCsv,
   fetchAdminMembers: memberMocks.fetchMembers,
+  setAdminMemberRole: memberMocks.setRole,
   setAdminMemberSuspension: memberMocks.setSuspension,
   updateAdminMemberProfile: memberMocks.updateProfile,
 }))
@@ -36,6 +40,7 @@ const activeMember: AdminMember = {
   qq: '12345678',
   major: '计算机科学与技术',
   grade: '24级',
+  role: 'member',
   status: 'active',
   suspensionNote: null,
   isPublic: true,
@@ -59,9 +64,12 @@ const suspendedMember: AdminMember = {
 
 describe('AdminMembersPage with Supabase configured', () => {
   beforeEach(() => {
+    memberMocks.buildCsv.mockReset().mockReturnValue('csv-content')
     memberMocks.fetchMembers.mockReset()
     memberMocks.setSuspension.mockReset()
+    memberMocks.setRole.mockReset()
     memberMocks.updateProfile.mockReset()
+    memberMocks.setRole.mockResolvedValue('2026-07-13T12:00:00Z')
     memberMocks.fetchMembers.mockResolvedValue([activeMember, suspendedMember])
   })
 
@@ -80,6 +88,60 @@ describe('AdminMembersPage with Supabase configured', () => {
     await user.type(screen.getByPlaceholderText('搜索成员、邮箱、QQ、年级或专业'), '12345678')
     expect(screen.getByRole('row', { name: /测试成员/ })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /停用成员/ })).not.toBeInTheDocument()
+  }, 10_000)
+
+  it('exports only the currently filtered member rows', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:members')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    renderMembersPage()
+
+    await screen.findByRole('row', { name: /测试成员/ })
+    await user.selectOptions(screen.getByRole('combobox', { name: '成员状态' }), 'suspended')
+    await user.click(screen.getByRole('button', { name: '导出当前列表' }))
+
+    expect(memberMocks.buildCsv).toHaveBeenCalledWith([suspendedMember])
+    expect(createObjectUrl).toHaveBeenCalledTimes(1)
+    expect(anchorClick).toHaveBeenCalledTimes(1)
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:members')
+
+    anchorClick.mockRestore()
+    revokeObjectUrl.mockRestore()
+    createObjectUrl.mockRestore()
+    Reflect.deleteProperty(URL, 'createObjectURL')
+    Reflect.deleteProperty(URL, 'revokeObjectURL')
+  })
+
+  it('requires a reason and explicit confirmation before promoting an administrator', async () => {
+    const user = userEvent.setup()
+    renderMembersPage()
+
+    await screen.findByRole('row', { name: /测试成员/ })
+    await user.click(screen.getByRole('button', { name: '提升 测试成员' }))
+
+    const submit = screen.getByRole('button', { name: '确认授权' })
+    expect(submit).toBeDisabled()
+    await user.type(screen.getByLabelText('变更原因'), '接任集训队管理员')
+    await user.click(screen.getByRole('checkbox', { name: /我已核对目标账号与权限影响/ }))
+    expect(submit).toBeEnabled()
+    await user.click(submit)
+
+    expect(memberMocks.setRole).toHaveBeenCalledWith(
+      'member-1',
+      'admin',
+      '2026-07-13T10:00:00Z',
+      '接任集训队管理员',
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('测试成员 已设为管理员。')
   })
 
   it('confirms suspension with an optional reason and updates the row', async () => {

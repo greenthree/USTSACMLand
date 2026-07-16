@@ -2,6 +2,7 @@ import { deepStrictEqual, equal, match } from 'node:assert/strict'
 import { HttpError } from '../http.ts'
 import {
   createLuoguAdapter,
+  parseLuoguProfile,
   parseLuoguRecordPage,
   type LuoguSyncState,
   type LuoguTransport,
@@ -54,6 +55,9 @@ function transportFromPages(pages: unknown[]): {
   return {
     requests,
     transport: {
+      fetchProfile(accountId) {
+        return Promise.resolve({ currentData: { user: { uid: Number(accountId) } } })
+      },
       fetchRecordPage(accountId, pageNumber) {
         requests.push({ accountId, page: pageNumber })
         const payload = pages[pageNumber - 1]
@@ -89,7 +93,7 @@ Deno.test('Luogu first synchronization reads the full accepted history', async (
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 3)
-  equal(result.sourceVersion, 'luogu-authenticated-record-list-pb-v2')
+  equal(result.sourceVersion, 'luogu-authenticated-profile-record-list-pb-v3')
   deepStrictEqual(result.details, {
     provider: 'authenticated_record_list',
     statistic: 'unique currentData.records.result[].problem.pid',
@@ -309,6 +313,45 @@ Deno.test('Luogu adapter rejects records that are not ordered newest first', asy
   equal(result.error.code, 'schema_changed')
 })
 
+Deno.test('Luogu adapter rejects a total that changes between pages', async () => {
+  const { transport } = transportFromPages([
+    page([entry(102, 'P1000')], 2),
+    page([entry(101, 'P1001')], 3),
+  ])
+  const result = await adapter(transport).sync('409073')
+
+  equal(result.ok, false)
+  if (result.ok) return
+  equal(result.error.code, 'schema_changed')
+  equal(result.error.retryable, false)
+  match(result.error.message, /total changed between pages/)
+})
+
+Deno.test('Luogu adapter rejects duplicate record IDs across pages', async () => {
+  const { transport } = transportFromPages([
+    page([entry(102, 'P1000', 102)], 2),
+    page([entry(102, 'P1001', 101)], 2),
+  ])
+  const result = await adapter(transport).sync('409073')
+
+  equal(result.ok, false)
+  if (result.ok) return
+  equal(result.error.code, 'schema_changed')
+  equal(result.error.retryable, false)
+  match(result.error.message, /duplicate record ID/)
+})
+
+Deno.test('Luogu adapter rejects more records than the declared total', async () => {
+  const { transport } = transportFromPages([page([entry(102, 'P1000'), entry(101, 'P1001')], 1)])
+  const result = await adapter(transport).sync('409073')
+
+  equal(result.ok, false)
+  if (result.ok) return
+  equal(result.error.code, 'schema_changed')
+  equal(result.error.retryable, false)
+  match(result.error.message, /more records than its total/)
+})
+
 Deno.test('Luogu adapter reports missing authentication as not configured', async () => {
   const result = createLuoguAdapter({ transport: null }).sync('409073')
   const resolved = await result
@@ -324,6 +367,9 @@ Deno.test('Luogu adapter reports missing authentication as not configured', asyn
 for (const status of [401, 403]) {
   Deno.test(`Luogu adapter maps HTTP ${status} to expired authentication`, async () => {
     const transport: LuoguTransport = {
+      fetchProfile() {
+        throw new HttpError(`HTTP ${status}`, 'source_unavailable', false, status)
+      },
       fetchRecordPage() {
         throw new HttpError(`HTTP ${status}`, 'source_unavailable', false, status)
       },
@@ -340,6 +386,9 @@ for (const status of [401, 403]) {
 
 Deno.test('Luogu adapter preserves rate-limit classification', async () => {
   const transport: LuoguTransport = {
+    fetchProfile() {
+      throw new HttpError('HTTP 429', 'rate_limited', true, 429)
+    },
     fetchRecordPage() {
       throw new HttpError('HTTP 429', 'rate_limited', true, 429)
     },
@@ -415,6 +464,10 @@ Deno.test('Luogu adapter rejects an empty page before a declared total is comple
 Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async () => {
   let requests = 0
   const transport: LuoguTransport = {
+    fetchProfile() {
+      requests += 1
+      throw new Error('should not run')
+    },
     fetchRecordPage() {
       requests += 1
       throw new Error('should not run')
@@ -426,4 +479,40 @@ Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async 
   if (result.ok) return
   equal(result.error.code, 'invalid_account')
   equal(requests, 0)
+})
+
+Deno.test('Luogu profile parser distinguishes valid, missing, and mismatched users', () => {
+  parseLuoguProfile({ currentData: { user: { uid: 409073 } } }, '409073')
+
+  for (const [payload, code] of [
+    [{ currentData: { errorCode: 404 } }, 'not_found'],
+    [{ currentData: { user: { uid: 409074 } } }, 'invalid_account'],
+    [{ currentData: { user: {} } }, 'schema_changed'],
+  ] as const) {
+    try {
+      parseLuoguProfile(payload, '409073')
+      throw new Error('expected parser failure')
+    } catch (error) {
+      equal(error instanceof HttpError ? error.code : null, code)
+    }
+  }
+})
+
+Deno.test('Luogu adapter rejects a missing UID before reading Accepted records', async () => {
+  let recordRequests = 0
+  const transport: LuoguTransport = {
+    fetchProfile() {
+      throw new HttpError('Luogu user was not found', 'not_found', false, 404)
+    },
+    fetchRecordPage() {
+      recordRequests += 1
+      return Promise.resolve(page([], 0))
+    },
+  }
+  const result = await adapter(transport).sync('999999999')
+
+  equal(result.ok, false)
+  if (result.ok) return
+  equal(result.error.code, 'not_found')
+  equal(recordRequests, 0)
 })

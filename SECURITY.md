@@ -1,13 +1,40 @@
-# Security Policy
+# 安全政策
 
-## Reporting A Vulnerability
+## 报告安全问题
 
-Do not include credentials, private member data, authentication tokens, or exploit details in a public issue.
+不要在公开 Issue、讨论、截图或日志中附带密码、Cookie、Token、成员私有资料、可直接利用的攻击步骤或第三方原始响应。
 
-Use GitHub private vulnerability reporting when it is available for this repository. Team members may also contact the USTS ACM training team administrator through the team's internal communication channel.
+优先使用仓库的 [GitHub Private Vulnerability Reporting](https://github.com/greenthree/USTSACMLand/security/advisories/new)。该入口在仓库所有者完成启用前可能不可用；集训队成员也可通过队内渠道联系管理员。若私密入口不可用，请先只发送不含敏感细节的联系请求，等待维护者建立安全沟通方式。
 
-Include the affected route or component, reproduction conditions, expected impact, and the smallest redacted evidence needed to understand the issue. Maintainers will acknowledge the report and coordinate remediation before public disclosure.
+报告应包含受影响的路由、函数或组件，最小复现条件、预期影响、受影响版本和经过脱敏的必要证据。请说明是否已经访问、修改或下载真实成员数据；不要为了证明问题扩大测试范围。
 
-## Supported Version
+维护者的响应目标是在 7 个自然日内确认收到并给出下一步，但这不是可用性或修复时限保证。高风险问题会优先止损、轮换凭据和限制受影响功能，再完成根因修复。请在维护者确认修复和披露时间前保持私密。
 
-Security fixes are applied to the current production version on the default branch. Older commits and local forks are not separately supported.
+## 支持范围
+
+安全修复只应用于默认分支对应的当前生产版本。旧提交、未合并分支、本地修改和第三方 Fork 不单独维护。以下内容属于本项目安全范围：
+
+- Supabase Auth、RLS、管理员 RPC、Edge Functions 和账号注销。
+- GitHub Pages 构建、公开视图、前端权限边界和凭据暴露。
+- Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 与 Firecrawl 同步中由本站代码造成的数据泄露或越权。
+
+第三方平台自身的漏洞、账号申诉、比赛判罚和服务可用性应报告给对应平台；如果问题由本站集成方式放大或泄露成员数据，仍请向本项目私密报告。
+
+## 跨域与函数入口
+
+生产 Edge Function 只允许配置的 GitHub Pages Origin，不使用 `*` 放行带认证请求；预检响应必须包含精确的 `Access-Control-Allow-Origin` 和 `Vary: Origin`。未授权的 Origin 不应收到允许源，匿名 GET 必须在进入业务写操作前以 `401` 或 `405` 关闭。发布前使用 `npm run check:supabase-readiness` 对所有生产函数执行只读探测，缺失函数、`404`、通配 Origin、缺少 `Vary: Origin` 或匿名成功响应都会阻塞发布。
+
+## 密码修改与账号注销
+
+普通账号页不直接调用 Supabase Auth 修改密码。`change-password` 与 `delete-account` 都从 Bearer 会话推导当前用户，再用独立的无持久化 Auth Client 验证当前邮箱密码；改密还必须确认重新认证返回的用户 ID 与会话用户一致。唯一的前端 `updateUser(password)` 路径是 Supabase `PASSWORD_RECOVERY` 邮件会话，成功后立即尝试全局登出并要求重新登录。生产 Auth 必须启用 Secure password change，部署验收需检查真实设置，不能只依据仓库 `config.toml`。
+
+注销在应用层检查活动同步后，数据库 `BEFORE DELETE` 守卫会在最终删除点再次检查 queued/running 任务。外部恢复下限写入由数据库全局租约串行化，租约、GitHub 写入或回读任一步失败都不得先删除成员数据。管理员必须先交接并降级；删除前会清空其跨表 Auth 外键，并深度匿名化所有包含该 UUID 的审计 JSON。
+
+仅有会话但不知道旧密码的强攻击模型仍需单独决策：若项目负责人要求抵御“攻击者先通过 Supabase 原生接口重设密码、再等待并注销”的场景，应在永久注销上增加独立邮箱 OTP 或 MFA，而不是声称一次密码输入能够覆盖该威胁。
+
+## 安全测试边界
+
+- 只使用你自己的账号或维护者明确提供的测试账号。
+- 不进行拒绝服务、批量抓取、社工、钓鱼或对第三方平台的自动化攻击。
+- 不读取或保留超出证明问题所需的真实数据；意外获得时立即停止并在报告中说明。
+- 不公开尚未修复的细节。维护者会在确认影响和完成修复后协调披露。

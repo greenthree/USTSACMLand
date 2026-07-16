@@ -2,9 +2,9 @@ import { fetchJson, fetchWithRetry, HttpError, toAdapterHttpError } from '../htt
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
 interface AtCoderHistoryEntry {
-  IsRated?: boolean
-  NewRating?: number
-  EndTime?: string
+  IsRated?: unknown
+  NewRating?: unknown
+  EndTime?: unknown
 }
 
 interface AtCoderAcRankResponse {
@@ -15,6 +15,11 @@ interface AtCoderAcRankResponse {
 export interface AtCoderAcRank {
   count: number
   rank: number | null
+}
+
+interface ParsedAtCoderHistory {
+  ratings: number[]
+  sourceUpdatedAt: string | null
 }
 
 export interface AtCoderTransport {
@@ -79,6 +84,60 @@ export function parseAtCoderAcRank(payload: unknown): AtCoderAcRank {
   return { count: response.count, rank: (response.rank as number | undefined) ?? null }
 }
 
+function parseAtCoderHistory(payload: unknown): ParsedAtCoderHistory {
+  if (!Array.isArray(payload)) {
+    throw new HttpError('AtCoder history response is not an array', 'schema_changed', false)
+  }
+
+  const ratings: number[] = []
+  let sourceUpdatedAt: string | null = null
+  let previousRatedAt = Number.NEGATIVE_INFINITY
+
+  for (const rawEntry of payload) {
+    if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) {
+      throw new HttpError('AtCoder history contains an invalid entry', 'schema_changed', false)
+    }
+
+    const entry = rawEntry as AtCoderHistoryEntry
+    if (typeof entry.IsRated !== 'boolean') {
+      throw new HttpError('AtCoder history contains an invalid rated flag', 'schema_changed', false)
+    }
+    if (!entry.IsRated) continue
+    if (typeof entry.NewRating !== 'number' || !Number.isFinite(entry.NewRating)) {
+      throw new HttpError('AtCoder history contains an invalid Rating', 'schema_changed', false)
+    }
+    if (typeof entry.EndTime !== 'string') {
+      throw new HttpError(
+        'AtCoder history contains an invalid contest time',
+        'schema_changed',
+        false,
+      )
+    }
+
+    const timestamp = Date.parse(entry.EndTime)
+    if (!Number.isFinite(timestamp)) {
+      throw new HttpError(
+        'AtCoder history contains an invalid contest time',
+        'schema_changed',
+        false,
+      )
+    }
+    if (timestamp < previousRatedAt) {
+      throw new HttpError(
+        'AtCoder rated history is not ordered chronologically',
+        'schema_changed',
+        false,
+      )
+    }
+
+    previousRatedAt = timestamp
+    ratings.push(entry.NewRating)
+    sourceUpdatedAt = new Date(timestamp).toISOString()
+  }
+
+  return { ratings, sourceUpdatedAt }
+}
+
 async function loadSolvedCount(
   transport: AtCoderTransport,
   accountId: string,
@@ -116,20 +175,8 @@ export function createAtCoderAdapter(
           transport.fetchHistory(accountId, context?.signal),
           loadSolvedCount(transport, accountId, context?.signal),
         ])
-        if (!Array.isArray(historyPayload)) {
-          return failure(
-            'atcoder',
-            accountId,
-            'schema_changed',
-            'AtCoder history response is not an array',
-            false,
-          )
-        }
-
-        const history = historyPayload as AtCoderHistoryEntry[]
-        const rated = history.filter((entry) => entry.IsRated && Number.isFinite(entry.NewRating))
-        const ratings = rated.map((entry) => entry.NewRating as number)
-        const last = rated.at(-1)
+        const history = parseAtCoderHistory(historyPayload)
+        const ratings = history.ratings
 
         return success(
           'atcoder',
@@ -140,7 +187,7 @@ export function createAtCoderAdapter(
             solvedCount: acRank.count,
           },
           {
-            sourceUpdatedAt: last?.EndTime ? new Date(last.EndTime).toISOString() : null,
+            sourceUpdatedAt: history.sourceUpdatedAt,
             sourceVersion: 'atcoder-history-ac-rank-v2',
             details: { ratedContestCount: ratings.length, acRank: acRank.rank },
           },

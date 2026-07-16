@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "stdout": "browser ready\nQOJ_RESULT:{\"pathname\":\"/user/profile/contract_user\",\"profileUsername\":\"contract_user\",\"isLogin\":false,\"hasLogout\":true,\"loginFailure\":null,\"notFound\":false,\"challenge\":false,\"rateLimited\":false,\"fetchFailed\":false,\"failureStage\":null,\"responseStatus\":200,\"navigationError\":null,\"acceptedCount\":42}\n",
+  "result": "",
+  "exitCode": 0,
+  "killed": false
+}

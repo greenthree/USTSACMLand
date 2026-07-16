@@ -1,7 +1,38 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { MembersDataContext } from '../data/membersDataContext'
+import { mockMembers } from '../data/mock'
+import type { Member } from '../types/domain'
 import { RankingsPage } from './RankingsPage'
+
+function createPaginatedMembers(count: number): Member[] {
+  return Array.from({ length: count }, (_, index) => {
+    const member = structuredClone(mockMembers[0]) as Member
+    const order = index + 1
+    member.id = `pagination-member-${order}`
+    member.name = `分页成员${String(order).padStart(2, '0')}`
+    member.major = order > 30 ? '软件工程' : '计算机科学与技术'
+    member.grade = order % 2 === 0 ? '24级' : '23级'
+    Object.values(member.stats).forEach((stat) => {
+      stat.externalId = `pagination-${order}`
+      stat.rating = 3001 - order
+      stat.peakRating = 3101 - order
+      stat.solved = 10001 - order
+    })
+    return member
+  })
+}
+
+function renderWithMembers(members: Member[]) {
+  return render(
+    <MemoryRouter>
+      <MembersDataContext.Provider value={{ members, loading: false, error: null, demo: true }}>
+        <RankingsPage />
+      </MembersDataContext.Provider>
+    </MemoryRouter>,
+  )
+}
 
 describe('RankingsPage', () => {
   it('switches between rating and solved rankings', async () => {
@@ -13,6 +44,10 @@ describe('RankingsPage', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'Rating 榜' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rating 榜' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('columnheader', { name: '总 Rating' })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: '总历史最高 Rating' })).toBeInTheDocument()
@@ -22,6 +57,7 @@ describe('RankingsPage', () => {
 
     await user.click(screen.getByRole('button', { name: '刷题榜' }))
     expect(screen.getByRole('heading', { name: '刷题榜' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '刷题榜' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       '总榜',
@@ -53,6 +89,32 @@ describe('RankingsPage', () => {
     await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
     expect(screen.getByRole('columnheader', { name: '平台账号' })).toBeInTheDocument()
     expect(screen.getByText('MingYuanGu')).toBeInTheDocument()
+  }, 10_000)
+
+  it('activates ranking modes and platform tabs from the keyboard', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <RankingsPage />
+      </MemoryRouter>,
+    )
+
+    const solvedMode = screen.getByRole('button', { name: '刷题榜' })
+    solvedMode.focus()
+    await user.keyboard('{Enter}')
+
+    expect(solvedMode).toHaveFocus()
+    expect(solvedMode).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: '刷题榜' })).toBeInTheDocument()
+
+    const overall = screen.getByRole('tab', { name: '总榜' })
+    overall.focus()
+    await user.keyboard('{End}')
+
+    const qoj = screen.getByRole('tab', { name: 'QOJ' })
+    expect(qoj).toHaveFocus()
+    expect(qoj).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('columnheader', { name: '平台账号' })).toBeInTheDocument()
   })
 
   it('filters members by name', async () => {
@@ -122,5 +184,135 @@ describe('RankingsPage', () => {
     const memberRow = screen.getByRole('row', { name: /周知行/ })
     expect(within(memberRow).getAllByText('周知行')).toHaveLength(2)
     expect(screen.queryByText('xcpc_41382a9bc0de127f')).not.toBeInTheDocument()
+  })
+
+  it('paginates the overall ranking with global ranks and resets after filtering', async () => {
+    const user = userEvent.setup()
+    renderWithMembers(createPaginatedMembers(60))
+
+    expect(screen.getByText('共 60 名 · 第 1 / 3 页')).toBeInTheDocument()
+    expect(screen.getAllByRole('row')).toHaveLength(26)
+    expect(
+      within(screen.getByRole('row', { name: /分页成员01/ })).getByText('1', {
+        selector: '.rank-number',
+      }),
+    ).toHaveClass('rank-1')
+
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+
+    expect(screen.getByText('共 60 名 · 第 2 / 3 页')).toBeInTheDocument()
+    const secondPageFirstRow = screen.getByRole('row', { name: /分页成员26/ })
+    expect(within(secondPageFirstRow).getByText('26')).toHaveClass('rank-number')
+    expect(within(secondPageFirstRow).getByText('26')).not.toHaveClass('rank-1')
+    expect(screen.getByRole('button', { name: '第 2 页' })).toHaveAttribute('aria-current', 'page')
+
+    await user.type(screen.getByRole('textbox', { name: '搜索成员' }), '分页成员30')
+
+    expect(await screen.findByText('共 1 名 · 第 1 / 1 页')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('row', { name: /分页成员30/ })).getByText('1', {
+        selector: '.rank-number',
+      }),
+    ).toHaveClass('rank-1')
+    expect(screen.queryByRole('button', { name: '上一页' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '下一页' })).not.toBeInTheDocument()
+  })
+
+  it('resets pagination for page size, platform and ranking mode changes', async () => {
+    const user = userEvent.setup()
+    renderWithMembers(createPaginatedMembers(60))
+
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    expect(screen.getByText('共 60 名 · 第 2 / 3 页')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: '每页显示人数' }), '50')
+    expect(screen.getByText('共 60 名 · 第 1 / 2 页')).toBeInTheDocument()
+    expect(screen.getAllByRole('row')).toHaveLength(51)
+
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
+    expect(screen.getByText('共 60 名 · 第 1 / 2 页')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('row', { name: /分页成员01/ })).getByText('1', {
+        selector: '.rank-number',
+      }),
+    ).toHaveClass('rank-1')
+
+    await user.click(screen.getByRole('button', { name: '下一页' }))
+    const platformSecondPageFirstRow = screen.getByRole('row', { name: /分页成员51/ })
+    expect(within(platformSecondPageFirstRow).getByText('51')).toHaveClass('rank-number')
+
+    await user.click(screen.getByRole('button', { name: '刷题榜' }))
+    expect(screen.getByText('共 60 名 · 第 1 / 2 页')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
+  }, 10_000)
+
+  it('keeps page buttons compact with accessible ellipses', async () => {
+    const user = userEvent.setup()
+    renderWithMembers(createPaginatedMembers(225))
+
+    const pagination = screen.getByRole('navigation', { name: '榜单分页' })
+    const pageGroup = within(pagination).getByRole('group', { name: '页码' })
+    expect(
+      within(pageGroup)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['1', '2', '3', '4', '5', '9'])
+    expect(within(pageGroup).getByText('…')).toHaveAttribute('aria-hidden', 'true')
+
+    await user.click(within(pageGroup).getByRole('button', { name: '第 5 页' }))
+
+    expect(screen.getByText('共 225 名 · 第 5 / 9 页')).toBeInTheDocument()
+    expect(screen.getByRole('tabpanel', { name: 'Rating榜结果' })).toHaveFocus()
+    expect(
+      within(pageGroup)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['1', '4', '5', '6', '9'])
+    expect(within(pageGroup).getAllByText('…')).toHaveLength(2)
+    expect(within(pageGroup).getByRole('button', { name: '第 5 页' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+
+  it('normalizes the current page when the available member count shrinks', async () => {
+    const user = userEvent.setup()
+    const view = renderWithMembers(createPaginatedMembers(60))
+
+    await user.click(screen.getByRole('button', { name: '第 3 页' }))
+    expect(screen.getByText('共 60 名 · 第 3 / 3 页')).toBeInTheDocument()
+
+    view.rerender(
+      <MemoryRouter>
+        <MembersDataContext.Provider
+          value={{
+            members: createPaginatedMembers(30),
+            loading: false,
+            error: null,
+            demo: true,
+          }}
+        >
+          <RankingsPage />
+        </MembersDataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('共 30 名 · 第 2 / 2 页')).toBeInTheDocument()
+
+    view.rerender(
+      <MemoryRouter>
+        <MembersDataContext.Provider
+          value={{
+            members: createPaginatedMembers(60),
+            loading: false,
+            error: null,
+            demo: true,
+          }}
+        >
+          <RankingsPage />
+        </MembersDataContext.Provider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('共 60 名 · 第 2 / 3 页')).toBeInTheDocument()
   })
 })

@@ -41,7 +41,7 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="auth-page">
+    <main id="main-content" className="auth-page" tabIndex={-1}>
       <section className="auth-context">
         <div className="auth-context-inner">
           <SiteLogo className="auth-logo" />
@@ -87,19 +87,29 @@ export function RegisterPage() {
             />
           </label>
           <label>
-            <span>密码</span>
+            <span id="register-password-label">密码</span>
             <input
               type="password"
               autoComplete="new-password"
               minLength={8}
               required
+              aria-labelledby="register-password-label"
+              aria-describedby="register-password-help"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <small>至少 8 位，不要与其他网站共用。</small>
+            <small id="register-password-help">至少 8 位，不要与其他网站共用。</small>
           </label>
-          {message ? <p className="form-success">{message}</p> : null}
-          {error ? <p className="form-error">{error}</p> : null}
+          {message ? (
+            <p className="form-success" role="status">
+              {message}
+            </p>
+          ) : null}
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
           <button
             className="primary-button full-button"
             type="submit"
@@ -116,6 +126,6 @@ export function RegisterPage() {
           </p>
         </form>
       </section>
-    </div>
+    </main>
   )
 }

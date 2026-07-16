@@ -14,6 +14,7 @@ export interface XcpcPlayer {
 export interface XcpcDataset {
   generatedAt?: string
   players?: XcpcPlayer[]
+  cacheVersion?: number
 }
 
 export type XcpcDatasetLoader = (signal?: AbortSignal) => Promise<XcpcDataset>
@@ -22,7 +23,7 @@ const DEFAULT_DATA_URL = 'https://zzzzzzyt.github.io/xcpc-elo/data.js'
 const DATA_PREFIX = 'window.__ELO_DATA__'
 export const XCPC_TARGET_ORGANIZATION = '苏州科技大学'
 
-function normalizeIdentityPart(value: string | undefined): string {
+export function normalizeXcpcIdentityPart(value: string | undefined): string {
   return (value ?? '').normalize('NFKC').trim().replace(/\s+/g, ' ')
 }
 
@@ -31,14 +32,14 @@ export function findXcpcPlayersByIdentity(
   memberName: string,
   organization = XCPC_TARGET_ORGANIZATION,
 ): XcpcPlayer[] {
-  const normalizedName = normalizeIdentityPart(memberName)
-  const normalizedOrganization = normalizeIdentityPart(organization)
+  const normalizedName = normalizeXcpcIdentityPart(memberName)
+  const normalizedOrganization = normalizeXcpcIdentityPart(organization)
   if (!normalizedName || !normalizedOrganization) return []
 
   return players.filter(
     (candidate) =>
-      normalizeIdentityPart(candidate.teamMember) === normalizedName &&
-      normalizeIdentityPart(candidate.organization) === normalizedOrganization,
+      normalizeXcpcIdentityPart(candidate.teamMember) === normalizedName &&
+      normalizeXcpcIdentityPart(candidate.organization) === normalizedOrganization,
   )
 }
 
@@ -57,7 +58,7 @@ export function computeXcpcHistoricalMaxRating(player: Pick<XcpcPlayer, 'history
   return Number.isFinite(best) ? best : null
 }
 
-function parseDataset(script: string): XcpcDataset {
+export function parseXcpcDataset(script: string): XcpcDataset {
   const assignment = script.indexOf('=')
   if (!script.slice(0, assignment).trim().startsWith(DATA_PREFIX) || assignment < 0) {
     throw new HttpError('XCPC ELO data assignment changed', 'schema_changed', false)
@@ -85,7 +86,7 @@ async function loadRemoteDataset(signal?: AbortSignal): Promise<XcpcDataset> {
     timeoutMs: 30_000,
     retries: 2,
   })
-  return parseDataset(await response.text())
+  return parseXcpcDataset(await response.text())
 }
 
 export function createXcpcEloAdapter(
@@ -159,7 +160,55 @@ export function createXcpcEloAdapter(
             false,
           )
         }
-        const historicalMaxRating = computeXcpcHistoricalMaxRating(player)
+        const rawCacheVersion: unknown = dataset.cacheVersion
+        if (
+          rawCacheVersion !== undefined &&
+          (!Number.isSafeInteger(rawCacheVersion) || Number(rawCacheVersion) < 1)
+        ) {
+          return failure(
+            'xcpc_elo',
+            player.id,
+            'schema_changed',
+            'XCPC ELO cache version is invalid',
+            false,
+          )
+        }
+        const cacheVersion = rawCacheVersion as number | undefined
+        if (
+          cacheVersion !== undefined &&
+          player.maxRating !== undefined &&
+          player.maxRating !== null &&
+          !Number.isFinite(player.maxRating)
+        ) {
+          return failure(
+            'xcpc_elo',
+            player.id,
+            'schema_changed',
+            'XCPC ELO cached maximum rating is invalid',
+            false,
+          )
+        }
+
+        const rawGeneratedAt: unknown = dataset.generatedAt
+        let sourceUpdatedAt: string | null = null
+        if (rawGeneratedAt !== undefined) {
+          if (typeof rawGeneratedAt !== 'string' || !Number.isFinite(Date.parse(rawGeneratedAt))) {
+            return failure(
+              'xcpc_elo',
+              player.id,
+              'schema_changed',
+              'XCPC ELO source generation time is invalid',
+              false,
+            )
+          }
+          sourceUpdatedAt = new Date(rawGeneratedAt).toISOString()
+        }
+
+        const historicalMaxRating = cacheVersion
+          ? Number.isFinite(player.maxRating)
+            ? player.maxRating!
+            : null
+          : computeXcpcHistoricalMaxRating(player)
 
         return success(
           'xcpc_elo',
@@ -170,10 +219,10 @@ export function createXcpcEloAdapter(
             solvedCount: null,
           },
           {
-            sourceUpdatedAt: dataset.generatedAt
-              ? new Date(dataset.generatedAt).toISOString()
-              : null,
-            sourceVersion: 'xcpc-elo-data-js-v2',
+            sourceUpdatedAt,
+            sourceVersion: cacheVersion
+              ? `xcpc-elo-data-js-v2-cache-${cacheVersion}`
+              : 'xcpc-elo-data-js-v2',
             details: {
               organization: player.organization ?? null,
               name: player.teamMember ?? null,

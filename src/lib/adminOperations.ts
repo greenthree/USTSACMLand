@@ -1,4 +1,6 @@
 import { platformLabels } from './platforms'
+import { buildCsv } from './csv'
+import { adminFunctionError } from './adminRateLimit'
 import { supabase } from './supabase'
 import {
   platforms,
@@ -10,6 +12,8 @@ import {
   type AuditEntry,
   type Platform,
   type SyncJobStatus,
+  type SyncJobScope,
+  type SyncQueueJob,
   type SyncRun,
   type SyncRunStatus,
   type SyncTriggerType,
@@ -41,6 +45,22 @@ interface AdminSyncRunRow {
   error_code: string | null
   error_message: string | null
   source_version: string | null
+}
+
+interface AdminActiveSyncJobRow {
+  job_id: number | string
+  profile_id: string | null
+  member_name: string | null
+  scope: SyncJobScope
+  platform: Platform | null
+  status: 'queued' | 'running'
+  trigger_type: SyncTriggerType
+  attempt_count: number | string
+  max_attempts: number | string
+  scheduled_for: string
+  started_at: string | null
+  created_at: string
+  last_error_code: string | null
 }
 
 interface AdminSourceHealthRow {
@@ -192,7 +212,7 @@ async function callAdminRpc<T>(
   // The production database types can lag one migration behind during local development.
   const rpc = supabase.rpc.bind(supabase) as unknown as UntypedRpc
   const { data, error } = await rpc(functionName, args)
-  if (error) throw new Error(`${errorPrefix}：${error.message}`)
+  if (error) throw await adminFunctionError(errorPrefix, error)
   return rowsFromRpc<T>(data)
 }
 
@@ -208,7 +228,11 @@ export function mapAdminOverview(row: AdminOverviewRow): AdminOverview {
   }
 }
 
-function mapRunStatus(status: AdminSyncRunRow['run_status']): SyncRunStatus {
+function mapRunStatus(
+  status: AdminSyncRunRow['run_status'],
+  jobStatus: SyncJobStatus,
+): SyncRunStatus {
+  if (jobStatus === 'queued') return 'queued'
   return status === 'succeeded' ? 'success' : status
 }
 
@@ -219,7 +243,7 @@ export function mapAdminSyncRun(row: AdminSyncRunRow): SyncRun {
     profileId: row.profile_id,
     platform: row.platform,
     memberName: row.member_name?.trim() || '未填写姓名',
-    status: mapRunStatus(row.run_status),
+    status: mapRunStatus(row.run_status, row.job_status),
     jobStatus: row.job_status,
     triggerType: row.trigger_type,
     requestedBy: row.requested_by,
@@ -229,6 +253,24 @@ export function mapAdminSyncRun(row: AdminSyncRunRow): SyncRun {
     errorCode: row.error_code,
     errorMessage: row.error_message,
     sourceVersion: row.source_version,
+  }
+}
+
+export function mapAdminActiveSyncJob(row: AdminActiveSyncJobRow): SyncQueueJob {
+  return {
+    id: numberValue(row.job_id),
+    profileId: row.profile_id,
+    memberName: row.member_name?.trim() || (row.scope === 'all' ? '全部成员' : '未填写姓名'),
+    scope: row.scope,
+    platform: row.platform,
+    status: row.status,
+    triggerType: row.trigger_type,
+    attemptCount: numberValue(row.attempt_count),
+    maxAttempts: numberValue(row.max_attempts, 1),
+    scheduledAt: row.scheduled_for,
+    startedAt: row.started_at,
+    createdAt: row.created_at,
+    errorCode: row.last_error_code,
   }
 }
 
@@ -464,6 +506,18 @@ export async function fetchAdminSyncRuns(
   return rows.map(mapAdminSyncRun)
 }
 
+export async function fetchAdminActiveSyncJobs(
+  rowLimit = 50,
+  beforeJobId: number | null = null,
+): Promise<SyncQueueJob[]> {
+  const rows = await callAdminRpc<AdminActiveSyncJobRow>(
+    'admin_list_active_sync_jobs',
+    { row_limit: rowLimit, before_job_id: beforeJobId },
+    '同步队列读取失败',
+  )
+  return rows.map(mapAdminActiveSyncJob)
+}
+
 export async function fetchAdminSourceHealth(lookbackHours = 168): Promise<AdminSourceHealth[]> {
   const rows = await callAdminRpc<AdminSourceHealthRow>(
     'admin_get_source_health',
@@ -485,19 +539,41 @@ export async function fetchAdminAuditEntries(
   return rows.map(mapAdminAuditEntry)
 }
 
-export async function triggerAdminFullSync(): Promise<AdminSyncBatchResult> {
-  if (!supabase) return { requested: 0, succeeded: 0, failed: 0 }
+export type AdminScopedSyncTarget =
+  { scope: 'member'; memberId: string } | { scope: 'platform'; platform: Platform }
+
+async function triggerAdminSync(
+  body: Record<string, unknown>,
+  errorPrefix: string,
+): Promise<AdminSyncBatchResult> {
+  if (!supabase) return { requested: 0, succeeded: 0, queued: 0, failed: 0 }
 
   const { data, error } = await supabase.functions.invoke('sync-stats', {
-    body: { scope: 'all' },
+    body,
   })
-  if (error) throw new Error(`全量同步失败：${error.message}`)
+  if (error) throw new Error(`${errorPrefix}：${error.message}`)
   const response = recordValue(data)
   return {
     requested: numberValue(response.requested),
     succeeded: numberValue(response.succeeded),
+    queued: numberValue(response.queued),
     failed: numberValue(response.failed),
   }
+}
+
+export async function triggerAdminFullSync(): Promise<AdminSyncBatchResult> {
+  return triggerAdminSync({ scope: 'all' }, '全量同步失败')
+}
+
+export async function triggerAdminScopedSync(
+  target: AdminScopedSyncTarget,
+): Promise<AdminSyncBatchResult> {
+  return triggerAdminSync(
+    target.scope === 'member'
+      ? { scope: 'member', member_id: target.memberId }
+      : { scope: 'platform', platform: target.platform },
+    '范围同步失败',
+  )
 }
 
 export async function retryAdminSyncRun(
@@ -512,28 +588,25 @@ export async function retryAdminSyncRun(
       triggerType: 'retry',
     },
   })
-  if (error) throw new Error(`同步重试失败：${error.message}`)
+  if (error) throw await adminFunctionError('同步重试失败', error)
   const response = recordValue(data)
   return {
     jobId: nullableNumber(response.jobId),
     memberId: stringValue(response.memberId) ?? run.profileId,
-    status: response.status === 'failed' ? 'failed' : 'success',
+    status:
+      response.status === 'failed' ? 'failed' : response.status === 'queued' ? 'queued' : 'success',
   }
 }
 
-function csvCell(value: string): string {
-  const formulaCandidate = value.trimStart()
-  const safeValue =
-    /^[=+\-@]/.test(formulaCandidate) || /^[\t\r\n]/.test(value) ? `'${value}` : value
-  return `"${safeValue.replaceAll('"', '""')}"`
-}
-
 export function buildAuditCsv(entries: AuditEntry[]): string {
-  const header = ['actor', 'action', 'target', 'created_at', 'summary'].join(',')
-  const rows = entries.map((entry) =>
-    [entry.actor, entry.action, entry.target, entry.createdAt, entry.summary]
-      .map(csvCell)
-      .join(','),
+  return buildCsv(
+    ['actor', 'action', 'target', 'created_at', 'summary'],
+    entries.map((entry) => [
+      entry.actor,
+      entry.action,
+      entry.target,
+      entry.createdAt,
+      entry.summary,
+    ]),
   )
-  return `\uFEFF${[header, ...rows].join('\r\n')}\r\n`
 }

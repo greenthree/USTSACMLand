@@ -4,7 +4,12 @@ vi.mock('./supabase', () => ({
   supabase: { rpc: adminMemberMocks.rpc },
 }))
 
-import { mapAdminMember, updateAdminMemberProfile } from './adminMembers'
+import {
+  buildAdminMembersCsv,
+  mapAdminMember,
+  setAdminMemberRole,
+  updateAdminMemberProfile,
+} from './adminMembers'
 
 describe('admin member mapping', () => {
   beforeEach(() => {
@@ -20,6 +25,7 @@ describe('admin member mapping', () => {
         major: '计算机科学与技术',
         grade: '24级',
         qq: '12345678',
+        role: 'member',
         review_status: 'approved',
         suspension_note: null,
         is_public: true,
@@ -35,6 +41,7 @@ describe('admin member mapping', () => {
       qq: '12345678',
       major: '计算机科学与技术',
       grade: '24级',
+      role: 'member',
       status: 'active',
       suspensionNote: null,
       isPublic: true,
@@ -54,6 +61,7 @@ describe('admin member mapping', () => {
         major: null,
         grade: null,
         qq: null,
+        role: 'member',
         review_status: 'suspended',
         suspension_note: '已离队',
         is_public: false,
@@ -104,5 +112,49 @@ describe('admin member mapping', () => {
       member_is_public: true,
       expected_updated_at: '2026-07-14T07:00:00Z',
     })
+  })
+
+  it('sends role handoff with an optimistic lock and audit reason', async () => {
+    adminMemberMocks.rpc.mockResolvedValue({
+      data: '2026-07-14T09:00:00Z',
+      error: null,
+    })
+
+    await expect(
+      setAdminMemberRole('member-1', 'admin', '2026-07-14T08:00:00Z', '接任集训队管理员'),
+    ).resolves.toBe('2026-07-14T09:00:00Z')
+
+    expect(adminMemberMocks.rpc).toHaveBeenCalledWith('admin_set_member_role', {
+      target_profile_id: 'member-1',
+      next_role: 'admin',
+      expected_updated_at: '2026-07-14T08:00:00Z',
+      reason: '接任集训队管理员',
+    })
+  })
+
+  it('exports private fields and neutralizes spreadsheet formulas', () => {
+    const csv = buildAdminMembersCsv([
+      {
+        id: 'member-1',
+        name: '=FORMULA',
+        email: 'member@example.test',
+        qq: '123456',
+        grade: '24级',
+        role: 'member',
+        major: '计算机科学与技术',
+        status: 'active',
+        suspensionNote: null,
+        isPublic: true,
+        joinedAt: '2026-07-15T00:00:00Z',
+        updatedAt: '2026-07-15T01:00:00Z',
+        platformCount: 5,
+        verifiedPlatformCount: 4,
+      },
+    ])
+
+    expect(csv).toContain('"\'=FORMULA"')
+    expect(csv).toContain('"member@example.test"')
+    expect(csv).toContain('"4"')
+    expect(csv.startsWith('\uFEFF')).toBe(true)
   })
 })

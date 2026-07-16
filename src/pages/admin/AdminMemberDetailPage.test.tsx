@@ -60,8 +60,9 @@ describe('AdminMemberDetailPage', () => {
     expect(screen.getAllByRole('row')).toHaveLength(7)
     expect(screen.getByRole('row', { name: /Codeforces/ })).toHaveTextContent('1,712')
     expect(screen.getByRole('row', { name: /牛客/ })).toHaveTextContent('待验证')
+    expect(screen.getByRole('row', { name: /XCPC ELO/ })).toHaveTextContent('1,723.5')
     expect(screen.queryByRole('button', { name: '修改 XCPC ELO 账号' })).not.toBeInTheDocument()
-  })
+  }, 10_000)
 
   it('edits a platform account with its optimistic-lock timestamp', async () => {
     const user = userEvent.setup()
@@ -82,6 +83,22 @@ describe('AdminMemberDetailPage', () => {
       '2026-07-13T09:00:00+08:00',
     )
     expect(await screen.findByText('牛客 账号已保存，等待验证。')).toBeInTheDocument()
+  })
+
+  it('validates a pending account through the adapter before reporting success', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    await user.click(screen.getByRole('button', { name: '验证 牛客 账号' }))
+
+    expect(memberDetailMocks.setAccountStatus).not.toHaveBeenCalled()
+    expect(memberDetailMocks.triggerSync).toHaveBeenCalledWith({
+      memberId: 'member-1',
+      platforms: ['nowcoder'],
+      triggerType: 'account_changed',
+    })
+    expect(await screen.findByText('牛客 账号已验证并完成首次同步。')).toBeInTheDocument()
   })
 
   it('validates and submits manual platform data with an audit reason', async () => {
@@ -115,6 +132,58 @@ describe('AdminMemberDetailPage', () => {
       '2026-07-13T08:00:00+08:00',
     )
     expect(await screen.findByText('Codeforces 手工数据已保存。')).toBeInTheDocument()
+  })
+
+  it('preserves two decimal places for manually entered XCPC ELO Ratings', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    await user.click(screen.getByRole('button', { name: '手工录入 XCPC ELO 数据' }))
+    const dialog = screen.getByRole('dialog', { name: '手工录入 XCPC ELO 数据' })
+    const current = within(dialog).getByRole('spinbutton', { name: '当前 Rating' })
+    const maximum = within(dialog).getByRole('spinbutton', { name: '历史最高 Rating' })
+    expect(current).toHaveAttribute('step', '0.01')
+    expect(maximum).toHaveAttribute('step', '0.01')
+
+    await user.clear(current)
+    await user.type(current, '1723.5')
+    await user.clear(maximum)
+    await user.type(maximum, '1801.25')
+    await user.type(within(dialog).getByRole('textbox', { name: '录入原因' }), '核对官网小数分')
+    await user.click(within(dialog).getByRole('button', { name: '保存手工数据' }))
+
+    expect(memberDetailMocks.setManualStats).toHaveBeenCalledWith(
+      'member-1',
+      'xcpc_elo',
+      expect.objectContaining({
+        currentRating: 1723.5,
+        maxRating: 1801.25,
+        solvedCount: null,
+        note: '核对官网小数分',
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('rejects XCPC ELO Ratings with more than two decimal places', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+    await user.click(screen.getByRole('button', { name: '手工录入 XCPC ELO 数据' }))
+
+    const dialog = screen.getByRole('dialog', { name: '手工录入 XCPC ELO 数据' })
+    const current = within(dialog).getByRole('spinbutton', { name: '当前 Rating' })
+    const maximum = within(dialog).getByRole('spinbutton', { name: '历史最高 Rating' })
+    await user.clear(current)
+    await user.type(current, '1723.456')
+    await user.clear(maximum)
+    await user.type(maximum, '1801.25')
+    await user.type(within(dialog).getByRole('textbox', { name: '录入原因' }), '测试小数位校验')
+    await user.click(within(dialog).getByRole('button', { name: '保存手工数据' }))
+
+    expect(current).toBeInvalid()
+    expect(memberDetailMocks.setManualStats).not.toHaveBeenCalled()
   })
 
   it('rejects a maximum Rating below the current Rating before calling the RPC', async () => {

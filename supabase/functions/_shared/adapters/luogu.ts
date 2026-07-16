@@ -18,6 +18,15 @@ interface LuoguRecordListResponse {
   } | null
 }
 
+interface LuoguProfileResponse {
+  currentData?: {
+    user?: {
+      uid?: unknown
+    } | null
+    errorCode?: unknown
+  } | null
+}
+
 export interface LuoguAcceptedRecord {
   id: string
   submitTime: number
@@ -40,6 +49,7 @@ export interface LuoguSyncState {
 }
 
 export interface LuoguTransport {
+  fetchProfile(accountId: string, signal?: AbortSignal): Promise<unknown>
   fetchRecordPage(accountId: string, page: number, signal?: AbortSignal): Promise<unknown>
 }
 
@@ -156,8 +166,51 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   }
 }
 
+export function parseLuoguProfile(payload: unknown, accountId: string): void {
+  if (!isRecord(payload)) {
+    throw new HttpError('Luogu profile response is not an object', 'schema_changed', false)
+  }
+  const response = payload as LuoguProfileResponse
+  if (response.currentData?.errorCode === 404) {
+    throw new HttpError('Luogu user was not found', 'not_found', false, 404)
+  }
+  const uid = response.currentData?.user?.uid
+  const parsedUid = typeof uid === 'number' && Number.isSafeInteger(uid) ? String(uid) : uid
+  if (typeof parsedUid !== 'string' || !/^\d{1,20}$/.test(parsedUid)) {
+    throw new HttpError('Luogu profile UID is missing or invalid', 'schema_changed', false)
+  }
+  if (parsedUid !== accountId) {
+    throw new HttpError(
+      'Luogu profile UID does not match the requested user',
+      'invalid_account',
+      false,
+    )
+  }
+}
+
 function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguTransport {
+  const headers = {
+    accept: 'application/json, text/plain, */*',
+    cookie,
+    'user-agent': BROWSER_USER_AGENT,
+    'x-csrf-token': csrfToken,
+    'x-requested-with': 'XMLHttpRequest',
+  }
   return {
+    fetchProfile(accountId, signal) {
+      const url = new URL(`/user/${encodeURIComponent(accountId)}`, ORIGIN)
+      url.searchParams.set('_contentOnly', '1')
+      return fetchJson<unknown>(url, {
+        signal,
+        timeoutMs: 15_000,
+        retries: 2,
+        retryBaseMs: 750,
+        headers: {
+          ...headers,
+          referer: `${ORIGIN}/user/${encodeURIComponent(accountId)}`,
+        },
+      })
+    },
     fetchRecordPage(accountId, page, signal) {
       const url = new URL('/record/list', ORIGIN)
       url.searchParams.set('user', accountId)
@@ -171,12 +224,8 @@ function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguT
         retries: 2,
         retryBaseMs: 750,
         headers: {
-          accept: 'application/json, text/plain, */*',
-          cookie,
+          ...headers,
           referer: `${ORIGIN}/record/list?user=${encodeURIComponent(accountId)}`,
-          'user-agent': BROWSER_USER_AGENT,
-          'x-csrf-token': csrfToken,
-          'x-requested-with': 'XMLHttpRequest',
         },
       })
     },
@@ -566,6 +615,7 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
       }
 
       try {
+        parseLuoguProfile(await transport.fetchProfile(accountId, context?.signal), accountId)
         const maxPages = resolveMaxPages(options.maxPages, options.transport === undefined)
         const pageDelayMs =
           options.pageDelayMs ?? (options.transport === undefined ? DEFAULT_PAGE_DELAY_MS : 0)
@@ -586,7 +636,7 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           {
             fetchedAt,
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-authenticated-record-list-pb-v2',
+            sourceVersion: 'luogu-authenticated-profile-record-list-pb-v3',
             syncState: metrics.state,
             details: {
               provider: 'authenticated_record_list',
