@@ -2,9 +2,12 @@ import { adminFunctionError, adminRpcError } from './adminRateLimit'
 
 describe('administrator rate-limit errors', () => {
   it('maps database rate limits without exposing internal keys', () => {
-    expect(adminRpcError('成员状态更新失败', { message: 'admin_rate_limited' }).message).toBe(
-      '成员状态更新失败：操作过于频繁。',
-    )
+    expect(
+      adminRpcError('成员状态更新失败', {
+        message: 'admin_rate_limited',
+        details: JSON.stringify({ action: 'member.write', retry_after_seconds: 17 }),
+      }).message,
+    ).toBe('成员状态更新失败：操作过于频繁，约 17 秒后可重试。')
   })
 
   it('reads the retry delay returned by an Edge Function', async () => {

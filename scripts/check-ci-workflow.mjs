@@ -32,6 +32,7 @@ const requiredReleaseMigrations = [
   '202607160009_allow_pending_luogu_failure_commit.sql',
   '202607160010_transactional_auth_user_deletion.sql',
   '202607170001_announcement_conflict_http_status.sql',
+  '202607170002_admin_rate_limit_http_status.sql',
 ]
 
 function requireMatch(source, pattern, message) {

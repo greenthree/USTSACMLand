@@ -36,12 +36,18 @@ export function corsHeaders(
   }
 }
 
-export function jsonResponse(body: unknown, status = 200, request?: Request): Response {
+export function jsonResponse(
+  body: unknown,
+  status = 200,
+  request?: Request,
+  additionalHeaders: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       ...corsHeaders(request),
       'content-type': 'application/json; charset=utf-8',
+      ...additionalHeaders,
     },
   })
 }

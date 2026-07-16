@@ -1,5 +1,5 @@
 import { deepStrictEqual, equal } from 'node:assert/strict'
-import { corsHeaders, resolveCorsOrigin } from './cors.ts'
+import { corsHeaders, jsonResponse, resolveCorsOrigin } from './cors.ts'
 
 Deno.test('CORS defaults to a wildcard when no allowlist is configured', () => {
   equal(resolveCorsOrigin('https://example.com', ''), '*')
@@ -42,4 +42,12 @@ Deno.test('CORS does not authorize a hostile preflight origin', () => {
 
   equal(headers['access-control-allow-origin'], undefined)
   equal(headers['access-control-allow-methods'], 'POST, OPTIONS')
+})
+
+Deno.test('JSON responses preserve an explicit Retry-After header', () => {
+  const response = jsonResponse({ retryAfterSeconds: 17 }, 429, undefined, { 'retry-after': '17' })
+
+  equal(response.status, 429)
+  equal(response.headers.get('retry-after'), '17')
+  equal(response.headers.get('content-type'), 'application/json; charset=utf-8')
 })

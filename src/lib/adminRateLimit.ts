@@ -1,6 +1,7 @@
 interface ErrorLike {
   message: string
   context?: unknown
+  details?: unknown
 }
 
 function retryMessage(prefix: string, retryAfterSeconds: number | null): Error {
@@ -17,10 +18,24 @@ function errorMessage(error: unknown): string {
       : '未知错误'
 }
 
+function retryAfterDetails(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null || !('details' in error)) return null
+  const details = error.details
+  if (typeof details !== 'string') return null
+  try {
+    const seconds = Number(
+      (JSON.parse(details) as { retry_after_seconds?: unknown }).retry_after_seconds,
+    )
+    return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : null
+  } catch {
+    return null
+  }
+}
+
 export function adminRpcError(prefix: string, error: unknown): Error {
   const message = errorMessage(error)
   return message.includes('admin_rate_limited')
-    ? retryMessage(prefix, null)
+    ? retryMessage(prefix, retryAfterDetails(error))
     : new Error(`${prefix}：${message}`)
 }
 

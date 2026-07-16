@@ -429,7 +429,8 @@ async function persistResult(
 }
 
 Deno.serve(async (request) => {
-  const respond = (body: unknown, status = 200) => jsonResponse(body, status, request)
+  const respond = (body: unknown, status = 200, additionalHeaders: Record<string, string> = {}) =>
+    jsonResponse(body, status, request, additionalHeaders)
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders(request) })
   }
@@ -781,6 +782,7 @@ Deno.serve(async (request) => {
           retryAfterSeconds: error.retryAfterSeconds,
         },
         429,
+        { 'retry-after': String(error.retryAfterSeconds) },
       )
     }
     const status = error instanceof ApiError ? error.status : 500

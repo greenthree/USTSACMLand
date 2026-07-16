@@ -162,7 +162,7 @@ select throws_ok(
       60
     )
   $$,
-  'P0001',
+  'PT429',
   'admin_rate_limited',
   'requests above the configured limit are rejected'
 );

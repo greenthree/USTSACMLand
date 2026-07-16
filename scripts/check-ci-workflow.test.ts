@@ -31,7 +31,7 @@ describe('CI workflow', () => {
     ).toEqual({
       fileCount: 16,
       assertionCount: 290,
-      releaseMigrationCount: 21,
+      releaseMigrationCount: 22,
     })
   })
 
