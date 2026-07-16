@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(33);
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
@@ -580,6 +580,12 @@ select ok(
     ) similar to '%(00000000-0000-0000-0000-0000000000fa|Former Administrator|18888888888)%'
   ),
   'former-administrator UUID and personal fields are removed from cross-table audit rows'
+);
+
+select ok(
+  public.is_trusted_profile_management_actor('supabase_auth_admin'::name, null)
+  and not public.is_trusted_profile_management_actor('authenticator'::name, 'authenticated'),
+  'Supabase Auth cleanup is trusted without granting the browser authentication role'
 );
 
 select * from finish();

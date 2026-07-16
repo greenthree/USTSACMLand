@@ -30,8 +30,8 @@ describe('CI workflow', () => {
       ),
     ).toEqual({
       fileCount: 15,
-      assertionCount: 250,
-      releaseMigrationCount: 17,
+      assertionCount: 251,
+      releaseMigrationCount: 18,
     })
   })
 
@@ -138,12 +138,12 @@ describe('CI workflow', () => {
         packageJson,
         pgTapFiles,
         migrationFiles.filter(
-          (name) => name !== '202607160007_account_deletion_recovery_lease_renewal.sql',
+          (name) => name !== '202607160008_allow_auth_admin_profile_cleanup.sql',
         ),
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/202607160007_account_deletion_recovery_lease_renewal/)
+    ).toThrow(/202607160008_allow_auth_admin_profile_cleanup/)
 
     expect(() =>
       verifyCiWorkflow(
