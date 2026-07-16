@@ -30,7 +30,7 @@
 - [x] 完成牛客 UID -> 唯一通过题数、UID -> 当前/最高 Rating 验证，并增加 WAF 时的 Firecrawl 回退。
 - [x] 完成 AtCoder 历史 JSON 验证，覆盖有 Rating、未参赛和不存在用户。
 - [x] 完成 XCPC ELO `data.js` 解析，并按“姓名 + 苏州科技大学”唯一匹配后保存稳定 `xcpc_*` ID。
-- [ ] 完成 XCPC ELO 数据缓存和失效策略（共享缓存、租约、条件请求、故障测试、小数 Rating 存储与后台手工小数录入已实现，待空库 migration/CI 与生产烟测后验收）。
+- [x] 完成 XCPC ELO 数据缓存和失效策略：跨 Edge 实例共享版本、刷新租约、6 小时 TTL、条件请求、失败冷却、小数 Rating 存储与后台手工小数录入均已实现；2026-07-16 生产烟测从空缓存发布版本 1（53 条本校选手记录），第二个独立成员同步复用同一版本且 `validated_at` 未变化，空库 CI 同时通过租约、304、冷却、陈旧数据拒绝和旧版本清理测试，脱敏证据见 `docs/evidence/xcpc-cache-production-smoke-2026-07-16.md`。
 - [x] 完成洛谷认证记录接口验证：先用公开用户页核对 UID，再按 UID 分页读取 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重，覆盖不存在用户、零题数、凭据失效、限流、结构变化和分页截断。
 - [x] 完成 QOJ 可行性 Spike：确认需要认证浏览器会话，统计去重后的 Accepted 题目。
 - [x] 实现 QOJ Firecrawl `/interact` 临时会话自动登录、结构校验、限流错误和完整登录健康检查脚本。
@@ -61,8 +61,8 @@ M0 验收条件：
 - [x] 编写 RLS：访客只读公开成员；成员只读写本人允许字段；管理员走受控策略/函数（已静态审查）。
 - [x] 建立注册后自动创建 profile 的触发器。
 - [x] 建立仅限 service role / SQL 管理员的一次性首管理员初始化流程。
-- [x] 为 RLS、唯一约束和角色提升攻击编写数据库测试（2026-07-16 PostgreSQL 17 空库 CI 已执行 15 个 pgTAP 文件、251 项与真实调用一致的断言并通过，覆盖匿名访客、普通成员、停用成员、管理员、私表拒绝、公开视图过滤、QQ/平台绑定唯一冲突、管理员交接和最后管理员保护）。
-- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-16，33 个生产 migration 与四个 Edge Function 已部署；生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留，Auth 内部删除清理缺陷已由 `202607160008` 修复并完成临时账号清理。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、`409` 删除失败、心跳/释放长尾和管理员交接后的真实生产验收尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
+- [x] 为 RLS、唯一约束和角色提升攻击编写数据库测试（2026-07-16 PostgreSQL 17 空库 CI 已执行 15 个 pgTAP 文件、257 项与真实调用一致的断言并通过，覆盖匿名访客、普通成员、停用成员、管理员、私表拒绝、公开视图过滤、QQ/平台绑定唯一冲突、管理员交接和最后管理员保护）。
+- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-16，34 个生产 migration 与四个 Edge Function 已部署；生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留，Auth 内部删除清理缺陷已由 `202607160008` 修复并完成临时账号清理。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、`409` 删除失败、心跳/释放长尾和管理员交接后的真实生产验收尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
 - [ ] 验证注销恢复租约的长尾边界：当前租约有效期为 5 分钟，GitHub 恢复下限请求有 5 秒超时并额外预留 1 小时；本地已在 Auth 删除前续期并重新确认所有权，并在删除 Promise 挂起期间每分钟周期续期。Supabase Auth 删除仍没有可证明的服务端完成上限，生产受控烟测必须记录续期到删除结束的耗时与心跳成功情况；如果运行环境会冻结计时器或无法稳定续期，则在正式发布前增加外部 fencing/Worker 方案。
 
 M1 验收条件：
@@ -109,7 +109,7 @@ M2 验收条件：
 - [x] 牛客：读取唯一通过题数和 Rating 历史，检测页面结构变化，并在 WAF 时回退 Firecrawl。
 - [x] AtCoder：读取 Rating 历史，计算当前和历史最高 Rating。
 - [x] XCPC ELO：下载解析数据集，按姓名和学校唯一匹配；零匹配与同校同名均返回结构化错误，唯一命中回写稳定 ID。
-- [ ] XCPC ELO：增加低频缓存和失效策略（跨 Edge 实例共享版本、小数 Rating 数据库口径及后台两位小数手工录入已实现，待数据库 migration/CI 与生产烟测后验收）。
+- [x] XCPC ELO：增加低频缓存和失效策略；生产已验证空缓存原子发布、跨独立同步请求命中同一共享版本、两位小数数据库口径和本校选手缓存内容，CI 已覆盖租约竞争、条件 `304`、失败冷却、结构/大小防护、陈旧数据拒绝与旧版本清理，证据见 `docs/evidence/xcpc-cache-production-smoke-2026-07-16.md`。
 - [x] 洛谷：先通过公开用户页验证 UID 存在，再使用 Supabase Secrets 中的 Cookie/CSRF 请求认证记录接口，分页读取 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重。
 - [x] QOJ：使用 Supabase Secrets 中的专用账号，每次创建 Firecrawl `/interact` 临时会话并自动登录查询目标主页。
 - [ ] QOJ：完成生产真实账号 smoke test，并验证统计值和成功状态落库（脱敏只读证据已保存到 `docs/evidence/qoj-production-smoke-2026-07-16.md`，证明生产存在两个自动适配器成功快照；该证据没有重新触发第三方登录，也不能证明当前凭据、额度和告警健康，仍待受控复验与私有 run ID 核对）。
@@ -122,7 +122,7 @@ M2 验收条件：
 - [x] 平台账号验证通过后立即同步该平台；同步失败不回滚验证状态。
 - [ ] 增加同步失败通知（终态失败脱敏 Webhook、5 秒超时和不影响主任务的失败隔离已实现；2026-07-15 生产 Secret 审计确认告警 URL/Token 均缺失，待配置与投递烟测后验收）。
 - [x] 添加计划批次新鲜度规则：日更平台错过最近 07:00/19:00 批次、周更平台错过最近周二 08:00 批次并超过执行宽限后才标记过期，同时区分正常、已过期和不可用。
-- [x] 添加适配器契约测试、集成测试和模拟故障测试（六平台固定样本、统一成功/失败契约、分页原子性/截断/结构漂移、双源失败、跨页一致性、XCPC 小数、QOJ 禁止自动重试、批次拒绝隔离和原子 RPC 参数构造均已覆盖；2026-07-16 CI 已实际通过完整 Vitest、Deno check/lint/test、100 项 Playwright 矩阵，以及 PostgreSQL 17 空库中的 15 个 pgTAP 文件、251 项断言）。
+- [x] 添加适配器契约测试、集成测试和模拟故障测试（六平台固定样本、统一成功/失败契约、分页原子性/截断/结构漂移、双源失败、跨页一致性、XCPC 小数、QOJ 禁止自动重试、批次拒绝隔离和原子 RPC 参数构造均已覆盖；2026-07-16 CI 已实际通过完整 Vitest、246 项 Deno Edge Function 测试、100 项 Playwright 矩阵，以及 PostgreSQL 17 空库中的 15 个 pgTAP 文件、257 项断言）。
 
 建议同步频率：
 
@@ -161,7 +161,7 @@ M3 验收条件：
 - [x] 为 Rating 使用 Codeforces、牛客、AtCoder、XCPC ELO 各自等级边界和原有色相；同时显示等级文字，并以自动测试保证对白底达到 WCAG AA 对比度。
 - [x] 添加 SEO 基础信息、方形站点图标、规范链接和 Open Graph/Twitter 分享信息，并在生产构建中校验。
 - [x] 完成当前公开页面和后台原型的桌面端、390px 移动端、交互与控制台 QA。
-- [ ] 补齐更多宽屏、浏览器和完整键盘访问测试（Chromium 1280×720、Firefox/WebKit 1440×900、移动 Chromium 390×844、宽屏 Chromium 1920×1080 的 100 项 Playwright 深链、键盘、对话框、忘记/重置密码、管理员交接、XCPC 两位小数手工录入、页面级横向溢出和 axe 测试已进入 CI；成员详情新增门禁发现并修复了缺失/禁用状态标签低于 WCAG AA 的灰色对比度，后台成员管理新增管理员交接确认与触发器回焦门禁，本地完整矩阵于 2026-07-16 以稳定的双 worker 配置 100/100 通过；部署后只读生产门禁已将公开数据契约与 UI 全榜复算分离，同日正式公开视图契约通过，但 Pages 仍是旧标题 `USTSACMLand`，需推送部署后取得 UI 门禁成功证据并完成人工屏幕阅读器验收）。
+- [ ] 补齐更多宽屏、浏览器和完整键盘访问测试（Chromium 1280×720、Firefox/WebKit 1440×900、移动 Chromium 390×844、宽屏 Chromium 1920×1080 的 100 项 Playwright 深链、键盘、对话框、忘记/重置密码、管理员交接、XCPC 两位小数手工录入、页面级横向溢出和 axe 测试已进入 CI；成员详情新增门禁发现并修复了缺失/禁用状态标签低于 WCAG AA 的灰色对比度，后台成员管理新增管理员交接确认与触发器回焦门禁，本地完整矩阵于 2026-07-16 以稳定的双 worker 配置 100/100 通过；同日 Pages 已部署当前标题与版本，部署后 `production-ranking-audit` 成功复算正式 UI 全榜；仍需人工屏幕阅读器验收和专用真实认证浏览器矩阵）。
 
 M4 验收条件：
 
@@ -203,13 +203,13 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-16 严格就绪检查确认项目 `ACTIVE_HEALTHY`、33 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均已部署并通过正式/恶意 Origin、匿名方法和 JWT 边界检查）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-16 严格就绪检查确认项目 `ACTIVE_HEALTHY`、34 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均已部署并通过正式/恶意 Origin、匿名方法和 JWT 边界检查）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
-- [ ] 在生产 Secrets 和真实仓库中验证全部工作流（2026-07-16 仓库就绪检查已确认 CI、Pages、同步、Secret scan 的最新真实运行、远端内容、默认分支提交、ruleset、原生安全功能、Dependabot、30 天保留和 5 分钟队列新鲜度；CI 静态门禁现保护 15 个 pgTAP 文件、251 项断言与 18 个发布 migration。仍缺 Actions Secrets `SUPABASE_DB_URL`、`BACKUP_ENCRYPTION_PASSPHRASE`，因此 `Encrypted database backup` 尚无 main 成功运行）。
+- [ ] 在生产 Secrets 和真实仓库中验证全部工作流（2026-07-16 仓库就绪检查已确认 CI、Pages、同步、Secret scan 的最新真实运行、远端内容、默认分支提交、ruleset、原生安全功能、Dependabot、30 天保留和 5 分钟队列新鲜度；CI 静态门禁现保护 15 个 pgTAP 文件、257 项断言与 19 个发布 migration。仍缺 Actions Secrets `SUPABASE_DB_URL`、`BACKUP_ENCRYPTION_PASSPHRASE`，因此 `Encrypted database backup` 尚无 main 成功运行）。
 - [x] 在仓库中接入 npm/GitHub Actions Dependabot 周更、完整历史 Gitleaks 扫描，并把工作流第三方 Action 固定到完整提交 SHA（2026-07-16 使用官方 Gitleaks `v8.30.1` 对 18 个本地提交和 324 个可提交文件执行脱敏扫描，均无泄漏；证据见 `docs/evidence/local-secret-scan-2026-07-16.md`，远端首次 workflow 结果仍由下一项验收）。
 - [x] 按仓库保护文档配置 `main` ruleset、GitHub 原生 Secret scanning/push protection 和 Private Vulnerability Reporting，并验证 Dependabot 与秘密扫描首次真实运行（2026-07-16 `Protect main release branch` ruleset 已启用且无 bypass，要求 PR、解决 review conversation、禁止删除/force push，并严格要求 `verify`、`database-security`、`gitleaks`；Secret scanning、push protection、Private Vulnerability Reporting、Dependabot security updates 与 30 天 Actions 保留均已启用，main 的 Secret scan 和 Dependabot 首次真实运行成功）。
-- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、33 个 migration、0 pending、四个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PostgreSQL 17 空库 CI 已通过 251 项权限断言。生产随机临时成员烟测确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭和 Auth 清理。仍需普通成员/停用成员/管理员真实 RLS 矩阵、管理员角色交接、配置恢复令牌后的成功注销、`409` 与心跳/释放失败语义验收）。
+- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、34 个 migration、0 pending、四个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PostgreSQL 17 空库 CI 已通过 257 项权限断言。生产随机临时成员烟测确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭和 Auth 清理。仍需普通成员/停用成员/管理员真实 RLS 矩阵、管理员角色交接、配置恢复令牌后的成功注销、`409` 与心跳/释放失败语义验收）。
 - [ ] 增加错误监控、同步失败告警和数据库备份方案（四个 Edge Function 的非业务型 500 已接入固定类别、无 message/stack/身份信息、1.5 秒超时且不重试的运行时 Webhook；前端已增加 React 顶层错误边界及 `window.error`/未处理 Promise 的脱敏本地事件；每日六部分逻辑导出、Auth 数据、AES-256 加密、解密自检、14 天 Artifact 和静态安全门禁已实现；注销前外部恢复下限、失败关闭和恢复校验工具已实现；2026-07-15 正式项目只读核验确认 PITR 未启用且可用物理备份为 0，待配置生产告警/备份 Secrets、确认实际套餐保障并完成告警投递、首次真实备份、受控注销和隔离恢复演练）。
 - [ ] 进行数据源限流演练、QOJ 会话过期演练和单平台停机演练（QOJ 凭据拒绝、Cloudflare challenge、Firecrawl 429 与会话清理已有固定测试，待生产受控演练）。
 - [x] 编写部署、回滚、凭据轮换、数据源修复和管理员交接文档，并明确前向数据库修复、QOJ 禁止自动重试、最小权限和交接顺序。
