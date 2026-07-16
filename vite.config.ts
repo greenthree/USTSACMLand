@@ -14,5 +14,8 @@ export default defineConfig(({ mode }) => ({
     // machines start every jsdom suite at once. Keep the release gate bounded
     // and reproducible across local workstations and GitHub runners.
     maxWorkers: 4,
+    // Interaction-heavy pagination and form suites legitimately cross the
+    // five-second Vitest default under runner contention.
+    testTimeout: 10_000,
   },
 }))
