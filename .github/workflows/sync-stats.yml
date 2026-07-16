@@ -152,7 +152,7 @@ jobs:
               fi
               jq -r '
                 .results[]
-                | select(.status < 200 or .status >= 300)
+                | select((.status < 200 or .status >= 300) or .body.status == "failed")
                 | if .body.error then
                     "Sync error [" + (.platform // "unknown") + "/request_failed]"
                   elif (.body.results | type) == "array" then
