@@ -194,7 +194,7 @@ GitHub Actions Secrets：
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `SUPABASE_DB_URL`（仅供加密数据库备份，使用 Session pooler URI）
+- `SUPABASE_ACCESS_TOKEN`（仅供加密数据库备份；CLI 每次运行动态取得短期数据库登录，不保存长期数据库密码）
 - `BACKUP_ENCRYPTION_PASSPHRASE`（独立随机口令，至少 32 个字符）
 
 Supabase Function Secrets/配置：

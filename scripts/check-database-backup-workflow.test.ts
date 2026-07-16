@@ -65,6 +65,12 @@ describe('encrypted database backup workflow', () => {
     ).toThrow(/six pinned Supabase CLI dumps/)
   })
 
+  it('rejects a long-lived database URL in place of linked credentials', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('--linked', '--db-url "$SUPABASE_DB_URL"')),
+    ).toThrow(/short-lived linked credentials/)
+  })
+
   it('rejects execution on pull-request events', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
