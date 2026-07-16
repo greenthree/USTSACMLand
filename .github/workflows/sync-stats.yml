@@ -86,67 +86,110 @@ jobs:
               '$csv | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
           fi
 
-          payload="$(jq -n \
-            --arg scope "$SYNC_SCOPE" \
-            --arg platform "$SYNC_PLATFORM" \
-            --argjson platforms "$platforms_json" \
-            --arg member_id "$SYNC_MEMBER_ID" \
-            '{scope: $scope}
-            + (if $platform == "" then {} else {platform: $platform} end)
-            + (if ($platforms | length) == 0 then {} else {platforms: $platforms} end)
-            + (if $member_id == "" then {} else {member_id: $member_id} end)')"
+          cursor=""
+          page_number=1
+          max_pages=100
+          had_failures=0
+          failed_total=0
+          failure_count_known=1
 
-          # This POST is intentionally sent once. Platform jobs own their retry policy,
-          # and QOJ must never be recreated by a transport-level curl retry.
-          http_status="$(curl \
-            --silent \
-            --show-error \
-            --connect-timeout 10 \
-            --max-time 300 \
-            --output response.json \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-            --header "Content-Type: application/json" \
-            --data "$payload" \
-            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/sync-stats")"
+          while true; do
+            payload="$(jq -n \
+              --arg scope "$SYNC_SCOPE" \
+              --arg platform "$SYNC_PLATFORM" \
+              --argjson platforms "$platforms_json" \
+              --arg member_id "$SYNC_MEMBER_ID" \
+              --arg cursor "$cursor" \
+              '{scope: $scope}
+              + (if $scope == "queue" then {} else {batch_size: 3} end)
+              + (if $platform == "" then {} else {platform: $platform} end)
+              + (if ($platforms | length) == 0 then {} else {platforms: $platforms} end)
+              + (if $member_id == "" then {} else {member_id: $member_id} end)
+              + (if $scope == "queue" or $cursor == "" then {} else {cursor: ($cursor | tonumber)} end)')"
 
-          if [[ "$http_status" -lt 200 || "$http_status" -ge 300 ]]; then
-            echo "Sync function returned HTTP $http_status." >&2
+            # Each cursor page is a distinct target set and is sent exactly once.
+            # There is no curl retry, so QOJ is never retried automatically.
+            http_status="$(curl \
+              --silent \
+              --show-error \
+              --connect-timeout 10 \
+              --max-time 140 \
+              --output response.json \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              --header "Content-Type: application/json" \
+              --data "$payload" \
+              "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/sync-stats")"
+
+            if [[ "$http_status" -lt 200 || "$http_status" -ge 300 ]]; then
+              echo "Sync page $page_number returned HTTP $http_status." >&2
+              exit 1
+            fi
+
+            # Keep public Actions logs useful without exposing cursors, member IDs,
+            # job IDs, platform accounts, raw upstream messages, or full responses.
+            safe_summary="$(jq -c '{
+              scope,
+              platforms,
+              requested,
+              succeeded,
+              queued,
+              failed,
+              hasMore: (.nextCursor != null),
+              byPlatform: (.byPlatform // [])
+            }' response.json)"
+            echo "Sync page $page_number summary: $safe_summary"
+
+            if [[ "$http_status" -eq 207 ]]; then
+              had_failures=1
+              failed_count="$(jq -r '.failed // "unknown"' response.json)"
+              if [[ "$failed_count" =~ ^[0-9]+$ ]]; then
+                failed_total=$((failed_total + failed_count))
+              else
+                failure_count_known=0
+              fi
+              jq -r '
+                .results[]
+                | select(.status < 200 or .status >= 300)
+                | if .body.error then
+                    "Sync error [" + (.platform // "unknown") + "/request_failed]"
+                  elif (.body.results | type) == "array" then
+                    .body.results[]
+                    | select(.ok == false)
+                    | "Sync error [" + .platform + "/" + .error.code + "]"
+                  else
+                    "Sync error [" + (.platform // "unknown") + "/http_" + (.status | tostring) + "]"
+                  end
+              ' response.json >&2
+              echo "Sync page $page_number partially failed for $failed_count member(s)." >&2
+            fi
+
+            next_cursor="$(jq -r '.nextCursor // empty' response.json)"
+            if [[ -z "$next_cursor" ]]; then
+              break
+            fi
+            if [[ "$next_cursor" == "$cursor" ]]; then
+              echo "Sync pagination did not advance." >&2
+              exit 1
+            fi
+
+            cursor="$next_cursor"
+            page_number=$((page_number + 1))
+            if [[ "$page_number" -gt "$max_pages" ]]; then
+              echo "Sync pagination exceeded $max_pages pages." >&2
+              exit 1
+            fi
+          done
+
+          if [[ "$had_failures" -ne 0 ]]; then
+            if [[ "$failure_count_known" -eq 1 ]]; then
+              echo "Sync request completed all pages with $failed_total failed member result(s)." >&2
+            else
+              echo "Sync request completed all pages with one or more failed member results." >&2
+            fi
             exit 1
           fi
 
-          # Keep public Actions logs useful without exposing member IDs, job IDs,
-          # platform accounts, raw upstream messages, or the full function response.
-          safe_summary="$(jq -c '{
-            scope,
-            platforms,
-            requested,
-            succeeded,
-            queued,
-            failed,
-            byPlatform: (.byPlatform // [])
-          }' response.json)"
-          echo "Sync summary: $safe_summary"
-
-          if [[ "$http_status" -eq 207 ]]; then
-            failed_count="$(jq -r '.failed // "unknown"' response.json)"
-            jq -r '
-              .results[]
-              | select(.status < 200 or .status >= 300)
-              | if .body.error then
-                  "Sync error: " + .body.error
-                elif (.body.results | type) == "array" then
-                  .body.results[]
-                  | select(.ok == false)
-                  | "Sync error [" + .platform + "/" + .error.code + "]"
-                else
-                  "Sync error: member synchronization returned HTTP " + (.status | tostring)
-                end
-            ' response.json >&2
-            echo "Sync function partially failed for $failed_count member(s)." >&2
-            exit 1
-          fi
-
-          echo "Sync request accepted (HTTP $http_status)."
+          echo "Sync request completed across $page_number page(s)."

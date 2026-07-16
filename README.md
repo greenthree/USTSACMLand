@@ -90,7 +90,7 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 
 数据新鲜度与计划批次对齐：日更平台在下一个 07:00/19:00 批次之后保留 2 小时执行宽限，周更平台在下一个周二 08:00 批次之后保留 24 小时执行宽限。只有宽限结束仍没有新的成功结果才显示“已过期”；宽限期内的手动、平台验证或重试同步失败会记录错误，但不会把仍有效的数据提前标记过期。榜单时间显示最近成功时间。GitHub Actions 的定时任务是 best-effort，繁忙时可能比标称时间略晚启动；管理员仍可在同步中心手动触发。
 
-单平台临时故障使用持久 `sync_jobs` 队列，普通平台最多执行 3 次，失败后分别等待 2 分钟和 4 分钟；每 5 分钟的服务任务使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。QOJ 不自动重试，避免重复创建 Firecrawl 会话或加重风控；GitHub Actions 只发送一次同步 POST，由静态检查阻止重新加入 `curl` 传输层重试。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
+单平台临时故障使用持久 `sync_jobs` 队列，普通平台最多执行 3 次，失败后分别等待 2 分钟和 4 分钟；每 5 分钟的服务任务使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。计划批次按 `platform_accounts.id` 稳定游标每页读取 3 个已验证账号，避免牛客等串行平台使单次 Edge 请求超过网关时限；每一页只发送一次 POST，工作流不会进行 `curl` 传输层重试，并在全部页完成后统一报告业务失败。QOJ 任务仍只有一次尝试，避免重复创建 Firecrawl 会话或加重风控。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
 
 参考项目：[FCYXSZY/astrbot_plugin_acm_helper](https://github.com/FCYXSZY/astrbot_plugin_acm_helper)。本项目借鉴其 Codeforces 分页/Accepted 去重思路，以及 `luogu_api/ckp.py` 的洛谷 Cookie、CSRF 和记录列表请求方式；凭据改由 Supabase Secrets 管理，不进入源码。
 

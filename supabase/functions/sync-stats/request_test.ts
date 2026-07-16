@@ -72,3 +72,38 @@ Deno.test('XCPC cache preparation is selected only when the request can include 
 Deno.test('queue scope does not require a member target', () => {
   deepStrictEqual(normalizeSyncRequest({ scope: 'queue' }), { scope: 'queue' })
 })
+
+Deno.test('scheduled requests accept bounded cursor pagination', () => {
+  deepStrictEqual(
+    normalizeSyncRequest({
+      scope: 'platform',
+      platform: 'nowcoder',
+      batch_size: 3,
+      cursor: 42,
+    }),
+    {
+      scope: 'platform',
+      platforms: ['nowcoder'],
+      batchSize: 3,
+      cursor: 42,
+    },
+  )
+})
+
+Deno.test('pagination rejects unsafe sizes, cursors, and queue use', () => {
+  throws(
+    () => normalizeSyncRequest({ scope: 'all', batch_size: 0 }),
+    SyncRequestError,
+    'batch_size must be an integer between 1 and 12',
+  )
+  throws(
+    () => normalizeSyncRequest({ scope: 'all', cursor: 1 }),
+    SyncRequestError,
+    'cursor requires batch_size',
+  )
+  throws(
+    () => normalizeSyncRequest({ scope: 'queue', batch_size: 3 }),
+    SyncRequestError,
+    'queue scope does not accept pagination',
+  )
+})

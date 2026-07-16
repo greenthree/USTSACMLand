@@ -120,6 +120,8 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
 6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
+计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 自动重试而产生第二次任务。
+
 ### 3.3 GitHub Pages
 
 `deploy-pages.yml` 不再独立监听 `push`。只有 `main` 上由 push 触发的 `CI` workflow 完整结束且结论为 success 时，Pages workflow 才会检出该次 CI 的精确 `head_sha`，重新执行格式、Lint、测试和构建。数据库安全任务失败或 CI 被取消时不会产生 Pages 部署。合并或推送后检查：

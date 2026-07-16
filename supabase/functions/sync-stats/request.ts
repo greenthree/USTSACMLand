@@ -7,12 +7,16 @@ export interface SyncRequest {
   platform?: PlatformId
   platforms?: PlatformId[]
   member_id?: string
+  batch_size?: number
+  cursor?: number
 }
 
 export interface NormalizedSyncRequest {
   scope: SyncScope
   platforms?: PlatformId[]
   memberId?: string
+  batchSize?: number
+  cursor?: number
 }
 
 export function maySyncXcpcElo(request: NormalizedSyncRequest): boolean {
@@ -45,31 +49,60 @@ function normalizePlatforms(value: unknown): PlatformId[] {
   return unique as PlatformId[]
 }
 
+function normalizePagination(
+  body: SyncRequest,
+): Pick<NormalizedSyncRequest, 'batchSize' | 'cursor'> {
+  const pagination: Pick<NormalizedSyncRequest, 'batchSize' | 'cursor'> = {}
+  if (body.batch_size !== undefined) {
+    if (!Number.isSafeInteger(body.batch_size) || body.batch_size < 1 || body.batch_size > 12) {
+      throw new SyncRequestError('batch_size must be an integer between 1 and 12')
+    }
+    pagination.batchSize = body.batch_size
+  }
+  if (body.cursor !== undefined) {
+    if (!Number.isSafeInteger(body.cursor) || body.cursor < 1) {
+      throw new SyncRequestError('cursor must be a positive integer')
+    }
+    if (pagination.batchSize === undefined) {
+      throw new SyncRequestError('cursor requires batch_size')
+    }
+    pagination.cursor = body.cursor
+  }
+  return pagination
+}
+
 export function normalizeSyncRequest(body: SyncRequest): NormalizedSyncRequest {
   const scope = body.scope ?? 'all'
   if (!['all', 'platform', 'platforms', 'member', 'queue'].includes(scope)) {
     throw new SyncRequestError('Unsupported scope')
   }
 
+  if (scope === 'queue') {
+    if (body.batch_size !== undefined || body.cursor !== undefined) {
+      throw new SyncRequestError('queue scope does not accept pagination')
+    }
+    return { scope }
+  }
+
+  const pagination = normalizePagination(body)
+
   if (scope === 'platform') {
     if (!PLATFORM_IDS.includes(body.platform as PlatformId)) {
       throw new SyncRequestError('A supported platform is required for platform scope')
     }
-    return { scope, platforms: [body.platform as PlatformId] }
+    return { scope, platforms: [body.platform as PlatformId], ...pagination }
   }
 
   if (scope === 'platforms') {
-    return { scope, platforms: normalizePlatforms(body.platforms) }
+    return { scope, platforms: normalizePlatforms(body.platforms), ...pagination }
   }
 
   if (scope === 'member') {
     if (!isUuid(body.member_id)) {
       throw new SyncRequestError('A valid member_id is required for member scope')
     }
-    return { scope, memberId: body.member_id }
+    return { scope, memberId: body.member_id, ...pagination }
   }
 
-  if (scope === 'queue') return { scope }
-
-  return { scope }
+  return { scope, ...pagination }
 }

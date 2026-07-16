@@ -15,6 +15,7 @@ import {
 import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
 import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.ts'
 import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
+import { buildCursorPage } from './pagination.ts'
 import {
   maySyncXcpcElo,
   normalizeSyncRequest,
@@ -23,6 +24,7 @@ import {
 } from './request.ts'
 
 interface AccountRow {
+  id: number
   profile_id: string
   platform: PlatformId
 }
@@ -125,29 +127,35 @@ async function loadRequestedTargets(
   serviceClient: SupabaseClient,
   platforms: PlatformId[] | undefined,
   memberId: string | undefined,
-): Promise<SyncDispatchTarget[]> {
+  batchSize: number | undefined,
+  cursor: number | undefined,
+): Promise<{ targets: SyncDispatchTarget[]; nextCursor: number | null }> {
   let query = serviceClient
     .from('platform_accounts')
-    .select('profile_id, platform, profiles!inner(review_status)')
+    .select('id, profile_id, platform, profiles!inner(review_status)')
     .eq('status', 'verified')
     .eq('profiles.review_status', 'approved')
   if (platforms) query = query.in('platform', platforms)
   if (memberId) query = query.eq('profile_id', memberId)
+  if (cursor !== undefined) query = query.gt('id', cursor)
+  query = query.order('id', { ascending: true })
+  if (batchSize !== undefined) query = query.limit(batchSize + 1)
 
   const { data, error } = await query
   if (error) {
     throw new Error(`Could not load verified accounts: ${error.message}`)
   }
 
+  const page = buildCursorPage((data ?? []) as AccountRow[], batchSize)
   const seen = new Set<string>()
   const targets: SyncDispatchTarget[] = []
-  for (const row of (data ?? []) as AccountRow[]) {
+  for (const row of page.rows) {
     const key = `${row.profile_id}:${row.platform}`
     if (seen.has(key)) continue
     seen.add(key)
     targets.push({ memberId: row.profile_id, platform: row.platform })
   }
-  return targets
+  return { targets, nextCursor: page.nextCursor }
 }
 
 async function invokeSyncMember(
@@ -218,7 +226,7 @@ Deno.serve(async (request) => {
       }
       throw error
     }
-    const { scope, platforms, memberId } = normalizedRequest
+    const { scope, platforms, memberId, batchSize, cursor } = normalizedRequest
     if (scope === 'queue' && !auth.serviceRole) {
       throw new ApiError(403, 'Only the service role may process the synchronization queue')
     }
@@ -236,10 +244,21 @@ Deno.serve(async (request) => {
       )
     }
 
-    const targets =
-      scope === 'queue'
-        ? await claimQueueTargets(serviceClient)
-        : await loadRequestedTargets(serviceClient, platforms, memberId)
+    let nextCursor: number | null = null
+    let targets: SyncDispatchTarget[]
+    if (scope === 'queue') {
+      targets = await claimQueueTargets(serviceClient)
+    } else {
+      const loaded = await loadRequestedTargets(
+        serviceClient,
+        platforms,
+        memberId,
+        batchSize,
+        cursor,
+      )
+      targets = loaded.targets
+      nextCursor = loaded.nextCursor
+    }
     if (targets.length === 0 && !auth.serviceRole) {
       throw new ApiError(404, 'No approved members or verified accounts matched the request')
     }
@@ -249,6 +268,7 @@ Deno.serve(async (request) => {
         platforms: platforms ?? null,
         ...summarizeMemberSyncResults([]),
         byPlatform: [],
+        nextCursor,
         results: [],
       })
     }
@@ -267,7 +287,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    if (shouldCheckFirecrawlCredits(auth.serviceRole, scope, targets)) {
+    if (shouldCheckFirecrawlCredits(auth.serviceRole, scope, platforms, cursor)) {
       try {
         const usage = await readFirecrawlCreditUsage()
         if (
@@ -327,6 +347,7 @@ Deno.serve(async (request) => {
         platforms: platforms ?? null,
         ...summary,
         byPlatform,
+        nextCursor,
         results,
       },
       responseStatus,
