@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
 import { createChangePasswordHandler } from './handler.ts'
+import { isSessionRevocationConfirmed } from './session-revocation.ts'
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)
@@ -35,7 +36,10 @@ const handler = createChangePasswordHandler({
       },
       async revokeSessions(token: string) {
         const { error } = await serviceClient.auth.admin.signOut(token, 'global')
-        return !error
+        // Updating the password may invalidate the caller's JWT before the
+        // explicit logout request runs. Supabase Auth's browser client treats
+        // 401/403/404 and session_not_found as an already-signed-out success.
+        return isSessionRevocationConfirmed(error)
       },
     }
   },
