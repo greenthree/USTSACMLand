@@ -30,8 +30,8 @@ describe('CI workflow', () => {
       ),
     ).toEqual({
       fileCount: 15,
-      assertionCount: 251,
-      releaseMigrationCount: 18,
+      assertionCount: 257,
+      releaseMigrationCount: 19,
     })
   })
 
@@ -138,12 +138,12 @@ describe('CI workflow', () => {
         packageJson,
         pgTapFiles,
         migrationFiles.filter(
-          (name) => name !== '202607160008_allow_auth_admin_profile_cleanup.sql',
+          (name) => name !== '202607160009_allow_pending_luogu_failure_commit.sql',
         ),
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/202607160008_allow_auth_admin_profile_cleanup/)
+    ).toThrow(/202607160009_allow_pending_luogu_failure_commit/)
 
     expect(() =>
       verifyCiWorkflow(

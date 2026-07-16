@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(21);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -338,6 +338,171 @@ select results_eq(
       (99513::bigint, 'failed'::text)
   $$,
   'all three synchronization runs reach their expected terminal state'
+);
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
+)
+values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-0000-0000-0000000000ad',
+  'authenticated',
+  'authenticated',
+  'luogu-pending-failure@example.test',
+  'test-password',
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Pending Luogu Member"}'::jsonb,
+  now(),
+  now(),
+  '',
+  '',
+  '',
+  ''
+);
+
+insert into public.platform_accounts (
+  profile_id, platform, external_id, normalized_external_id, status
+)
+values (
+  '00000000-0000-0000-0000-0000000000ad',
+  'luogu',
+  '999999',
+  '999999',
+  'pending'
+);
+
+insert into public.sync_jobs (
+  id, scope, profile_id, platform, status, trigger_type,
+  attempt_count, max_attempts, started_at, payload
+)
+overriding system value
+values (
+  99505, 'account', '00000000-0000-0000-0000-0000000000ad', 'luogu',
+  'running', 'account_changed', 1, 3, '2026-07-15T00:05:00Z',
+  '{"platforms":["luogu"]}'::jsonb
+), (
+  99506, 'account', '00000000-0000-0000-0000-0000000000ad', 'luogu',
+  'running', 'account_changed', 1, 3, '2026-07-15T00:06:00Z',
+  '{"platforms":["luogu"]}'::jsonb
+);
+
+insert into public.sync_runs (
+  id, job_id, profile_id, platform, platform_account_id,
+  attempt, status, started_at
+)
+overriding system value
+values (
+  99515,
+  99505,
+  '00000000-0000-0000-0000-0000000000ad',
+  'luogu',
+  (
+    select id from public.platform_accounts
+    where profile_id = '00000000-0000-0000-0000-0000000000ad'
+      and platform = 'luogu'
+  ),
+  1,
+  'running',
+  '2026-07-15T00:05:00Z'
+), (
+  99516,
+  99506,
+  '00000000-0000-0000-0000-0000000000ad',
+  'luogu',
+  (
+    select id from public.platform_accounts
+    where profile_id = '00000000-0000-0000-0000-0000000000ad'
+      and platform = 'luogu'
+  ),
+  1,
+  'running',
+  '2026-07-15T00:06:00Z'
+);
+
+select throws_ok(
+  $$
+    select public.commit_luogu_sync_result(
+      (
+        select id from public.platform_accounts
+        where profile_id = '00000000-0000-0000-0000-0000000000ad'
+          and platform = 'luogu'
+      ),
+      '999999', 0, 99506, 99516, true, null, null, 1, 'fresh',
+      '2026-07-15T00:06:01Z', '2026-07-15T00:06:01Z', '2026-07-15T00:06:01Z',
+      '2026-07-16T00:06:01Z', null, null, 'luogu-records:test-v4',
+      '2026-07-15T00:06:01Z', 1000, '{"solvedCount":1}'::jsonb,
+      '1', 1, 1, array['P1000'], '2026-07-15T00:06:01Z'
+    )
+  $$,
+  '40001',
+  'Luogu account changed while synchronization was running',
+  'a pending binding still cannot commit successful statistics'
+);
+
+select is(
+  public.commit_luogu_sync_result(
+    (
+      select id from public.platform_accounts
+      where profile_id = '00000000-0000-0000-0000-0000000000ad'
+        and platform = 'luogu'
+    ),
+    '999999', 0, 99505, 99515, false, null, null, null, 'unavailable',
+    null, '2026-07-15T00:05:01Z', null, null, 'auth_expired',
+    'Luogu authentication credentials are invalid or expired', null,
+    '2026-07-15T00:05:01Z', 1000,
+    '{"diagnostics":{"httpStatus":200}}'::jsonb,
+    null, null, null, null, null
+  ),
+  0::bigint,
+  'a pending first binding can atomically record an upstream failure'
+);
+
+select is(
+  (
+    select status::text from public.platform_accounts
+    where profile_id = '00000000-0000-0000-0000-0000000000ad'
+      and platform = 'luogu'
+  ),
+  'pending'::text,
+  'recording the failure does not verify the pending binding'
+);
+
+select results_eq(
+  $$
+    select status::text, error_code::text, error_message
+    from public.platform_stats
+    where profile_id = '00000000-0000-0000-0000-0000000000ad'
+      and platform = 'luogu'
+  $$,
+  $$
+    values (
+      'unavailable'::text,
+      'auth_expired'::text,
+      'Luogu authentication credentials are invalid or expired'::text
+    )
+  $$,
+  'the pending binding preserves the original adapter failure'
+);
+
+select is(
+  (select status::text from public.sync_runs where id = 99515),
+  'failed'::text,
+  'the pending binding run reaches the failed terminal state'
+);
+
+select ok(
+  not exists (
+    select 1 from public.luogu_sync_states
+    where platform_account_id = (
+      select id from public.platform_accounts
+      where profile_id = '00000000-0000-0000-0000-0000000000ad'
+        and platform = 'luogu'
+    )
+  ),
+  'a failed pending binding does not create an incremental checkpoint'
 );
 
 update public.profiles

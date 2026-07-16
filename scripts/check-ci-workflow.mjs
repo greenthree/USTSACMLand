@@ -29,6 +29,7 @@ const requiredReleaseMigrations = [
   '202607160006_prevent_admin_account_deletion.sql',
   '202607160007_account_deletion_recovery_lease_renewal.sql',
   '202607160008_allow_auth_admin_profile_cleanup.sql',
+  '202607160009_allow_pending_luogu_failure_commit.sql',
 ]
 
 function requireMatch(source, pattern, message) {

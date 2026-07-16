@@ -2,7 +2,7 @@ import { deepStrictEqual, equal, match } from 'node:assert/strict'
 import { HttpError } from '../http.ts'
 import {
   createLuoguAdapter,
-  parseLuoguProfile,
+  parseLuoguJsonResponse,
   parseLuoguRecordPage,
   type LuoguSyncState,
   type LuoguTransport,
@@ -55,9 +55,6 @@ function transportFromPages(pages: unknown[]): {
   return {
     requests,
     transport: {
-      fetchProfile(accountId) {
-        return Promise.resolve({ currentData: { user: { uid: Number(accountId) } } })
-      },
       fetchRecordPage(accountId, pageNumber) {
         requests.push({ accountId, page: pageNumber })
         const payload = pages[pageNumber - 1]
@@ -83,6 +80,15 @@ Deno.test('Luogu record parser reads stable IDs, submit times, and problem IDs',
   })
 })
 
+Deno.test('Luogu record parser recognizes a missing UID without a profile request', () => {
+  try {
+    parseLuoguRecordPage({ currentData: { errorCode: 404 } })
+    throw new Error('expected parser failure')
+  } catch (error) {
+    equal(error instanceof HttpError ? error.code : null, 'not_found')
+  }
+})
+
 Deno.test('Luogu first synchronization reads the full accepted history', async () => {
   const { transport, requests } = transportFromPages([
     page([entry(103, 'P1000'), entry(102, 'B2000'), entry(101, 'CF1000')], 5),
@@ -93,7 +99,7 @@ Deno.test('Luogu first synchronization reads the full accepted history', async (
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 3)
-  equal(result.sourceVersion, 'luogu-authenticated-profile-record-list-pb-v3')
+  equal(result.sourceVersion, 'luogu-authenticated-record-list-pb-v4')
   deepStrictEqual(result.details, {
     provider: 'authenticated_record_list',
     statistic: 'unique currentData.records.result[].problem.pid',
@@ -367,9 +373,6 @@ Deno.test('Luogu adapter reports missing authentication as not configured', asyn
 for (const status of [401, 403]) {
   Deno.test(`Luogu adapter maps HTTP ${status} to expired authentication`, async () => {
     const transport: LuoguTransport = {
-      fetchProfile() {
-        throw new HttpError(`HTTP ${status}`, 'source_unavailable', false, status)
-      },
       fetchRecordPage() {
         throw new HttpError(`HTTP ${status}`, 'source_unavailable', false, status)
       },
@@ -386,9 +389,6 @@ for (const status of [401, 403]) {
 
 Deno.test('Luogu adapter preserves rate-limit classification', async () => {
   const transport: LuoguTransport = {
-    fetchProfile() {
-      throw new HttpError('HTTP 429', 'rate_limited', true, 429)
-    },
     fetchRecordPage() {
       throw new HttpError('HTTP 429', 'rate_limited', true, 429)
     },
@@ -464,10 +464,6 @@ Deno.test('Luogu adapter rejects an empty page before a declared total is comple
 Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async () => {
   let requests = 0
   const transport: LuoguTransport = {
-    fetchProfile() {
-      requests += 1
-      throw new Error('should not run')
-    },
     fetchRecordPage() {
       requests += 1
       throw new Error('should not run')
@@ -481,38 +477,26 @@ Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async 
   equal(requests, 0)
 })
 
-Deno.test('Luogu profile parser distinguishes valid, missing, and mismatched users', () => {
-  parseLuoguProfile({ currentData: { user: { uid: 409073 } } }, '409073')
-
-  for (const [payload, code] of [
-    [{ currentData: { errorCode: 404 } }, 'not_found'],
-    [{ currentData: { user: { uid: 409074 } } }, 'invalid_account'],
-    [{ currentData: { user: {} } }, 'schema_changed'],
+Deno.test('Luogu JSON parser classifies HTML login and challenge pages', () => {
+  for (const [body, expectedCode, retryable] of [
+    ['<!doctype html><title>Login</title>', 'auth_expired', false],
+    ['<!doctype html><title>Just a moment...</title>', 'source_unavailable', true],
   ] as const) {
     try {
-      parseLuoguProfile(payload, '409073')
+      parseLuoguJsonResponse(body, 200, 'text/html; charset=UTF-8')
       throw new Error('expected parser failure')
     } catch (error) {
-      equal(error instanceof HttpError ? error.code : null, code)
+      equal(error instanceof HttpError ? error.code : null, expectedCode)
+      equal(error instanceof HttpError ? error.retryable : null, retryable)
     }
   }
 })
 
-Deno.test('Luogu adapter rejects a missing UID before reading Accepted records', async () => {
-  let recordRequests = 0
-  const transport: LuoguTransport = {
-    fetchProfile() {
-      throw new HttpError('Luogu user was not found', 'not_found', false, 404)
-    },
-    fetchRecordPage() {
-      recordRequests += 1
-      return Promise.resolve(page([], 0))
-    },
+Deno.test('Luogu JSON parser preserves non-HTML schema failures', () => {
+  try {
+    parseLuoguJsonResponse('not-json', 200, 'application/json')
+    throw new Error('expected parser failure')
+  } catch (error) {
+    equal(error instanceof HttpError ? error.code : null, 'schema_changed')
   }
-  const result = await adapter(transport).sync('999999999')
-
-  equal(result.ok, false)
-  if (result.ok) return
-  equal(result.error.code, 'not_found')
-  equal(recordRequests, 0)
 })

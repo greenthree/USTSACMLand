@@ -36,7 +36,6 @@ const [
   nowcoderPracticeHtml,
   nowcoderRatingPayload,
   xcpcScript,
-  luoguProfile,
   luoguRecordPage,
   qojPayload,
 ] = await Promise.all([
@@ -47,7 +46,6 @@ const [
   readFixture('nowcoder-practice-rated.html'),
   readJsonFixture('nowcoder-rating-history.json'),
   readFixture('xcpc-elo-data.txt'),
-  readJsonFixture('luogu-profile.json'),
   readJsonFixture('luogu-record-page.json'),
   readJsonFixture('qoj-firecrawl-accepted.json'),
 ])
@@ -143,7 +141,6 @@ const cases: ContractCase[] = [
     platform: 'luogu',
     adapter: createLuoguAdapter({
       transport: {
-        fetchProfile: () => Promise.resolve(luoguProfile),
         fetchRecordPage: () => Promise.resolve(luoguRecordPage),
       },
       maxPages: 1,
@@ -152,7 +149,7 @@ const cases: ContractCase[] = [
     accountId: '123456',
     expectedAccountId: '123456',
     metrics: { currentRating: null, maxRating: null, solvedCount: 2 },
-    sourceVersion: 'luogu-authenticated-profile-record-list-pb-v3',
+    sourceVersion: 'luogu-authenticated-record-list-pb-v4',
     sourceUpdatedAt: null,
     invalidAccountId: 'not-a-uid',
   },
