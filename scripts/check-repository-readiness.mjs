@@ -187,6 +187,7 @@ function runGhJson(args, label) {
   try {
     const output = execFileSync('gh', args, {
       encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
