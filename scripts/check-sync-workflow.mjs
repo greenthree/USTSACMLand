@@ -37,6 +37,7 @@ for (const paginationInvariant of [
   'Sync pagination did not advance.',
   'Sync pagination exceeded $max_pages pages.',
   'had_failures=1',
+  'select((.status < 200 or .status >= 300) or .body.status == "failed")',
   'failed_total=$((failed_total + failed_count))',
   'Sync request completed all pages with $failed_total failed member result(s).',
 ]) {
