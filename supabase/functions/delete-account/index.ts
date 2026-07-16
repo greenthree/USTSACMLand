@@ -4,6 +4,7 @@ import { createDeleteAccountHandler } from './handler.ts'
 import { createGitHubRecoveryFloorRecorder } from './recovery-floor.ts'
 import { withRecoveryFloorLease } from './recovery-lease.ts'
 import { deleteUserWithRecoveryFloor } from './safe-deletion.ts'
+import { deleteAuthUserWithRecoveryLease } from './transactional-auth-deletion.ts'
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)
@@ -56,10 +57,11 @@ const handler = createDeleteAccountHandler({
         return count ?? 0
       },
       async deleteUserWithRecoveryFloor(userId: string) {
+        const recoveryOwnerToken = crypto.randomUUID()
         return await deleteUserWithRecoveryFloor(
           {
             withRecoveryLease: (action) =>
-              withRecoveryFloorLease(serviceClient, action, crypto.randomUUID(), {
+              withRecoveryFloorLease(serviceClient, action, userId, recoveryOwnerToken, {
                 reportHeartbeatFailure: async (error) => {
                   await notifyRuntimeError(runtimeErrorAlert('delete-account', request, error))
                 },
@@ -72,8 +74,11 @@ const handler = createDeleteAccountHandler({
               await recoveryFloor.record()
             },
             async deleteUser(targetUserId: string) {
-              const { error } = await serviceClient.auth.admin.deleteUser(targetUserId, false)
-              return !error
+              return await deleteAuthUserWithRecoveryLease(
+                serviceClient,
+                recoveryOwnerToken,
+                targetUserId,
+              )
             },
           },
           userId,

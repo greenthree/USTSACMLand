@@ -28,7 +28,7 @@
 
 数据库备份的文件范围、加密参数、Secret 配置和隔离恢复步骤见 [数据库备份与恢复方案](./backup-and-recovery.md)。数据库 Artifact 不包含 Supabase Storage 文件对象。
 
-本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的数据库全局租约必须覆盖完整临界区：取得租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并重新确认租约所有权 → 删除 Supabase Auth 用户，等待期间每分钟心跳续期 → 释放租约。租约取得、删除前续期或恢复记录失败时不得调用 Auth 删除，并返回 `503`；恢复下限已经确认但 Auth 删除失败时返回 `409`；删除期间心跳失败必须发送脱敏运行时告警，但不能把可能已经完成的删除错误表述为“没有删除”。Auth 删除已经完成后，心跳或释放失败只能依靠租约自动过期，不能把成功响应改写成失败或诱导成员重复注销。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
+本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的目标绑定数据库租约必须覆盖完整临界区：取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用最终删除 RPC。RPC 对租约行和目标 Profile `FOR UPDATE`，重新验证 owner、target、有效期、角色与活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，使 migration 与 Edge Function 的部署切换也保持失败关闭。租约取得、删除前续期或恢复记录失败时不得进入最终 RPC，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`。最终事务由数据库行锁 fencing，不依赖 Edge Runtime 定时器；响应传输失败时不得声称“账号确定未删除”，应在重新登录/查询后确认最终状态。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
 
 恢复时从 GitHub 当前变量复制值，以 `npm run verify:backup-recovery-floor -- restored-backup/metadata.txt` 检查备份。备份早于当前下限或仓库变量比备份 metadata 中的下限更旧时，恢复工具必须拒绝。生产 Secret、变量更新、失败关闭和隔离恢复尚未真实演练前，正式发布仍保持阻塞。
 
@@ -118,7 +118,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 3. 连续触发达到限流阈值前停止；确认正常请求不会返回 429。
 4. 对 QOJ 只做一次明确授权的健康检查，禁止自动重试。
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
-6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；让 Auth 删除延迟跨过至少两个心跳周期，确认租约持续续期且没有提前释放；Auth 删除失败返回 `409`；模拟心跳或租约释放失败时，已经确认删除的用户仍返回成功且故障进入脱敏告警，租约最终自动过期。
+6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
 ### 3.3 GitHub Pages
 

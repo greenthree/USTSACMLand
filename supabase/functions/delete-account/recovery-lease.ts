@@ -18,7 +18,8 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = 60_000
 
 export async function withRecoveryFloorLease<T>(
   client: RecoveryLeaseClient,
-  action: (renew: () => Promise<void>) => Promise<T>,
+  action: (renew: () => Promise<void>, stopHeartbeat: () => Promise<void>) => Promise<T>,
+  targetUserId: string,
   ownerToken = crypto.randomUUID(),
   options: RecoveryLeaseOptions = {},
 ): Promise<T> {
@@ -26,6 +27,7 @@ export async function withRecoveryFloorLease<T>(
   try {
     acquisition = await client.rpc('acquire_account_deletion_recovery_lease', {
       p_owner_token: ownerToken,
+      p_target_user_id: targetUserId,
     })
   } catch {
     throw new RecoveryLeaseUnavailableError('Account-deletion recovery lease is unavailable')
@@ -40,6 +42,7 @@ export async function withRecoveryFloorLease<T>(
     try {
       renewal = await client.rpc('renew_account_deletion_recovery_lease', {
         p_owner_token: ownerToken,
+        p_target_user_id: targetUserId,
       })
     } catch {
       throw new RecoveryLeaseUnavailableError('Account-deletion recovery lease was lost')
@@ -69,15 +72,20 @@ export async function withRecoveryFloorLease<T>(
     }, heartbeatIntervalMs)
   }
 
-  try {
-    return await action(renew)
-  } finally {
+  const stopHeartbeat = async () => {
     heartbeatStopped = true
     if (heartbeatTimer !== undefined) clearInterval(heartbeatTimer)
     if (heartbeatInFlight) await heartbeatInFlight
+  }
+
+  try {
+    return await action(renew, stopHeartbeat)
+  } finally {
+    await stopHeartbeat()
     try {
       await client.rpc('release_account_deletion_recovery_lease', {
         p_owner_token: ownerToken,
+        p_target_user_id: targetUserId,
       })
     } catch {
       // The database lease expires automatically. Release failures must not

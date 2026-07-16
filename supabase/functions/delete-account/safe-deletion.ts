@@ -3,7 +3,9 @@ import { RecoveryLeaseUnavailableError } from './recovery-lease.ts'
 export type SafeDeletionResult = 'deleted' | 'recovery_unavailable' | 'deletion_failed'
 
 export interface SafeDeletionDependencies {
-  withRecoveryLease<T>(action: (renew: () => Promise<void>) => Promise<T>): Promise<T>
+  withRecoveryLease<T>(
+    action: (renew: () => Promise<void>, stopHeartbeat: () => Promise<void>) => Promise<T>,
+  ): Promise<T>
   recordRecoveryFloor(): Promise<void>
   deleteUser(userId: string): Promise<boolean>
 }
@@ -13,10 +15,11 @@ export async function deleteUserWithRecoveryFloor(
   userId: string,
 ): Promise<SafeDeletionResult> {
   try {
-    return await dependencies.withRecoveryLease(async (renew) => {
+    return await dependencies.withRecoveryLease(async (renew, stopHeartbeat) => {
       try {
         await dependencies.recordRecoveryFloor()
         await renew()
+        await stopHeartbeat()
       } catch {
         return 'recovery_unavailable'
       }

@@ -6,21 +6,24 @@ select plan(33);
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000001'
+    '10000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'the first account deletion acquires the global recovery-floor lease'
 );
 
 select ok(
   not public.acquire_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000002'
+    '10000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-0000000000f7'
   ),
   'a concurrent account deletion cannot enter the recovery-floor critical section'
 );
 
 select ok(
   public.renew_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000001'
+    '10000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'the lease owner can renew before the irreversible Auth deletion'
 );
@@ -41,33 +44,40 @@ select ok(
 
 select ok(
   not public.renew_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000002'
+    '10000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'a non-owner cannot renew the recovery-floor lease'
 );
 
 select ok(
-  not public.renew_account_deletion_recovery_lease(null),
+  not public.renew_account_deletion_recovery_lease(
+    null,
+    '00000000-0000-0000-0000-0000000000f6'
+  ),
   'a null owner token cannot renew the recovery-floor lease'
 );
 
 select ok(
   not public.release_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000002'
+    '10000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'a non-owner cannot release the recovery-floor lease'
 );
 
 select ok(
   public.release_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000001'
+    '10000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'the lease owner can release the recovery-floor lease'
 );
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000002'
+    '10000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-0000000000f7'
   ),
   'the next account deletion can acquire the released lease'
 );
@@ -80,26 +90,29 @@ where owner_token = '10000000-0000-4000-8000-000000000002';
 
 select ok(
   not public.renew_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000002'
+    '10000000-0000-4000-8000-000000000002',
+    '00000000-0000-0000-0000-0000000000f7'
   ),
   'an expired owner cannot revive the recovery-floor lease'
 );
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
-    '10000000-0000-4000-8000-000000000001'
+    '10000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-0000000000f6'
   ),
   'another deletion can take over an expired recovery-floor lease'
 );
 
 select public.release_account_deletion_recovery_lease(
-  '10000000-0000-4000-8000-000000000001'
+  '10000000-0000-4000-8000-000000000001',
+  '00000000-0000-0000-0000-0000000000f6'
 );
 
 select ok(
   has_function_privilege(
     'service_role',
-    'public.acquire_account_deletion_recovery_lease(uuid)',
+    'public.acquire_account_deletion_recovery_lease(uuid,uuid)',
     'EXECUTE'
   ),
   'the service role may acquire the account-deletion recovery lease'
@@ -108,7 +121,7 @@ select ok(
 select ok(
   not has_function_privilege(
     'authenticated',
-    'public.acquire_account_deletion_recovery_lease(uuid)',
+    'public.acquire_account_deletion_recovery_lease(uuid,uuid)',
     'EXECUTE'
   ),
   'authenticated clients cannot acquire the account-deletion recovery lease'
@@ -117,7 +130,7 @@ select ok(
 select ok(
   has_function_privilege(
     'service_role',
-    'public.renew_account_deletion_recovery_lease(uuid)',
+    'public.renew_account_deletion_recovery_lease(uuid,uuid)',
     'EXECUTE'
   ),
   'the service role may renew the account-deletion recovery lease'
@@ -126,12 +139,12 @@ select ok(
 select ok(
   not has_function_privilege(
     'authenticated',
-    'public.renew_account_deletion_recovery_lease(uuid)',
+    'public.renew_account_deletion_recovery_lease(uuid,uuid)',
     'EXECUTE'
   )
   and not has_function_privilege(
     'anon',
-    'public.renew_account_deletion_recovery_lease(uuid)',
+    'public.renew_account_deletion_recovery_lease(uuid,uuid)',
     'EXECUTE'
   ),
   'browser roles cannot renew the account-deletion recovery lease'
@@ -250,8 +263,34 @@ values (
   '{"profile_id":"00000000-0000-0000-0000-0000000000f6","note":"Deletion Fixture Note"}'::jsonb
 );
 
+do $$
+begin
+  if not public.acquire_account_deletion_recovery_lease(
+    '10000000-0000-4000-8000-000000000011',
+    '00000000-0000-0000-0000-0000000000f6'
+  ) then
+    raise exception 'Could not acquire the hard-deletion lifecycle test lease';
+  end if;
+  perform pg_catalog.set_config(
+    'app.account_deletion_owner_token',
+    '10000000-0000-4000-8000-000000000011',
+    true
+  );
+  perform pg_catalog.set_config(
+    'app.account_deletion_target_user_id',
+    '00000000-0000-0000-0000-0000000000f6',
+    true
+  );
+end;
+$$;
+
 delete from auth.users
 where id = '00000000-0000-0000-0000-0000000000f6';
+
+select public.release_account_deletion_recovery_lease(
+  '10000000-0000-4000-8000-000000000011',
+  '00000000-0000-0000-0000-0000000000f6'
+);
 
 select is(
   (select count(*)::integer from auth.users where id = '00000000-0000-0000-0000-0000000000f6'),
@@ -378,6 +417,27 @@ values (
   '{"profile_id":"00000000-0000-0000-0000-0000000000f7"}'::jsonb
 );
 
+do $$
+begin
+  if not public.acquire_account_deletion_recovery_lease(
+    '10000000-0000-4000-8000-000000000012',
+    '00000000-0000-0000-0000-0000000000f7'
+  ) then
+    raise exception 'Could not acquire the active-sync guard test lease';
+  end if;
+  perform pg_catalog.set_config(
+    'app.account_deletion_owner_token',
+    '10000000-0000-4000-8000-000000000012',
+    true
+  );
+  perform pg_catalog.set_config(
+    'app.account_deletion_target_user_id',
+    '00000000-0000-0000-0000-0000000000f7',
+    true
+  );
+end;
+$$;
+
 select throws_ok(
   $$
     delete from auth.users
@@ -386,6 +446,11 @@ select throws_ok(
   '55006',
   'Account synchronization is active.',
   'database deletion fails closed when synchronization becomes active'
+);
+
+select public.release_account_deletion_recovery_lease(
+  '10000000-0000-4000-8000-000000000012',
+  '00000000-0000-0000-0000-0000000000f7'
 );
 
 select is(
@@ -489,6 +554,27 @@ values (
   '{"profile_id":"00000000-0000-0000-0000-0000000000fa"}'::jsonb
 );
 
+do $$
+begin
+  if not public.acquire_account_deletion_recovery_lease(
+    '10000000-0000-4000-8000-000000000013',
+    '00000000-0000-0000-0000-0000000000fa'
+  ) then
+    raise exception 'Could not acquire the administrator guard test lease';
+  end if;
+  perform pg_catalog.set_config(
+    'app.account_deletion_owner_token',
+    '10000000-0000-4000-8000-000000000013',
+    true
+  );
+  perform pg_catalog.set_config(
+    'app.account_deletion_target_user_id',
+    '00000000-0000-0000-0000-0000000000fa',
+    true
+  );
+end;
+$$;
+
 select throws_ok(
   $$
     delete from auth.users
@@ -497,6 +583,11 @@ select throws_ok(
   '42501',
   'Administrator profiles must be demoted before account deletion.',
   'a current administrator cannot be deleted through the Auth cascade'
+);
+
+select public.release_account_deletion_recovery_lease(
+  '10000000-0000-4000-8000-000000000013',
+  '00000000-0000-0000-0000-0000000000fa'
 );
 
 select is(
@@ -540,8 +631,34 @@ update public.profiles
 set role = 'member'
 where id = '00000000-0000-0000-0000-0000000000fa';
 
+do $$
+begin
+  if not public.acquire_account_deletion_recovery_lease(
+    '10000000-0000-4000-8000-000000000014',
+    '00000000-0000-0000-0000-0000000000fa'
+  ) then
+    raise exception 'Could not acquire the former-administrator deletion test lease';
+  end if;
+  perform pg_catalog.set_config(
+    'app.account_deletion_owner_token',
+    '10000000-0000-4000-8000-000000000014',
+    true
+  );
+  perform pg_catalog.set_config(
+    'app.account_deletion_target_user_id',
+    '00000000-0000-0000-0000-0000000000fa',
+    true
+  );
+end;
+$$;
+
 delete from auth.users
 where id = '00000000-0000-0000-0000-0000000000fa';
+
+select public.release_account_deletion_recovery_lease(
+  '10000000-0000-4000-8000-000000000014',
+  '00000000-0000-0000-0000-0000000000fa'
+);
 
 select is(
   (

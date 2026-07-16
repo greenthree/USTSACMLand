@@ -6,6 +6,7 @@ import {
 } from './recovery-lease.ts'
 
 const OWNER = '10000000-0000-4000-8000-000000000001'
+const USER_ID = '11111111-1111-4111-8111-111111111111'
 
 function client(
   handler: (
@@ -27,6 +28,7 @@ Deno.test('account deletion recovery lease wraps and releases the critical secti
       calls.push('critical-section')
       return Promise.resolve('completed')
     },
+    USER_ID,
     OWNER,
   )
 
@@ -34,12 +36,12 @@ Deno.test('account deletion recovery lease wraps and releases the critical secti
   deepStrictEqual(calls, [
     {
       name: 'acquire_account_deletion_recovery_lease',
-      args: { p_owner_token: OWNER },
+      args: { p_owner_token: OWNER, p_target_user_id: USER_ID },
     },
     'critical-section',
     {
       name: 'release_account_deletion_recovery_lease',
-      args: { p_owner_token: OWNER },
+      args: { p_owner_token: OWNER, p_target_user_id: USER_ID },
     },
   ])
 })
@@ -54,6 +56,7 @@ Deno.test('an acquisition transport failure is reported as lease unavailable', a
           actionCalled = true
           return Promise.resolve()
         },
+        USER_ID,
         OWNER,
       ),
     RecoveryLeaseUnavailableError,
@@ -74,6 +77,7 @@ Deno.test('the critical section can renew and reconfirm lease ownership', async 
       calls.push('auth:delete')
       return 'completed'
     },
+    USER_ID,
     OWNER,
   )
 
@@ -103,6 +107,7 @@ Deno.test('a renewal transport failure is reported before later critical work', 
           await renew()
           calls.push('must-not-run')
         },
+        USER_ID,
         OWNER,
       ),
     RecoveryLeaseUnavailableError,
@@ -135,6 +140,7 @@ Deno.test('the lease heartbeat renews while a long critical action is pending', 
       return Promise.resolve({ data: true, error: null })
     }),
     () => pendingAction,
+    USER_ID,
     OWNER,
     { heartbeatIntervalMs: 5 },
   )
@@ -146,6 +152,56 @@ Deno.test('the lease heartbeat renews while a long critical action is pending', 
   equal(renewalCount >= 2, true)
   equal(calls.at(-1), 'release_account_deletion_recovery_lease')
 })
+
+Deno.test(
+  'stopping the heartbeat waits for an in-flight renewal before final deletion',
+  async () => {
+    const calls: string[] = []
+    let finishRenewal: (() => void) | undefined
+    let markRenewalStarted: (() => void) | undefined
+    const renewalStarted = new Promise<void>((resolve) => {
+      markRenewalStarted = resolve
+    })
+    const renewalFinished = new Promise<void>((resolve) => {
+      finishRenewal = resolve
+    })
+
+    const result = await withRecoveryFloorLease(
+      client(async (name) => {
+        calls.push(name)
+        if (name === 'renew_account_deletion_recovery_lease') {
+          markRenewalStarted?.()
+          await renewalFinished
+        }
+        return { data: true, error: null }
+      }),
+      async (_renew, stopHeartbeat) => {
+        await renewalStarted
+        let stopped = false
+        const stopping = stopHeartbeat().then(() => {
+          stopped = true
+        })
+        await Promise.resolve()
+        equal(stopped, false)
+        finishRenewal?.()
+        await stopping
+        calls.push('final-delete')
+        return 'deleted'
+      },
+      USER_ID,
+      OWNER,
+      { heartbeatIntervalMs: 5 },
+    )
+
+    equal(result, 'deleted')
+    deepStrictEqual(calls, [
+      'acquire_account_deletion_recovery_lease',
+      'renew_account_deletion_recovery_lease',
+      'final-delete',
+      'release_account_deletion_recovery_lease',
+    ])
+  },
+)
 
 Deno.test('heartbeat failure is reported without masking a completed critical action', async () => {
   const calls: string[] = []
@@ -165,6 +221,7 @@ Deno.test('heartbeat failure is reported without masking a completed critical ac
       await heartbeatFailed
       return 'deleted'
     },
+    USER_ID,
     OWNER,
     {
       heartbeatIntervalMs: 5,
@@ -194,6 +251,7 @@ Deno.test('a busy recovery lease rejects before the GitHub action starts', async
           actionCalled = true
           return Promise.resolve()
         },
+        USER_ID,
         OWNER,
       ),
     RecoveryLeaseUnavailableError,
@@ -214,6 +272,7 @@ Deno.test(
             return Promise.resolve({ data: true, error: null })
           }),
           () => Promise.reject(expected),
+          USER_ID,
           OWNER,
         ),
       expected,
@@ -231,6 +290,7 @@ Deno.test('a release transport failure does not undo a completed critical sectio
       return Promise.reject(new Error('release failed'))
     }),
     () => Promise.resolve('recorded'),
+    USER_ID,
     OWNER,
   )
 
@@ -250,6 +310,7 @@ Deno.test('a resolved release error does not mask a completed critical section',
       })
     }),
     () => Promise.resolve('completed'),
+    USER_ID,
     OWNER,
   )
 
