@@ -178,7 +178,7 @@ const beginnerPlatforms = [
     action: '查看 800 分题目',
     href: 'https://codeforces.com/problemset?tags=800-800',
     className: 'codeforces',
-    firstStep: '找一场 Div. 4 或新手赛，从第一题开始，按顺序尝试并及时切换卡住的题。',
+    firstStep: '找一场 Div. 4 或新手赛，从第一题开始，一步一步来。',
   },
 ]
 
