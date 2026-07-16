@@ -10,6 +10,7 @@ Deno.test('treats an already invalidated Auth session as revoked', () => {
     strictEqual(isSessionRevocationConfirmed({ status }), true)
   }
   strictEqual(isSessionRevocationConfirmed({ status: 400, code: 'session_not_found' }), true)
+  strictEqual(isSessionRevocationConfirmed({ status: 400, name: 'AuthSessionMissingError' }), true)
 })
 
 Deno.test('keeps genuine Auth failures unconfirmed', () => {
