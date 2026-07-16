@@ -21,8 +21,13 @@ export function verifyDatabaseBackupWorkflow(workflow) {
 
   requireMatch(
     workflow,
-    /SUPABASE_DB_URL:\s*\$\{\{ secrets\.SUPABASE_DB_URL \}\}/,
-    'Database connection string must come from the SUPABASE_DB_URL Actions Secret.',
+    /SUPABASE_ACCESS_TOKEN:\s*\$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/,
+    'Supabase access must come from the SUPABASE_ACCESS_TOKEN Actions Secret.',
+  )
+  requireMatch(
+    workflow,
+    /SUPABASE_PROJECT_REF:\s*\$\{\{ secrets\.SUPABASE_PROJECT_REF \}\}/,
+    'The backup must target the configured Supabase project reference.',
   )
   requireMatch(
     workflow,
@@ -49,6 +54,22 @@ export function verifyDatabaseBackupWorkflow(workflow) {
   if (dumpCount !== 6) {
     throw new Error(
       `Backup workflow must contain six pinned Supabase CLI dumps; found ${dumpCount}.`,
+    )
+  }
+  requireMatch(
+    workflow,
+    /npx --yes supabase@2\.109\.1 link --project-ref "\$SUPABASE_PROJECT_REF"/,
+    'Backup workflow must link the pinned CLI to the intended project.',
+  )
+  const linkedDumpCount = workflow.match(/db dump \\\r?\n\s+--linked/g)?.length ?? 0
+  if (linkedDumpCount !== 6) {
+    throw new Error(
+      `All six dumps must use short-lived linked credentials; found ${linkedDumpCount}.`,
+    )
+  }
+  if (/--db-url|SUPABASE_DB_URL/.test(workflow)) {
+    throw new Error(
+      'Backup workflow must not store or use a long-lived database connection string.',
     )
   }
   for (const requiredFragment of [

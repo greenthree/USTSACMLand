@@ -50,10 +50,11 @@
 
 在仓库 `Settings > Secrets and variables > Actions` 配置：
 
-| Secret                         | 要求                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------ |
-| `SUPABASE_DB_URL`              | Supabase Dashboard `Connect` 中的 Session pooler URI；密码必须百分号编码，不得使用前端 Key |
-| `BACKUP_ENCRYPTION_PASSPHRASE` | 独立随机口令，至少 32 个字符；不得与数据库、GitHub、邮箱或平台账号密码复用                 |
+| Secret                         | 要求                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `SUPABASE_ACCESS_TOKEN`        | Supabase 个人访问令牌；固定版本 CLI 仅用它链接目标项目并动态取得短期数据库登录 |
+| `SUPABASE_PROJECT_REF`         | 生产项目引用，用于把备份任务严格绑定到目标项目                                 |
+| `BACKUP_ENCRYPTION_PASSPHRASE` | 独立随机口令，至少 32 个字符；不得与数据库、GitHub、邮箱或平台账号密码复用     |
 
 在 Supabase Function Secrets 另行配置：
 
