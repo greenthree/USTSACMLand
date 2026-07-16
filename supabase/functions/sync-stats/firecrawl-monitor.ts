@@ -1,7 +1,13 @@
 export function shouldCheckFirecrawlCredits(
   serviceRole: boolean,
   scope: string,
-  targets: Array<{ platform: string }>,
+  requestedPlatforms: readonly string[] | undefined,
+  cursor: number | undefined,
 ): boolean {
-  return serviceRole && scope !== 'queue' && targets.some((target) => target.platform === 'qoj')
+  return (
+    serviceRole &&
+    scope !== 'queue' &&
+    cursor === undefined &&
+    (scope === 'all' || scope === 'member' || requestedPlatforms?.includes('qoj') === true)
+  )
 }
