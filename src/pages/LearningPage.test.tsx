@@ -28,6 +28,7 @@ describe('LearningPage', () => {
       '知识地图',
       '训练节奏',
       '开放资源',
+      '竞赛圈子',
     ]) {
       expect(chapterNavigation).toHaveTextContent(chapter)
     }
@@ -102,6 +103,10 @@ describe('LearningPage', () => {
       'href',
       'https://xcpc.link/',
     )
+    expect(screen.getByRole('heading', { name: '融入竞赛圈子' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: '查看 ACM 群组坐标汇总（新窗口打开）' }),
+    ).toHaveAttribute('href', 'https://acmer.info/')
   }, 10_000)
 
   it('personalizes the starting point and persists interactive plan progress', async () => {

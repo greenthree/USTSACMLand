@@ -364,6 +364,9 @@ export function LearningPage() {
         <a href="#learning-resources">
           <span>06</span>开放资源
         </a>
+        <a href="#learning-community">
+          <span>07</span>竞赛圈子
+        </a>
       </nav>
 
       <div className="learning-interactive-content">
@@ -693,6 +696,33 @@ export function LearningPage() {
               <h2>从阶段一选一道短题，今天就完成第一次“读题—实现—复盘”。</h2>
             </div>
             <a href="#stage-foundation">返回阶段一</a>
+          </div>
+        </section>
+
+        <section className="learning-section learning-community" id="learning-community">
+          <div className="learning-community-icon" aria-hidden="true">
+            <UsersRound size={28} />
+          </div>
+          <div className="learning-community-copy">
+            <p>07 / COMMUNITY</p>
+            <h2>融入竞赛圈子</h2>
+            <p>
+              算法竞赛不只是独自刷题。挑选一些你感兴趣的学校、地区或专题交流群，认识一起训练的人，获取比赛信息，也把自己的问题和思路讲出来。
+            </p>
+          </div>
+          <div className="learning-community-action">
+            <span>群组导航</span>
+            <strong>ACM 群组坐标汇总</strong>
+            <p>按兴趣挑选即可，不必一次加入很多群。</p>
+            <a
+              href="https://acmer.info/"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="查看 ACM 群组坐标汇总（新窗口打开）"
+            >
+              查看群组汇总
+              <ArrowUpRight size={16} aria-hidden="true" />
+            </a>
           </div>
         </section>
       </div>
