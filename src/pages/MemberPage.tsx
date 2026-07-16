@@ -6,9 +6,7 @@ import { EmptyState } from '../components/EmptyState'
 import { LoadingState } from '../components/LoadingState'
 import { PlatformMark } from '../components/PlatformMark'
 import { RatingValue } from '../components/RatingValue'
-import { RatingTrendSection } from '../components/RatingTrendSection'
 import { StatusBadge } from '../components/StatusBadge'
-import { useMemberRatingTrends } from '../data/useMemberRatingTrends'
 import { useMembersData } from '../data/useMembersData'
 import { formatDateTime, formatInteger } from '../lib/format'
 import { platformUrls } from '../lib/platforms'
@@ -19,7 +17,6 @@ export function MemberPage() {
   const { memberId } = useParams()
   const { members, loading, error, demo } = useMembersData()
   const member = members.find((item) => item.id === memberId)
-  const ratingTrends = useMemberRatingTrends(member)
 
   if (loading) {
     return (
@@ -135,8 +132,6 @@ export function MemberPage() {
           })}
         </div>
       </section>
-
-      <RatingTrendSection memberName={member.name} memberStats={member.stats} {...ratingTrends} />
     </div>
   )
 }

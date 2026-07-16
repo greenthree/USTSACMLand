@@ -4,15 +4,10 @@ import { mockMembers } from '../data/mock'
 
 const memberPageMocks = vi.hoisted(() => ({
   membersData: vi.fn(),
-  trends: vi.fn(),
 }))
 
 vi.mock('../data/useMembersData', () => ({
   useMembersData: memberPageMocks.membersData,
-}))
-
-vi.mock('../data/useMemberRatingTrends', () => ({
-  useMemberRatingTrends: memberPageMocks.trends,
 }))
 
 import { MemberPage } from './MemberPage'
@@ -31,12 +26,6 @@ describe('MemberPage data states', () => {
   beforeEach(() => {
     memberPageMocks.membersData.mockReset().mockReturnValue({
       members: mockMembers,
-      loading: false,
-      error: null,
-      demo: true,
-    })
-    memberPageMocks.trends.mockReset().mockReturnValue({
-      snapshots: [],
       loading: false,
       error: null,
       demo: true,
@@ -83,6 +72,7 @@ describe('MemberPage data states', () => {
 
     expect(screen.getByRole('heading', { name: mockMembers[0].name })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('当前展示演示数据')
+    expect(screen.queryByRole('heading', { name: 'Rating 趋势' })).not.toBeInTheDocument()
   })
 
   it('keeps the normal not-found state when the directory loaded successfully', () => {

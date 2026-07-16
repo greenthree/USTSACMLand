@@ -38,15 +38,6 @@ export interface Member {
   stats: Record<Platform, PlatformStat>
 }
 
-export interface RatingSnapshot {
-  id: number | null
-  platform: RatingPlatform
-  rating: number
-  peakRating: number | null
-  recordedAt: string
-  sourceObservedAt: string | null
-}
-
 export interface AdminPlatformAccount {
   id: number
   profileId: string
