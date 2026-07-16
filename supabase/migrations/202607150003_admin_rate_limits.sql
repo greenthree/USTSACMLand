@@ -93,7 +93,7 @@ begin
   if next_count > rate_max_requests then
     retry_after_seconds := pg_catalog.greatest(
       1,
-      pg_catalog.ceil(pg_catalog.extract(epoch from (resets_at - checked_at)))::integer
+      pg_catalog.ceil(pg_catalog.date_part('epoch', resets_at - checked_at))::integer
     );
     raise exception 'admin_rate_limited'
       using
