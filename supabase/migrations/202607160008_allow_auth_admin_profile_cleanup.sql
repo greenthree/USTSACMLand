@@ -2,6 +2,26 @@
 -- references while deleting an Auth user. Browser and API roles remain subject
 -- to the existing administrator-only field boundary.
 
+create or replace function public.is_trusted_profile_management_actor(
+  actor_session_user name,
+  actor_auth_role text
+)
+returns boolean
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select actor_auth_role = 'service_role'
+    or (
+      actor_auth_role is null
+      and actor_session_user in ('postgres', 'supabase_admin', 'supabase_auth_admin')
+    )
+$$;
+
+revoke all on function public.is_trusted_profile_management_actor(name, text)
+from public, anon, authenticated;
+
 create or replace function public.protect_profile_fields()
 returns trigger
 language plpgsql
@@ -10,10 +30,9 @@ set search_path = ''
 as $$
 declare
   requester_is_admin boolean := public.is_admin()
-    or coalesce((select auth.role()), '') = 'service_role'
-    or (
-      (select auth.role()) is null
-      and session_user in ('postgres', 'supabase_admin', 'supabase_auth_admin')
+    or public.is_trusted_profile_management_actor(
+      session_user,
+      (select auth.role())
     );
 begin
   if requester_is_admin then
@@ -55,3 +74,6 @@ $$;
 
 comment on function public.protect_profile_fields() is
   'Protects administrator-managed profile fields while allowing Supabase Auth to clear deletion references.';
+
+comment on function public.is_trusted_profile_management_actor(name, text) is
+  'Recognizes service and internal database roles allowed to maintain managed profile fields.';
