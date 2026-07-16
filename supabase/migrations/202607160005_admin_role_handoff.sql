@@ -71,7 +71,7 @@ as $$
 declare
   actor_id uuid := (select auth.uid());
   normalized_reason text := nullif(pg_catalog.btrim(reason), '');
-  current_role public.app_role;
+  existing_role public.app_role;
   current_status public.profile_review_status;
   current_updated_at timestamptz;
   next_updated_at timestamptz;
@@ -102,9 +102,10 @@ begin
     raise exception 'Administrator access required.' using errcode = '42501';
   end if;
 
-  select role, review_status, updated_at
-  into current_role, current_status, current_updated_at
+  select profile.role, profile.review_status, profile.updated_at
+  into existing_role, current_status, current_updated_at
   from public.profiles
+  as profile
   where id = target_profile_id
   for update;
 
@@ -118,11 +119,11 @@ begin
     raise exception 'Profile changed after it was loaded. Refresh and try again.'
       using errcode = '40001';
   end if;
-  if current_role = next_role then
+  if existing_role = next_role then
     return current_updated_at;
   end if;
 
-  if current_role = 'admin'
+  if existing_role = 'admin'
     and next_role = 'member'
     and not exists (
       select 1
@@ -152,7 +153,7 @@ begin
     'admin_role_change',
     'profiles',
     target_profile_id::text,
-    pg_catalog.jsonb_build_object('role', current_role),
+    pg_catalog.jsonb_build_object('role', existing_role),
     pg_catalog.jsonb_build_object('role', next_role),
     pg_catalog.jsonb_build_object('reason', normalized_reason)
   );

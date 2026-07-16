@@ -144,7 +144,7 @@ select results_eq(
     where profile_id = '00000000-0000-0000-0000-0000000000ab'
       and platform = 'atcoder'
   $$,
-  $$ values (1450, 1525, 321, 'admin-manual/v1'::text) $$,
+  $$ values (1450::numeric, 1525::numeric, 321, 'admin-manual/v1'::text) $$,
   'AtCoder manual statistics persist both metric families'
 );
 

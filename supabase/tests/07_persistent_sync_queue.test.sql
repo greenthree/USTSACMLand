@@ -158,7 +158,7 @@ select throws_ok(
   $$
     insert into public.sync_jobs (
       id, scope, profile_id, platform, status, trigger_type, attempt_count,
-      max_attempts, scheduled_for, payload, dedupe_key
+      max_attempts, scheduled_for, started_at, payload, dedupe_key
     )
     overriding system value
     values (
@@ -170,6 +170,7 @@ select throws_ok(
       'manual',
       1,
       3,
+      now(),
       now(),
       '{"platforms":["codeforces"]}'::jsonb,
       'duplicate-submission-guard'

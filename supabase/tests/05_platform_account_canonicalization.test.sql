@@ -9,23 +9,41 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
   confirmation_token, email_change, email_change_token_new, recovery_token
 )
-values (
-  '00000000-0000-0000-0000-000000000000',
-  '00000000-0000-0000-0000-0000000000e5',
-  'authenticated',
-  'authenticated',
-  'canonical-member@example.test',
-  'test-password',
-  now(),
-  '{"provider":"email","providers":["email"]}'::jsonb,
-  '{"full_name":"Canonical Member"}'::jsonb,
-  now(),
-  now(),
-  '',
-  '',
-  '',
-  ''
-);
+values
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-0000-0000-0000000000e5',
+    'authenticated',
+    'authenticated',
+    'canonical-member@example.test',
+    'test-password',
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Canonical Member"}'::jsonb,
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-0000-0000-0000000000e6',
+    'authenticated',
+    'authenticated',
+    'canonical-alias@example.test',
+    'test-password',
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"Canonical Alias"}'::jsonb,
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  );
 
 update public.profiles
 set review_status = 'approved', approved_at = now()
@@ -117,7 +135,7 @@ insert into public.platform_accounts (
   profile_id, platform, external_id, normalized_external_id, status
 )
 values (
-  '00000000-0000-0000-0000-0000000000e5',
+  '00000000-0000-0000-0000-0000000000e6',
   'atcoder',
   'valid_atcoder',
   'valid_atcoder',
@@ -128,7 +146,7 @@ select throws_ok(
   $$
     update public.platform_accounts
     set platform = 'luogu', external_id = '000409073'
-    where profile_id = '00000000-0000-0000-0000-0000000000e5'
+    where profile_id = '00000000-0000-0000-0000-0000000000e6'
       and platform = 'atcoder'
   $$,
   '23505',

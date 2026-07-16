@@ -68,7 +68,7 @@ values
 
 insert into public.sync_runs (
   id, job_id, profile_id, platform, platform_account_id,
-  attempt, status, started_at
+  attempt, status, started_at, finished_at
 )
 overriding system value
 select
@@ -84,7 +84,8 @@ select
   ),
   1,
   run_status::public.sync_run_status,
-  started_at
+  started_at,
+  case when run_status = 'running' then null else started_at end
 from (
   values
     (99611::bigint, 99601::bigint, 'atcoder'::public.platform_name, 'running'::text, '2026-07-16T00:00:00Z'::timestamptz),

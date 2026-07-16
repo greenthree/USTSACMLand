@@ -122,6 +122,8 @@ select is(
   'the promoted profile receives the administrator role'
 );
 
+reset role;
+
 select ok(
   exists (
     select 1
@@ -132,6 +134,8 @@ select ok(
   ),
   'administrator promotion records a bounded audit reason'
 );
+
+set local role authenticated;
 
 select throws_ok(
   $$
@@ -164,6 +168,8 @@ select is(
   'member',
   'the previous administrator becomes an ordinary member'
 );
+
+reset role;
 
 select ok(
   exists (

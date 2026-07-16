@@ -158,9 +158,29 @@ select throws_like(
 
 reset role;
 
-update public.profiles
-set review_status = 'suspended'
-where id = '00000000-0000-0000-0000-0000000000a1';
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000c3', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-0000000000c3","role":"authenticated"}',
+  true
+);
+set local role authenticated;
+
+select public.admin_set_member_suspension(
+  '00000000-0000-0000-0000-0000000000a1',
+  true,
+  (select updated_at from public.profiles where id = '00000000-0000-0000-0000-0000000000a1'),
+  'RLS suspension fixture'
+);
+
+reset role;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}',
+  true
+);
 
 set local role authenticated;
 
