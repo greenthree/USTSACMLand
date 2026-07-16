@@ -62,8 +62,8 @@ M0 验收条件：
 - [x] 建立注册后自动创建 profile 的触发器。
 - [x] 建立仅限 service role / SQL 管理员的一次性首管理员初始化流程。
 - [x] 为 RLS、唯一约束和角色提升攻击编写数据库测试（2026-07-16 PostgreSQL 17 空库 CI 已执行 15 个 pgTAP 文件、257 项与真实调用一致的断言并通过，覆盖匿名访客、普通成员、停用成员、管理员、私表拒绝、公开视图过滤、QQ/平台绑定唯一冲突、管理员交接和最后管理员保护）。
-- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-16，34 个生产 migration 与四个 Edge Function 已部署；生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留，Auth 内部删除清理缺陷已由 `202607160008` 修复并完成临时账号清理。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、`409` 删除失败、心跳/释放长尾和管理员交接后的真实生产验收尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
-- [ ] 验证注销恢复租约的长尾边界：GitHub 恢复下限请求有 5 秒超时并额外预留 1 小时；最终 Auth 删除已改为 service-role-only 数据库 RPC，对恢复租约单例行 `FOR UPDATE` 后设置事务内 owner/target fence 标记，并在同一事务删除 `auth.users`。Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，因此 Edge Runtime 计时器冻结或部署切换时其他请求都无法越过最终数据库边界。外部恢复下限阶段继续每分钟心跳，空库测试覆盖无租约、错误 owner/target、旁路删除、权限和 Auth/Profile 原子级联；仍需配置生产恢复令牌后完成真实删除、`409`、双连接阻塞、提交耗时和响应丢失对账验收。
+- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-16，35 个生产 migration 与四个 Edge Function 已部署；`delete-account` v3 已切换为目标绑定租约、事务内 fence 标记及 Auth/Profile/租约原子提交。生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留；非破坏性 RPC 烟测确认 missing Profile 拒绝、释放后不可复用及匿名 401。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、Storage/受控约束 `409`、双连接锁和响应丢失对账尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
+- [ ] 验证注销恢复租约的长尾边界：GitHub 恢复下限请求有 5 秒超时并额外预留 1 小时；最终 Auth 删除已改为 service-role-only 数据库 RPC，对恢复租约单例行 `FOR UPDATE` 后设置事务内 owner/target fence 标记，并在同一事务删除 `auth.users`。Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，因此 Edge Runtime 计时器冻结或部署切换时其他请求都无法越过最终数据库边界。PostgreSQL 17 空库 CI 已通过 16 个 pgTAP 文件、289 项断言；生产非破坏性烟测确认 missing Profile 拒绝、租约释放、释放后不可复用、匿名 401 和无遗留阻塞。仍需配置生产恢复令牌后完成真实删除、Storage/受控约束 `409`、双连接阻塞、提交耗时、旧 JWT RLS 与响应丢失对账验收。
 
 M1 验收条件：
 
@@ -203,13 +203,13 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-16 严格就绪检查确认项目 `ACTIVE_HEALTHY`、34 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均已部署并通过正式/恶意 Origin、匿名方法和 JWT 边界检查）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-16 严格就绪检查确认项目 `ACTIVE_HEALTHY`、35 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均已部署；`delete-account` v3 ACTIVE，正式/恶意 Origin、匿名方法和 JWT 边界检查通过）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
 - [ ] 在生产 Secrets 和真实仓库中验证全部工作流（2026-07-16 仓库就绪检查已确认 CI、Pages、同步、Secret scan 的最新真实运行、远端内容、默认分支提交、ruleset、原生安全功能、Dependabot、30 天保留和 5 分钟队列新鲜度；CI 静态门禁现保护 15 个 pgTAP 文件、257 项断言与 19 个发布 migration。仍缺 Actions Secrets `SUPABASE_DB_URL`、`BACKUP_ENCRYPTION_PASSPHRASE`，因此 `Encrypted database backup` 尚无 main 成功运行）。
 - [x] 在仓库中接入 npm/GitHub Actions Dependabot 周更、完整历史 Gitleaks 扫描，并把工作流第三方 Action 固定到完整提交 SHA（2026-07-16 使用官方 Gitleaks `v8.30.1` 对 18 个本地提交和 324 个可提交文件执行脱敏扫描，均无泄漏；证据见 `docs/evidence/local-secret-scan-2026-07-16.md`，远端首次 workflow 结果仍由下一项验收）。
 - [x] 按仓库保护文档配置 `main` ruleset、GitHub 原生 Secret scanning/push protection 和 Private Vulnerability Reporting，并验证 Dependabot 与秘密扫描首次真实运行（2026-07-16 `Protect main release branch` ruleset 已启用且无 bypass，要求 PR、解决 review conversation、禁止删除/force push，并严格要求 `verify`、`database-security`、`gitleaks`；Secret scanning、push protection、Private Vulnerability Reporting、Dependabot security updates 与 30 天 Actions 保留均已启用，main 的 Secret scan 和 Dependabot 首次真实运行成功）。
-- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、34 个 migration、0 pending、四个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PostgreSQL 17 空库 CI 已通过 257 项权限断言。生产随机临时成员烟测确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭和 Auth 清理。仍需普通成员/停用成员/管理员真实 RLS 矩阵、管理员角色交接、配置恢复令牌后的成功注销、`409` 与心跳/释放失败语义验收）。
+- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、35 个 migration、0 pending、四个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PostgreSQL 17 空库 CI 已通过 289 项权限/事务断言。生产随机临时成员烟测确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭和 Auth 清理；最终删除 RPC 的匿名调用返回 401。仍需普通成员/停用成员/管理员真实 RLS 矩阵、管理员角色交接、配置恢复令牌后的成功注销、Storage/受控约束 `409`、双连接锁与旧 JWT RLS 语义验收）。
 - [ ] 增加错误监控、同步失败告警和数据库备份方案（四个 Edge Function 的非业务型 500 已接入固定类别、无 message/stack/身份信息、1.5 秒超时且不重试的运行时 Webhook；前端已增加 React 顶层错误边界及 `window.error`/未处理 Promise 的脱敏本地事件；每日六部分逻辑导出、Auth 数据、AES-256 加密、解密自检、14 天 Artifact 和静态安全门禁已实现；注销前外部恢复下限、失败关闭和恢复校验工具已实现；2026-07-15 正式项目只读核验确认 PITR 未启用且可用物理备份为 0，待配置生产告警/备份 Secrets、确认实际套餐保障并完成告警投递、首次真实备份、受控注销和隔离恢复演练）。
 - [ ] 进行数据源限流演练、QOJ 会话过期演练和单平台停机演练（QOJ 凭据拒绝、Cloudflare challenge、Firecrawl 429 与会话清理已有固定测试，待生产受控演练）。
 - [x] 编写部署、回滚、凭据轮换、数据源修复和管理员交接文档，并明确前向数据库修复、QOJ 禁止自动重试、最小权限和交接顺序。
