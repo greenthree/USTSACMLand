@@ -13,9 +13,6 @@ Deno.test('treats an already invalidated Auth session as revoked', () => {
 })
 
 Deno.test('keeps genuine Auth failures unconfirmed', () => {
-  strictEqual(
-    isSessionRevocationConfirmed({ status: 429, code: 'over_request_rate_limit' }),
-    false,
-  )
+  strictEqual(isSessionRevocationConfirmed({ status: 429, code: 'over_request_rate_limit' }), false)
   strictEqual(isSessionRevocationConfirmed({ status: 500, code: 'unexpected_failure' }), false)
 })
