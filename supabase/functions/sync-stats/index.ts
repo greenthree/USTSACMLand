@@ -7,7 +7,11 @@ import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 import { readFirecrawlCreditUsage } from '../_shared/firecrawl-usage.ts'
 import { toAdapterHttpError } from '../_shared/http.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
-import { type MemberSyncResult, summarizeMemberSyncResults } from '../_shared/sync-result.ts'
+import {
+  type PlatformMemberSyncResult,
+  summarizeMemberSyncResults,
+  summarizePlatformSyncResults,
+} from '../_shared/sync-result.ts'
 import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
 import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.ts'
 import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
@@ -152,7 +156,7 @@ async function invokeSyncMember(
   serviceRoleKey: string,
   token: string,
   triggerType: 'scheduled' | 'manual',
-): Promise<MemberSyncResult> {
+): Promise<PlatformMemberSyncResult> {
   const response = await fetch(`${supabaseUrl}/functions/v1/sync-member`, {
     method: 'POST',
     headers: {
@@ -174,6 +178,7 @@ async function invokeSyncMember(
   }
   return {
     memberId: target.memberId,
+    platform: target.platform,
     status: response.status,
     body: responseBody,
   }
@@ -243,6 +248,7 @@ Deno.serve(async (request) => {
         scope,
         platforms: platforms ?? null,
         ...summarizeMemberSyncResults([]),
+        byPlatform: [],
         results: [],
       })
     }
@@ -289,7 +295,7 @@ Deno.serve(async (request) => {
     const results = await dispatchWithPlatformLimits(
       targets,
       (target) => invokeSyncMember(target, supabaseUrl, serviceRoleKey, token, triggerType),
-      (target, error): MemberSyncResult => {
+      (target, error): PlatformMemberSyncResult => {
         console.error(
           JSON.stringify({
             event: 'sync_member_transport_failed',
@@ -300,6 +306,7 @@ Deno.serve(async (request) => {
         )
         return {
           memberId: target.memberId,
+          platform: target.platform,
           status: 502,
           body: {
             status: 'failed',
@@ -312,12 +319,14 @@ Deno.serve(async (request) => {
       },
     )
     const summary = summarizeMemberSyncResults(results)
+    const byPlatform = summarizePlatformSyncResults(results)
     const responseStatus = summary.failed > 0 ? 207 : summary.queued > 0 ? 202 : 200
     return respond(
       {
         scope,
         platforms: platforms ?? null,
         ...summary,
+        byPlatform,
         results,
       },
       responseStatus,

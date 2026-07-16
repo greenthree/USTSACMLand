@@ -10,5 +10,9 @@ export default defineConfig(({ mode }) => ({
     exclude: ['e2e/**', '**/node_modules/**', '**/dist/**'],
     css: true,
     globals: true,
+    // Lazy route imports become timing-dependent when high-core development
+    // machines start every jsdom suite at once. Keep the release gate bounded
+    // and reproducible across local workstations and GitHub runners.
+    maxWorkers: 4,
   },
 }))

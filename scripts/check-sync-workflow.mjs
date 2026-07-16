@@ -22,4 +22,12 @@ if (postCount !== 1 || !workflow.includes('/functions/v1/sync-stats')) {
   )
 }
 
-console.log('Verified single-attempt sync workflow dispatch.')
+if (!workflow.includes('Sync summary: $safe_summary') || !workflow.includes('.byPlatform // []')) {
+  throw new Error('Sync workflow must log the sanitized per-platform summary.')
+}
+
+if (/\.error\.message/.test(workflow)) {
+  throw new Error('Sync workflow must not print raw adapter error messages to public logs.')
+}
+
+console.log('Verified single-attempt sync workflow dispatch and sanitized summary logging.')
