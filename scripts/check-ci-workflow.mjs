@@ -30,6 +30,7 @@ const requiredReleaseMigrations = [
   '202607160007_account_deletion_recovery_lease_renewal.sql',
   '202607160008_allow_auth_admin_profile_cleanup.sql',
   '202607160009_allow_pending_luogu_failure_commit.sql',
+  '202607160010_transactional_auth_user_deletion.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -54,6 +55,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'commit_luogu_sync_result',
     'admin_set_member_role',
     'renew_account_deletion_recovery_lease',
+    'delete_auth_user_with_recovery_lease',
   ]) {
     requireMatch(
       databaseTypes,
@@ -78,8 +80,8 @@ export function inspectPgTapSuite(files) {
   const sqlFiles = files
     .filter((file) => file.name.endsWith('.test.sql'))
     .sort((left, right) => left.name.localeCompare(right.name))
-  if (sqlFiles.length < 15) {
-    throw new Error(`Database CI must discover at least 15 pgTAP files; found ${sqlFiles.length}.`)
+  if (sqlFiles.length < 16) {
+    throw new Error(`Database CI must discover at least 16 pgTAP files; found ${sqlFiles.length}.`)
   }
 
   let assertionCount = 0

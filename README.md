@@ -210,7 +210,7 @@ Supabase Function Secrets/配置：
 
 `service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
 
-永久注销采用“禁止恢复到注销前”的恢复下限策略。`delete-account` 的数据库全局租约覆盖完整临界区：取得租约 → 将一个不含用户 ID、姓名、邮箱或账号的 UTC 时间写入 GitHub 仓库变量 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并再次确认租约仍由当前请求持有 → 删除 Supabase Auth 用户，等待期间每分钟心跳续期 → 释放租约。租约冲突、取得或删除前续期失败，或恢复下限写入与确认失败时，函数不执行 Auth 删除并返回 `503`；恢复下限已确认但 Auth 删除失败时返回 `409`，账号与业务数据保持不变；删除期间的心跳故障会发送脱敏运行时告警，但不能错误宣称尚未删除，也不能掩盖随后确认的成功结果。Auth 删除已经完成后，即使租约释放失败也不能掩盖成功结果，租约会按数据库过期时间自动失效。数据库 `BEFORE DELETE` 守卫还会在最终删除点再次拒绝活动同步和当前管理员，避免网络调用或权限交接期间出现竞态。备份会记录当时的下限，恢复前还必须用仓库变量当前值执行 `npm run verify:backup-recovery-floor -- <metadata.txt>`。
+永久注销采用“禁止恢复到注销前”的恢复下限策略。`delete-account` 的目标绑定数据库租约覆盖完整临界区：取得 `owner + target_user_id` 租约 → 将一个不含用户 ID、姓名、邮箱或账号的 UTC 时间写入 GitHub 仓库变量 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用仅限 service role 的最终 RPC。RPC 先锁定租约单例行和目标 Profile，再次验证 owner、target、有效期、普通成员角色和无活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 删除触发器拒绝任何没有匹配 owner/target 标记的旧 HTTP 或旁路删除，因此部署切换期间的旧 Edge 请求也会失败关闭。Auth/Profile 级联和审计匿名化只会整体提交或回滚。租约冲突、取得或删除前续期失败，或恢复下限写入与确认失败时，函数不执行 Auth 删除并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`，账号与业务数据保持不变。数据库行锁使最终删除不再依赖 Edge Runtime 定时心跳：即使租约墙钟到期，竞争请求也只能等待首个删除事务结束。备份会记录当时的下限，恢复前还必须用仓库变量当前值执行 `npm run verify:backup-recovery-floor -- <metadata.txt>`。
 
 仓库提供每日加密逻辑备份工作流：分别导出角色、应用 Schema、业务数据、Auth 用户数据和 migration 历史，只上传 AES-256 加密密文并保留 14 天。Supabase Free 项目没有自动每日备份保障；付费套餐的实际备份窗口仍须在 Dashboard 核对。配置、恢复演练和 Storage 限制见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)。
 
@@ -235,7 +235,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member` 与 `sync-stats` 已部署为 ACTIVE，`delete-account` 与 `change-password` 尚待首次部署。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account` 与 `change-password` 均已部署为 ACTIVE。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 

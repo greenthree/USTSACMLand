@@ -30,7 +30,7 @@ function leasedDependencies(
   }
 
   return {
-    withRecoveryLease: (action) => withRecoveryFloorLease(client, action, OWNER),
+    withRecoveryLease: (action) => withRecoveryFloorLease(client, action, USER_ID, OWNER),
     async recordRecoveryFloor() {
       calls.push('floor:confirmed')
     },
@@ -59,6 +59,34 @@ Deno.test(
     ])
   },
 )
+
+Deno.test('safe account deletion stops heartbeat before the final Auth transaction', async () => {
+  const calls: string[] = []
+  const result = await deleteUserWithRecoveryFloor(
+    {
+      withRecoveryLease: (action) =>
+        action(
+          async () => {
+            calls.push('lease:renewed')
+          },
+          async () => {
+            calls.push('heartbeat:stopped')
+          },
+        ),
+      async recordRecoveryFloor() {
+        calls.push('floor:confirmed')
+      },
+      async deleteUser() {
+        calls.push('auth:deleted')
+        return true
+      },
+    },
+    USER_ID,
+  )
+
+  equal(result, 'deleted')
+  deepStrictEqual(calls, ['floor:confirmed', 'lease:renewed', 'heartbeat:stopped', 'auth:deleted'])
+})
 
 Deno.test(
   'safe account deletion does not release the lease while Auth deletion is pending',
@@ -111,6 +139,7 @@ Deno.test('safe account deletion fails closed when the recovery lease is unavail
             },
           },
           action,
+          USER_ID,
           OWNER,
         ),
       async recordRecoveryFloor() {
@@ -173,6 +202,7 @@ Deno.test('safe account deletion never calls Auth when lease renewal fails', asy
             },
           },
           action,
+          USER_ID,
           OWNER,
         ),
       async deleteUser() {

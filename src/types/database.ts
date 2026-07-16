@@ -787,16 +787,20 @@ export type Database = {
     }
     Functions: {
       acquire_account_deletion_recovery_lease: {
-        Args: { p_owner_token: string }
+        Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
       }
       release_account_deletion_recovery_lease: {
-        Args: { p_owner_token: string }
+        Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
       }
       renew_account_deletion_recovery_lease: {
-        Args: { p_owner_token: string }
+        Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
+      }
+      delete_auth_user_with_recovery_lease: {
+        Args: { p_owner_token: string; p_user_id: string }
+        Returns: Json
       }
       consume_admin_rate_limit: {
         Args: {
