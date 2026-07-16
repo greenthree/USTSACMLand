@@ -34,7 +34,7 @@
 - [x] 完成洛谷认证记录接口验证：先用公开用户页核对 UID，再按 UID 分页读取 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重，覆盖不存在用户、零题数、凭据失效、限流、结构变化和分页截断。
 - [x] 完成 QOJ 可行性 Spike：确认需要认证浏览器会话，统计去重后的 Accepted 题目。
 - [x] 实现 QOJ Firecrawl `/interact` 临时会话自动登录、结构校验、限流错误和完整登录健康检查脚本。
-- [ ] 完成生产 QOJ 自动登录烟测并保存可复核证据（已新增 `docs/evidence/qoj-production-smoke-2026-07-16.md`：匿名公开视图只读确认两个 `qoj-firecrawl-interact-v1` 成功快照、题数与成功时间且不含身份/凭据；仍需受控重新触发以验证当前服务账号、Firecrawl 额度、私有 run ID 和告警投递）。
+- [x] 完成生产 QOJ 自动登录烟测并保存可复核证据：2026-07-16 通过已部署 `sync-member` 使用当前生产 QOJ/Firecrawl Secrets 受控触发一次真实同步，单次尝试成功、题数为 10，随后匿名公开视图确认相同来源版本、成功时间、题数和 `fresh` 状态；证据已脱敏保存于 `docs/evidence/qoj-production-smoke-2026-07-16.md`。
 - [ ] 配置 QOJ 登录失败告警和 Firecrawl 用量监控（终态失败脱敏 Webhook已实现；每周 QOJ 批次前 Firecrawl 额度检查、25% warning、10% critical、5 秒超时、禁止自动重试和脱敏 Payload 已实现。2026-07-15 CLI 实测为 409/1000、周期截止 2026-07-24，但生产 `SYNC_ALERT_WEBHOOK_URL/TOKEN` 仍缺失，待部署、投递烟测和确认 CLI 与生产 Key 属于同一团队）。
 - [x] 为每个平台保存脱敏固定样本并编写契约测试。
 - [x] 编写架构决策记录：部署、认证、定时任务、秘密管理和 QOJ 备用方案。
@@ -112,7 +112,7 @@ M2 验收条件：
 - [x] XCPC ELO：增加低频缓存和失效策略；生产已验证空缓存原子发布、跨独立同步请求命中同一共享版本、两位小数数据库口径和本校选手缓存内容，CI 已覆盖租约竞争、条件 `304`、失败冷却、结构/大小防护、陈旧数据拒绝与旧版本清理，证据见 `docs/evidence/xcpc-cache-production-smoke-2026-07-16.md`。
 - [x] 洛谷：先通过公开用户页验证 UID 存在，再使用 Supabase Secrets 中的 Cookie/CSRF 请求认证记录接口，分页读取 Accepted 记录，仅统计 `P`/`B` 开头 PID 并去重。
 - [x] QOJ：使用 Supabase Secrets 中的专用账号，每次创建 Firecrawl `/interact` 临时会话并自动登录查询目标主页。
-- [ ] QOJ：完成生产真实账号 smoke test，并验证统计值和成功状态落库（脱敏只读证据已保存到 `docs/evidence/qoj-production-smoke-2026-07-16.md`，证明生产存在两个自动适配器成功快照；该证据没有重新触发第三方登录，也不能证明当前凭据、额度和告警健康，仍待受控复验与私有 run ID 核对）。
+- [x] QOJ：完成生产真实账号 smoke test，并验证统计值和成功状态落库；2026-07-16 当前生产凭据与 Firecrawl 额度完成一次新的真实自动登录同步，函数返回单次尝试成功且 QOJ 不自动重试，匿名公开视图随后确认题数 10、来源 `qoj-firecrawl-interact-v1`、成功时间和 `fresh` 状态，脱敏证据见 `docs/evidence/qoj-production-smoke-2026-07-16.md`。
 - [ ] QOJ：继续演练密码错误、Cloudflare 和 Firecrawl 限流路径（固定故障测试已覆盖错误码、不可自动重试、Firecrawl Job ID 诊断与临时会话关闭；待生产受控演练和告警投递证据后验收）。
 - [x] 保存最新统计和历史快照；同一源数据时间重复执行需幂等（源时间唯一约束、失败快照分离、洛谷纠正 RPC，以及非洛谷“账号/run 校验→统计→幂等快照→run 终态”的单事务 RPC 已部署；PostgreSQL 17 空库 CI 已通过快照同源幂等、洛谷幂等、事务回滚、权限与终态竞争测试，生产 Codeforces 单平台同步入口烟测成功）。
 - [x] 实现 HTTP 超时/有限重试和管理员/计划任务活动任务去重。
