@@ -14,7 +14,7 @@
 - 单平台普通任务 `max_attempts = 3`，首轮失败后按 2 分钟、4 分钟指数退避。
 - QOJ 和多平台直接请求 `max_attempts = 1`，不会自动重试。
 - `claim_due_sync_jobs` 使用 `FOR UPDATE SKIP LOCKED` 原子领取到期任务并递增尝试次数，只授予 `service_role`。
-- 每 5 分钟由 GitHub Actions 以 `scope=queue` 调用 `sync-stats`。
+- 每 5 分钟只由 Supabase `pg_cron` 通过 `pg_net` 以专用 queue token 自动调用 `sync-stats`；GitHub Actions 只保留管理员手动 `queue` 应急入口，避免双调度器突破平台并发上限。
 - 超过 15 分钟仍为运行中的任务视为 Worker 中断：先将对应 `sync_runs` 关闭为 `timeout`，再重新排队；已达到最大次数则终止为失败。
 - 批量任务按平台拆分。Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
 - `sync-stats` 调用单个 `sync-member` 时若发生传输层拒绝，将该目标转换为脱敏的 `network_error` 失败结果；同批其他目标和后续平台继续执行，不在传输层自动重发。已领取任务仍由 15 分钟 Worker 中断恢复规则接管，QOJ 同样不会立即重试。

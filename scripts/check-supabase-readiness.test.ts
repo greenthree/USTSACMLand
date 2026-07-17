@@ -6,6 +6,7 @@ import {
 
 function createReadyState() {
   return {
+    observedAt: '2026-07-17T00:10:00.000Z',
     project: {
       ref: 'project-ref',
       name: 'USTSACMLand',
@@ -59,6 +60,19 @@ function createReadyState() {
       })),
     },
     functionBoundaryAuditError: null,
+    queueSchedulerHealth: {
+      configured: true,
+      cronActive: true,
+      lastDispatchedAt: '2026-07-17T00:05:00.000Z',
+      lastResponseDispatchedAt: '2026-07-17T00:05:00.000Z',
+      lastHttpStatus: 200,
+      lastResponseAt: '2026-07-17T00:05:01.000Z',
+      lastTimedOut: false,
+      lastTransportError: false,
+      recentCronRuns: 3,
+      recentCronSuccesses: 3,
+    },
+    queueSchedulerHealthError: null,
     providerBackups: {
       walgEnabled: true,
       pitrEnabled: true,
@@ -83,6 +97,7 @@ describe('Supabase production readiness checker', () => {
         authEmailReady: true,
         anonRestReady: true,
         functionBoundaryReady: true,
+        queueSchedulerReady: true,
         pitrEnabled: true,
         providerBackups: 1,
         functionSecrets: requiredFunctionSecrets.length,
@@ -178,6 +193,8 @@ describe('Supabase production readiness checker', () => {
     state.anonRestAuditError = '未找到唯一 linked 项目。'
     state.functionBoundaryAudit = null
     state.functionBoundaryAuditError = '未找到唯一 linked 项目。'
+    state.queueSchedulerHealth = null
+    state.queueSchedulerHealthError = '未找到唯一 linked 项目。'
     state.providerBackups = null
     state.functionSecrets = []
 
@@ -295,5 +312,34 @@ describe('Supabase production readiness checker', () => {
         'Supabase Function Secret 未配置：DELETION_RECOVERY_GITHUB_TOKEN。',
       ]),
     )
+  })
+
+  it('requires fresh, configured, successful database queue scheduling', () => {
+    const state = createReadyState()
+    state.queueSchedulerHealth = {
+      configured: false,
+      cronActive: false,
+      lastDispatchedAt: '2026-07-16T23:30:00.000Z',
+      lastResponseDispatchedAt: '2026-07-16T23:30:00.000Z',
+      lastHttpStatus: 401,
+      lastResponseAt: '2026-07-16T23:30:01.000Z',
+      lastTimedOut: false,
+      lastTransportError: false,
+      recentCronRuns: 0,
+      recentCronSuccesses: 0,
+    }
+
+    const report = evaluateSupabaseReadiness(state)
+    expect(report.errors).toEqual(
+      expect.arrayContaining([
+        '数据库同步队列调度器 Vault 配置不完整。',
+        '数据库同步队列五分钟 cron 未启用。',
+        expect.stringContaining('超过 12 分钟门限'),
+        expect.stringContaining('最近已完成响应对应调度距今'),
+        '数据库同步队列最近一次 Edge 请求未成功完成。',
+        '数据库同步队列近 15 分钟没有成功 cron 运行。',
+      ]),
+    )
+    expect(report.summary.queueSchedulerReady).toBe(false)
   })
 })

@@ -34,6 +34,7 @@ const requiredReleaseMigrations = [
   '202607170001_announcement_conflict_http_status.sql',
   '202607170002_admin_rate_limit_http_status.sql',
   '202607170003_atomic_sync_job_completion.sql',
+  '202607170004_database_sync_queue_scheduler.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -57,6 +58,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'commit_platform_sync_result',
     'commit_luogu_sync_result',
     'complete_sync_job_attempt',
+    'read_sync_queue_scheduler_health',
     'admin_set_member_role',
     'renew_account_deletion_recovery_lease',
     'delete_auth_user_with_recovery_lease',
@@ -84,8 +86,8 @@ export function inspectPgTapSuite(files) {
   const sqlFiles = files
     .filter((file) => file.name.endsWith('.test.sql'))
     .sort((left, right) => left.name.localeCompare(right.name))
-  if (sqlFiles.length < 17) {
-    throw new Error(`Database CI must discover at least 17 pgTAP files; found ${sqlFiles.length}.`)
+  if (sqlFiles.length < 18) {
+    throw new Error(`Database CI must discover at least 18 pgTAP files; found ${sqlFiles.length}.`)
   }
 
   let assertionCount = 0

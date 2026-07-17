@@ -16,7 +16,9 @@
 | Codeforces、牛客、洛谷、AtCoder | 每天 07:00、19:00 | `0 11,23 * * *` |
 | XCPC ELO、QOJ                   | 每周二 08:00      | `0 0 * * 2`     |
 
-GitHub Actions 使用 service role 调用 `sync-stats`。非队列计划范围按 `platform_accounts.id` 升序使用稳定游标分页，每页最多处理 3 个已验证账号；响应只返回下一游标，工作流逐页推进且最多接受 100 页。每页是不同目标集合，只发送一次 POST，不做传输层自动重试；某页出现 `207` 时仍继续完成后续页，最后统一以失败结束。`queue` 范围保持数据库原子领取语义，不接受分页参数。
+GitHub Actions 使用 service role 调用 `sync-stats`。非队列计划范围按 `platform_accounts.id` 升序使用稳定游标分页，每页最多处理 3 个已验证账号；响应只返回下一游标，工作流逐页推进且最多接受 100 页。每页是不同目标集合，只发送一次 POST，不做传输层自动重试；某页出现 `207` 时仍继续完成后续页，最后统一以失败结束。
+
+`queue` 范围只由 Supabase `pg_cron` 每 5 分钟通过 `pg_net` 自动触发；GitHub Actions 仅保留管理员手动 `queue` 应急入口，不运行第二个自动队列调度器。数据库只持有公开 anon key 和只允许 queue scope 的专用令牌，Edge Function 内部再用 service role 调用 `sync-member`；service role key 不进入 Vault 或 `pg_net` 请求队列表。`queue` 继续保持数据库原子领取语义，不接受分页参数。
 
 函数规范化同步范围，将当前页请求拆为单平台任务，再按平台并发上限调用 `sync-member`。XCPC 批次在第一页 fan-out 前预热一次数据库共享缓存，避免每个成员重复下载完整数据集；包含 QOJ 的计划范围也只在第一页检查一次 Firecrawl 额度。
 

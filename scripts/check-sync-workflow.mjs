@@ -3,6 +3,15 @@ import { readFileSync } from 'node:fs'
 const workflowUrl = new URL('../.github/workflows/sync-stats.yml', import.meta.url)
 const workflow = readFileSync(workflowUrl, 'utf8')
 
+if (/cron:\s*['"]\*\/5/.test(workflow)) {
+  throw new Error(
+    'GitHub must not run a second automatic five-minute queue dispatcher alongside the database cron.',
+  )
+}
+if (!/options:\s*[\s\S]*?- queue/.test(workflow)) {
+  throw new Error('The synchronization workflow must retain a manual queue recovery scope.')
+}
+
 const forbiddenRetryFlags = [
   { label: '--retry', pattern: /--retry(?:[=\s]|$)/ },
   { label: '--retry-all-errors', pattern: /--retry-all-errors/ },
