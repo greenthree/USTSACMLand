@@ -1,13 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
+import { notifyWebChatBudgetAlert as notifyOperationalWebChatBudgetAlert } from '../_shared/alerts.ts'
 import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
 import { resolveAuthenticatedUser } from './authorization.ts'
 import { createWebChatHandler } from './handler.ts'
+import { parseWebChatMemberRuntimeAccess } from './member-access.ts'
 import {
+  parseWebChatBudgetAlertClaim,
   parseWebChatClaimResult,
   parseWebChatTransition,
   type WebChatQuotaPolicy,
   type WebChatUsage,
 } from './quota.ts'
+import {
+  resolveWebChatRelayRuntimeConfig,
+  type WebChatRelayRuntimeConfig,
+} from './runtime-config.ts'
 import { startWebChat } from './upstream.ts'
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -49,14 +56,27 @@ const quotaPolicy: WebChatQuotaPolicy = {
   promptVersion,
   maxOutputTokens,
   minuteRequestLimit: integerEnv('CHAT_REQUESTS_PER_MINUTE', 3, 1, 1_000),
-  dailyRequestLimit: integerEnv('CHAT_REQUESTS_PER_DAY', 30, 1, 10_000),
-  dailyTokenLimit: integerEnv('CHAT_TOKENS_PER_DAY', 100_000, 100, 1_000_000_000),
+  // Replaced with the current private member policy before any reservation
+  // or claim. These values only satisfy the shared preparation type.
+  dailyRequestLimit: 30,
+  dailyTokenLimit: 100_000,
   leaseSeconds: integerEnv(
     'CHAT_CLAIM_LEASE_SECONDS',
     Math.max(180, minimumLeaseSeconds),
     minimumLeaseSeconds,
     600,
   ),
+}
+
+function environmentRelayRuntimeConfig(): WebChatRelayRuntimeConfig {
+  return {
+    baseUrl: requiredEnv('CHAT_RELAY_BASE_URL'),
+    apiKey: requiredEnv('CHAT_RELAY_API_KEY'),
+    model: relayModel,
+    requestsEnabled: true,
+    globalDailyRequestLimit: integerEnv('CHAT_GLOBAL_REQUESTS_PER_DAY', 300, 1, 1_000_000),
+    globalDailyTokenLimit: integerEnv('CHAT_GLOBAL_TOKENS_PER_DAY', 1_000_000, 100, 1_000_000_000),
+  }
 }
 
 const handler = createWebChatHandler({
@@ -78,34 +98,55 @@ const handler = createWebChatHandler({
         const { data, error } = await serviceClient.auth.getUser(token)
         return resolveAuthenticatedUser(data, error)
       },
-      async isProfileApproved(userId: string) {
-        const { data, error } = await serviceClient
-          .from('profiles')
-          .select('review_status')
-          .eq('id', userId)
-          .maybeSingle()
-        if (error) {
-          throw new Error(`Could not authorize WebChat profile: ${error.message}`)
-        }
-        return data?.review_status === 'approved'
+      async readMemberRuntimeAccess(userId: string) {
+        const { data, error } = await serviceClient.rpc('read_webchat_member_runtime_access', {
+          requested_user_id: userId,
+        })
+        if (error) throw new Error('Could not read WebChat member access')
+        return parseWebChatMemberRuntimeAccess(data)
+      },
+      async readRelayRuntimeConfig() {
+        const { data, error } = await serviceClient.rpc('read_webchat_relay_runtime_config')
+        if (error) throw new Error('Could not read WebChat relay runtime configuration')
+        return resolveWebChatRelayRuntimeConfig(data, environmentRelayRuntimeConfig)
       },
       async claimWebChatRequest(input) {
-        const { data, error } = await serviceClient.rpc('claim_webchat_request', {
+        const { data, error } = await serviceClient.rpc('claim_authorized_webchat_request', {
           requested_user_id: input.userId,
           requested_request_id: input.requestId,
           requested_fingerprint: input.fingerprint,
           requested_owner_token: input.ownerToken,
-          minute_request_limit: input.policy.minuteRequestLimit,
-          daily_request_limit: input.policy.dailyRequestLimit,
-          daily_token_limit: input.policy.dailyTokenLimit,
+          minute_request_limit: input.minuteRequestLimit,
           requested_reserved_tokens: input.reservedTokens,
-          lease_seconds: input.policy.leaseSeconds,
+          lease_seconds: input.leaseSeconds,
         })
         if (error) throw new Error(`Could not claim WebChat quota: ${error.message}`)
         return parseWebChatClaimResult(data)
       },
+      async claimWebChatBudgetAlert(input) {
+        const { data, error } = await serviceClient.rpc('claim_webchat_budget_alert', {
+          requested_budget_kind: input.budgetKind,
+          requested_limit: input.budgetLimit,
+          requested_reserved_tokens: input.attemptedReservedTokens,
+        })
+        if (error) throw new Error('Could not claim WebChat budget alert')
+        return parseWebChatBudgetAlertClaim(data)
+      },
+      async notifyWebChatBudgetAlert(alert) {
+        await notifyOperationalWebChatBudgetAlert({
+          budgetKind: alert.budgetKind,
+          usageDate: alert.usageDate,
+          budgetLimit: alert.budgetLimit,
+          observedUsage: alert.observedUsage,
+          requestCount: alert.requestCount,
+          settledTokens: alert.settledTokens,
+          reservedTokens: alert.reservedTokens,
+          observedAt: alert.observedAt,
+          resetAt: alert.resetAt,
+        })
+      },
       async markWebChatRequestStarted(userId: string, requestId: string, ownerToken: string) {
-        const { data, error } = await serviceClient.rpc('mark_webchat_request_started', {
+        const { data, error } = await serviceClient.rpc('mark_authorized_webchat_request_started', {
           requested_user_id: userId,
           requested_request_id: requestId,
           requested_owner_token: ownerToken,
@@ -153,12 +194,12 @@ const handler = createWebChatHandler({
       },
     }
   },
-  startChat(options) {
+  startChat(options, runtimeConfig) {
     return startWebChat(
       {
-        baseUrl: requiredEnv('CHAT_RELAY_BASE_URL'),
-        apiKey: requiredEnv('CHAT_RELAY_API_KEY'),
-        model: relayModel,
+        baseUrl: runtimeConfig.baseUrl,
+        apiKey: runtimeConfig.apiKey,
+        model: runtimeConfig.model,
         systemPrompt: SYSTEM_PROMPT,
         promptVersion,
         maxOutputTokens,

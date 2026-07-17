@@ -5,7 +5,9 @@ import {
   type WebChatHandlerDependencies,
   type WebChatServices,
 } from './handler.ts'
-import type { WebChatQuotaPolicy } from './quota.ts'
+import { prepareWebChatQuota, type WebChatQuotaPolicy } from './quota.ts'
+import type { WebChatRelayRuntimeConfig } from './runtime-config.ts'
+import type { WebChatMemberRuntimeAccess } from './member-access.ts'
 import { type StartWebChatOptions, WebChatUpstreamError } from './upstream.ts'
 
 const userId = '11111111-1111-4111-8111-111111111111'
@@ -19,6 +21,21 @@ const quotaPolicy: WebChatQuotaPolicy = {
   dailyRequestLimit: 30,
   dailyTokenLimit: 100_000,
   leaseSeconds: 180,
+}
+const runtimeConfig: WebChatRelayRuntimeConfig = {
+  baseUrl: 'https://relay.example.test/v1',
+  apiKey: 'server-secret',
+  model: quotaPolicy.model,
+  requestsEnabled: true,
+  globalDailyRequestLimit: 300,
+  globalDailyTokenLimit: 1_000_000,
+}
+const memberAccess: WebChatMemberRuntimeAccess = {
+  accountEligible: true,
+  enabled: true,
+  dailyRequestLimit: 30,
+  dailyTokenLimit: 100_000,
+  version: 1,
 }
 
 function request(
@@ -53,8 +70,11 @@ function services(overrides: Partial<WebChatServices> = {}): WebChatServices {
     async getUser() {
       return { id: userId }
     },
-    async isProfileApproved() {
-      return true
+    async readMemberRuntimeAccess() {
+      return memberAccess
+    },
+    async readRelayRuntimeConfig() {
+      return runtimeConfig
     },
     async claimWebChatRequest() {
       return {
@@ -66,6 +86,22 @@ function services(overrides: Partial<WebChatServices> = {}): WebChatServices {
         retryAfterSeconds: null,
       }
     },
+    async claimWebChatBudgetAlert(input) {
+      return {
+        shouldNotify: false,
+        budgetKind: input.budgetKind,
+        usageDate: '2026-07-17',
+        budgetLimit: input.budgetLimit,
+        requestCount: 0,
+        settledTokens: 0,
+        reservedTokens: 0,
+        attemptedReservedTokens: input.attemptedReservedTokens,
+        observedUsage: input.attemptedReservedTokens,
+        observedAt: '2026-07-17T10:00:00.000Z',
+        resetAt: '2026-07-17T16:00:00.000Z',
+      }
+    },
+    async notifyWebChatBudgetAlert() {},
     async markWebChatRequestStarted() {
       return true
     },
@@ -182,39 +218,89 @@ Deno.test('webchat disabled switch fails before Auth or request parsing', async 
   strictEqual(serviceCount, 0)
 })
 
-Deno.test('webchat authenticates the bearer token and requires an approved profile', async () => {
-  let approvedChecks = 0
-  const missing = await createWebChatHandler(dependencies())(
-    request(undefined, { authorization: '' }),
-  )
-  strictEqual(missing.status, 401)
+Deno.test(
+  'webchat authenticates the bearer token and requires an eligible authorized member',
+  async () => {
+    let approvedChecks = 0
+    const missing = await createWebChatHandler(dependencies())(
+      request(undefined, { authorization: '' }),
+    )
+    strictEqual(missing.status, 401)
 
-  const expired = await createWebChatHandler(
+    const expired = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async getUser() {
+              return null
+            },
+          }),
+      }),
+    )(request())
+    strictEqual(expired.status, 401)
+
+    const suspended = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async readMemberRuntimeAccess(targetUserId) {
+              strictEqual(targetUserId, userId)
+              approvedChecks += 1
+              return { ...memberAccess, accountEligible: false, enabled: false }
+            },
+          }),
+      }),
+    )(request())
+    strictEqual(suspended.status, 403)
+    strictEqual(approvedChecks, 1)
+
+    let relayReads = 0
+    const notAuthorized = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async readMemberRuntimeAccess() {
+              return { ...memberAccess, enabled: false }
+            },
+            async readRelayRuntimeConfig() {
+              relayReads += 1
+              throw new Error('must not decrypt relay configuration')
+            },
+          }),
+      }),
+    )(request({ messages: [] }))
+    strictEqual(notAuthorized.status, 403)
+    deepStrictEqual((await responseBody(notAuthorized)).error, {
+      code: 'chat_access_denied',
+      message: '当前账号尚未开通 AI 学习助手',
+    })
+    strictEqual(relayReads, 0)
+  },
+)
+
+Deno.test('webchat administrator pause rejects before parsing or claiming quota', async () => {
+  let claims = 0
+  const response = await createWebChatHandler(
     dependencies({
       createServices: () =>
         services({
-          async getUser() {
-            return null
+          async readRelayRuntimeConfig() {
+            return { ...runtimeConfig, requestsEnabled: false }
+          },
+          async claimWebChatRequest() {
+            claims += 1
+            throw new Error('must not claim while paused')
           },
         }),
     }),
-  )(request())
-  strictEqual(expired.status, 401)
+  )(request({ model: 'client-selected-model' }))
 
-  const suspended = await createWebChatHandler(
-    dependencies({
-      createServices: () =>
-        services({
-          async isProfileApproved(targetUserId) {
-            strictEqual(targetUserId, userId)
-            approvedChecks += 1
-            return false
-          },
-        }),
-    }),
-  )(request())
-  strictEqual(suspended.status, 403)
-  strictEqual(approvedChecks, 1)
+  strictEqual(response.status, 503)
+  deepStrictEqual((await responseBody(response)).error, {
+    code: 'chat_paused',
+    message: 'AI 学习助手已由管理员暂停',
+  })
+  strictEqual(claims, 0)
 })
 
 Deno.test('webchat forwards only validated messages and server-derived identity', async () => {
@@ -250,6 +336,47 @@ Deno.test('webchat forwards only validated messages and server-derived identity'
   ])
 })
 
+Deno.test('webchat resolves the actual relay model before quota fingerprinting', async () => {
+  const dynamicRuntime = { ...runtimeConfig, model: 'runtime-model-v2' }
+  let claimedFingerprint = ''
+  let startedRuntime: WebChatRelayRuntimeConfig | null = null
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async readRelayRuntimeConfig() {
+            return dynamicRuntime
+          },
+          async claimWebChatRequest(input) {
+            claimedFingerprint = input.fingerprint
+            return {
+              decision: 'acquired',
+              status: 'claimed',
+              remainingMinuteRequests: 2,
+              remainingDailyRequests: 29,
+              remainingDailyTokens: 90_000,
+              retryAfterSeconds: null,
+            }
+          },
+        }),
+      async startChat(_options, resolvedRuntime) {
+        startedRuntime = resolvedRuntime
+        return new Response('data: [DONE]\n\n', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    }),
+  )(request(undefined, { 'x-request-id': 'dynamic-model-request' }))
+
+  const staticPolicyFingerprint = await prepareWebChatQuota(
+    [{ id: 'user-1', role: 'user', text: '解释二分' }],
+    quotaPolicy,
+  )
+  strictEqual(response.status, 200)
+  strictEqual(claimedFingerprint === staticPolicyFingerprint.fingerprint, false)
+  deepStrictEqual(startedRuntime, dynamicRuntime)
+})
+
 Deno.test(
   'webchat claims quota before starting and wires the fenced stream lifecycle',
   async () => {
@@ -263,7 +390,8 @@ Deno.test(
               strictEqual(input.requestId, 'quota-request-1')
               strictEqual(input.ownerToken.length > 20, true)
               strictEqual(input.reservedTokens > quotaPolicy.maxOutputTokens, true)
-              strictEqual(input.policy, quotaPolicy)
+              strictEqual(input.minuteRequestLimit, quotaPolicy.minuteRequestLimit)
+              strictEqual(input.leaseSeconds, quotaPolicy.leaseSeconds)
               events.push('claimed')
               return {
                 decision: 'acquired',
@@ -309,10 +437,15 @@ Deno.test(
 
 Deno.test('webchat maps atomic quota decisions without calling the relay', async () => {
   for (const [decision, expectedStatus, expectedCode] of [
+    ['member_access_denied', 403, 'chat_access_denied'],
+    ['request_token_limited', 413, 'chat_request_token_limit'],
+    ['requests_disabled', 503, 'chat_paused'],
     ['active_concurrent', 409, 'generation_in_progress'],
     ['minute_limited', 429, 'chat_minute_limited'],
     ['daily_request_limited', 429, 'chat_daily_request_limited'],
     ['daily_token_limited', 429, 'chat_daily_token_limited'],
+    ['global_daily_request_limited', 503, 'chat_global_request_budget_exhausted'],
+    ['global_daily_token_limited', 503, 'chat_global_token_budget_exhausted'],
     ['duplicate_active', 409, 'duplicate_request_active'],
     ['duplicate_terminal', 409, 'duplicate_request'],
     ['idempotency_conflict', 409, 'request_id_conflict'],
@@ -345,6 +478,188 @@ Deno.test('webchat maps atomic quota decisions without calling the relay', async
   }
 })
 
+Deno.test('webchat sends only the first claimed global budget alert', async () => {
+  let markerInput: unknown
+  let notified: unknown
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async claimWebChatRequest() {
+            return {
+              decision: 'global_daily_token_limited',
+              status: 'blocked',
+              remainingMinuteRequests: 2,
+              remainingDailyRequests: 29,
+              remainingDailyTokens: 90_000,
+              retryAfterSeconds: 60,
+            }
+          },
+          async claimWebChatBudgetAlert(input) {
+            markerInput = input
+            return {
+              shouldNotify: true,
+              budgetKind: 'tokens',
+              usageDate: '2026-07-17',
+              budgetLimit: 1_000_000,
+              requestCount: 28,
+              settledTokens: 940_000,
+              reservedTokens: 40_000,
+              attemptedReservedTokens: input.attemptedReservedTokens,
+              observedUsage: 1_001_024,
+              observedAt: '2026-07-17T10:00:00.000Z',
+              resetAt: '2026-07-17T16:00:00.000Z',
+            }
+          },
+          async notifyWebChatBudgetAlert(alert) {
+            notified = alert
+          },
+        }),
+    }),
+  )(request())
+
+  strictEqual(response.status, 503)
+  strictEqual(
+    ((await responseBody(response)).error as { code: string }).code,
+    'chat_global_token_budget_exhausted',
+  )
+  strictEqual((markerInput as { budgetKind: string }).budgetKind, 'tokens')
+  strictEqual((markerInput as { budgetLimit: number }).budgetLimit, 1_000_000)
+  strictEqual(
+    (markerInput as { attemptedReservedTokens: number }).attemptedReservedTokens > 0,
+    true,
+  )
+  strictEqual((notified as { shouldNotify: boolean }).shouldNotify, true)
+})
+
+Deno.test('webchat preserves the quota response when budget alerting fails', async () => {
+  const errors: unknown[] = []
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async claimWebChatRequest() {
+            return {
+              decision: 'global_daily_request_limited',
+              status: 'blocked',
+              remainingMinuteRequests: 2,
+              remainingDailyRequests: 29,
+              remainingDailyTokens: 90_000,
+              retryAfterSeconds: 60,
+            }
+          },
+          async claimWebChatBudgetAlert() {
+            throw new Error('budget marker unavailable')
+          },
+        }),
+      async reportUnexpectedError(_request, error) {
+        errors.push(error)
+      },
+    }),
+  )(request())
+
+  strictEqual(response.status, 503)
+  strictEqual(
+    ((await responseBody(response)).error as { code: string }).code,
+    'chat_global_request_budget_exhausted',
+  )
+  strictEqual(errors.length, 1)
+})
+
+Deno.test('webchat checks global budgets when a member daily limit wins precedence', async () => {
+  const checkedKinds: string[] = []
+  const notifiedKinds: string[] = []
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async claimWebChatRequest() {
+            return {
+              decision: 'daily_request_limited',
+              status: 'blocked',
+              remainingMinuteRequests: 2,
+              remainingDailyRequests: 0,
+              remainingDailyTokens: 90_000,
+              retryAfterSeconds: 60,
+            }
+          },
+          async claimWebChatBudgetAlert(input) {
+            checkedKinds.push(input.budgetKind)
+            return {
+              shouldNotify: input.budgetKind === 'requests',
+              budgetKind: input.budgetKind,
+              usageDate: '2026-07-17',
+              budgetLimit: input.budgetLimit,
+              requestCount: 30,
+              settledTokens: 90_000,
+              reservedTokens: 0,
+              attemptedReservedTokens: input.attemptedReservedTokens,
+              observedUsage:
+                input.budgetKind === 'requests' ? 30 : 90_000 + input.attemptedReservedTokens,
+              observedAt: '2026-07-17T10:00:00.000Z',
+              resetAt: '2026-07-17T16:00:00.000Z',
+            }
+          },
+          async notifyWebChatBudgetAlert(alert) {
+            notifiedKinds.push(alert.budgetKind)
+          },
+        }),
+    }),
+  )(request())
+
+  strictEqual(response.status, 429)
+  strictEqual(
+    ((await responseBody(response)).error as { code: string }).code,
+    'chat_daily_request_limited',
+  )
+  deepStrictEqual(checkedKinds, ['requests', 'tokens'])
+  deepStrictEqual(notifiedKinds, ['requests'])
+})
+
+Deno.test('webchat checks global budgets when a member minute limit wins precedence', async () => {
+  const checkedKinds: string[] = []
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async claimWebChatRequest() {
+            return {
+              decision: 'minute_limited',
+              status: 'blocked',
+              remainingMinuteRequests: 0,
+              remainingDailyRequests: 29,
+              remainingDailyTokens: 90_000,
+              retryAfterSeconds: 60,
+            }
+          },
+          async claimWebChatBudgetAlert(input) {
+            checkedKinds.push(input.budgetKind)
+            return {
+              shouldNotify: false,
+              budgetKind: input.budgetKind,
+              usageDate: '2026-07-17',
+              budgetLimit: input.budgetLimit,
+              requestCount: 0,
+              settledTokens: 0,
+              reservedTokens: 0,
+              attemptedReservedTokens: input.attemptedReservedTokens,
+              observedUsage: input.attemptedReservedTokens,
+              observedAt: '2026-07-17T10:00:00.000Z',
+              resetAt: '2026-07-17T16:00:00.000Z',
+            }
+          },
+        }),
+    }),
+  )(request())
+
+  strictEqual(response.status, 429)
+  strictEqual(
+    ((await responseBody(response)).error as { code: string }).code,
+    'chat_minute_limited',
+  )
+  deepStrictEqual(checkedKinds, ['requests', 'tokens'])
+})
+
 Deno.test('webchat releases only the pre-start claim when relay startup fails', async () => {
   let releases = 0
   const response = await createWebChatHandler(
@@ -373,9 +688,11 @@ Deno.test(
     let claimed = false
     const response = await createWebChatHandler(
       dependencies({
-        quotaPolicy: { ...quotaPolicy, dailyTokenLimit: 100 },
         createServices: () =>
           services({
+            async readMemberRuntimeAccess() {
+              return { ...memberAccess, dailyTokenLimit: 100 }
+            },
             async claimWebChatRequest() {
               claimed = true
               throw new Error('must not be called')
@@ -420,7 +737,7 @@ Deno.test(
       dependencies({
         createServices: () =>
           services({
-            async isProfileApproved() {
+            async readMemberRuntimeAccess() {
               throw new Error('sensitive database transport detail')
             },
           }),

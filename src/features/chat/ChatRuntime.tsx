@@ -148,10 +148,12 @@ function ErrorNotice({
   error,
   onDismiss,
   onReauthenticate,
+  onRefreshAccess,
 }: {
   error: WebChatApiError | null
   onDismiss: () => void
   onReauthenticate: () => Promise<void>
+  onRefreshAccess?: () => void | Promise<void>
 }) {
   const aui = useAui()
   const isRunning = useAuiState((state) => state.thread.isRunning)
@@ -188,6 +190,10 @@ function ErrorNotice({
       ) : error.status === 401 ? (
         <button type="button" onClick={() => void onReauthenticate()}>
           重新登录
+        </button>
+      ) : error.status === 403 && onRefreshAccess ? (
+        <button type="button" onClick={() => void onRefreshAccess()}>
+          重新检查权限
         </button>
       ) : null}
     </div>
@@ -250,10 +256,12 @@ function AssistantWorkspace({
   error,
   onClearError,
   onReauthenticate,
+  onRefreshAccess,
 }: {
   error: WebChatApiError | null
   onClearError: () => void
   onReauthenticate: () => Promise<void>
+  onRefreshAccess?: () => void | Promise<void>
 }) {
   return (
     <section className="assistant-workbench" aria-label="AI 对话工作台">
@@ -265,13 +273,24 @@ function AssistantWorkspace({
         </div>
         <ClearConversation onClear={onClearError} />
       </header>
-      <ErrorNotice error={error} onDismiss={onClearError} onReauthenticate={onReauthenticate} />
+      <ErrorNotice
+        error={error}
+        onDismiss={onClearError}
+        onReauthenticate={onReauthenticate}
+        onRefreshAccess={onRefreshAccess}
+      />
       <ConversationThread />
     </section>
   )
 }
 
-export function ChatRuntime({ transport }: { transport?: ChatTransport<UIMessage> }) {
+export function ChatRuntime({
+  transport,
+  onUsageChanged,
+}: {
+  transport?: ChatTransport<UIMessage>
+  onUsageChanged?: () => void | Promise<void>
+}) {
   const navigate = useNavigate()
   const { signOut } = useAuth()
   const [error, setError] = useState<WebChatApiError | null>(null)
@@ -289,6 +308,7 @@ export function ChatRuntime({ transport }: { transport?: ChatTransport<UIMessage
     onError: handleError,
     onFinish: ({ isError }) => {
       if (!isError) clearError()
+      void onUsageChanged?.()
     },
   })
 
@@ -298,6 +318,7 @@ export function ChatRuntime({ transport }: { transport?: ChatTransport<UIMessage
         error={error}
         onClearError={clearError}
         onReauthenticate={reauthenticate}
+        onRefreshAccess={onUsageChanged}
       />
     </AssistantRuntimeProvider>
   )

@@ -166,7 +166,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -184,10 +184,16 @@ npm run test:db
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_WEBCHAT_UI_ENABLED`（仅接受 `true`/`false`；默认关闭）
+- `VITE_WEBCHAT_API_URL`（仅供本地回环测试；生产固定使用当前 Supabase 项目的 `webchat` Function）
 
 只读生产验收变量：
 
 - `PRODUCTION_E2E_BASE_URL`（正式 Pages 根路径，不进入前端构建）
+
+GitHub Actions Variables：
+
+- `VITE_WEBCHAT_UI_ENABLED`（Pages 构建开关；未配置时 workflow 明确回退为 `false`）
 
 GitHub Actions Secrets：
 
@@ -197,6 +203,7 @@ GitHub Actions Secrets：
 - `VITE_SUPABASE_ANON_KEY`
 - `SUPABASE_ACCESS_TOKEN`（仅供加密数据库备份；CLI 每次运行动态取得短期数据库登录，不保存长期数据库密码）
 - `BACKUP_ENCRYPTION_PASSPHRASE`（独立随机口令，至少 32 个字符）
+- WebChat 真实中转站验收启用前另需 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`；三者只供手动 `WebChat relay compatibility` 工作流使用，不能配置为 `VITE_*`，也不会在 PR、push 或定时任务中自动消费模型额度。
 
 Supabase Function Secrets/配置：
 
@@ -208,7 +215,7 @@ Supabase Function Secrets/配置：
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
-- WebChat 默认由两层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 拒绝模型请求。原子并发、滑动分钟、北京时间每日请求/Token 配额以及 `request_id + fingerprint + owner_token` 幂等租约已由数据库 RPC 实现；取消、超时或断流且拿不到可信 Usage 时按预留额度保守结算。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前两层开关都必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；成员额度与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_REQUESTS_PER_DAY`、`CHAT_TOKENS_PER_DAY`、`CHAT_CLAIM_LEASE_SECONDS`，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
+- WebChat 默认由三层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 是最高优先级的环境熔断，数据库 `requests_enabled=false` 允许管理员在 `/admin/webchat` 立即暂停新请求。管理员还可修改中转站 Base URL、固定模型、API Key 和全站北京时间每日请求/Token 上限：地址、模型、开关、预算和版本保存在 `private` 单例表，Key 只写入 Supabase Vault，读取接口只返回“已配置/未配置”，浏览器永远拿不到旧 Key；每次修改还要求原因、实时管理员复核、速率限制和乐观锁，并写入不含 Key 的审计。后台同时读取当天全站请求数、已结算/预留 Token、剩余额度与北京时间重置时间；请求和 Token 预算首次阻断分别在固定全局锁下原子标记，每类每天最多投递一次 `webchat_budget_exhausted` 脱敏 Webhook，Payload 不含成员、请求、消息、中转站地址或 Key，投递失败不改变原额度拒绝结果且不自动重试。管理员还必须在成员详情的“AI 助手访问”中逐人授权并设置每日请求与 Token 上限；无私有授权行、授权关闭、账号停用或非普通成员均默认拒绝。成员 `/assistant` 只读取自己的北京时间当日已用、预留与剩余额度，不返回其他成员、全站预算或中转站配置。WebChat 请求会先检查成员授权，再读取含 Vault Key 的运行时配置；数据库原子 claim 在付费请求前二次读取成员授权、逐人额度、数据库总开关和全站预算，管理员撤权、暂停或降额不会被预读竞态绕过。只有数据库中转站配置行尚不存在时才会使用 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`、`CHAT_GLOBAL_REQUESTS_PER_DAY` 与 `CHAT_GLOBAL_TOKENS_PER_DAY` 环境变量；成员每日额度不使用环境变量回退。数据库行一旦存在，其暂停开关和全站预算始终优先；若管理员开启请求但地址、模型或 Vault Key 不完整，请求会失败关闭。原子并发、滑动分钟、成员日额度、跨全部成员的全站日预算以及 `request_id + fingerprint + owner_token` 幂等租约均由数据库 RPC 实现；全站账本在 claim、释放、超时回收和已知/未知 Usage 结算时使用固定锁序更新，动态模型会进入请求指纹。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前三层开关都必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；系统分钟限流与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_CLAIM_LEASE_SECONDS`，成员每日请求与 Token 上限只由管理员后台配置，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
@@ -217,7 +224,13 @@ Supabase Function Secrets/配置：
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
-WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有直表权限，只能由 Edge Function 通过四个最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算和开始前释放。账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。
+WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和一次性告警标记。Supabase `service_role` 本身是可访问 Vault 的平台高权限后端凭据，因此只允许部署在受控 Edge Function 中；网站配置读取和审计接口永远不向浏览器返回 Key。账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。
+
+AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。本站不保存问题正文、模型回复或聊天历史，只保留执行限额所需的私有聚合账本；中转站和上游模型的留存、训练、删除与跨境政策必须在真实试运行前由维护者核对，未确认前不得打开生产三层开关。站内披露见 [`/privacy`](https://greenthree.github.io/USTSACMLand/privacy)。
+
+`npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只证明本地协议与客户端隔离，不能替代真实中转站费用、Usage 和 Abort 验收。
+
+真实中转站上线前必须先运行手动兼容性验收：非流式响应需要返回可见文本、实际模型 ID 和 Usage；流式响应需要使用 Responses typed SSE，并依次观察 `response.created`、至少一个 `response.output_text.delta`/`response.refusal.delta` 和带 Usage 的 `response.completed`；Abort 检查必须在首个增量后两秒内结束客户端流。验收器不记录 Prompt、回复、请求 ID、Key 或中转站主机，只上传主机 SHA-256、路径、模型、事件类型、时延和 Token 数，Artifact 保留 14 天。配置与发布顺序见 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)。
 
 数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 
@@ -255,10 +268,13 @@ npm run check:supabase-preflight
 npx --yes supabase@2.109.1 db push --linked --include-all
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password \
   --use-api --import-map supabase/functions/deno.json
+# 仅在 WebChat 发布检查单通过后部署；部署本身不会打开 CHAT_ENABLED。
+npx --yes supabase@2.109.1 functions deploy webchat webchat-config \
+  --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```
 
-Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/index.html` 为 `dist/404.html`。`.github/workflows/deploy-pages.yml` 仅在 `main` 的完整 CI 成功后运行，并检出通过 CI 的精确提交再构建、发布 Pages；数据库安全任务失败不会覆盖线上版本。正式地址约定为 `https://greenthree.github.io/USTSACMLand/`；Supabase Auth 回调配置保留 localhost 并加入正式路径，`ALLOWED_ORIGIN` 则使用不含路径的 `https://greenthree.github.io`。
+Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/index.html` 为 `dist/404.html`。`.github/workflows/deploy-pages.yml` 仅在 `main` 的完整 CI 成功后运行，并检出通过 CI 的精确提交再构建、发布 Pages；数据库安全任务失败不会覆盖线上版本。Pages 会校验并注入仓库变量 `VITE_WEBCHAT_UI_ENABLED`，未配置时固定为 `false`；生产 WebChat API 地址由 `VITE_SUPABASE_URL` 推导为同项目 `/functions/v1/webchat`，不允许把登录 Token 发往任意覆盖域名。正式地址约定为 `https://greenthree.github.io/USTSACMLand/`；Supabase Auth 回调配置保留 localhost 并加入正式路径，`ALLOWED_ORIGIN` 则使用不含路径的 `https://greenthree.github.io`。
 
 ## 当前限制与下一步
 

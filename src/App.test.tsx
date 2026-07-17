@@ -100,6 +100,19 @@ describe('route authorization', () => {
     expect(screen.getByRole('link', { name: /公告管理/ })).toHaveClass('active')
   })
 
+  it('exposes WebChat configuration to approved demo administrators', async () => {
+    sessionStorage.setItem(demoSessionKey, 'admin@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/admin/webchat']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'WebChat 配置' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /WebChat 配置/ })).toHaveClass('active')
+    expect(document.title).toBe('WebChat 配置 | USTS ACM Land')
+  })
+
   it('keeps the privacy notice public', async () => {
     render(
       <MemoryRouter initialEntries={['/privacy']}>

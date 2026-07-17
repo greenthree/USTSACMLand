@@ -20,6 +20,7 @@
   npm run check:ci-workflow
   npm run check:sync-workflow
   npm run check:backup-workflow
+  npm run check:webchat-relay-workflow
   npm run check:repository-readiness -- greenthree/USTSACMLand
   npm run check:supabase-preflight
   npm test
@@ -27,7 +28,7 @@
   npm run test:e2e
   npm run build
   npm run check:bundle
-  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts
+  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
   npx --yes deno lint --config supabase/functions/deno.json supabase/functions
   npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
   git diff --check
@@ -54,6 +55,7 @@
 
 - [ ] 按“数据库 → Edge Functions → Pages”的顺序部署。
 - [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 使用仓库 import map 部署成功。
+- [ ] 如本次发布 WebChat：`webchat-config` 与 `webchat` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
 - [ ] 发布记录包含当前 Git SHA 与四个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
 - [ ] `npm run check:supabase-readiness` 确认四个函数均精确允许正式 Pages Origin、不允许恶意 Origin，且匿名 GET 只返回 `401` 或 `405`。
@@ -74,6 +76,13 @@
 - [ ] 生产凭据轮换人、存放位置和回滚方式已记录；未把真实值复制到发布记录。
 - [ ] Firecrawl 用量、QOJ 登录、洛谷认证和 Supabase 配额均处于可用状态。
 - [ ] 使用与生产 `FIRECRAWL_API_KEY` 相同团队的维护者凭据运行 `firecrawl credit-usage --json --pretty`；剩余比例高于 25%，或已记录扩容/降耗措施。不得把 API Key 或完整凭据配置写入发布记录。
+- [ ] 如本次启用或更换 WebChat 中转站：手动 `WebChat relay compatibility` 工作流已通过非流式、Responses typed SSE、Usage 和 Abort 四项；下载的 14 天 Artifact 不含 Prompt、回复、请求 ID、Key 或明文主机，`CHAT_ENABLED` 在完成函数边界和额度复核前仍为 `false`。
+- [ ] `npm run test:e2e:webchat` 已通过五浏览器矩阵；10 个独立页面回复不串流、10 路同时 HTTP 流全部完成、键盘停止触发 Abort、减少动画和移动端 axe 门禁均无回归。
+- [ ] `/admin/webchat` 已由当前有效管理员写入同一组 Base URL、模型与 Key，并设置全站北京时间每日请求/Token 预算；Key 仅存在 Supabase Vault，配置读取和审计只显示脱敏状态，首次配置、留空保留、轮换、预算更新、数据库暂停和版本冲突均已烟测。
+- [ ] `/admin/webchat` 当日请求数、已结算/预留 Token、剩余额度与北京时间重置时间和数据库聚合账本一致；请求/Token 首次阻断各只投递一次脱敏 `webchat_budget_exhausted`，投递失败不改变 `503` 且不重试。
+- [ ] 在成员详情中只为本次 3–5 名试运行成员开启 AI 助手并逐人设置每日请求/Token 上限；无授权行、关闭授权、停用账号和非普通成员均返回结构化 `403`，撤权或降额在数据库原子 claim 前立即生效。
+- [ ] 已授权成员 `/assistant` 显示的北京时间当日请求、已结算/预留 Token、剩余额度与私有账本一致；成员无法读取他人额度、全站预算、中转站地址、模型或 Key。
+- [ ] WebChat 启用顺序为 `CHAT_ENABLED=true` → 后台打开数据库请求开关 → GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` → 触发下一次 Pages 构建；Pages 构建日志确认客户端地址由同一 `VITE_SUPABASE_URL` 推导到 `/functions/v1/webchat`。关闭时先关闭数据库请求开关，必要时同时恢复另外两层为 `false`。
 
 ## 6. 前端与可访问性烟测
 
@@ -87,6 +96,7 @@
 ## 7. 法务、隐私与发布决定
 
 - [ ] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。
+- [ ] 如本次启用 WebChat：站内隐私页已说明消息转发对象、本站不保存对话正文及私有额度账本边界；负责人已核对并记录真实中转站和上游模型的留存、训练、删除与跨境政策，未确认前保持生产三层开关关闭。
 - [ ] 已在运维手册核验并填写 Supabase、GitHub Actions 和 Firecrawl 的实际保留窗口、负责人及删除/恢复限制。
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [ ] 使用两个数据库连接验证最终 RPC 的行锁 fencing：竞争接管在删除事务结束前持续阻塞；记录完整提交耗时、响应丢失后的状态对账，以及旧 access JWT 无法越过 live Profile/RLS 边界。

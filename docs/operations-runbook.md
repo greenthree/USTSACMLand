@@ -45,11 +45,12 @@
    npm run format:check
    npm run lint
    npm run check:sync-workflow
+   npm run check:webchat-relay-workflow
    npm test
    npx playwright install chromium firefox webkit
    npm run test:e2e
    npm run build
-   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts
+   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
    npx --yes deno lint --config supabase/functions/deno.json supabase/functions
    npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
    git diff --check
@@ -107,6 +108,12 @@ npx --yes supabase@2.109.1 migration list --linked
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password `
   --use-api --import-map supabase/functions/deno.json
 ```
+
+WebChat 不随其他函数直接启用。首次部署或更换中转站前，先在 GitHub Actions Secrets 中配置 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，手动运行 `WebChat relay compatibility`，并下载检查 14 天保留的脱敏报告。只有非流式、typed SSE、Usage 和 Abort 四项均通过后，才应用 WebChat 配额、成员授权与配置 migration，部署 `webchat-config` 与 `webchat`，然后由管理员在 `/admin/webchat` 写入同一组 Base URL、模型和 Key，设置全站北京时间每日请求/Token 预算，并继续保持“允许成员发起 AI 请求”关闭。Key 只进入 Supabase Vault；保存后页面必须清空密钥输入框，刷新时只能看到配置状态、开关、预算、版本和更新时间。随后在成员详情中只为 3–5 名试运行成员打开“允许使用 AI 学习助手”，逐人设置每日请求与 Token 上限并填写原因；无授权行默认拒绝，停用账号与非普通成员始终无效。成员端 `/assistant` 应只显示自己的当日已用、预留、剩余和北京时间重置时间。此时保持 `CHAT_ENABLED=false`，先验证环境禁用态 `503`、数据库暂停态 `503`、CORS、匿名拒绝、管理员配置边界、成员默认拒绝、撤权/降额竞态、逐人及全站预算边界。完成真实中转站、额度和隐私验收后，先受控设置 `CHAT_ENABLED=true`，再由管理员打开数据库请求开关，最后在下一次前端 Pages 构建中设置 `VITE_WEBCHAT_UI_ENABLED=true`。`CHAT_RELAY_*` 与 `CHAT_GLOBAL_*` Supabase Function Secrets 只在数据库 RPC 没有返回中转站配置行时作为部署引导/应急回退；成员每日额度没有环境变量回退。数据库配置行一旦存在，后台暂停开关和预算始终优先，启用状态下缺少地址、模型或 Vault Key 会失败关闭。任一阶段失败时立即关闭数据库请求开关，并按需要恢复 `CHAT_ENABLED=false` 与 `VITE_WEBCHAT_UI_ENABLED=false`；不能只隐藏导航而继续让后端消费模型额度。完整步骤见 [WebChat 中转站兼容性验收](./webchat-relay-compatibility.md)。
+
+Pages 的客户端开关使用 GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED`，只接受小写 `true` 或 `false`；未配置时 workflow 固定回退为 `false`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
+
+WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 Token、正在预留 Token、剩余额度和下一次北京时间 00:00 重置时间。使用隔离数据分别触发请求/Token 首次阻断，接收端应各收到一次 `webchat_budget_exhausted`；同一天的并发后续阻断不得重复投递。告警 Payload 只能包含日期、预算种类、上限、聚合用量和时间，不得包含成员、请求、消息、模型内容、中转站地址或 Key。接收端超时/`503` 时原 WebChat 请求仍应返回额度 `503`，且不得自动重试或放行。
 
 部署后执行受控烟测：
 
@@ -178,19 +185,20 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 
 2026-07-15 的只读 Secret 名称审计确认洛谷、QOJ、Firecrawl 与 `ALLOWED_ORIGIN` 已配置；`SYNC_ALERT_WEBHOOK_URL`、`SYNC_ALERT_WEBHOOK_TOKEN`、`DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN` 尚未配置。这四项补齐并完成告警/注销烟测前，不得宣称同步告警或安全注销已在生产可用。审计工具只读取名称，不输出 Secret 值或摘要。
 
-| 凭据                      | 存放位置                                | 轮换后验证                                                 |
-| ------------------------- | --------------------------------------- | ---------------------------------------------------------- |
-| Firecrawl API Key         | Supabase Function Secrets               | 牛客回退一次、QOJ 登录健康检查一次、用量面板正常           |
-| QOJ 服务账号密码          | QOJ + Supabase Function Secrets         | 单次登录、目标主页匹配、会话最终关闭；不重试失败请求       |
-| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新 | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                |
-| 同步告警 Token            | 接收端 + Supabase Function Secrets      | 受控终态失败仅投递一次，Payload 保持脱敏                   |
-| 同步队列调度 Token        | Supabase Function Secret + Vault        | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx   |
-| Supabase access token     | GitHub Actions/维护者本机安全存储       | migration list 与函数部署只访问目标项目                    |
-| Supabase service role key | Edge/GitHub 受控 Secret                 | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值   |
-| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器       | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI      |
-| 数据库备份加密口令        | GitHub Actions Secret、密码管理器       | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验        |
-| 注销恢复下限 GitHub Token | Supabase Function Secret                | 仅 Variables write；受控注销前后变量单调前移且不含身份信息 |
-| 管理员密码                | Supabase Auth                           | 新密码登录、旧会话按策略失效、恢复邮箱可用                 |
+| 凭据                      | 存放位置                                       | 轮换后验证                                                                                     |
+| ------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Firecrawl API Key         | Supabase Function Secrets                      | 牛客回退一次、QOJ 登录健康检查一次、用量面板正常                                               |
+| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 单次登录、目标主页匹配、会话最终关闭；不重试失败请求                                           |
+| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新        | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                    |
+| 同步告警 Token            | 接收端 + Supabase Function Secrets             | 受控终态失败仅投递一次，Payload 保持脱敏                                                       |
+| 同步队列调度 Token        | Supabase Function Secret + Vault               | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                       |
+| Supabase access token     | GitHub Actions/维护者本机安全存储              | migration list 与函数部署只访问目标项目                                                        |
+| Supabase service role key | Edge/GitHub 受控 Secret                        | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                                       |
+| WebChat 中转站 Key        | GitHub Actions（验收）+ Supabase Vault（运行） | 手动兼容性烟测、后台轮换、禁用态函数边界和受控成员试运行；前端包、配置读取与审计中均不存在该值 |
+| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器              | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI                                          |
+| 数据库备份加密口令        | GitHub Actions Secret、密码管理器              | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验                                            |
+| 注销恢复下限 GitHub Token | Supabase Function Secret                       | 仅 Variables write；受控注销前后变量单调前移且不含身份信息                                     |
+| 管理员密码                | Supabase Auth                                  | 新密码登录、旧会话按策略失效、恢复邮箱可用                                                     |
 
 轮换后搜索近期日志只能检查字段名或错误码，禁止搜索并输出 Secret 本身。若凭据疑似泄露，先撤销、再调查影响范围；不要继续使用旧值“观察是否被滥用”。
 

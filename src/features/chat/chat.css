@@ -24,9 +24,136 @@
 }
 
 .assistant-intro,
+.assistant-quota,
 .assistant-workbench {
   width: min(1180px, 100%);
   margin: 0 auto;
+}
+
+.assistant-quota {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 24px 48px;
+  align-items: center;
+  margin-bottom: 22px;
+  padding: 17px 2px;
+  background: rgb(255 254 249 / 54%);
+  border-top: 1px solid var(--assistant-line-strong);
+  border-bottom: 1px solid var(--assistant-line-strong);
+}
+
+.assistant-quota-heading {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 34px;
+  gap: 11px;
+  align-items: center;
+}
+
+.assistant-quota-heading > svg {
+  color: #5e7c12;
+}
+
+.assistant-quota-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.assistant-quota-heading strong {
+  font-size: 13px;
+}
+
+.assistant-quota-heading span {
+  color: var(--assistant-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.assistant-quota-heading button,
+.assistant-quota-error button {
+  min-width: 34px;
+  min-height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  color: var(--assistant-ink);
+  background: transparent;
+  border: 1px solid var(--assistant-line-strong);
+  border-radius: 3px;
+}
+
+.assistant-quota-heading button:hover:not(:disabled),
+.assistant-quota-error button:hover {
+  background: var(--assistant-accent-soft);
+  border-color: #9bbd34;
+}
+
+.assistant-quota-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.assistant-quota-metrics dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.assistant-quota-metrics dl + dl {
+  padding-left: 24px;
+  border-left: 1px solid var(--assistant-line);
+}
+
+.assistant-quota-metrics div {
+  display: grid;
+  gap: 4px;
+}
+
+.assistant-quota-metrics dt {
+  color: var(--assistant-muted);
+  font-size: 10px;
+}
+
+.assistant-quota-metrics dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.assistant-quota-metrics dd small {
+  color: var(--assistant-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.assistant-access-denied,
+.assistant-quota-loading,
+.assistant-quota-error {
+  margin: 0;
+  color: var(--assistant-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.assistant-access-denied {
+  color: #7b3f38;
+}
+
+.assistant-quota-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--assistant-alert);
+}
+
+.assistant-quota-error button {
+  width: auto;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .assistant-intro {
@@ -112,6 +239,20 @@
   color: var(--assistant-muted);
   font-size: 12px;
   line-height: 1.65;
+}
+
+.assistant-intro-notes a {
+  width: max-content;
+  color: #4d6d00;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.assistant-intro-notes a:hover {
+  color: var(--assistant-ink);
 }
 
 .assistant-workbench {
@@ -206,7 +347,7 @@
 
 .assistant-empty-index {
   padding-top: 7px;
-  color: #829078;
+  color: #627059;
   border-top: 2px solid var(--assistant-ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
@@ -594,6 +735,7 @@
 .assistant-clear-button:focus-visible,
 .assistant-error button:focus-visible,
 .assistant-error a:focus-visible,
+.assistant-intro-notes a:focus-visible,
 .assistant-suggestions button:focus-visible,
 .assistant-message-actions button:focus-visible,
 .assistant-scroll-button:focus-visible,
@@ -621,6 +763,11 @@
   .assistant-intro {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .assistant-quota {
+    grid-template-columns: 1fr;
+    gap: 15px;
   }
 
   .assistant-intro-notes {
@@ -662,6 +809,20 @@
 
   .assistant-intro {
     margin-bottom: 28px;
+  }
+
+  .assistant-quota-metrics,
+  .assistant-quota-metrics dl {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .assistant-quota-metrics {
+    gap: 18px;
+  }
+
+  .assistant-quota-metrics dl + dl {
+    padding-left: 18px;
   }
 
   .assistant-intro h1 {

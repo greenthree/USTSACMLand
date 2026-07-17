@@ -1,5 +1,5 @@
 import { DefaultChatTransport, type UIMessage } from 'ai'
-import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
+import { demoAuthEnabled, supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 
 interface WebChatErrorPayload {
   error?: {
@@ -15,6 +15,13 @@ export interface WebChatTransportOptions {
   getAccessToken: () => Promise<string | null>
   createRequestId?: () => string
   fetch?: typeof globalThis.fetch
+}
+
+export interface WebChatApiUrlOptions {
+  configuredUrl?: string | null
+  supabaseUrl?: string | null
+  browserOrigin?: string | null
+  allowInsecureLoopback?: boolean
 }
 
 export class WebChatApiError extends Error {
@@ -105,6 +112,53 @@ export function normalizeWebChatError(error: unknown): WebChatApiError {
   return new WebChatApiError('AI 学习助手暂时不可用，请稍后重试。', null, 'client_error')
 }
 
+export function resolveWebChatApiUrl({
+  configuredUrl,
+  supabaseUrl: configuredSupabaseUrl,
+  browserOrigin,
+  allowInsecureLoopback = false,
+}: WebChatApiUrlOptions): string {
+  const explicit = configuredUrl?.trim()
+  if (!explicit) {
+    return configuredSupabaseUrl
+      ? `${configuredSupabaseUrl.replace(/\/+$/, '')}/functions/v1/webchat`
+      : '/functions/v1/webchat'
+  }
+
+  let url: URL
+  try {
+    url = new URL(explicit, browserOrigin ?? undefined)
+  } catch {
+    throw new Error('VITE_WEBCHAT_API_URL 必须是有效的 URL。')
+  }
+  const loopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost'
+  const expectedSupabaseEndpoint = configuredSupabaseUrl
+    ? new URL(
+        `${configuredSupabaseUrl.replace(/\/+$/, '')}/functions/v1/webchat`,
+        browserOrigin ?? undefined,
+      )
+    : null
+  const matchesSupabaseEndpoint =
+    expectedSupabaseEndpoint !== null &&
+    url.origin === expectedSupabaseEndpoint.origin &&
+    url.pathname.replace(/\/+$/, '') === expectedSupabaseEndpoint.pathname.replace(/\/+$/, '')
+  const localDevelopmentOverride =
+    allowInsecureLoopback && loopback && (url.protocol === 'http:' || url.protocol === 'https:')
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.protocol !== 'https:' && !localDevelopmentOverride) ||
+    (!matchesSupabaseEndpoint && !localDevelopmentOverride)
+  ) {
+    throw new Error(
+      'VITE_WEBCHAT_API_URL 必须指向当前 Supabase 项目的 webchat 函数；仅本地开发可使用回环地址。',
+    )
+  }
+  return url.toString()
+}
+
 export function createWebChatTransport({
   apiUrl,
   anonKey,
@@ -153,7 +207,7 @@ export function createWebChatTransport({
 }
 
 async function currentAccessToken(): Promise<string | null> {
-  if (!supabase) return null
+  if (!supabase) return demoAuthEnabled ? 'ustsacmland-demo-webchat-token' : null
   const { data, error } = await supabase.auth.getSession()
   if (error) {
     throw new WebChatApiError('无法刷新登录状态，请重新登录。', 401, 'session_refresh_failed')
@@ -162,9 +216,12 @@ async function currentAccessToken(): Promise<string | null> {
 }
 
 export function createBrowserWebChatTransport(): DefaultChatTransport<UIMessage> {
-  const apiUrl = supabaseUrl
-    ? `${supabaseUrl.replace(/\/+$/, '')}/functions/v1/webchat`
-    : '/functions/v1/webchat'
+  const apiUrl = resolveWebChatApiUrl({
+    configuredUrl: import.meta.env.VITE_WEBCHAT_API_URL,
+    supabaseUrl,
+    browserOrigin: typeof window === 'undefined' ? null : window.location.origin,
+    allowInsecureLoopback: import.meta.env.DEV,
+  })
 
   return createWebChatTransport({
     apiUrl,

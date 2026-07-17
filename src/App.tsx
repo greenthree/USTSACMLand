@@ -85,6 +85,11 @@ const AdminSourceHealthPage = lazy(() =>
 const AdminSyncPage = lazy(() =>
   import('./pages/admin/AdminSyncPage').then((module) => ({ default: module.AdminSyncPage })),
 )
+const AdminWebChatPage = lazy(() =>
+  import('./pages/admin/AdminWebChatPage').then((module) => ({
+    default: module.AdminWebChatPage,
+  })),
+)
 
 function PublicMembersOutlet() {
   return (
@@ -149,6 +154,7 @@ export default function App() {
               <Route path="announcements" element={<AdminAnnouncementsPage />} />
               <Route path="sync" element={<AdminSyncPage />} />
               <Route path="health" element={<AdminSourceHealthPage />} />
+              <Route path="webchat" element={<AdminWebChatPage />} />
               <Route path="audit" element={<AdminAuditPage />} />
             </Route>
           </Route>

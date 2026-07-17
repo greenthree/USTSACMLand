@@ -36,6 +36,9 @@ const requiredReleaseMigrations = [
   '202607170003_atomic_sync_job_completion.sql',
   '202607170004_database_sync_queue_scheduler.sql',
   '202607170005_webchat_quota_claims.sql',
+  '202607170006_webchat_relay_admin_config.sql',
+  '202607170007_webchat_budget_monitoring.sql',
+  '202607170008_webchat_member_access.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -64,6 +67,17 @@ export function verifyDatabaseTypes(databaseTypes) {
     'mark_webchat_request_started',
     'finalize_webchat_request',
     'release_webchat_request',
+    'read_webchat_relay_config',
+    'read_webchat_relay_runtime_config',
+    'admin_update_webchat_relay_config',
+    'read_webchat_global_budget_usage',
+    'claim_webchat_budget_alert',
+    'admin_get_webchat_member_access',
+    'admin_update_webchat_member_access',
+    'read_webchat_member_runtime_access',
+    'read_own_webchat_usage',
+    'claim_authorized_webchat_request',
+    'mark_authorized_webchat_request_started',
     'admin_set_member_role',
     'renew_account_deletion_recovery_lease',
     'delete_auth_user_with_recovery_lease',
@@ -91,8 +105,8 @@ export function inspectPgTapSuite(files) {
   const sqlFiles = files
     .filter((file) => file.name.endsWith('.test.sql'))
     .sort((left, right) => left.name.localeCompare(right.name))
-  if (sqlFiles.length < 19) {
-    throw new Error(`Database CI must discover at least 19 pgTAP files; found ${sqlFiles.length}.`)
+  if (sqlFiles.length < 22) {
+    throw new Error(`Database CI must discover at least 22 pgTAP files; found ${sqlFiles.length}.`)
   }
 
   let assertionCount = 0
@@ -132,8 +146,8 @@ export function inspectPgTapSuite(files) {
     }
   }
 
-  if (assertionCount < 250) {
-    throw new Error(`Database CI must plan at least 250 pgTAP assertions; found ${assertionCount}.`)
+  if (assertionCount < 500) {
+    throw new Error(`Database CI must plan at least 500 pgTAP assertions; found ${assertionCount}.`)
   }
 
   return { fileCount: sqlFiles.length, assertionCount }
@@ -154,6 +168,7 @@ export function verifyCiWorkflow(
     'delete-account',
     'change-password',
     'webchat',
+    'webchat-config',
   ]) {
     requireMatch(
       denoCheckStep,
@@ -241,6 +256,21 @@ export function verifyCiWorkflow(
     deployWorkflow,
     /ref:\s+\$\{\{ github\.event\.workflow_run\.head_sha \}\}/,
     'Pages deployment must build the exact commit that passed CI.',
+  )
+  const webChatUiBindings = [
+    ...deployWorkflow.matchAll(
+      /VITE_WEBCHAT_UI_ENABLED:\s+\$\{\{ vars\.VITE_WEBCHAT_UI_ENABLED \|\| 'false' \}\}/g,
+    ),
+  ]
+  if (webChatUiBindings.length < 2) {
+    throw new Error(
+      'Pages deployment must validate and build with the explicit VITE_WEBCHAT_UI_ENABLED repository variable.',
+    )
+  }
+  requireMatch(
+    deployWorkflow,
+    /VITE_WEBCHAT_UI_ENABLED must be exactly true or false/,
+    'Pages deployment must reject malformed WebChat UI feature flags.',
   )
 
   return {

@@ -2,6 +2,7 @@ import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left'
 import CheckCircle2 from 'lucide-react/dist/esm/icons/check-circle-2'
 import Database from 'lucide-react/dist/esm/icons/database'
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link'
+import MessageSquareLock from 'lucide-react/dist/esm/icons/message-square-lock'
 import Pencil from 'lucide-react/dist/esm/icons/pencil'
 import Plus from 'lucide-react/dist/esm/icons/plus'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
@@ -31,6 +32,12 @@ import { triggerAdminImmediateSync } from '../../lib/adminImmediateSync'
 import { formatDateTime, formatInteger } from '../../lib/format'
 import { platformLabels, platformUrls } from '../../lib/platforms'
 import { supabase } from '../../lib/supabase'
+import {
+  fetchAdminWebChatMemberAccess,
+  updateAdminWebChatMemberAccess,
+  WebChatMemberAccessConflictError,
+  type WebChatMemberAccess,
+} from '../../lib/webChatMemberAccess'
 import type {
   AdminManualStatsInput,
   AdminMemberActivity,
@@ -113,6 +120,7 @@ function activityTitle(activity: AdminMemberActivity): string {
   const platform = activity.platform ? platformLabels[activity.platform] : null
   if (activity.action === 'manual_stats_updated') return `手工录入${platform ?? '平台'}数据`
   if (activity.kind === 'sync') return `${platform ?? '平台'}同步`
+  if (activity.targetTable === 'webchat_member_access') return '调整 AI 助手权限与额度'
   if (activity.targetTable === 'profiles') return '修改成员资料'
   if (activity.targetTable === 'platform_accounts') {
     if (activity.action === 'insert') return `绑定${platform ?? '平台'}账号`
@@ -156,6 +164,14 @@ export function AdminMemberDetailPage() {
   const [solvedCount, setSolvedCount] = useState('')
   const [sourceObservedAt, setSourceObservedAt] = useState('')
   const [manualNote, setManualNote] = useState('')
+  const [webChatAccess, setWebChatAccess] = useState<WebChatMemberAccess | null>(null)
+  const [webChatAccessLoading, setWebChatAccessLoading] = useState(true)
+  const [webChatAccessSaving, setWebChatAccessSaving] = useState(false)
+  const [webChatAccessError, setWebChatAccessError] = useState('')
+  const [webChatEnabled, setWebChatEnabled] = useState(false)
+  const [webChatDailyRequestLimit, setWebChatDailyRequestLimit] = useState('30')
+  const [webChatDailyTokenLimit, setWebChatDailyTokenLimit] = useState('100000')
+  const [webChatReason, setWebChatReason] = useState('')
   const dialogRef = useRef<HTMLElement | null>(null)
   const dialogTriggerRef = useRef<HTMLElement | null>(null)
 
@@ -184,6 +200,89 @@ export function AdminMemberDetailPage() {
   useEffect(() => {
     void loadMember()
   }, [loadMember])
+
+  const applyWebChatAccess = useCallback((access: WebChatMemberAccess) => {
+    setWebChatAccess(access)
+    setWebChatEnabled(access.enabled)
+    setWebChatDailyRequestLimit(String(access.dailyRequestLimit))
+    setWebChatDailyTokenLimit(String(access.dailyTokenLimit))
+    setWebChatReason('')
+  }, [])
+
+  const loadWebChatAccess = useCallback(
+    async (clearError = true) => {
+      setWebChatAccessLoading(true)
+      if (clearError) setWebChatAccessError('')
+      try {
+        applyWebChatAccess(await fetchAdminWebChatMemberAccess(memberId))
+      } catch (error) {
+        setWebChatAccessError(error instanceof Error ? error.message : '成员 AI 助手配置读取失败。')
+      } finally {
+        setWebChatAccessLoading(false)
+      }
+    },
+    [applyWebChatAccess, memberId],
+  )
+
+  useEffect(() => {
+    void loadWebChatAccess()
+  }, [loadWebChatAccess])
+
+  async function saveWebChatAccess(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!member || !webChatAccess) return
+
+    const dailyRequestLimit = Number(webChatDailyRequestLimit)
+    const dailyTokenLimit = Number(webChatDailyTokenLimit)
+    const reason = webChatReason.trim()
+    if (
+      !Number.isSafeInteger(dailyRequestLimit) ||
+      dailyRequestLimit < 1 ||
+      dailyRequestLimit > 10_000
+    ) {
+      setWebChatAccessError('每日请求上限必须是 1 到 10000 之间的整数。')
+      return
+    }
+    if (
+      !Number.isSafeInteger(dailyTokenLimit) ||
+      dailyTokenLimit < 100 ||
+      dailyTokenLimit > 1_000_000_000
+    ) {
+      setWebChatAccessError('每日 Token 上限必须是 100 到 1000000000 之间的整数。')
+      return
+    }
+    if (webChatEnabled && member.status !== 'active') {
+      setWebChatAccessError('已停用成员不能开启 AI 助手；请先恢复成员账号。')
+      return
+    }
+    if (reason.length < 3 || reason.length > 500) {
+      setWebChatAccessError('请填写 3 到 500 字的修改原因。')
+      return
+    }
+
+    setWebChatAccessSaving(true)
+    setWebChatAccessError('')
+    try {
+      const nextAccess = await updateAdminWebChatMemberAccess({
+        memberId: member.id,
+        enabled: webChatEnabled,
+        dailyRequestLimit,
+        dailyTokenLimit,
+        expectedVersion: webChatAccess.version,
+        reason,
+      })
+      applyWebChatAccess(nextAccess)
+      setNoticeKind('success')
+      setNotice('成员 AI 助手权限与额度已保存。')
+    } catch (error) {
+      if (error instanceof WebChatMemberAccessConflictError) {
+        await loadWebChatAccess(false)
+      }
+      setWebChatAccessError(error instanceof Error ? error.message : '成员 AI 助手配置保存失败。')
+    } finally {
+      setWebChatAccessSaving(false)
+    }
+  }
 
   function rememberDialogTrigger() {
     const activeElement = document.activeElement
@@ -490,6 +589,14 @@ export function AdminMemberDetailPage() {
         ? `手工录入 ${platformLabels[dialog.item.platform]} 数据`
         : `解绑 ${platformLabels[dialog.item.platform]} 账号`
     : ''
+  const parsedWebChatRequestLimit = Number(webChatDailyRequestLimit)
+  const parsedWebChatTokenLimit = Number(webChatDailyTokenLimit)
+  const webChatAccessChanged = Boolean(
+    webChatAccess &&
+    (webChatEnabled !== webChatAccess.enabled ||
+      parsedWebChatRequestLimit !== webChatAccess.dailyRequestLimit ||
+      parsedWebChatTokenLimit !== webChatAccess.dailyTokenLimit),
+  )
 
   return (
     <div className="admin-page admin-member-detail-page">
@@ -545,6 +652,125 @@ export function AdminMemberDetailPage() {
                 <dd>{formatDateTime(member.joinedAt)}</dd>
               </div>
             </dl>
+          </section>
+
+          <section className="admin-section admin-member-webchat-section">
+            <div className="section-title-row">
+              <div>
+                <h2>AI 助手访问</h2>
+                <p>逐成员开放试运行，并设置北京时间每日请求与 Token 上限。</p>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={webChatAccessLoading || webChatAccessSaving}
+                onClick={() => void loadWebChatAccess()}
+              >
+                <RefreshCw
+                  className={webChatAccessLoading ? 'is-spinning' : undefined}
+                  size={16}
+                  aria-hidden="true"
+                />
+                刷新额度
+              </button>
+            </div>
+
+            {webChatAccessLoading && !webChatAccess ? (
+              <LoadingState label="正在读取 AI 助手配置" />
+            ) : null}
+            {webChatAccess ? (
+              <form className="admin-member-webchat-form" onSubmit={saveWebChatAccess}>
+                <label className="admin-member-webchat-toggle">
+                  <input
+                    type="checkbox"
+                    checked={webChatEnabled}
+                    disabled={webChatAccessSaving || member.status !== 'active'}
+                    onChange={(event) => setWebChatEnabled(event.target.checked)}
+                  />
+                  <MessageSquareLock size={20} aria-hidden="true" />
+                  <span>
+                    <strong>允许使用 AI 学习助手</strong>
+                    <small>
+                      {member.status === 'active'
+                        ? '关闭后新请求立即拒绝；正在生成的请求仍会完成结算。'
+                        : '成员账号已停用，AI 助手访问始终关闭。'}
+                    </small>
+                  </span>
+                </label>
+                <label>
+                  <span>每日请求上限</span>
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={10_000}
+                    step={1}
+                    value={webChatDailyRequestLimit}
+                    disabled={webChatAccessSaving}
+                    onChange={(event) => setWebChatDailyRequestLimit(event.target.value)}
+                  />
+                  <small>北京时间每日 00:00 重置。</small>
+                </label>
+                <label>
+                  <span>每日 Token 上限</span>
+                  <input
+                    required
+                    type="number"
+                    min={100}
+                    max={1_000_000_000}
+                    step={100}
+                    value={webChatDailyTokenLimit}
+                    disabled={webChatAccessSaving}
+                    onChange={(event) => setWebChatDailyTokenLimit(event.target.value)}
+                  />
+                  <small>已结算与正在预留的 Token 共同占用额度。</small>
+                </label>
+                <label className="admin-member-webchat-reason">
+                  <span>修改原因</span>
+                  <textarea
+                    required
+                    minLength={3}
+                    maxLength={500}
+                    rows={3}
+                    value={webChatReason}
+                    disabled={webChatAccessSaving}
+                    onChange={(event) => setWebChatReason(event.target.value)}
+                  />
+                  <small>权限和额度调整都会进入管理员审计记录。</small>
+                </label>
+                {webChatAccessError ? (
+                  <p className="form-error admin-member-webchat-error" role="status">
+                    {webChatAccessError}
+                  </p>
+                ) : null}
+                <div className="form-actions admin-member-webchat-actions">
+                  <span>配置版本 v{webChatAccess.version}</span>
+                  <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={
+                      webChatAccessSaving ||
+                      !webChatAccessChanged ||
+                      webChatReason.trim().length < 3
+                    }
+                  >
+                    <Save size={16} aria-hidden="true" />
+                    {webChatAccessSaving ? '保存中' : '保存权限与额度'}
+                  </button>
+                </div>
+              </form>
+            ) : webChatAccessError ? (
+              <div className="admin-member-webchat-load-error" role="status">
+                <p>{webChatAccessError}</p>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => void loadWebChatAccess()}
+                >
+                  重试
+                </button>
+              </div>
+            ) : null}
           </section>
 
           <section className="admin-section admin-member-platform-section">

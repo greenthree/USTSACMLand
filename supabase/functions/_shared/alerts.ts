@@ -21,6 +21,18 @@ export interface FirecrawlCreditAlert {
   severity: 'warning' | 'critical'
 }
 
+export interface WebChatBudgetAlert {
+  budgetKind: 'requests' | 'tokens'
+  usageDate: string
+  budgetLimit: number
+  observedUsage: number
+  requestCount: number
+  settledTokens: number
+  reservedTokens: number
+  observedAt: string
+  resetAt: string
+}
+
 export interface AlertDeliveryOptions {
   webhookUrl?: string | null
   webhookToken?: string | null
@@ -130,6 +142,20 @@ export function deliverFirecrawlCreditAlert(
   )
 }
 
+export function deliverWebChatBudgetAlert(
+  alert: WebChatBudgetAlert,
+  options: AlertDeliveryOptions = {},
+): Promise<AlertDeliveryResult> {
+  return deliverOperationalAlertPayload(
+    {
+      version: 1,
+      event: 'webchat_budget_exhausted',
+      ...alert,
+    },
+    options,
+  )
+}
+
 export async function notifySyncFailure(alert: SyncFailureAlert): Promise<void> {
   try {
     const result = await deliverSyncFailureAlert(alert)
@@ -170,6 +196,29 @@ export async function notifyFirecrawlCreditAlert(alert: FirecrawlCreditAlert): P
       JSON.stringify({
         event: 'firecrawl_credit_alert_delivery_failed',
         severity: alert.severity,
+        status: null,
+      }),
+    )
+  }
+}
+
+export async function notifyWebChatBudgetAlert(alert: WebChatBudgetAlert): Promise<void> {
+  try {
+    const result = await deliverWebChatBudgetAlert(alert)
+    if (result.configured && !result.delivered) {
+      console.warn(
+        JSON.stringify({
+          event: 'webchat_budget_alert_delivery_failed',
+          budgetKind: alert.budgetKind,
+          status: result.status,
+        }),
+      )
+    }
+  } catch {
+    console.warn(
+      JSON.stringify({
+        event: 'webchat_budget_alert_delivery_failed',
+        budgetKind: alert.budgetKind,
         status: null,
       }),
     )

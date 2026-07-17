@@ -1,5 +1,5 @@
 import type { UIMessage } from 'ai'
-import { createWebChatTransport } from './chatApi'
+import { createWebChatTransport, resolveWebChatApiUrl } from './chatApi'
 
 const messages: UIMessage[] = [
   {
@@ -28,6 +28,42 @@ function streamResponse() {
 }
 
 describe('WebChat browser transport', () => {
+  it('keeps production access tokens on the current Supabase function endpoint', () => {
+    expect(
+      resolveWebChatApiUrl({
+        configuredUrl: 'https://project.supabase.co/functions/v1/webchat',
+        supabaseUrl: 'https://project.supabase.co',
+      }),
+    ).toBe('https://project.supabase.co/functions/v1/webchat')
+    expect(
+      resolveWebChatApiUrl({
+        configuredUrl: 'http://127.0.0.1:4174/api/chat',
+        allowInsecureLoopback: true,
+      }),
+    ).toBe('http://127.0.0.1:4174/api/chat')
+    expect(
+      resolveWebChatApiUrl({
+        supabaseUrl: 'https://project.supabase.co/',
+      }),
+    ).toBe('https://project.supabase.co/functions/v1/webchat')
+    expect(resolveWebChatApiUrl({})).toBe('/functions/v1/webchat')
+
+    for (const configuredUrl of [
+      'https://api.example.edu.cn/api/chat',
+      'https://project.supabase.co/functions/v1/other-function',
+      'http://api.example.edu.cn/api/chat',
+      'https://user:pass@api.example.edu.cn/api/chat',
+      'https://api.example.edu.cn/api/chat?key=secret',
+    ]) {
+      expect(() =>
+        resolveWebChatApiUrl({
+          configuredUrl,
+          supabaseUrl: 'https://project.supabase.co',
+        }),
+      ).toThrow(/VITE_WEBCHAT_API_URL/)
+    }
+  })
+
   it('reads a fresh access token and creates a fresh request id for every send', async () => {
     const requests: Array<{ headers: Headers; body: Record<string, unknown> }> = []
     const tokens = ['token-a', 'token-b']

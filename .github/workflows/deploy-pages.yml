@@ -56,6 +56,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_WEBCHAT_UI_ENABLED: ${{ vars.VITE_WEBCHAT_UI_ENABLED || 'false' }}
         run: |
           if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_ANON_KEY" ]]; then
             echo "Required Vite production secrets are not configured." >&2
@@ -67,11 +68,17 @@ jobs:
             exit 1
           fi
 
+          if [[ "$VITE_WEBCHAT_UI_ENABLED" != "true" && "$VITE_WEBCHAT_UI_ENABLED" != "false" ]]; then
+            echo "VITE_WEBCHAT_UI_ENABLED must be exactly true or false." >&2
+            exit 1
+          fi
+
       - name: Build site
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_WEBCHAT_UI_ENABLED: ${{ vars.VITE_WEBCHAT_UI_ENABLED || 'false' }}
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

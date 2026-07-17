@@ -46,6 +46,9 @@ jobs:
       - name: Check encrypted backup workflow invariants
         run: npm run check:backup-workflow
 
+      - name: Check WebChat relay workflow invariants
+        run: npm run check:webchat-relay-workflow
+
       - name: Test
         run: npm test
 
@@ -54,6 +57,9 @@ jobs:
 
       - name: Test browser flows and accessibility
         run: npm run test:e2e
+
+      - name: Test WebChat browser flows and accessibility
+        run: npm run test:e2e:webchat
 
       - name: Build
         run: npm run build
@@ -74,6 +80,7 @@ jobs:
           supabase/functions/delete-account/index.ts
           supabase/functions/change-password/index.ts
           supabase/functions/webchat/index.ts
+          supabase/functions/webchat-config/index.ts
 
       - name: Lint Edge Functions
         run: deno lint --config supabase/functions/deno.json supabase/functions

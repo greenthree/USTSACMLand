@@ -22,6 +22,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/admin/announcements') return '公告管理'
   if (pathname === '/admin/sync') return '同步中心'
   if (pathname === '/admin/health') return '数据源健康'
+  if (pathname === '/admin/webchat') return 'WebChat 配置'
   if (pathname === '/admin/audit') return '审计日志'
   if (pathname === '/admin') return '管理后台'
   return SITE_TITLE

@@ -1155,6 +1155,8 @@ export type Database = {
         Args: {
           daily_request_limit: number
           daily_token_limit: number
+          global_daily_request_limit: number
+          global_daily_token_limit: number
           lease_seconds?: number
           minute_request_limit: number
           requested_fingerprint: string
@@ -1172,7 +1174,54 @@ export type Database = {
           status: string
         }[]
       }
+      claim_authorized_webchat_request: {
+        Args: {
+          lease_seconds?: number
+          minute_request_limit: number
+          requested_fingerprint: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_reserved_tokens: number
+          requested_user_id: string
+        }
+        Returns: {
+          decision: string
+          remaining_daily_requests: number
+          remaining_daily_tokens: number
+          remaining_minute_requests: number
+          retry_after_seconds: number | null
+          status: string
+        }[]
+      }
+      claim_webchat_budget_alert: {
+        Args: {
+          requested_budget_kind: string
+          requested_limit: number
+          requested_reserved_tokens?: number
+        }
+        Returns: {
+          attempted_reserved_tokens: number
+          budget_kind: string
+          budget_limit: number
+          observed_at: string
+          observed_usage: number
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          should_notify: boolean
+          usage_date: string
+        }[]
+      }
       mark_webchat_request_started: {
+        Args: {
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      mark_authorized_webchat_request_started: {
         Args: {
           requested_owner_token: string
           requested_request_id: string
@@ -1204,6 +1253,118 @@ export type Database = {
           requested_user_id: string
         }
         Returns: boolean
+      }
+      read_webchat_relay_config: {
+        Args: never
+        Returns: {
+          api_key_configured: boolean
+          base_url: string | null
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          model: string | null
+          requests_enabled: boolean
+          updated_at: string
+          version: number
+        }[]
+      }
+      read_webchat_global_budget_usage: {
+        Args: never
+        Returns: {
+          request_budget_alerted_at: string | null
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          token_budget_alerted_at: string | null
+          usage_date: string
+        }[]
+      }
+      read_webchat_relay_runtime_config: {
+        Args: never
+        Returns: {
+          api_key: string | null
+          base_url: string | null
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          model: string | null
+          requests_enabled: boolean
+          version: number
+        }[]
+      }
+      read_webchat_member_runtime_access: {
+        Args: { requested_user_id: string }
+        Returns: {
+          access_enabled: boolean
+          account_eligible: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          version: number
+        }[]
+      }
+      read_own_webchat_usage: {
+        Args: never
+        Returns: {
+          access_enabled: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          remaining_requests: number
+          remaining_tokens: number
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          usage_date: string
+        }[]
+      }
+      admin_get_webchat_member_access: {
+        Args: { target_profile_id: string }
+        Returns: {
+          access_enabled: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          updated_at: string | null
+          version: number
+        }[]
+      }
+      admin_update_webchat_member_access: {
+        Args: {
+          expected_version: number
+          reason: string
+          requested_access_enabled: boolean
+          requested_daily_request_limit: number
+          requested_daily_token_limit: number
+          target_profile_id: string
+        }
+        Returns: {
+          access_enabled: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          updated_at: string
+          version: number
+        }[]
+      }
+      admin_update_webchat_relay_config: {
+        Args: {
+          actor_id: string
+          expected_version: number
+          reason: string
+          replacement_api_key: string | null
+          requested_base_url: string
+          requested_global_daily_request_limit?: number
+          requested_global_daily_token_limit?: number
+          requested_model: string
+          requested_requests_enabled?: boolean
+        }
+        Returns: {
+          api_key_configured: boolean
+          base_url: string
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          model: string
+          requests_enabled: boolean
+          updated_at: string
+          version: number
+        }[]
       }
       complete_sync_job_attempt: {
         Args: {

@@ -4,6 +4,7 @@ import Gauge from 'lucide-react/dist/esm/icons/gauge'
 import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse'
 import IdCard from 'lucide-react/dist/esm/icons/id-card'
 import Megaphone from 'lucide-react/dist/esm/icons/megaphone'
+import MessageSquareLock from 'lucide-react/dist/esm/icons/message-square-lock'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { Suspense } from 'react'
@@ -17,6 +18,7 @@ const adminItems = [
   { to: '/admin/announcements', label: '公告管理', icon: Megaphone },
   { to: '/admin/sync', label: '同步中心', icon: RefreshCw },
   { to: '/admin/health', label: '数据源健康', icon: HeartPulse },
+  { to: '/admin/webchat', label: 'WebChat 配置', icon: MessageSquareLock },
   { to: '/admin/audit', label: '审计日志', icon: FileClock },
 ]
 
