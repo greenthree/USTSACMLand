@@ -19,6 +19,7 @@ import { AssistantPage } from './AssistantPage'
 
 const usage = {
   enabled: true,
+  model: 'gpt-5.6-sol',
   usageDate: '2026-07-17',
   resetAt: '2026-07-17T16:00:00Z',
   requests: { limit: 30, used: 8, remaining: 22 },
@@ -50,6 +51,8 @@ describe('AssistantPage member quota gate', () => {
     expect(quota).toHaveTextContent('22')
     expect(quota).toHaveTextContent('81,600')
     expect(quota).toHaveTextContent('18,400')
+    expect(quota).toHaveTextContent('当前模型 gpt-5.6-sol')
+    expect(quota).toHaveTextContent('北京时间 07/18 00:00 重置')
   })
 
   it('does not mount the chat runtime for a member without access', async () => {

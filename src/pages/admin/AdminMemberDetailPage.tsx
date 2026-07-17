@@ -252,7 +252,7 @@ export function AdminMemberDetailPage() {
       return
     }
     if (webChatEnabled && member.status !== 'active') {
-      setWebChatAccessError('已停用成员不能开启 AI 助手；请先恢复成员账号。')
+      setWebChatAccessError('已停用账号不能开启 AI 助手；请先恢复账号。')
       return
     }
     if (reason.length < 3 || reason.length > 500) {
@@ -613,7 +613,7 @@ export function AdminMemberDetailPage() {
       {loading ? <LoadingState label="正在读取成员详情" /> : null}
 
       {loaded && !loading && !member ? (
-        <EmptyState title="成员不存在" description="该账号可能已删除，或不属于普通成员。" />
+        <EmptyState title="成员不存在" description="该成员或管理员账号可能已删除。" />
       ) : null}
 
       {!loading && member ? (
@@ -658,7 +658,7 @@ export function AdminMemberDetailPage() {
             <div className="section-title-row">
               <div>
                 <h2>AI 助手访问</h2>
-                <p>逐成员开放试运行，并设置北京时间每日请求与 Token 上限。</p>
+                <p>逐账号开放试运行，并设置北京时间每日请求与 Token 上限。</p>
               </div>
               <button
                 className="secondary-button"
@@ -693,7 +693,7 @@ export function AdminMemberDetailPage() {
                     <small>
                       {member.status === 'active'
                         ? '关闭后新请求立即拒绝；正在生成的请求仍会完成结算。'
-                        : '成员账号已停用，AI 助手访问始终关闭。'}
+                        : '账号已停用，AI 助手访问始终关闭。'}
                     </small>
                   </span>
                 </label>

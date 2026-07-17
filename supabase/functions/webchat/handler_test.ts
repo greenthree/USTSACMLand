@@ -122,6 +122,7 @@ function dependencies(
     enabled: true,
     allowedOrigins: allowedOrigin,
     quotaPolicy,
+    buildSystemPrompt: () => quotaPolicy.systemPrompt,
     createServices: () => services(),
     async startChat() {
       return new Response('data: [DONE]\n\n', {
@@ -340,8 +341,13 @@ Deno.test('webchat resolves the actual relay model before quota fingerprinting',
   const dynamicRuntime = { ...runtimeConfig, model: 'runtime-model-v2' }
   let claimedFingerprint = ''
   let startedRuntime: WebChatRelayRuntimeConfig | null = null
+  let startedSystemPrompt = ''
+  const dynamicSystemPrompt = `Server prompt for ${dynamicRuntime.model}`
   const response = await createWebChatHandler(
     dependencies({
+      buildSystemPrompt(model) {
+        return `Server prompt for ${model}`
+      },
       createServices: () =>
         services({
           async readRelayRuntimeConfig() {
@@ -359,8 +365,9 @@ Deno.test('webchat resolves the actual relay model before quota fingerprinting',
             }
           },
         }),
-      async startChat(_options, resolvedRuntime) {
+      async startChat(_options, resolvedRuntime, systemPrompt) {
         startedRuntime = resolvedRuntime
+        startedSystemPrompt = systemPrompt
         return new Response('data: [DONE]\n\n', {
           headers: { 'content-type': 'text/event-stream' },
         })
@@ -372,9 +379,19 @@ Deno.test('webchat resolves the actual relay model before quota fingerprinting',
     [{ id: 'user-1', role: 'user', text: '解释二分' }],
     quotaPolicy,
   )
+  const dynamicPolicyFingerprint = await prepareWebChatQuota(
+    [{ id: 'user-1', role: 'user', text: '解释二分' }],
+    {
+      ...quotaPolicy,
+      model: dynamicRuntime.model,
+      systemPrompt: dynamicSystemPrompt,
+    },
+  )
   strictEqual(response.status, 200)
   strictEqual(claimedFingerprint === staticPolicyFingerprint.fingerprint, false)
+  strictEqual(claimedFingerprint, dynamicPolicyFingerprint.fingerprint)
   deepStrictEqual(startedRuntime, dynamicRuntime)
+  strictEqual(startedSystemPrompt, dynamicSystemPrompt)
 })
 
 Deno.test(

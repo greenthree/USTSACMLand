@@ -15,6 +15,7 @@ import {
   resolveWebChatRelayRuntimeConfig,
   type WebChatRelayRuntimeConfig,
 } from './runtime-config.ts'
+import { buildWebChatSystemPrompt } from './system-prompt.ts'
 import { startWebChat } from './upstream.ts'
 
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -87,6 +88,9 @@ const handler = createWebChatHandler({
   maxMessageChars: integerEnv('CHAT_MAX_MESSAGE_CHARS', 12_000, 1_000, 50_000),
   maxTotalChars: integerEnv('CHAT_MAX_TOTAL_CHARS', 60_000, 1_000, 200_000),
   quotaPolicy,
+  buildSystemPrompt(model) {
+    return buildWebChatSystemPrompt(SYSTEM_PROMPT, model)
+  },
   createServices() {
     const serviceClient = createClient(
       requiredEnv('SUPABASE_URL'),
@@ -194,13 +198,13 @@ const handler = createWebChatHandler({
       },
     }
   },
-  startChat(options, runtimeConfig) {
+  startChat(options, runtimeConfig, systemPrompt) {
     return startWebChat(
       {
         baseUrl: runtimeConfig.baseUrl,
         apiKey: runtimeConfig.apiKey,
         model: runtimeConfig.model,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt,
         promptVersion,
         maxOutputTokens,
         timeoutMs: requestTimeoutMs,

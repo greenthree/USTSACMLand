@@ -21,6 +21,7 @@ const accessRow = {
 
 const usageRow = {
   access_enabled: true,
+  model: 'gpt-5.6-sol',
   usage_date: '2026-07-17',
   daily_request_limit: 12,
   request_count: 4,
@@ -98,6 +99,7 @@ describe('WebChat member access adapters', () => {
 
     await expect(fetchOwnWebChatUsage()).resolves.toEqual({
       enabled: true,
+      model: 'gpt-5.6-sol',
       usageDate: '2026-07-17',
       resetAt: '2026-07-17T16:00:00Z',
       requests: { limit: 12, used: 4, remaining: 8 },
@@ -115,6 +117,9 @@ describe('WebChat member access adapters', () => {
     )
     expect(() => mapWebChatMemberUsage([{ ...usageRow, reset_at: 'not-a-date' }])).toThrow(
       /重置时间/,
+    )
+    expect(() => mapWebChatMemberUsage([{ ...usageRow, model: 'unsafe model' }])).toThrow(
+      /无效数据/,
     )
   })
 })

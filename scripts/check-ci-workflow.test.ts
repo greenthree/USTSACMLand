@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 22,
-      assertionCount: 551,
-      releaseMigrationCount: 28,
+      fileCount: 24,
+      assertionCount: 599,
+      releaseMigrationCount: 30,
     })
   })
 
@@ -156,7 +156,7 @@ describe('CI workflow', () => {
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/at least 22 pgTAP files/)
+    ).toThrow(/at least 24 pgTAP files/)
     const regressed = pgTapFiles.map((file) =>
       file.name === '13_non_luogu_atomic_persistence.test.sql'
         ? { ...file, content: file.content.replace('select plan(27);', 'select plan(1);') }
@@ -220,6 +220,28 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/202607170008_webchat_member_access/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170009_webchat_admin_access.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170009_webchat_admin_access/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170010_webchat_model_visibility.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170010_webchat_model_visibility/)
 
     expect(() =>
       verifyCiWorkflow(

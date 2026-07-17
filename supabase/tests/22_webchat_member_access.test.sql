@@ -423,19 +423,26 @@ select throws_ok(
     )
   $$,
   'P0002',
-  'Eligible member profile not found.',
-  'administrators cannot create orphan member policy through an unknown target'
+  'Eligible profile not found.',
+  'administrators cannot create orphan WebChat policy through an unknown target'
 );
 
-select throws_ok(
-  $$
-    select * from public.admin_get_webchat_member_access(
-      '00000000-0000-0000-0000-000000002201'
-    )
-  $$,
-  'P0002',
-  'Eligible member profile not found.',
-  'administrator profiles cannot be treated as member WebChat policy targets'
+create temporary table default_self_admin_access as
+select * from public.admin_get_webchat_member_access(
+  '00000000-0000-0000-0000-000000002201'
+);
+
+select ok(
+  exists (
+    select 1
+    from default_self_admin_access
+    where not access_enabled
+      and daily_request_limit = 30
+      and daily_token_limit = 100000
+      and version = 0
+      and updated_at is null
+  ),
+  'an active administrator is an eligible but deny-by-default WebChat policy target'
 );
 
 select throws_ok(
@@ -845,6 +852,7 @@ select is(
     'access_enabled',
     'daily_request_limit',
     'daily_token_limit',
+    'model',
     'remaining_requests',
     'remaining_tokens',
     'request_count',

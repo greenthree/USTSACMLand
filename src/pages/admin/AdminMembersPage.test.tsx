@@ -62,6 +62,14 @@ const suspendedMember: AdminMember = {
   updatedAt: '2026-07-13T11:00:00Z',
 }
 
+const activeAdministrator: AdminMember = {
+  ...activeMember,
+  id: 'admin-1',
+  name: '测试管理员',
+  email: 'admin@example.edu.cn',
+  role: 'admin',
+}
+
 describe('AdminMembersPage with Supabase configured', () => {
   beforeEach(() => {
     memberMocks.buildCsv.mockReset().mockReturnValue('csv-content')
@@ -89,6 +97,22 @@ describe('AdminMembersPage with Supabase configured', () => {
     expect(screen.getByRole('row', { name: /测试成员/ })).toBeInTheDocument()
     expect(screen.queryByRole('row', { name: /停用成员/ })).not.toBeInTheDocument()
   }, 10_000)
+
+  it('shows the member detail link for administrators as well as regular members', async () => {
+    memberMocks.fetchMembers.mockResolvedValue([activeAdministrator, activeMember])
+    renderMembersPage()
+
+    const administratorRow = await screen.findByRole('row', { name: /测试管理员/ })
+    const memberRow = screen.getByRole('row', { name: /测试成员/ })
+
+    expect(
+      within(administratorRow).getByRole('link', { name: '查看 测试管理员 详情' }),
+    ).toHaveAttribute('href', '/admin/members/admin-1')
+    expect(within(memberRow).getByRole('link', { name: '查看 测试成员 详情' })).toHaveAttribute(
+      'href',
+      '/admin/members/member-1',
+    )
+  })
 
   it('exports only the currently filtered member rows', async () => {
     const user = userEvent.setup()

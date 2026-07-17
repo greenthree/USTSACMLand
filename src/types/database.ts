@@ -1307,6 +1307,7 @@ export type Database = {
           access_enabled: boolean
           daily_request_limit: number
           daily_token_limit: number
+          model: string | null
           remaining_requests: number
           remaining_tokens: number
           request_count: number

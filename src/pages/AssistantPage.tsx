@@ -10,6 +10,15 @@ import '../features/chat/chat.css'
 import { formatInteger } from '../lib/format'
 import { fetchOwnWebChatUsage, type WebChatMemberUsage } from '../lib/webChatMemberAccess'
 
+const beijingResetFormatter = new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 export function AssistantPage() {
   const [usage, setUsage] = useState<WebChatMemberUsage | null>(null)
   const [usageLoading, setUsageLoading] = useState(true)
@@ -77,16 +86,7 @@ export function AssistantPage() {
             <strong>今日使用额度</strong>
             <span>
               {usage
-                ? `统计日期 ${usage.usageDate} · 北京时间 ${new Date(usage.resetAt).toLocaleString(
-                    'zh-CN',
-                    {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                    },
-                  )} 重置`
+                ? `当前模型 ${usage.model ?? '未配置'} · 统计日期 ${usage.usageDate} · 北京时间 ${beijingResetFormatter.format(new Date(usage.resetAt))} 重置`
                 : '正在读取成员授权与额度'}
             </span>
           </div>

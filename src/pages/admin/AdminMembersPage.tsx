@@ -510,16 +510,14 @@ export function AdminMembersPage() {
                     </td>
                     <td data-label="操作">
                       <div className="row-actions">
-                        {member.role === 'member' ? (
-                          <Link
-                            className="icon-button"
-                            to={`/admin/members/${member.id}`}
-                            title="查看成员详情"
-                            aria-label={`查看 ${member.name} 详情`}
-                          >
-                            <Eye size={16} aria-hidden="true" />
-                          </Link>
-                        ) : null}
+                        <Link
+                          className="icon-button"
+                          to={`/admin/members/${member.id}`}
+                          title="查看成员详情"
+                          aria-label={`查看 ${member.name} 详情`}
+                        >
+                          <Eye size={16} aria-hidden="true" />
+                        </Link>
                         <button
                           className="icon-button"
                           type="button"

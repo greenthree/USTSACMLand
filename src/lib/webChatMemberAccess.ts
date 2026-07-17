@@ -11,6 +11,7 @@ export interface WebChatMemberAccess {
 
 export interface WebChatMemberUsage {
   enabled: boolean
+  model: string | null
   usageDate: string
   resetAt: string
   requests: {
@@ -45,6 +46,7 @@ interface WebChatMemberAccessRow {
 
 interface WebChatMemberUsageRow {
   access_enabled: unknown
+  model: unknown
   usage_date: unknown
   daily_request_limit: unknown
   request_count: unknown
@@ -73,6 +75,7 @@ const demoAccess: WebChatMemberAccess = {
 
 const demoUsage: WebChatMemberUsage = {
   enabled: true,
+  model: 'gpt-5.6-sol',
   usageDate: '2026-07-17',
   resetAt: '2026-07-17T16:00:00.000Z',
   requests: { limit: 30, used: 8, remaining: 22 },
@@ -121,6 +124,8 @@ export function mapWebChatMemberUsage(value: unknown): WebChatMemberUsage {
   const row = singleRow(value, 'AI 助手额度') as unknown as WebChatMemberUsageRow
   if (
     typeof row.access_enabled !== 'boolean' ||
+    (row.model !== null &&
+      (typeof row.model !== 'string' || !/^[A-Za-z0-9._:/-]{1,128}$/.test(row.model))) ||
     typeof row.usage_date !== 'string' ||
     !/^\d{4}-\d{2}-\d{2}$/.test(row.usage_date)
   ) {
@@ -144,6 +149,7 @@ export function mapWebChatMemberUsage(value: unknown): WebChatMemberUsage {
 
   return {
     enabled: row.access_enabled,
+    model: row.model as string | null,
     usageDate: row.usage_date,
     resetAt: timestamp(row.reset_at, 'AI 助手额度重置时间') as string,
     requests: { limit: requestLimit, used: requestCount, remaining: remainingRequests },

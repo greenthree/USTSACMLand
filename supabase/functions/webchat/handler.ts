@@ -58,10 +58,12 @@ export interface WebChatHandlerDependencies {
   maxMessageChars?: number
   maxTotalChars?: number
   quotaPolicy: WebChatQuotaPolicy
+  buildSystemPrompt(model: string): string
   createServices(): WebChatServices
   startChat(
     options: StartWebChatOptions,
     runtimeConfig: WebChatRelayRuntimeConfig,
+    systemPrompt: string,
   ): Promise<Response>
   reportUnexpectedError(request: Request, error: unknown): Promise<void>
 }
@@ -239,9 +241,11 @@ export function createWebChatHandler(
         maxMessageChars: dependencies.maxMessageChars,
         maxTotalChars: dependencies.maxTotalChars,
       })
+      const systemPrompt = dependencies.buildSystemPrompt(runtimeConfig.model)
       const requestQuotaPolicy = {
         ...dependencies.quotaPolicy,
         model: runtimeConfig.model,
+        systemPrompt,
         dailyRequestLimit: memberAccess.dailyRequestLimit,
         dailyTokenLimit: memberAccess.dailyTokenLimit,
       }
@@ -317,6 +321,7 @@ export function createWebChatHandler(
             reportUnexpectedError: (error) => dependencies.reportUnexpectedError(request, error),
           },
           runtimeConfig,
+          systemPrompt,
         )
         return streamResponse(response, request, dependencies.allowedOrigins, currentRequestId)
       } catch (error) {

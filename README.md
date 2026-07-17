@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 43 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。PostgreSQL 17 空库 CI 已通过 22 个 pgTAP 文件、551 项断言；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 数据库与函数已按关闭态部署，生产客户端、环境熔断与数据库请求开关继续关闭，等待真实中转站兼容性验收和受控试运行。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 45 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。当前数据库门禁包含 24 个 pgTAP 文件、599 项断言，等待 PR #57 最新 PostgreSQL 17 空库任务复核；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议和一次受控生产对话已通过，当前模型能安全显示并进入服务端系统提示词；生产客户端、环境熔断与数据库请求开关继续关闭，等待最新 PR 门禁和受控试运行决定。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
 
 ## 已实现
 
@@ -16,9 +16,9 @@
 - 资料页专业联想直接读取根目录 `专业目录.txt`，支持目录匹配与目录外专业自由输入。
 - `/account` 登录守卫、`/admin` 管理员角色守卫、会话态导航和退出。
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
-- 8 张核心业务表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
+- 8 张核心业务表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、7 张 WebChat 私有配置/额度/账本表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
-- WebChat 安全 API 与隐藏前端工作台：默认关闭，使用 Supabase 会话与启用状态双重授权，仅接收有严格字节/消息上限的纯文本对话；隐藏的 `/assistant` 支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。聊天依赖保持在独立懒加载路由块内，`VITE_WEBCHAT_UI_ENABLED=false` 时导航和页面均不可访问；生产模型调用仍保持关闭。
+- WebChat 安全 API、管理员配置与隐藏前端工作台：`webchat`、`webchat-config` 已在关闭态部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。聊天依赖保持在独立懒加载路由块内，`VITE_WEBCHAT_UI_ENABLED=false` 时导航和页面均不可访问；生产模型调用仍保持关闭。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流；Dependabot 周更与完整历史 Gitleaks 门禁。
@@ -176,7 +176,7 @@ npm run test:db
 
 生产构建还会自动执行 bundle budget：入口 JS 必须不超过 500 KiB 原始体积和 160 KiB gzip，并保留首页、榜单、登录、账号、后台概览和同步中心的独立路由块。`npm run check:bundle` 可在已有 `dist` 上单独复核。
 
-数据库安全测试需要 Docker。它会从空的本地 Supabase 实例应用全部迁移，再以匿名访客、成员、停用成员和管理员身份验证 RLS、列权限、XCPC ELO 写保护、统计表只读边界与受控管理员 RPC；清单驱动矩阵会自动对照全部 27 个 `admin_*` 函数，保证 19 个浏览器入口对普通/停用成员统一拒绝，8 个 `_unlimited` 实现不向浏览器角色开放。CI 在独立任务中执行同一套测试。
+数据库安全测试需要 Docker。它会从空的本地 Supabase 实例应用全部迁移，再以匿名访客、成员、停用成员和管理员身份验证 RLS、列权限、XCPC ELO 写保护、统计表只读边界与受控管理员 RPC；清单驱动矩阵会自动对照全部 30 个 `admin_*` 函数，保证 21 个浏览器入口对普通/停用成员统一拒绝，9 个内部实现不向浏览器角色开放。CI 在独立任务中执行同一套测试。
 
 ## 环境变量与 Secrets
 
@@ -215,7 +215,7 @@ Supabase Function Secrets/配置：
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
-- WebChat 默认由三层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 是最高优先级的环境熔断，数据库 `requests_enabled=false` 允许管理员在 `/admin/webchat` 立即暂停新请求。管理员还可修改中转站 Base URL、固定模型、API Key 和全站北京时间每日请求/Token 上限：地址、模型、开关、预算和版本保存在 `private` 单例表，Key 只写入 Supabase Vault，读取接口只返回“已配置/未配置”，浏览器永远拿不到旧 Key；每次修改还要求原因、实时管理员复核、速率限制和乐观锁，并写入不含 Key 的审计。后台同时读取当天全站请求数、已结算/预留 Token、剩余额度与北京时间重置时间；请求和 Token 预算首次阻断分别在固定全局锁下原子标记，每类每天最多投递一次 `webchat_budget_exhausted` 脱敏 Webhook，Payload 不含成员、请求、消息、中转站地址或 Key，投递失败不改变原额度拒绝结果且不自动重试。管理员还必须在成员详情的“AI 助手访问”中逐人授权并设置每日请求与 Token 上限；无私有授权行、授权关闭、账号停用或非普通成员均默认拒绝。成员 `/assistant` 只读取自己的北京时间当日已用、预留与剩余额度，不返回其他成员、全站预算或中转站配置。WebChat 请求会先检查成员授权，再读取含 Vault Key 的运行时配置；数据库原子 claim 在付费请求前二次读取成员授权、逐人额度、数据库总开关和全站预算，管理员撤权、暂停或降额不会被预读竞态绕过。只有数据库中转站配置行尚不存在时才会使用 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`、`CHAT_GLOBAL_REQUESTS_PER_DAY` 与 `CHAT_GLOBAL_TOKENS_PER_DAY` 环境变量；成员每日额度不使用环境变量回退。数据库行一旦存在，其暂停开关和全站预算始终优先；若管理员开启请求但地址、模型或 Vault Key 不完整，请求会失败关闭。原子并发、滑动分钟、成员日额度、跨全部成员的全站日预算以及 `request_id + fingerprint + owner_token` 幂等租约均由数据库 RPC 实现；全站账本在 claim、释放、超时回收和已知/未知 Usage 结算时使用固定锁序更新，动态模型会进入请求指纹。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前三层开关都必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；系统分钟限流与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_CLAIM_LEASE_SECONDS`，成员每日请求与 Token 上限只由管理员后台配置，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
+- WebChat 默认由三层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 是最高优先级的环境熔断，数据库 `requests_enabled=false` 允许管理员在 `/admin/webchat` 立即暂停新请求。管理员还可修改中转站 Base URL、固定模型、API Key 和全站北京时间每日请求/Token 上限：地址、模型、开关、预算和版本保存在 `private` 单例表，Key 只写入 Supabase Vault，读取接口只返回“已配置/未配置”，浏览器永远拿不到旧 Key；每次修改还要求原因、实时管理员复核、速率限制和乐观锁，并写入不含 Key 的审计。后台同时读取当天全站请求数、已结算/预留 Token、剩余额度与北京时间重置时间；请求和 Token 预算首次阻断分别在固定全局锁下原子标记，每类每天最多投递一次 `webchat_budget_exhausted` 脱敏 Webhook，Payload 不含成员、请求、消息、中转站地址或 Key，投递失败不改变原额度拒绝结果且不自动重试。管理员还必须在账号详情的“AI 助手访问”中逐人授权并设置每日请求与 Token 上限；无私有授权行、授权关闭、账号停用或角色不是成员/管理员均默认拒绝。已授权账号的 `/assistant` 只读取后端当前模型名和自己的北京时间当日已用、预留与剩余额度，不返回其他账号、全站预算、中转站地址或 Key。WebChat 请求会先检查账号授权，再读取含 Vault Key 的运行时配置；数据库原子 claim 在付费请求前二次读取账号授权、逐人额度、数据库总开关和全站预算，管理员撤权、暂停或降额不会被预读竞态绕过。只有数据库中转站配置行尚不存在时才会使用 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`、`CHAT_GLOBAL_REQUESTS_PER_DAY` 与 `CHAT_GLOBAL_TOKENS_PER_DAY` 环境变量；逐账号每日额度不使用环境变量回退。数据库行一旦存在，其暂停开关和全站预算始终优先；若管理员开启请求但地址、模型或 Vault Key 不完整，请求会失败关闭。原子并发、滑动分钟、逐账号日额度、跨全部账号的全站日预算以及 `request_id + fingerprint + owner_token` 幂等租约均由数据库 RPC 实现；全站账本在 claim、释放、超时回收和已知/未知 Usage 结算时使用固定锁序更新，动态模型会进入请求指纹，并写入该次请求的服务端系统提示词。启用时还须配置 `CHAT_ALLOWED_ORIGINS` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；系统分钟限流与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_CLAIM_LEASE_SECONDS`，逐账号每日请求与 Token 上限只由管理员后台配置，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
@@ -259,7 +259,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-17 共有 43 个 migration，远端无 pending。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-17 共有 45 个 migration，远端无 pending。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
@@ -268,7 +268,7 @@ npm run check:supabase-preflight
 npx --yes supabase@2.109.1 db push --linked --include-all
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password \
   --use-api --import-map supabase/functions/deno.json
-# 仅在 WebChat 发布检查单通过后部署；部署本身不会打开 CHAT_ENABLED。
+# 可先在三层关闭态部署；正式启用前必须通过 WebChat 发布检查单。
 npx --yes supabase@2.109.1 functions deploy webchat webchat-config \
   --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness

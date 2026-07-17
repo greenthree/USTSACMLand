@@ -39,6 +39,8 @@ const requiredReleaseMigrations = [
   '202607170006_webchat_relay_admin_config.sql',
   '202607170007_webchat_budget_monitoring.sql',
   '202607170008_webchat_member_access.sql',
+  '202607170009_webchat_admin_access.sql',
+  '202607170010_webchat_model_visibility.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -105,8 +107,8 @@ export function inspectPgTapSuite(files) {
   const sqlFiles = files
     .filter((file) => file.name.endsWith('.test.sql'))
     .sort((left, right) => left.name.localeCompare(right.name))
-  if (sqlFiles.length < 22) {
-    throw new Error(`Database CI must discover at least 22 pgTAP files; found ${sqlFiles.length}.`)
+  if (sqlFiles.length < 24) {
+    throw new Error(`Database CI must discover at least 24 pgTAP files; found ${sqlFiles.length}.`)
   }
 
   let assertionCount = 0
