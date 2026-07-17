@@ -57,6 +57,7 @@
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
 - [ ] 发布记录包含当前 Git SHA 与四个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
 - [ ] `npm run check:supabase-readiness` 确认四个函数均精确允许正式 Pages Origin、不允许恶意 Origin，且匿名 GET 只返回 `401` 或 `405`。
+- [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
 - [ ] QOJ 健康检查最多执行一次且不自动重试；临时 Firecrawl 会话最终关闭。
@@ -67,6 +68,7 @@
 
 - [ ] 浏览器构建只含 `VITE_SUPABASE_URL` 和公开 anon key，不含 service role 或第三方凭据。
 - [ ] 洛谷 Cookie/CSRF、QOJ 服务账号、Firecrawl key 和告警 Token 均来自可独立轮换的生产 Secret。
+- [ ] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
 - [ ] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。
 - [ ] `ALLOWED_ORIGIN` 只包含实际 Origin，不包含路径或通配敏感域。
 - [ ] 生产凭据轮换人、存放位置和回滚方式已记录；未把真实值复制到发布记录。

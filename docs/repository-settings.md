@@ -53,7 +53,7 @@
 npm run check:repository-readiness -- greenthree/USTSACMLand
 ```
 
-退出码为 `1` 表示仍有发布阻塞项。检查器会逐文件比较本地与默认分支的 workflow 内容；CI、Pages 和 Secret scan 的最近成功运行必须覆盖默认分支最新提交，5 分钟同步队列必须在 45 分钟内成功，数据库备份必须在 30 小时内成功。因此新增或修改工作流推送后仍需手动或按计划运行一次。
+退出码为 `1` 表示仍有发布阻塞项。检查器会逐文件比较本地与默认分支的 workflow 内容；CI、Pages 和 Secret scan 的最近成功运行必须覆盖默认分支最新提交，GitHub 日更同步计划必须在 14 小时内成功，数据库备份必须在 30 小时内成功。主 5 分钟队列 SLA 由 `npm run check:supabase-readiness` 验证数据库 cron、Vault、最近 12 分钟调度和近 15 分钟成功运行；GitHub 仅保留管理员手动 `queue` 应急入口。因此新增或修改工作流推送后仍需手动或按计划运行一次。
 
 设置后创建一个不改业务逻辑的测试 PR，确认：
 

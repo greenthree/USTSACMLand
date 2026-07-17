@@ -60,7 +60,7 @@
 
 ## 3. 标准部署顺序
 
-部署顺序固定为“数据库 → Edge Functions → GitHub Pages”。这样新前端不会先调用尚未存在的表、RPC 或函数行为。
+默认部署顺序为“数据库 → Edge Functions → GitHub Pages”。若 migration 会立即启用新的数据库事件生产者（例如 queue cron），则先配置 Secret/Vault 并部署向后兼容的 Edge 消费者，再应用启用生产者的 migration；这类例外必须在发布记录中说明，避免 cron 在消费者尚未支持新鉴权时持续失败。
 
 ### 3.1 数据库
 
@@ -122,6 +122,8 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 
 计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 自动重试而产生第二次任务。
 
+数据库队列 cron 还必须满足：`SYNC_QUEUE_TOKEN` 与 Vault 中 `sync_queue_scheduler_token` 一致；Vault 同时存在固定 Edge URL 和公开 anon key；`read_sync_queue_scheduler_health()` 显示 cron active、最近 12 分钟有调度、最近已完成 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。GitHub 不运行第二个自动队列调度器；数据库 cron 故障时，由管理员在工作流中手动选择 `queue` 作为应急恢复入口。
+
 ### 3.3 GitHub Pages
 
 `deploy-pages.yml` 不再独立监听 `push`。只有 `main` 上由 push 触发的 `CI` workflow 完整结束且结论为 success 时，Pages workflow 才会检出该次 CI 的精确 `head_sha`，重新执行格式、Lint、测试和构建。数据库安全任务失败或 CI 被取消时不会产生 Pages 部署。合并或推送后检查：
@@ -182,6 +184,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 | QOJ 服务账号密码          | QOJ + Supabase Function Secrets         | 单次登录、目标主页匹配、会话最终关闭；不重试失败请求       |
 | 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新 | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                |
 | 同步告警 Token            | 接收端 + Supabase Function Secrets      | 受控终态失败仅投递一次，Payload 保持脱敏                   |
+| 同步队列调度 Token        | Supabase Function Secret + Vault        | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx   |
 | Supabase access token     | GitHub Actions/维护者本机安全存储       | migration list 与函数部署只访问目标项目                    |
 | Supabase service role key | Edge/GitHub 受控 Secret                 | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值   |
 | Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器       | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI      |
@@ -190,6 +193,8 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 | 管理员密码                | Supabase Auth                           | 新密码登录、旧会话按策略失效、恢复邮箱可用                 |
 
 轮换后搜索近期日志只能检查字段名或错误码，禁止搜索并输出 Secret 本身。若凭据疑似泄露，先撤销、再调查影响范围；不要继续使用旧值“观察是否被滥用”。
+
+轮换同步队列 Token 时，先暂停 `sync-queue-every-five-minutes`，生成新的独立随机值，更新 Edge Function Secret `SYNC_QUEUE_TOKEN` 和 Vault `sync_queue_scheduler_token`，手动调用私有调度函数并确认健康 RPC 返回 2xx，再恢复 cron。不要把 Token 作为 SQL 字面量写入 migration、SQL 历史、终端输出或发布记录；数据库只保存 Vault 密文，`net.http_request_queue` 中的专用 Token 会在异步请求完成后随队列行删除。
 
 ## 6. 数据源故障修复
 

@@ -26,7 +26,12 @@ function createReadyState() {
       headSha: defaultBranchSha,
       status: 'completed',
       conclusion: 'success',
-      event: workflow.name.includes('backup') ? 'workflow_dispatch' : 'push',
+      event:
+        workflow.name === 'Sync platform statistics'
+          ? 'schedule'
+          : workflow.name.includes('backup')
+            ? 'workflow_dispatch'
+            : 'push',
       createdAt:
         workflow.name === 'Sync platform statistics'
           ? '2026-07-15T23:55:00.000Z'
@@ -183,13 +188,20 @@ describe('repository readiness checker', () => {
     const ciRun = state.workflowRuns.find((run) => run.name === 'CI')
     if (ciRun) ciRun.headSha = 'old-sha'
     const syncRun = state.workflowRuns.find((run) => run.name === 'Sync platform statistics')
-    if (syncRun) syncRun.createdAt = '2026-07-15T22:00:00.000Z'
+    if (syncRun) {
+      syncRun.createdAt = '2026-07-15T09:30:00.000Z'
+      state.workflowRuns.unshift({
+        ...syncRun,
+        event: 'workflow_dispatch',
+        createdAt: '2026-07-15T23:59:00.000Z',
+      })
+    }
 
     expect(evaluateRepositoryReadiness(state).errors).toEqual(
       expect.arrayContaining([
         '远端工作流 CI 与本地 .github/workflows/ci.yml 内容不一致。',
         expect.stringContaining('工作流 CI 最近成功运行未覆盖默认分支最新提交'),
-        expect.stringContaining('工作流 Sync platform statistics 最近成功运行距今 2.00 小时'),
+        expect.stringContaining('工作流 Sync platform statistics 最近成功运行距今 14.50 小时'),
       ]),
     )
   })

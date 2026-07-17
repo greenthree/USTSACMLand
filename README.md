@@ -90,7 +90,7 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 
 数据新鲜度与计划批次对齐：日更平台在下一个 07:00/19:00 批次之后保留 2 小时执行宽限，周更平台在下一个周二 08:00 批次之后保留 24 小时执行宽限。只有宽限结束仍没有新的成功结果才显示“已过期”；宽限期内的手动、平台验证或重试同步失败会记录错误，但不会把仍有效的数据提前标记过期。榜单时间显示最近成功时间。GitHub Actions 的定时任务是 best-effort，繁忙时可能比标称时间略晚启动；管理员仍可在同步中心手动触发。
 
-单平台临时故障使用持久 `sync_jobs` 队列，普通平台最多执行 3 次，失败后分别等待 2 分钟和 4 分钟；每 5 分钟的服务任务使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。计划批次按 `platform_accounts.id` 稳定游标每页读取 3 个已验证账号，避免牛客等串行平台使单次 Edge 请求超过网关时限；每一页只发送一次 POST，工作流不会进行 `curl` 传输层重试，并在全部页完成后统一报告业务失败。QOJ 任务仍只有一次尝试，避免重复创建 Firecrawl 会话或加重风控。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
+单平台临时故障使用持久 `sync_jobs` 队列，普通平台最多执行 3 次，失败后分别等待 2 分钟和 4 分钟；Supabase `pg_cron` 每 5 分钟通过 `pg_net` 调用一次仅限 `scope=queue` 的内部入口，使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。GitHub Actions 只保留管理员手动 `queue` 应急入口，避免两个自动调度器同时领取不同任务并突破跨平台并发上限。计划批次按 `platform_accounts.id` 稳定游标每页读取 3 个已验证账号，避免牛客等串行平台使单次 Edge 请求超过网关时限；每一页只发送一次 POST，工作流不会进行 `curl` 传输层重试，并在全部页完成后统一报告业务失败。QOJ 任务仍只有一次尝试，避免重复创建 Firecrawl 会话或加重风控。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
 
 参考项目：[FCYXSZY/astrbot_plugin_acm_helper](https://github.com/FCYXSZY/astrbot_plugin_acm_helper)。本项目借鉴其 Codeforces 分页/Accepted 去重思路，以及 `luogu_api/ckp.py` 的洛谷 Cookie、CSRF 和记录列表请求方式；凭据改由 Supabase Secrets 管理，不进入源码。
 
@@ -204,6 +204,7 @@ Supabase Function Secrets/配置：
 - `QOJ_SERVICE_PASSWORD`（专用 QOJ 服务账号密码）
 - `LUOGU_COOKIE`（专用洛谷会话 Cookie）
 - `LUOGU_CSRF_TOKEN`（与 Cookie 对应的 CSRF Token）
+- `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
 - `ALLOWED_ORIGIN`
@@ -211,6 +212,8 @@ Supabase Function Secrets/配置：
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
 
 `service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
+
+数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 
 永久注销采用“禁止恢复到注销前”的恢复下限策略。`delete-account` 的目标绑定数据库租约覆盖完整临界区：取得 `owner + target_user_id` 租约 → 将一个不含用户 ID、姓名、邮箱或账号的 UTC 时间写入 GitHub 仓库变量 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用仅限 service role 的最终 RPC。RPC 先锁定租约单例行和目标 Profile，再次验证 owner、target、有效期、普通成员角色和无活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 删除触发器拒绝任何没有匹配 owner/target 标记的旧 HTTP 或旁路删除，因此部署切换期间的旧 Edge 请求也会失败关闭。Auth/Profile 级联和审计匿名化只会整体提交或回滚。租约冲突、取得或删除前续期失败，或恢复下限写入与确认失败时，函数不执行 Auth 删除并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`，账号与业务数据保持不变。数据库行锁使最终删除不再依赖 Edge Runtime 定时心跳：即使租约墙钟到期，竞争请求也只能等待首个删除事务结束。备份会记录当时的下限，恢复前还必须用仓库变量当前值执行 `npm run verify:backup-recovery-floor -- <metadata.txt>`。
 

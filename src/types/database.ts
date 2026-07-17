@@ -1195,6 +1195,7 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       read_xcpc_elo_cache: { Args: never; Returns: Json }
+      read_sync_queue_scheduler_health: { Args: never; Returns: Json }
       validate_xcpc_elo_cache_refresh: {
         Args: {
           cache_ttl_seconds: number

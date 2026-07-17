@@ -17,6 +17,11 @@ import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.
 import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
 import { buildCursorPage } from './pagination.ts'
 import {
+  hasValidQueueSchedulerToken,
+  queueSchedulerDownstreamToken,
+  queueSchedulerMayProcessScope,
+} from './queue-scheduler-auth.ts'
+import {
   adminSyncRateLimitRule,
   maySyncXcpcElo,
   normalizeSyncRequest,
@@ -59,12 +64,19 @@ function bearerToken(request: Request): string {
 }
 
 async function authorize(
+  request: Request,
   token: string,
   serviceClient: SupabaseClient,
   serviceRoleKey: string,
-): Promise<{ serviceRole: boolean; actorId: string | null }> {
+): Promise<{ serviceRole: boolean; queueScheduler: boolean; actorId: string | null }> {
   if (token === serviceRoleKey || gatewayVerifiedJwtRole(token) === 'service_role') {
-    return { serviceRole: true, actorId: null }
+    return { serviceRole: true, queueScheduler: false, actorId: null }
+  }
+  if (
+    gatewayVerifiedJwtRole(token) === 'anon' &&
+    (await hasValidQueueSchedulerToken(request, Deno.env.get('SYNC_QUEUE_TOKEN')))
+  ) {
+    return { serviceRole: false, queueScheduler: true, actorId: null }
   }
 
   const { data, error } = await serviceClient.auth.getUser(token)
@@ -83,7 +95,7 @@ async function authorize(
   if (profile?.role !== 'admin' || profile.review_status !== 'approved') {
     throw new ApiError(403, 'Administrator access is required')
   }
-  return { serviceRole: false, actorId: data.user.id }
+  return { serviceRole: false, queueScheduler: false, actorId: data.user.id }
 }
 
 function isPlatformId(value: unknown): value is PlatformId {
@@ -210,7 +222,7 @@ Deno.serve(async (request) => {
     const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const auth = await authorize(token, serviceClient, serviceRoleKey)
+    const auth = await authorize(request, token, serviceClient, serviceRoleKey)
 
     let body: SyncRequest
     try {
@@ -229,8 +241,12 @@ Deno.serve(async (request) => {
       throw error
     }
     const { scope, platforms, memberId, batchSize, cursor } = normalizedRequest
-    if (scope === 'queue' && !auth.serviceRole) {
-      throw new ApiError(403, 'Only the service role may process the synchronization queue')
+    const privilegedScheduler = auth.serviceRole || auth.queueScheduler
+    if (!queueSchedulerMayProcessScope(auth.queueScheduler, scope)) {
+      throw new ApiError(403, 'The queue scheduler token may only process queued work')
+    }
+    if (scope === 'queue' && !privilegedScheduler) {
+      throw new ApiError(403, 'Only an internal scheduler may process the synchronization queue')
     }
     if (!auth.serviceRole && auth.actorId) {
       await consumeAdminRateLimit(
@@ -255,7 +271,7 @@ Deno.serve(async (request) => {
       targets = loaded.targets
       nextCursor = loaded.nextCursor
     }
-    if (targets.length === 0 && !auth.serviceRole) {
+    if (targets.length === 0 && !privilegedScheduler) {
       throw new ApiError(404, 'No approved members or verified accounts matched the request')
     }
     if (targets.length === 0) {
@@ -283,7 +299,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    if (shouldCheckFirecrawlCredits(auth.serviceRole, scope, platforms, cursor)) {
+    if (shouldCheckFirecrawlCredits(privilegedScheduler, scope, platforms, cursor)) {
       try {
         const usage = await readFirecrawlCreditUsage()
         if (
@@ -307,10 +323,16 @@ Deno.serve(async (request) => {
       }
     }
 
-    const triggerType = auth.serviceRole ? 'scheduled' : 'manual'
+    const triggerType = privilegedScheduler ? 'scheduled' : 'manual'
+    const downstreamToken = queueSchedulerDownstreamToken(
+      auth.queueScheduler,
+      token,
+      serviceRoleKey,
+    )
     const results = await dispatchWithPlatformLimits(
       targets,
-      (target) => invokeSyncMember(target, supabaseUrl, serviceRoleKey, token, triggerType),
+      (target) =>
+        invokeSyncMember(target, supabaseUrl, serviceRoleKey, downstreamToken, triggerType),
       (target, error): PlatformMemberSyncResult => {
         console.error(
           JSON.stringify({

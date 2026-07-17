@@ -22,6 +22,7 @@ export const requiredFunctionSecrets = [
   'LUOGU_CSRF_TOKEN',
   'QOJ_SERVICE_USERNAME',
   'QOJ_SERVICE_PASSWORD',
+  'SYNC_QUEUE_TOKEN',
   'SYNC_ALERT_WEBHOOK_URL',
   'SYNC_ALERT_WEBHOOK_TOKEN',
   'DELETION_RECOVERY_REPOSITORY',
@@ -90,6 +91,7 @@ export function evaluateSupabaseReadiness(state, options = {}) {
   const errors = []
   const warnings = []
   const preflight = options.mode === 'preflight'
+  const observedAt = Date.parse(state.observedAt ?? new Date().toISOString())
 
   if (!state.project) {
     errors.push('未找到唯一的 linked Supabase 项目。')
@@ -154,6 +156,54 @@ export function evaluateSupabaseReadiness(state, options = {}) {
   )
   for (const name of missingFunctionSecrets) {
     errors.push(`Supabase Function Secret 未配置：${name}。`)
+  }
+
+  if (!state.queueSchedulerHealth) {
+    const message = `无法验证数据库同步队列调度器${state.queueSchedulerHealthError ? `：${state.queueSchedulerHealthError}` : '。'}`
+    ;(preflight ? warnings : errors).push(
+      preflight ? `部署前预检尚无数据库队列调度器：${message}` : message,
+    )
+  } else {
+    const scheduler = state.queueSchedulerHealth
+    if (!scheduler.configured) errors.push('数据库同步队列调度器 Vault 配置不完整。')
+    if (!scheduler.cronActive) errors.push('数据库同步队列五分钟 cron 未启用。')
+    const lastDispatchedAt = Date.parse(scheduler.lastDispatchedAt ?? '')
+    if (!Number.isFinite(observedAt) || !Number.isFinite(lastDispatchedAt)) {
+      errors.push('数据库同步队列最近调度时间无法验证。')
+    } else {
+      const ageMinutes = (observedAt - lastDispatchedAt) / 60_000
+      if (ageMinutes < 0 || ageMinutes > 12) {
+        errors.push(`数据库同步队列最近调度距今 ${ageMinutes.toFixed(1)} 分钟，超过 12 分钟门限。`)
+      }
+    }
+    const lastResponseDispatchedAt = Date.parse(scheduler.lastResponseDispatchedAt ?? '')
+    if (!Number.isFinite(observedAt) || !Number.isFinite(lastResponseDispatchedAt)) {
+      errors.push('数据库同步队列最近已完成响应的调度时间无法验证。')
+    } else {
+      const responseAgeMinutes = (observedAt - lastResponseDispatchedAt) / 60_000
+      if (responseAgeMinutes < 0 || responseAgeMinutes > 12) {
+        errors.push(
+          `数据库同步队列最近已完成响应对应调度距今 ${responseAgeMinutes.toFixed(1)} 分钟，超过 12 分钟门限。`,
+        )
+      }
+    }
+    if (
+      typeof scheduler.lastHttpStatus !== 'number' ||
+      scheduler.lastHttpStatus < 200 ||
+      scheduler.lastHttpStatus >= 300 ||
+      scheduler.lastTimedOut ||
+      scheduler.lastTransportError
+    ) {
+      errors.push('数据库同步队列最近一次 Edge 请求未成功完成。')
+    }
+    if (
+      !Number.isInteger(scheduler.recentCronRuns) ||
+      !Number.isInteger(scheduler.recentCronSuccesses) ||
+      scheduler.recentCronRuns < 1 ||
+      scheduler.recentCronSuccesses < 1
+    ) {
+      errors.push('数据库同步队列近 15 分钟没有成功 cron 运行。')
+    }
   }
 
   if (!state.authSettings) {
@@ -268,6 +318,28 @@ export function evaluateSupabaseReadiness(state, options = {}) {
             state.functionBoundaryAudit.allowedOrigin,
           ),
         ),
+      ),
+      queueSchedulerReady: Boolean(
+        state.queueSchedulerHealth?.configured &&
+        state.queueSchedulerHealth?.cronActive &&
+        typeof state.queueSchedulerHealth?.lastHttpStatus === 'number' &&
+        state.queueSchedulerHealth.lastHttpStatus >= 200 &&
+        state.queueSchedulerHealth.lastHttpStatus < 300 &&
+        !state.queueSchedulerHealth.lastTimedOut &&
+        !state.queueSchedulerHealth.lastTransportError &&
+        Number.isFinite(observedAt) &&
+        Number.isFinite(Date.parse(state.queueSchedulerHealth.lastDispatchedAt ?? '')) &&
+        Number.isFinite(Date.parse(state.queueSchedulerHealth.lastResponseDispatchedAt ?? '')) &&
+        (observedAt - Date.parse(state.queueSchedulerHealth.lastDispatchedAt)) / 60_000 >= 0 &&
+        (observedAt - Date.parse(state.queueSchedulerHealth.lastDispatchedAt)) / 60_000 <= 12 &&
+        (observedAt - Date.parse(state.queueSchedulerHealth.lastResponseDispatchedAt)) / 60_000 >=
+          0 &&
+        (observedAt - Date.parse(state.queueSchedulerHealth.lastResponseDispatchedAt)) / 60_000 <=
+          12 &&
+        Number.isInteger(state.queueSchedulerHealth.recentCronRuns) &&
+        Number.isInteger(state.queueSchedulerHealth.recentCronSuccesses) &&
+        state.queueSchedulerHealth.recentCronRuns >= 1 &&
+        state.queueSchedulerHealth.recentCronSuccesses >= 1,
       ),
     },
   }
@@ -448,6 +520,8 @@ export async function collectSupabaseReadinessState() {
       anonRestAuditError: '未找到唯一 linked 项目。',
       functionBoundaryAudit: null,
       functionBoundaryAuditError: '未找到唯一 linked 项目。',
+      queueSchedulerHealth: null,
+      queueSchedulerHealthError: '未找到唯一 linked 项目。',
       providerBackups: null,
       functionSecrets: [],
     }
@@ -475,6 +549,18 @@ export async function collectSupabaseReadinessState() {
     ['secrets', 'list', '--project-ref', project.ref],
     'Supabase Function Secret 名称',
   )
+  let queueSchedulerHealth = null
+  let queueSchedulerHealthError = null
+  try {
+    const schedulerResponse = runSupabaseJson(
+      ['db', 'query', '--linked', 'select public.read_sync_queue_scheduler_health() as health'],
+      '数据库同步队列调度器状态',
+    )
+    const health = schedulerResponse?.rows?.[0]?.health
+    queueSchedulerHealth = typeof health === 'string' ? JSON.parse(health) : (health ?? null)
+  } catch (error) {
+    queueSchedulerHealthError = error instanceof Error ? error.message : '请求失败。'
+  }
   const apiKeys = Array.isArray(apiKeyResponse) ? apiKeyResponse : (apiKeyResponse?.keys ?? [])
   const publicApiKey =
     apiKeys.find((key) => key.type === 'publishable')?.api_key ??
@@ -514,6 +600,7 @@ export async function collectSupabaseReadinessState() {
   }
 
   return {
+    observedAt: new Date().toISOString(),
     project: {
       ref: project.ref,
       name: project.name,
@@ -536,6 +623,8 @@ export async function collectSupabaseReadinessState() {
     anonRestAuditError,
     functionBoundaryAudit,
     functionBoundaryAuditError,
+    queueSchedulerHealth,
+    queueSchedulerHealthError,
     providerBackups: {
       walgEnabled: Boolean(backupResponse?.walg_enabled),
       pitrEnabled: Boolean(backupResponse?.pitr_enabled),
@@ -554,7 +643,7 @@ async function main() {
     `Supabase ${mode} readiness: ${report.summary.projectRef || 'no linked project'} (${report.summary.projectStatus || 'unknown'})`,
   )
   console.log(
-    `Observed ${report.summary.migrations} migrations, ${report.summary.pendingMigrations} pending, ${report.summary.functions} Edge Functions, ${report.summary.functionSecrets} Function Secret names (${report.summary.missingFunctionSecrets} missing), ${report.summary.lintFindings} schema lint findings, Auth email readiness=${report.summary.authEmailReady}, anonymous REST readiness=${report.summary.anonRestReady}, Edge Function boundary readiness=${report.summary.functionBoundaryReady}, PITR=${report.summary.pitrEnabled} and provider backups=${report.summary.providerBackups}.`,
+    `Observed ${report.summary.migrations} migrations, ${report.summary.pendingMigrations} pending, ${report.summary.functions} Edge Functions, ${report.summary.functionSecrets} Function Secret names (${report.summary.missingFunctionSecrets} missing), ${report.summary.lintFindings} schema lint findings, Auth email readiness=${report.summary.authEmailReady}, anonymous REST readiness=${report.summary.anonRestReady}, Edge Function boundary readiness=${report.summary.functionBoundaryReady}, queue scheduler readiness=${report.summary.queueSchedulerReady}, PITR=${report.summary.pitrEnabled} and provider backups=${report.summary.providerBackups}.`,
   )
   for (const warning of report.warnings) console.warn(`WARNING: ${warning}`)
   for (const error of report.errors) console.error(`BLOCKER: ${error}`)

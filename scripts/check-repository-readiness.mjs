@@ -26,7 +26,9 @@ export const requiredActionVariables = ['BACKUP_RECOVERY_NOT_BEFORE']
 // "workflow / job" labels.
 const requiredChecks = ['verify', 'database-security', 'gitleaks']
 const scheduledWorkflowMaxAgeHours = new Map([
-  ['Sync platform statistics', 0.75],
+  // The twice-daily GitHub platform batches have a two-hour execution grace.
+  // The five-minute retry queue is monitored separately in Supabase.
+  ['Sync platform statistics', 14],
   ['Encrypted database backup', 30],
 ])
 
@@ -91,12 +93,14 @@ export function evaluateRepositoryReadiness(state) {
       errors.push(`远端工作流 ${expected.name} 与本地 ${expected.path} 内容不一致。`)
     }
 
+    const requiresScheduledRun = expected.name === 'Sync platform statistics'
     const successfulRun = state.workflowRuns.find(
       (run) =>
         run.name === expected.name &&
         run.headBranch === defaultBranch &&
         run.status === 'completed' &&
-        run.conclusion === 'success',
+        run.conclusion === 'success' &&
+        (!requiresScheduledRun || run.event === 'schedule'),
     )
     if (!successfulRun) {
       errors.push(`工作流 ${expected.name} 尚无 ${defaultBranch} 分支的成功真实运行。`)
