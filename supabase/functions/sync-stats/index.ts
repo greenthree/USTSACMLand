@@ -17,6 +17,7 @@ import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.
 import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
 import { buildCursorPage } from './pagination.ts'
 import {
+  adminSyncRateLimitRule,
   maySyncXcpcElo,
   normalizeSyncRequest,
   type SyncRequest,
@@ -235,13 +236,7 @@ Deno.serve(async (request) => {
       await consumeAdminRateLimit(
         serviceClient,
         auth.actorId,
-        scope === 'all'
-          ? { actionKey: 'admin.sync.all', maxRequests: 2, windowSeconds: 600 }
-          : {
-              actionKey: 'admin.sync.scoped',
-              maxRequests: 12,
-              windowSeconds: 60,
-            },
+        adminSyncRateLimitRule(normalizedRequest),
       )
     }
 

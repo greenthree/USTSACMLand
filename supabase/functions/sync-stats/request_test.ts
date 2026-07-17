@@ -1,5 +1,10 @@
 import { deepStrictEqual, strictEqual, throws } from 'node:assert/strict'
-import { maySyncXcpcElo, normalizeSyncRequest, SyncRequestError } from './request.ts'
+import {
+  adminSyncRateLimitRule,
+  maySyncXcpcElo,
+  normalizeSyncRequest,
+  SyncRequestError,
+} from './request.ts'
 
 Deno.test('platforms scope removes duplicate platforms while preserving order', () => {
   deepStrictEqual(
@@ -105,5 +110,31 @@ Deno.test('pagination rejects unsafe sizes, cursors, and queue use', () => {
     () => normalizeSyncRequest({ scope: 'queue', batch_size: 3 }),
     SyncRequestError,
     'queue scope does not accept pagination',
+  )
+})
+
+Deno.test('administrator pagination preserves operation and continuation limits', () => {
+  deepStrictEqual(adminSyncRateLimitRule(normalizeSyncRequest({ scope: 'all', batch_size: 6 })), {
+    actionKey: 'admin.sync.all',
+    maxRequests: 2,
+    windowSeconds: 600,
+  })
+  deepStrictEqual(
+    adminSyncRateLimitRule(normalizeSyncRequest({ scope: 'all', batch_size: 6, cursor: 42 })),
+    {
+      actionKey: 'admin.sync.all.page',
+      maxRequests: 60,
+      windowSeconds: 600,
+    },
+  )
+  deepStrictEqual(
+    adminSyncRateLimitRule(
+      normalizeSyncRequest({ scope: 'platform', platform: 'luogu', batch_size: 6, cursor: 42 }),
+    ),
+    {
+      actionKey: 'admin.sync.scoped.page',
+      maxRequests: 120,
+      windowSeconds: 60,
+    },
   )
 })
