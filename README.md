@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 45 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。PR #57 的 PostgreSQL 17 空库任务已通过 24 个 pgTAP 文件、599 项断言，`verify` 与 `gitleaks` 同时通过；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；生产 Pages 客户端入口仍隐藏，等待 3–5 人正式试运行决定。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 45 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。PR #57 的 PostgreSQL 17 空库任务已通过 24 个 pgTAP 文件、599 项断言，`verify` 与 `gitleaks` 同时通过；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；2026-07-18 已启用生产 Pages 客户端入口，登录且经后台授权的账号可以从导航进入 AI 学习助手，仍待扩展至 3–5 人完成正式试运行观察。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
 
 ## 已实现
 
@@ -18,7 +18,7 @@
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
 - 8 张核心业务表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、7 张 WebChat 私有配置/额度/账本表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
-- WebChat 安全 API、管理员配置与隐藏前端工作台：`webchat`、`webchat-config` 已部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。服务端生产模型调用已对显式授权账号开放；聊天依赖保持在独立懒加载路由块内，生产 `VITE_WEBCHAT_UI_ENABLED=false` 仍隐藏 Pages 导航和页面。
+- WebChat 安全 API、管理员配置与按账号授权的前端工作台：`webchat`、`webchat-config` 已部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。生产 `VITE_WEBCHAT_UI_ENABLED=true` 已向登录账号启用 Pages 路由和导航，服务端与数据库仍会逐请求复核账号授权；聊天依赖保持在独立懒加载路由块内。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流；Dependabot 周更与完整历史 Gitleaks 门禁。

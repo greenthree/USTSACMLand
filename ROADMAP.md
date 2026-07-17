@@ -202,7 +202,7 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-17 部署核对确认项目 `ACTIVE_HEALTHY`、45 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat` 六个函数均为 ACTIVE；WebChat 使用仓库 import map 部署，服务端与数据库请求开关已对显式授权账号开放，生产 Pages 客户端入口仍隐藏。部署证据见 `docs/evidence/webchat-closed-production-deployment-2026-07-17.md` 与 `docs/evidence/webchat-model-visibility-production-2026-07-17.md`）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-17 部署核对确认项目 `ACTIVE_HEALTHY`、45 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat` 六个函数均为 ACTIVE；WebChat 使用仓库 import map 部署，服务端与数据库请求开关已对显式授权账号开放。2026-07-18 生产 Pages 客户端入口已启用，未登录仍跳转登录，登录且获授权账号可进入工作台。部署证据见 `docs/evidence/webchat-closed-production-deployment-2026-07-17.md`、`docs/evidence/webchat-model-visibility-production-2026-07-17.md` 与 `docs/evidence/webchat-pages-entry-production-2026-07-18.md`）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
 - [x] 在生产 Secrets 和真实仓库中验证首版及当前已启用的生产工作流（2026-07-16 严格仓库就绪检查退出码为 0：CI、Pages、同步、Secret scan、Dependabot 与加密数据库备份均有当前 main 的成功真实运行；六个必需 Actions Secret、恢复下限变量、main ruleset、原生安全功能和 30 天 Actions 保留均已确认。首次备份 run `29509805851` 使用短期数据库凭据完成六部分导出、AES-256 加密、GitHub 端解密自检、14 天 Artifact 上传及下载后的本地独立校验，证据见 `docs/evidence/first-encrypted-database-backup-2026-07-16.md`；尚未运行的 WebChat 真实中转站手动工作流继续由对应功能条目跟踪）。
@@ -230,9 +230,10 @@ M6 验收条件：
 
 - [x] 按知识点和训练阶段组织新手学习引导（独立 `/learning` 交互页可根据“完全不会写代码 / 已会基础语法 / 想开始参赛”即时推荐牛客、洛谷或 Codeforces；四周计划支持切换周次、勾选任务、本地保存与重置进度，五阶段进阶路线支持按需展开，并接入一键 C++ 环境配置、算法竞赛 Wiki、XCPC Link、ACM 群组坐标汇总、知识地图、训练节奏与开放资源；首页与主导航已接入，桌面/移动 Chromium 的路由、焦点、交互、横向溢出及 axe WCAG A/AA 门禁通过）。
 - [ ] 每日一题、题目讨论和完成记录。
-- [ ] 接入大模型的 AI 聊天学习助手，用于知识问答、代码讲解和训练复盘，使用根目录下的 `WEBCHATROADMAP.md` 规划（安全 API、流式 `/assistant` 工作台、成员与全站原子配额、Vault 中转站配置、管理员逐账号授权/限额、脱敏预算告警、隐私说明和真实 Responses 协议验收均已完成。2026-07-17 生产已对齐 45 个 migration，`webchat` v5 为 ACTIVE；PR #57 在提交 `d943e07` 上的 `verify`、`database-security`、`gitleaks` 均通过，其中 PostgreSQL 17 空库执行 24 个 pgTAP 文件、599 项断言。服务端与数据库请求开关已对显式授权账号开放；测试账号当日 4 次受控请求累计结算 6,416 Token、预留归零，页面显示与模型自报均为 `gpt-5.6-sol`。生产 `VITE_WEBCHAT_UI_ENABLED=false` 继续隐藏 Pages 入口；剩余任务是决定 3–5 人正式试运行名单和 Pages 入口启用时点，并完成试运行观察）。
+- [ ] 接入大模型的 AI 聊天学习助手，用于知识问答、代码讲解和训练复盘，使用根目录下的 `WEBCHATROADMAP.md` 规划（安全 API、流式 `/assistant` 工作台、成员与全站原子配额、Vault 中转站配置、管理员逐账号授权/限额、脱敏预算告警、隐私说明和真实 Responses 协议验收均已完成。2026-07-17 生产已对齐 45 个 migration，`webchat` v5 为 ACTIVE；PR #57 在提交 `d943e07` 上的 `verify`、`database-security`、`gitleaks` 均通过，其中 PostgreSQL 17 空库执行 24 个 pgTAP 文件、599 项断言。服务端与数据库请求开关已对显式授权账号开放；测试账号当日 4 次受控请求累计结算 6,416 Token、预留归零，页面显示与模型自报均为 `gpt-5.6-sol`。2026-07-18 已启用生产 `VITE_WEBCHAT_UI_ENABLED=true`，未登录直达 `/assistant` 会保留返回地址并跳转登录，已授权测试账号可从导航进入工作台；剩余任务是扩展至 3–5 名正式试运行成员并完成连续观察）。
 - [x] 在已授权账号的 `/assistant` 显示后端实际解析的当前模型，并将同一个经过白名单校验的模型名写入服务端系统提示词、额度指纹和上游请求；未授权或停用账号不能发现模型，任何账号都不能读取 Base URL、Key、全站预算或他人额度。迁移 `202607170010` 已部署，localhost 生产 RPC 刷新烟测显示 `gpt-5.6-sol` 且 console 无错误。
 - [x] 完成 AI 学习助手的本地多浏览器、移动端、宽屏、键盘、减少动画与 axe 门禁；Chromium 同时驱动 10 个独立页面和 10 路并行 HTTP 流，验证流式回复互不串扰且完成后无残留活动连接。PR #57 的 Actions run `29593307984` 已实际通过该专用 WebChat 浏览器矩阵；真实中转站的 3–5 人试运行与连续观察仍由总功能条目跟踪。
+- [x] 启用 GitHub Pages 的 AI 学习助手客户端入口：仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` 已进入 Pages 构建，Actions run `29594758865` attempt 2 的 build、deploy 和 `production-ranking-audit` 全部通过；生产浏览器验证未登录访问会跳转登录，已授权测试账号导航显示“AI 助手”并可读取 `gpt-5.6-sol`、本人额度和对话工作台。
 - [ ] 自定义时间范围的刷题增量榜、周榜和月榜。
 - [x] 完成 AI 学习助手隐私披露：说明消息会转发给管理员配置的中转站及上游模型、本站不保存对话正文，以及私有额度账本的最小字段边界；真实中转站的留存、训练、删除与跨境政策仍作为启用前验收项。
 - [ ] CF/AtCoder Rating 曲线与比赛明细。
