@@ -44,11 +44,10 @@ select ok(
   'the returned model is normalized directly from the private relay model'
 );
 
-select unlike(
+select ok(
   pg_catalog.lower(
     pg_catalog.pg_get_functiondef('public.read_own_webchat_usage()'::regprocedure)
-  ),
-  '(base_url|api_key|global_daily|vault\.)',
+  ) !~ '(base_url|api_key|global_daily|vault\.)',
   'own usage source does not read relay addresses, keys, Vault, or global budgets'
 );
 
