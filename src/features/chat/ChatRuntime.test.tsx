@@ -103,8 +103,12 @@ describe('AI learning assistant workspace', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('登录状态已失效，请重新登录。')
     await user.click(screen.getByRole('button', { name: '重新登录' }))
-    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
-    expect(screen.getByLabelText('current route')).toHaveTextContent('/login?returnTo=%2Fassistant')
+    await waitFor(() => {
+      expect(signOut).toHaveBeenCalledTimes(1)
+      expect(screen.getByLabelText('current route')).toHaveTextContent(
+        '/login?returnTo=%2Fassistant',
+      )
+    })
   })
 
   it('lets a revoked member recheck access without retrying the paid request', async () => {
