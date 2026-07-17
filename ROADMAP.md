@@ -116,7 +116,7 @@ M2 验收条件：
 - [ ] QOJ：继续演练密码错误、Cloudflare 和 Firecrawl 限流路径（固定故障测试已覆盖错误码、不可自动重试、Firecrawl Job ID 诊断与临时会话关闭；待生产受控演练和告警投递证据后验收）。
 - [x] 保存最新统计和历史快照；同一源数据时间重复执行需幂等（源时间唯一约束、失败快照分离、洛谷纠正 RPC，以及非洛谷“账号/run 校验→统计→幂等快照→run 终态”的单事务 RPC 已部署；PostgreSQL 17 空库 CI 已通过快照同源幂等、洛谷幂等、事务回滚、权限与终态竞争测试，生产 Codeforces 单平台同步入口烟测成功）。
 - [x] 实现 HTTP 超时/有限重试和管理员/计划任务活动任务去重。
-- [ ] 完成队列最大重试、指数退避和跨平台并发限额（单平台持久重试、QOJ 禁止自动重试、原子领取、故障恢复和平台并发编排已实现，migration `202607140012` 已部署且相关 pgTAP 在空库 CI 通过。2026-07-16 只读生产审计确认一次新调度器 Codeforces 五任务批次按 `2/2/1` 执行、最大并发为 2；新版本全部 QOJ 任务均为 `attempt_count=1/max_attempts=1`，管理员明确重试也创建新的单次任务。仍需生产 stale-worker 恢复、普通平台 2/4 分钟到期退避、重试耗尽，以及 AtCoder/XCPC ELO/牛客/洛谷/QOJ 调度并发烟测）。
+- [x] 完成队列最大重试、指数退避和跨平台并发限额：单平台持久重试、QOJ 禁止自动重试、原子领取、故障恢复和平台并发编排均已实现。2026-07-17 新增 attempt 感知的原子完成 RPC，旧 worker 不能覆盖重新领取后的新 attempt；PostgreSQL 17 空库 CI 通过 17 个 pgTAP 文件、314 项断言。生产随机非公开夹具确认首次/第二次失败严格退避 120/240 秒、第三次耗尽、stale Run 关闭为 `timeout`、迟到 attempt 返回 `transitioned=false`、QOJ 即使 retryable 也不排队，清理后 Profile/Job/Run 为 0。Codeforces、AtCoder、XCPC ELO、牛客、洛谷、QOJ 的实测最大并发分别为 2、2、4、1、1、1；QOJ 本轮两次上游请求均为结构化 `source_unavailable`，但保持串行与单次尝试，数据源健康仍由独立故障演练条目跟踪。证据见 `docs/evidence/production-sync-queue-reliability-2026-07-17.md`。
 - [x] 区分 `not_found`、`auth_expired`、`rate_limited`、`schema_changed`、`timeout` 等结构化错误码。
 - [x] 实现 GitHub Actions 分组定时与手动触发：日更组北京时间 07:00/19:00，周更组每周二 08:00，到期重试队列每 5 分钟处理一次；2026-07-16 生产五平台手动批次按稳定游标分为 10 页、每页最多 3 个账号并完整走到 `hasMore=false`，未再出现 Supabase HTTP 546，脱敏证据见 `docs/evidence/paginated-sync-production-smoke-2026-07-16.md`。
 - [x] 平台账号验证通过后立即同步该平台；同步失败不回滚验证状态。
