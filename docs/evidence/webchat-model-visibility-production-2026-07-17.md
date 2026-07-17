@@ -39,3 +39,5 @@
 - PR #57 的专用 WebChat Playwright 门禁在 Chromium、Firefox、WebKit、390px 移动端和宽屏环境通过，并在 Chromium 同时驱动 10 个独立页面与 10 路并行 HTTP 流，确认回复不串流且完成后无残留活动连接。
 
 本机 Docker Desktop 未运行，因此无法在本地创建 PostgreSQL 17 空库执行 pgTAP。PR #57 的 Actions run `29593307984` 已补足该证据：`database-security`、`verify` 与独立 `gitleaks` 全部通过，其中新增的 17 项模型可见性断言和其余数据库套件均成功。
+
+2026-07-18 的后续 Pages 客户端入口开放与生产浏览器验证记录见 `webchat-pages-entry-production-2026-07-18.md`；本文保留 2026-07-17 验证时的关闭态事实。

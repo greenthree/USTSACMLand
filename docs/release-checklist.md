@@ -77,12 +77,12 @@
 - [ ] Firecrawl 用量、QOJ 登录、洛谷认证和 Supabase 配额均处于可用状态。
 - [ ] 使用与生产 `FIRECRAWL_API_KEY` 相同团队的维护者凭据运行 `firecrawl credit-usage --json --pretty`；剩余比例高于 25%，或已记录扩容/降耗措施。不得把 API Key 或完整凭据配置写入发布记录。
 - [ ] 如本次启用或更换 WebChat 中转站：手动 `WebChat relay compatibility` 工作流已通过非流式、Responses typed SSE、Usage 和 Abort 四项；下载的 14 天 Artifact 不含 Prompt、回复、请求 ID、Key 或明文主机，`CHAT_ENABLED` 在完成函数边界和额度复核前仍为 `false`。
-- [ ] `npm run test:e2e:webchat` 已通过五浏览器矩阵；10 个独立页面回复不串流、10 路同时 HTTP 流全部完成、键盘停止触发 Abort、减少动画和移动端 axe 门禁均无回归。
+- [x] `npm run test:e2e:webchat` 已通过五浏览器矩阵；10 个独立页面回复不串流、10 路同时 HTTP 流全部完成、键盘停止触发 Abort、减少动画和移动端 axe 门禁均无回归。PR #57 与合并后的 main CI 均已实际通过。
 - [ ] `/admin/webchat` 已由当前有效管理员写入同一组 Base URL、模型与 Key，并设置全站北京时间每日请求/Token 预算；Key 仅存在 Supabase Vault，配置读取和审计只显示脱敏状态，首次配置、留空保留、轮换、预算更新、数据库暂停和版本冲突均已烟测。
 - [ ] `/admin/webchat` 当日请求数、已结算/预留 Token、剩余额度与北京时间重置时间和数据库聚合账本一致；请求/Token 首次阻断各只投递一次脱敏 `webchat_budget_exhausted`，投递失败不改变 `503` 且不重试。
 - [ ] 在账号详情中只为本次 3–5 名试运行账号开启 AI 助手并逐人设置每日请求/Token 上限；无授权行、关闭授权、停用账号或角色不是成员/管理员均返回结构化 `403`，撤权或降额在数据库原子 claim 前立即生效。
-- [ ] 已授权账号 `/assistant` 显示的当前模型、北京时间当日请求、已结算/预留 Token、剩余额度与服务端配置及私有账本一致；该模型进入同次请求的服务端系统提示词与额度指纹，账号无法读取他人额度、全站预算、中转站地址或 Key。
-- [ ] WebChat 启用顺序为 `CHAT_ENABLED=true` → 后台打开数据库请求开关 → GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` → 触发下一次 Pages 构建；Pages 构建日志确认客户端地址由同一 `VITE_SUPABASE_URL` 推导到 `/functions/v1/webchat`。关闭时先关闭数据库请求开关，必要时同时恢复另外两层为 `false`。
+- [x] 已授权账号 `/assistant` 显示的当前模型、北京时间当日请求、已结算/预留 Token、剩余额度与服务端配置及私有账本一致；该模型进入同次请求的服务端系统提示词与额度指纹，账号无法读取他人额度、全站预算、中转站地址或 Key。2026-07-17/18 的 localhost 与 Pages 生产验证均通过。
+- [x] WebChat 启用顺序为 `CHAT_ENABLED=true` → 后台打开数据库请求开关 → GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` → 触发下一次 Pages 构建；Pages run `29594758865` attempt 2 已通过配置校验、构建、部署与生产榜单审计。关闭时先关闭数据库请求开关，必要时同时恢复另外两层为 `false`。
 
 ## 6. 前端与可访问性烟测
 
