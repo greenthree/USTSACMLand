@@ -18,7 +18,7 @@
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
 - 8 张核心业务表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
-- WebChat 安全 API 基础：默认关闭，使用 Supabase 会话与启用状态双重授权，仅接收有严格字节/消息上限的纯文本对话；模型、system prompt、Key、输出上限和上游地址全部由服务端控制。该基础接口尚未开放前端入口，生产模型调用保持关闭。
+- WebChat 安全 API 与隐藏前端工作台：默认关闭，使用 Supabase 会话与启用状态双重授权，仅接收有严格字节/消息上限的纯文本对话；隐藏的 `/assistant` 支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。聊天依赖保持在独立懒加载路由块内，`VITE_WEBCHAT_UI_ENABLED=false` 时导航和页面均不可访问；生产模型调用仍保持关闭。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流；Dependabot 周更与完整历史 Gitleaks 门禁。
@@ -208,7 +208,7 @@ Supabase Function Secrets/配置：
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
-- WebChat 默认关闭：`CHAT_ENABLED=false`。原子并发、滑动分钟、北京时间每日请求/Token 配额以及 `request_id + fingerprint + owner_token` 幂等租约已由数据库 RPC 实现；取消、超时或断流且拿不到可信 Usage 时按预留额度保守结算。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前仍必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；成员额度与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_REQUESTS_PER_DAY`、`CHAT_TOKENS_PER_DAY`、`CHAT_CLAIM_LEASE_SECONDS`，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
+- WebChat 默认由两层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 拒绝模型请求。原子并发、滑动分钟、北京时间每日请求/Token 配额以及 `request_id + fingerprint + owner_token` 幂等租约已由数据库 RPC 实现；取消、超时或断流且拿不到可信 Usage 时按预留额度保守结算。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前两层开关都必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；成员额度与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_REQUESTS_PER_DAY`、`CHAT_TOKENS_PER_DAY`、`CHAT_CLAIM_LEASE_SECONDS`，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`

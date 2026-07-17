@@ -7,9 +7,13 @@ import { RouteAccessibility } from './components/RouteAccessibility'
 import { StandaloneRouteLoading } from './components/RouteLoading'
 import { AdminLayout } from './components/admin/AdminLayout'
 import { MembersDataProvider } from './data/MembersDataProvider'
+import { webChatUiEnabled } from './features/chat/chatAvailability'
 
 const AccountPage = lazy(() =>
   import('./pages/AccountPage').then((module) => ({ default: module.AccountPage })),
+)
+const AssistantPage = lazy(() =>
+  import('./pages/AssistantPage').then((module) => ({ default: module.AssistantPage })),
 )
 const ForgotPasswordPage = lazy(() =>
   import('./pages/ForgotPasswordPage').then((module) => ({
@@ -90,6 +94,11 @@ function PublicMembersOutlet() {
   )
 }
 
+function WebChatRoute({ children }: { children: React.ReactNode }) {
+  if (!webChatUiEnabled) return <Navigate replace to="/" />
+  return <RequireAuth>{children}</RequireAuth>
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -115,6 +124,14 @@ export default function App() {
                 <RequireAuth>
                   <AccountPage />
                 </RequireAuth>
+              }
+            />
+            <Route
+              path="assistant"
+              element={
+                <WebChatRoute>
+                  <AssistantPage />
+                </WebChatRoute>
               }
             />
             <Route

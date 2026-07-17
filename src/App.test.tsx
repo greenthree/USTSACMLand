@@ -116,6 +116,19 @@ describe('route authorization', () => {
     )
   })
 
+  it('keeps the unfinished AI assistant route hidden by default', async () => {
+    sessionStorage.setItem(demoSessionKey, 'member@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/assistant']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'AI 助手' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /把卡住你的地方/ })).not.toBeInTheDocument()
+  })
+
   it('exposes a skip link and moves route focus after client-side navigation', async () => {
     const user = userEvent.setup()
     document.documentElement.scrollTop = 500

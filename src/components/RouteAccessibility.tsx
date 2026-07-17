@@ -15,6 +15,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/forgot-password') return '找回密码'
   if (pathname === '/reset-password') return '设置新密码'
   if (pathname === '/account') return '我的资料'
+  if (pathname === '/assistant') return 'AI 学习助手'
   if (pathname === '/admin/members') return '成员管理'
   if (pathname.startsWith('/admin/members/')) return '成员详情管理'
   if (pathname === '/admin/accounts') return '平台绑定管理'
