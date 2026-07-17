@@ -24,7 +24,8 @@ Deno.test('CORS response headers vary by an approved request origin', () => {
   deepStrictEqual(corsHeaders(request, 'http://localhost:5173,https://greenthree.github.io'), {
     'access-control-allow-origin': 'https://greenthree.github.io',
     vary: 'Origin',
-    'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
+    'access-control-allow-headers':
+      'authorization, apikey, content-type, x-client-info, x-request-id',
     'access-control-allow-methods': 'POST, OPTIONS',
   })
 })
@@ -45,7 +46,9 @@ Deno.test('CORS does not authorize a hostile preflight origin', () => {
 })
 
 Deno.test('JSON responses preserve an explicit Retry-After header', () => {
-  const response = jsonResponse({ retryAfterSeconds: 17 }, 429, undefined, { 'retry-after': '17' })
+  const response = jsonResponse({ retryAfterSeconds: 17 }, 429, undefined, {
+    'retry-after': '17',
+  })
 
   equal(response.status, 429)
   equal(response.headers.get('retry-after'), '17')

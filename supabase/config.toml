@@ -70,3 +70,6 @@ verify_jwt = true
 
 [functions.change-password]
 verify_jwt = true
+
+[functions.webchat]
+verify_jwt = true

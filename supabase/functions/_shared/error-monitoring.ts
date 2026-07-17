@@ -5,7 +5,7 @@ import {
 } from './alerts.ts'
 
 export type RuntimeErrorSurface =
-  'sync-member' | 'sync-stats' | 'delete-account' | 'change-password'
+  'sync-member' | 'sync-stats' | 'delete-account' | 'change-password' | 'webchat'
 
 export type RuntimeErrorCategory =
   'abort' | 'type_error' | 'unexpected_error' | 'non_error_throwable'
@@ -26,7 +26,9 @@ function requestIdFromHeaders(headers: Headers): string | null {
 }
 
 export function classifyRuntimeError(error: unknown): RuntimeErrorCategory {
-  if (error instanceof DOMException && error.name === 'AbortError') return 'abort'
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return 'abort'
+  }
   if (error instanceof TypeError) return 'type_error'
   if (error instanceof Error) return 'unexpected_error'
   return 'non_error_throwable'

@@ -59,6 +59,26 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/change-password Edge Function/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow.replace('          supabase/functions/webchat/index.ts\n', ''),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/webchat Edge Function/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig.replace('[functions.webchat]\nverify_jwt = true', '[functions.webchat]'),
+      ),
+    ).toThrow(/webchat Edge Function must enable JWT verification/)
   })
 
   it('rejects unrestricted or network-capable Edge unit tests', () => {

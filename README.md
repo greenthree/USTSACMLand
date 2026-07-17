@@ -18,6 +18,7 @@
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
 - 8 张核心业务表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
+- WebChat 安全 API 基础：默认关闭，使用 Supabase 会话与启用状态双重授权，仅接收有严格字节/消息上限的纯文本对话；模型、system prompt、Key、输出上限和上游地址全部由服务端控制。该基础接口尚未开放前端入口，生产模型调用保持关闭。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流；Dependabot 周更与完整历史 Gitleaks 门禁。
@@ -165,7 +166,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -207,11 +208,14 @@ Supabase Function Secrets/配置：
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
+- WebChat 默认关闭：`CHAT_ENABLED=false`。在原子并发、分钟和每日额度守卫完成前必须保持关闭；之后启用仍须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`，禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
 
 `service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
+
+WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
 数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 
@@ -258,7 +262,7 @@ Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/in
 
 1. 配置生产同步失败 Webhook，并完成 Firecrawl 额度告警投递烟测。
 2. 配置注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-3. 配置加密备份所需 GitHub Actions Secrets，完成首次真实备份和隔离恢复演练。
+3. 使用已生成的真实加密备份完成隔离恢复演练。
 4. 验证生产邮箱确认、密码重置、会话恢复和管理员登录完整流程。
 5. 完成持久队列 stale-worker、退避、跨平台并发限额，以及同步中心/公告/限流的生产 UI 烟测。
 6. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
