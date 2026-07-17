@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 
+vi.mock('../features/chat/chatAvailability', () => ({
+  webChatUiEnabled: true,
+}))
+
 describe('HomePage', () => {
   beforeEach(() => {
     sessionStorage.clear()
@@ -53,12 +57,17 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: '学习引导' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '每日一题' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'AI 学习助手' })).toBeInTheDocument()
-    expect(screen.getByText(/计划接入 GPT-5.6/)).toBeInTheDocument()
+    expect(screen.getByText(/在站内完成知识问答、代码讲解和训练复盘/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '进入新手学习引导' })).toHaveAttribute(
       'href',
       '/learning',
     )
-    expect(screen.getAllByText('规划中')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: '进入 AI 学习助手' })).toHaveAttribute(
+      'href',
+      '/assistant',
+    )
+    expect(screen.getAllByText('已上线')).toHaveLength(2)
+    expect(screen.getAllByText('规划中')).toHaveLength(1)
     expect(screen.getByRole('heading', { name: '在比赛中找到下一段训练' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新生赛' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '练习赛' })).toBeInTheDocument()

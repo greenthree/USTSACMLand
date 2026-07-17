@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { PlatformMark } from '../components/PlatformMark'
 import { useMembersData } from '../data/useMembersData'
+import { webChatUiEnabled } from '../features/chat/chatAvailability'
 import { formatInteger } from '../lib/format'
 import { platformLabels, ratingPlatforms, solvedPlatforms } from '../lib/platforms'
 import { calculateTotalSolved } from '../lib/rankings'
@@ -262,7 +263,7 @@ export function HomePage() {
           <p>
             算法竞赛拥有丰富的在线训练资源，绝大多数免费向学习者开放。本网站将筛选其中适合入门的一部分，按知识点和训练阶段提供引导，减少资料筛选成本，帮助新手快速上手。
           </p>
-          <div className="home-vision-list" aria-label="规划中的功能">
+          <div className="home-vision-list" aria-label="学习功能">
             <article>
               <BookOpenCheck size={21} aria-hidden="true" />
               <div>
@@ -286,9 +287,20 @@ export function HomePage() {
               <MessagesSquare size={21} aria-hidden="true" />
               <div>
                 <h3>AI 学习助手</h3>
-                <p>计划接入 GPT-5.6，在站内完成知识问答、代码讲解和训练复盘。</p>
+                <p>
+                  {webChatUiEnabled
+                    ? '在站内完成知识问答、代码讲解和训练复盘。'
+                    : '计划接入大模型，在站内完成知识问答、代码讲解和训练复盘。'}
+                </p>
               </div>
-              <span>规划中</span>
+              {webChatUiEnabled ? (
+                <Link to="/assistant" aria-label="进入 AI 学习助手">
+                  已上线
+                  <ArrowRight size={13} aria-hidden="true" />
+                </Link>
+              ) : (
+                <span>规划中</span>
+              )}
             </article>
           </div>
         </div>
