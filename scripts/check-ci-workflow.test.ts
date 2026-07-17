@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 18,
-      assertionCount: 328,
-      releaseMigrationCount: 24,
+      fileCount: 19,
+      assertionCount: 394,
+      releaseMigrationCount: 25,
     })
   })
 
@@ -133,7 +133,7 @@ describe('CI workflow', () => {
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/at least 18 pgTAP files/)
+    ).toThrow(/at least 19 pgTAP files/)
     const regressed = pgTapFiles.map((file) =>
       file.name === '13_non_luogu_atomic_persistence.test.sql'
         ? { ...file, content: file.content.replace('select plan(27);', 'select plan(1);') }

@@ -9,6 +9,7 @@ const messages = [
     text: '解释二分答案',
   },
 ]
+const usage = { input_tokens: 37, output_tokens: 11, total_tokens: 48 }
 
 function sse(events: unknown[]): Response {
   return new Response(
@@ -51,7 +52,7 @@ Deno.test('webchat sends only server-owned Responses API configuration', async (
     strictEqual(init?.redirect, 'error')
     return sse([
       { type: 'response.output_text.delta', delta: '先找单调性。' },
-      { type: 'response.completed' },
+      { type: 'response.completed', response: { usage } },
     ])
   }
 
@@ -83,6 +84,118 @@ Deno.test('webchat sends only server-owned Responses API configuration', async (
   match(output, /"type":"text-delta".*先找单调性。/)
   match(output, /"type":"finish"/)
   match(output, /data: \[DONE\]/)
+})
+
+Deno.test(
+  'webchat marks the claim before fetch and finalizes trusted completion usage',
+  async () => {
+    const events: string[] = []
+    const response = await startWebChat(
+      config(async () => {
+        events.push('fetch')
+        return sse([
+          { type: 'response.output_text.delta', delta: 'answer' },
+          { type: 'response.completed', response: { usage } },
+        ])
+      }),
+      {
+        messages,
+        userId: 'user-1',
+        quotaLifecycle: {
+          async markStarted() {
+            events.push('mark')
+            return true
+          },
+          async finalize(outcome, settledUsage) {
+            strictEqual(outcome, 'completed')
+            deepStrictEqual(settledUsage, {
+              inputTokens: 37,
+              outputTokens: 11,
+              totalTokens: 48,
+            })
+            events.push('finalize')
+            return true
+          },
+        },
+      },
+    )
+
+    await response.text()
+    deepStrictEqual(events, ['mark', 'fetch', 'finalize'])
+  },
+)
+
+Deno.test('webchat never fetches after the database claim fence is lost', async () => {
+  let fetched = false
+  try {
+    await startWebChat(
+      config(async () => ((fetched = true), sse([]))),
+      {
+        messages,
+        userId: 'user-1',
+        quotaLifecycle: {
+          async markStarted() {
+            return false
+          },
+          async finalize() {
+            throw new Error('must not finalize a claim that never started')
+          },
+        },
+      },
+    )
+    throw new Error('expected lost claim')
+  } catch (error) {
+    strictEqual((error as { code: string }).code, 'quota_claim_expired')
+    strictEqual(fetched, false)
+  }
+})
+
+Deno.test('webchat cleans up abort listeners when marking the claim fails', async () => {
+  const controller = new AbortController()
+  const signal = controller.signal
+  const originalAdd = signal.addEventListener.bind(signal)
+  const originalRemove = signal.removeEventListener.bind(signal)
+  let added = 0
+  let removed = 0
+  Object.defineProperty(signal, 'addEventListener', {
+    value: (...args: Parameters<AbortSignal['addEventListener']>) => {
+      added += 1
+      return originalAdd(...args)
+    },
+  })
+  Object.defineProperty(signal, 'removeEventListener', {
+    value: (...args: Parameters<AbortSignal['removeEventListener']>) => {
+      removed += 1
+      return originalRemove(...args)
+    },
+  })
+
+  let fetched = false
+  try {
+    await startWebChat(
+      config(async () => ((fetched = true), sse([]))),
+      {
+        messages,
+        userId: 'user-1',
+        requestSignal: signal,
+        quotaLifecycle: {
+          async markStarted() {
+            throw new Error('database transport failed')
+          },
+          async finalize() {
+            throw new Error('must not finalize a claim with an unknown mark result')
+          },
+        },
+      },
+    )
+    throw new Error('expected mark failure')
+  } catch (error) {
+    match(String(error), /database transport failed/)
+  }
+
+  strictEqual(fetched, false)
+  strictEqual(added, 1)
+  strictEqual(removed, 1)
 })
 
 Deno.test('webchat maps upstream HTTP failures without exposing response bodies', async () => {
@@ -134,7 +247,7 @@ Deno.test(
       config(async () =>
         sse([
           { type: 'response.refusal.delta', delta: '我不能协助当前赛中解题。' },
-          { type: 'response.completed' },
+          { type: 'response.completed', response: { usage } },
         ]),
       ),
       { messages, userId: 'user-1' },
@@ -155,7 +268,10 @@ Deno.test('webchat preserves Responses API incomplete reasons in the UI finish e
       config(async () =>
         sse([
           { type: 'response.output_text.delta', delta: 'partial' },
-          { type: 'response.incomplete', response: { incomplete_details: { reason } } },
+          {
+            type: 'response.incomplete',
+            response: { incomplete_details: { reason }, usage },
+          },
         ]),
       ),
       { messages, userId: 'user-1' },
@@ -171,7 +287,7 @@ Deno.test('webchat reports stream protocol failures after headers are returned',
       sse([
         {
           type: 'response.incomplete',
-          response: { incomplete_details: { reason: 'unknown_reason' } },
+          response: { incomplete_details: { reason: 'unknown_reason' }, usage },
         },
       ]),
     ),
@@ -190,6 +306,7 @@ Deno.test('webchat reports stream protocol failures after headers are returned',
 
 Deno.test('webchat times out one upstream request without retrying it', async () => {
   let fetchCount = 0
+  const settlements: Array<{ outcome: string; usage: unknown }> = []
   const fetcher: typeof fetch = async (_input, init) => {
     fetchCount += 1
     return await new Promise<Response>((_resolve, reject) => {
@@ -202,12 +319,28 @@ Deno.test('webchat times out one upstream request without retrying it', async ()
   }
 
   try {
-    await startWebChat({ ...config(fetcher), timeoutMs: 1 }, { messages, userId: 'user-1' })
+    await startWebChat(
+      { ...config(fetcher), timeoutMs: 1 },
+      {
+        messages,
+        userId: 'user-1',
+        quotaLifecycle: {
+          async markStarted() {
+            return true
+          },
+          async finalize(outcome, settledUsage) {
+            settlements.push({ outcome, usage: settledUsage })
+            return true
+          },
+        },
+      },
+    )
     throw new Error('expected timeout')
   } catch (error) {
     strictEqual((error as { status: number }).status, 504)
     strictEqual((error as { code: string }).code, 'upstream_timeout')
     strictEqual(fetchCount, 1)
+    deepStrictEqual(settlements, [{ outcome: 'upstream_timeout', usage: null }])
   }
 })
 
@@ -215,6 +348,7 @@ Deno.test(
   'webchat cancels the single upstream request when the client stream is cancelled',
   async () => {
     let upstreamCancelled = false
+    const settlements: Array<{ outcome: string; usage: unknown }> = []
     const upstream = new ReadableStream<Uint8Array>({
       cancel() {
         upstreamCancelled = true
@@ -227,11 +361,24 @@ Deno.test(
             headers: { 'content-type': 'text/event-stream' },
           }),
       ),
-      { messages, userId: 'user-1' },
+      {
+        messages,
+        userId: 'user-1',
+        quotaLifecycle: {
+          async markStarted() {
+            return true
+          },
+          async finalize(outcome, settledUsage) {
+            settlements.push({ outcome, usage: settledUsage })
+            return true
+          },
+        },
+      },
     )
 
     await response.body?.cancel('user stopped')
     strictEqual(upstreamCancelled, true)
+    deepStrictEqual(settlements, [{ outcome: 'request_aborted', usage: null }])
   },
 )
 

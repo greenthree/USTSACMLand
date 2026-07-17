@@ -208,7 +208,7 @@ Supabase Function Secrets/配置：
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
-- WebChat 默认关闭：`CHAT_ENABLED=false`。在原子并发、分钟和每日额度守卫完成前必须保持关闭；之后启用仍须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`，禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
+- WebChat 默认关闭：`CHAT_ENABLED=false`。原子并发、滑动分钟、北京时间每日请求/Token 配额以及 `request_id + fingerprint + owner_token` 幂等租约已由数据库 RPC 实现；取消、超时或断流且拿不到可信 Usage 时按预留额度保守结算。迁移部署和真实中转站 Responses SSE/Usage/Abort 兼容性验收完成前仍必须保持关闭。启用时还须配置 `CHAT_ALLOWED_ORIGINS`、`CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、服务端模型 `CHAT_RELAY_MODEL` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；成员额度与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_REQUESTS_PER_DAY`、`CHAT_TOKENS_PER_DAY`、`CHAT_CLAIM_LEASE_SECONDS`，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
@@ -216,6 +216,8 @@ Supabase Function Secrets/配置：
 `service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
+
+WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有直表权限，只能由 Edge Function 通过四个最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算和开始前释放。账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。
 
 数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 

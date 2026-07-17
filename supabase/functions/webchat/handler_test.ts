@@ -5,10 +5,21 @@ import {
   type WebChatHandlerDependencies,
   type WebChatServices,
 } from './handler.ts'
+import type { WebChatQuotaPolicy } from './quota.ts'
 import { type StartWebChatOptions, WebChatUpstreamError } from './upstream.ts'
 
 const userId = '11111111-1111-4111-8111-111111111111'
 const allowedOrigin = 'https://greenthree.github.io'
+const quotaPolicy: WebChatQuotaPolicy = {
+  model: 'gpt-5.6',
+  systemPrompt: 'Server prompt',
+  promptVersion: 'prompt-v1',
+  maxOutputTokens: 2_048,
+  minuteRequestLimit: 3,
+  dailyRequestLimit: 30,
+  dailyTokenLimit: 100_000,
+  leaseSeconds: 180,
+}
 
 function request(
   body: unknown = {
@@ -45,6 +56,25 @@ function services(overrides: Partial<WebChatServices> = {}): WebChatServices {
     async isProfileApproved() {
       return true
     },
+    async claimWebChatRequest() {
+      return {
+        decision: 'acquired',
+        status: 'claimed',
+        remainingMinuteRequests: 2,
+        remainingDailyRequests: 29,
+        remainingDailyTokens: 90_000,
+        retryAfterSeconds: null,
+      }
+    },
+    async markWebChatRequestStarted() {
+      return true
+    },
+    async finalizeWebChatRequest() {
+      return true
+    },
+    async releaseWebChatRequest() {
+      return true
+    },
     ...overrides,
   }
 }
@@ -55,6 +85,7 @@ function dependencies(
   return {
     enabled: true,
     allowedOrigins: allowedOrigin,
+    quotaPolicy,
     createServices: () => services(),
     async startChat() {
       return new Response('data: [DONE]\n\n', {
@@ -218,6 +249,145 @@ Deno.test('webchat forwards only validated messages and server-derived identity'
     },
   ])
 })
+
+Deno.test(
+  'webchat claims quota before starting and wires the fenced stream lifecycle',
+  async () => {
+    const events: string[] = []
+    const response = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async claimWebChatRequest(input) {
+              strictEqual(input.userId, userId)
+              strictEqual(input.requestId, 'quota-request-1')
+              strictEqual(input.ownerToken.length > 20, true)
+              strictEqual(input.reservedTokens > quotaPolicy.maxOutputTokens, true)
+              strictEqual(input.policy, quotaPolicy)
+              events.push('claimed')
+              return {
+                decision: 'acquired',
+                status: 'claimed',
+                remainingMinuteRequests: 2,
+                remainingDailyRequests: 29,
+                remainingDailyTokens: 90_000,
+                retryAfterSeconds: null,
+              }
+            },
+            async markWebChatRequestStarted() {
+              events.push('started')
+              return true
+            },
+            async finalizeWebChatRequest(_userId, _requestId, _owner, outcome, usage) {
+              strictEqual(outcome, 'completed')
+              deepStrictEqual(usage, { inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+              events.push('finished')
+              return true
+            },
+          }),
+        async startChat(options) {
+          strictEqual(await options.quotaLifecycle?.markStarted(), true)
+          strictEqual(
+            await options.quotaLifecycle?.finalize('completed', {
+              inputTokens: 10,
+              outputTokens: 5,
+              totalTokens: 15,
+            }),
+            true,
+          )
+          return new Response('data: [DONE]\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          })
+        },
+      }),
+    )(request(undefined, { 'x-request-id': 'quota-request-1' }))
+
+    strictEqual(response.status, 200)
+    deepStrictEqual(events, ['claimed', 'started', 'finished'])
+  },
+)
+
+Deno.test('webchat maps atomic quota decisions without calling the relay', async () => {
+  for (const [decision, expectedStatus, expectedCode] of [
+    ['active_concurrent', 409, 'generation_in_progress'],
+    ['minute_limited', 429, 'chat_minute_limited'],
+    ['daily_request_limited', 429, 'chat_daily_request_limited'],
+    ['daily_token_limited', 429, 'chat_daily_token_limited'],
+    ['duplicate_active', 409, 'duplicate_request_active'],
+    ['duplicate_terminal', 409, 'duplicate_request'],
+    ['idempotency_conflict', 409, 'request_id_conflict'],
+  ] as const) {
+    let started = false
+    const response = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async claimWebChatRequest() {
+              return {
+                decision,
+                status: 'blocked',
+                remainingMinuteRequests: 0,
+                remainingDailyRequests: 0,
+                remainingDailyTokens: 0,
+                retryAfterSeconds: decision === 'idempotency_conflict' ? null : 9,
+              }
+            },
+          }),
+        async startChat() {
+          started = true
+          return new Response()
+        },
+      }),
+    )(request())
+    strictEqual(response.status, expectedStatus)
+    strictEqual(((await responseBody(response)).error as { code: string }).code, expectedCode)
+    strictEqual(started, false)
+  }
+})
+
+Deno.test('webchat releases only the pre-start claim when relay startup fails', async () => {
+  let releases = 0
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async releaseWebChatRequest(_userId, _requestId, _ownerToken, reason) {
+            strictEqual(reason, 'start_failed_before_upstream')
+            releases += 1
+            return true
+          },
+        }),
+      async startChat() {
+        throw new WebChatUpstreamError(502, 'upstream_unavailable', '暂时不可用')
+      },
+    }),
+  )(request())
+
+  strictEqual(response.status, 502)
+  strictEqual(releases, 1)
+})
+
+Deno.test(
+  'webchat rejects a request whose conservative reservation exceeds the daily budget',
+  async () => {
+    let claimed = false
+    const response = await createWebChatHandler(
+      dependencies({
+        quotaPolicy: { ...quotaPolicy, dailyTokenLimit: 100 },
+        createServices: () =>
+          services({
+            async claimWebChatRequest() {
+              claimed = true
+              throw new Error('must not be called')
+            },
+          }),
+      }),
+    )(request())
+
+    strictEqual(response.status, 413)
+    strictEqual(claimed, false)
+  },
+)
 
 Deno.test('webchat maps validation and upstream failures to structured safe errors', async () => {
   const invalid = await createWebChatHandler(dependencies())(
