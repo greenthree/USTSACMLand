@@ -73,7 +73,7 @@ npm run check:supabase-preflight
 
 该命令退出码为 `1` 时不得继续发布。先处理缺失 Secret、远端独有 migration、项目健康、权限或 schema lint 等真正的前置阻塞；待部署 migration 与函数本身会保留为 warning。
 
-2026-07-17 的生产核对确认 45 个 migration 已全部应用，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 六个函数均为 ACTIVE。WebChat 使用仓库 import map 部署，`CHAT_ENABLED=false`；已授权账号的 localhost `/assistant` 能从生产 RPC 读取当前模型 `gpt-5.6-sol` 和本人额度，刷新后无控制台错误。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。
+2026-07-17 的生产核对确认 45 个 migration 已全部应用，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 六个函数均为 ACTIVE。WebChat 使用仓库 import map 部署，服务端与数据库请求开关已对显式授权账号开放；已授权账号的 localhost `/assistant` 能读取当前模型 `gpt-5.6-sol` 和本人额度，完成流式回复与 Usage 结算，模型自报与页面显示一致且 console 无错误。生产 Pages 客户端入口仍隐藏。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。
 
 先核对本地与远端 migration，不直接在生产 SQL Editor 手工粘贴仓库 migration：
 

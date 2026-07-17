@@ -4,7 +4,7 @@
 
 - 生产项目：`qzggoqdmsvktrtnjislw`
 - 发布分支：`codex/webchat-ui-shell`
-- 发布模式：后端和数据库关闭态更新，不打开生产模型请求
+- 发布模式：先关闭态更新，再对显式授权账号受控开启生产模型请求；Pages 入口继续隐藏
 
 本文只记录不含凭据的部署事实，不包含 API Key、JWT、中转站地址、成员身份或聊天正文。
 
@@ -26,14 +26,15 @@
 - JWT 验证：开启
 - import map：开启
 
-部署未修改 Supabase Secrets；`CHAT_ENABLED=false` 继续保持，避免本次只读页面验收产生模型请求。
+模型可见性只读验收完成后，根据项目负责人的开放要求将 `CHAT_ENABLED=true` 写入 Supabase Function Secrets；数据库请求开关和测试账号私有授权已经开启，生产 Pages 的 `VITE_WEBCHAT_UI_ENABLED=false` 继续隐藏公共入口。
 
 ## 验证
 
 - Vitest：59 个文件、312 项测试全部通过。
 - Deno：337 项测试全部通过；entrypoint check 和 101 个文件 lint 通过。
-- CI 数据库静态门禁：24 个 pgTAP 文件、599 项断言、30 个受保护发布 migration。
+- CI 数据库门禁：PostgreSQL 17 空库实际应用 45 个 migration，并通过 24 个 pgTAP 文件、599 项断言；30 个当前发布 migration 受静态清单保护。
 - TypeScript/Vite 生产构建、ESLint、Prettier 和 `git diff --check` 通过。
 - 已登录且已授权的 localhost `/assistant` 从生产 RPC 显示 `当前模型 gpt-5.6-sol`，刷新额度后仍一致；页面标题、主内容、额度和对话工作台均正常，无框架错误覆盖层，浏览器 console 无 warning/error。
+- 开启服务端熔断后，原先的 `AI 学习助手尚未开放` 不再出现。测试账号完成一条二分答案学习路线的长流式回复，以及“只回答模型标识”的短验证；后者精确返回 `gpt-5.6-sol`，证明模型名已进入真实系统提示词。本人额度最终为 3 次请求、6,234 个已结算 Token、0 个预留 Token，页面 console 无 warning/error。
 
-本机 Docker Desktop 未运行，因此本轮无法在本地创建 PostgreSQL 17 空库执行 pgTAP；数据库行为由新增的 17 项测试覆盖，仍须由 PR 的 `database-security` 任务在空库实际执行后作为最终合并门禁。
+本机 Docker Desktop 未运行，因此无法在本地创建 PostgreSQL 17 空库执行 pgTAP。PR #57 的 Actions run `29589915118` 已补足该证据：`database-security`、`verify` 与独立 `gitleaks` 全部通过，其中新增的 17 项模型可见性断言和其余数据库套件均成功。
