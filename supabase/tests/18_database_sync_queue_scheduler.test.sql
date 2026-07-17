@@ -40,13 +40,12 @@ select ok(
   'the cron command contains only the private function call'
 );
 
-select unlike(
+select ok(
   (
-    select command
+    select command !~* '(bearer|apikey|token)'
     from cron.job
     where jobname = 'sync-queue-every-five-minutes'
   ),
-  '(?i)(bearer|apikey|token)',
   'the cron catalog stores no credential material'
 );
 
