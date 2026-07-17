@@ -1,7 +1,14 @@
+import { parseWebChatUsage, type WebChatUsage } from './quota.ts'
+
 export interface WebChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+}
+
+export interface WebChatQuotaLifecycle {
+  markStarted(): Promise<boolean>
+  finalize(outcome: string, usage: WebChatUsage | null): Promise<boolean>
 }
 
 export interface StartWebChatOptions {
@@ -9,6 +16,7 @@ export interface StartWebChatOptions {
   userId: string
   requestSignal?: AbortSignal
   requestId?: string | null
+  quotaLifecycle?: WebChatQuotaLifecycle
   reportUnexpectedError?: (error: unknown) => Promise<void>
 }
 
@@ -104,6 +112,7 @@ export async function startWebChat(
     throw new Error('CHAT_SYSTEM_PROMPT_VERSION has an invalid format')
   }
   const fetcher = config.fetcher ?? fetch
+  const safetyId = await safetyIdentifier(options.userId)
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -125,6 +134,36 @@ export async function startWebChat(
     options.requestSignal?.removeEventListener('abort', abortFromRequest)
   }
 
+  let quotaSettled = false
+  const finalizeQuota = async (outcome: string, usage: WebChatUsage | null) => {
+    if (!options.quotaLifecycle || quotaSettled) return
+    quotaSettled = true
+    if (!(await options.quotaLifecycle.finalize(outcome, usage))) {
+      throw new Error('WebChat quota claim could not be finalized')
+    }
+  }
+  const finalizeUnknownSafely = async (outcome: string) => {
+    try {
+      await finalizeQuota(outcome, null)
+    } catch (error) {
+      await options.reportUnexpectedError?.(error)
+    }
+  }
+
+  if (options.quotaLifecycle) {
+    let markedStarted: boolean
+    try {
+      markedStarted = await options.quotaLifecycle.markStarted()
+    } catch (error) {
+      cleanup()
+      throw error
+    }
+    if (!markedStarted) {
+      cleanup()
+      throw new WebChatUpstreamError(409, 'quota_claim_expired', '请求等待时间过长，请重新发送')
+    }
+  }
+
   let upstream: Response
   try {
     upstream = await fetcher(endpoint, {
@@ -142,7 +181,7 @@ export async function startWebChat(
           content: text,
         })),
         max_output_tokens: config.maxOutputTokens,
-        safety_identifier: await safetyIdentifier(options.userId),
+        safety_identifier: safetyId,
         store: false,
         stream: true,
       }),
@@ -152,22 +191,27 @@ export async function startWebChat(
   } catch {
     cleanup()
     if (options.requestSignal?.aborted) {
+      await finalizeUnknownSafely('request_aborted')
       throw new WebChatUpstreamError(499, 'request_aborted', '请求已取消')
     }
     if (abortController.signal.aborted) {
+      await finalizeUnknownSafely('upstream_timeout')
       throw new WebChatUpstreamError(504, 'upstream_timeout', 'AI 服务响应超时，请重试')
     }
+    await finalizeUnknownSafely('upstream_unavailable')
     throw new WebChatUpstreamError(502, 'upstream_unavailable', 'AI 服务暂时不可用，请稍后重试')
   }
 
   if (!upstream.ok) {
     cleanup()
     await upstream.body?.cancel().catch(() => undefined)
+    await finalizeUnknownSafely('upstream_http_error')
     throw upstreamError(upstream)
   }
   if (!upstream.body || !upstream.headers.get('content-type')?.includes('text/event-stream')) {
     cleanup()
     await upstream.body?.cancel().catch(() => undefined)
+    await finalizeUnknownSafely('upstream_protocol_error')
     throw new WebChatUpstreamError(502, 'upstream_protocol_error', 'AI 服务返回了无法识别的响应')
   }
 
@@ -185,6 +229,8 @@ export async function startWebChat(
       void (async () => {
         let buffer = ''
         let completed = false
+        let completionUsage: WebChatUsage | null = null
+        let completionOutcome = 'completed'
         let finishReason: 'stop' | 'length' | 'content-filter' = 'stop'
         try {
           while (true) {
@@ -225,13 +271,19 @@ export async function startWebChat(
                   )
                 }
               } else if (event.type === 'response.completed') {
+                completionUsage = parseWebChatUsage(event)
                 completed = true
               } else if (event.type === 'response.incomplete') {
                 const response = asRecord(event.response)
                 const details = asRecord(response?.incomplete_details)
-                if (details?.reason === 'max_output_tokens') finishReason = 'length'
-                else if (details?.reason === 'content_filter') finishReason = 'content-filter'
-                else throw new Error('unknown incomplete response reason')
+                if (details?.reason === 'max_output_tokens') {
+                  finishReason = 'length'
+                  completionOutcome = 'incomplete_max_output_tokens'
+                } else if (details?.reason === 'content_filter') {
+                  finishReason = 'content-filter'
+                  completionOutcome = 'incomplete_content_filter'
+                } else throw new Error('unknown incomplete response reason')
+                completionUsage = parseWebChatUsage(event)
                 completed = true
               } else if (event.type === 'response.failed' || event.type === 'error') {
                 throw new Error('upstream response failed')
@@ -244,6 +296,10 @@ export async function startWebChat(
           if (!completed) {
             throw new Error('upstream stream ended before completion')
           }
+          if (!completionUsage) {
+            throw new Error('upstream completion did not include token usage')
+          }
+          await finalizeQuota(completionOutcome, completionUsage)
           if (downstreamClosed) return
           controller.enqueue(uiChunk({ type: 'text-end', id: textId }))
           controller.enqueue(uiChunk({ type: 'finish', finishReason }))
@@ -251,6 +307,12 @@ export async function startWebChat(
           downstreamClosed = true
           controller.close()
         } catch (error) {
+          const interruptedOutcome = options.requestSignal?.aborted
+            ? 'request_aborted'
+            : abortController.signal.aborted
+              ? 'upstream_timeout'
+              : 'stream_interrupted'
+          await finalizeUnknownSafely(interruptedOutcome)
           if (downstreamClosed || options.requestSignal?.aborted) return
           await options.reportUnexpectedError?.(error)
           controller.enqueue(uiChunk({ type: 'text-end', id: textId }))
@@ -273,6 +335,7 @@ export async function startWebChat(
       downstreamClosed = true
       abortController.abort(reason)
       cleanup()
+      await finalizeUnknownSafely('request_aborted')
       await reader.cancel(reason).catch(() => undefined)
     },
   })

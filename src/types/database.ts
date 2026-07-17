@@ -1151,6 +1151,60 @@ export type Database = {
           profile_id: string
         }[]
       }
+      claim_webchat_request: {
+        Args: {
+          daily_request_limit: number
+          daily_token_limit: number
+          lease_seconds?: number
+          minute_request_limit: number
+          requested_fingerprint: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_reserved_tokens: number
+          requested_user_id: string
+        }
+        Returns: {
+          decision: string
+          remaining_daily_requests: number
+          remaining_daily_tokens: number
+          remaining_minute_requests: number
+          retry_after_seconds: number | null
+          status: string
+        }[]
+      }
+      mark_webchat_request_started: {
+        Args: {
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      finalize_webchat_request: {
+        Args: {
+          request_outcome: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+          used_input_tokens?: number | null
+          used_output_tokens?: number | null
+          used_total_tokens?: number | null
+        }
+        Returns: {
+          charged_tokens: number
+          status: string
+          transitioned: boolean
+        }[]
+      }
+      release_webchat_request: {
+        Args: {
+          release_reason: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
       complete_sync_job_attempt: {
         Args: {
           attempt_succeeded: boolean
