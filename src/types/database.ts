@@ -1151,6 +1151,22 @@ export type Database = {
           profile_id: string
         }[]
       }
+      complete_sync_job_attempt: {
+        Args: {
+          attempt_succeeded: boolean
+          expected_attempt: number
+          failure_code?: Database['public']['Enums']['sync_error_code'] | null
+          failure_message?: string | null
+          failure_retryable?: boolean
+          target_job_id: number
+        }
+        Returns: {
+          job_status: Database['public']['Enums']['sync_job_status']
+          retry_at: string | null
+          transitioned: boolean
+          transitioned_at: string | null
+        }[]
+      }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       acquire_xcpc_elo_cache_refresh: {
         Args: { cache_ttl_seconds: number; lease_seconds: number; requested_owner: string }
