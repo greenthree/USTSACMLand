@@ -209,6 +209,23 @@ values
       'rpc_matrix_member',
       null
     )$$
+  ),
+  (
+    'public.admin_get_webchat_member_access(uuid)'::regprocedure,
+    $$select * from public.admin_get_webchat_member_access(
+      '00000000-0000-0000-0000-0000000001a1'
+    )$$
+  ),
+  (
+    'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)'::regprocedure,
+    $$select * from public.admin_update_webchat_member_access(
+      '00000000-0000-0000-0000-0000000001a1',
+      false,
+      30,
+      100000,
+      0,
+      'authorization fixture'
+    )$$
   );
 
 create temporary table admin_rpc_internal_matrix (
@@ -240,6 +257,9 @@ values
   ),
   (
     'public.admin_delete_announcement_unlimited(bigint,timestamptz)'::regprocedure
+  ),
+  (
+    'public.admin_update_webchat_relay_config(uuid,text,text,text,bigint,text,boolean,integer,bigint)'::regprocedure
   );
 
 create temporary table admin_rpc_matrix_results (

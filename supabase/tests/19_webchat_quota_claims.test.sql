@@ -2,7 +2,28 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(66);
+-- Migration 202607170008 revokes these internal primitives from service_role.
+-- This transaction grants them back only to unit-test the lower-level quota
+-- state machine; rollback restores the production permission boundary.
+grant execute on function public.claim_webchat_request(
+  uuid, text, text, uuid, integer, integer, bigint, integer, bigint, bigint, integer
+) to service_role;
+grant execute on function public.mark_webchat_request_started(uuid, text, uuid)
+  to service_role;
+
+select plan(83);
+
+select has_table(
+  'private',
+  'webchat_global_quota_state',
+  'the private global WebChat quota lock table exists'
+);
+
+select has_table(
+  'private',
+  'webchat_global_daily_usage',
+  'the private global WebChat daily usage table exists'
+);
 
 select has_table(
   'private',
@@ -29,13 +50,15 @@ select is(
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'private'
       and relation.relname = any(array[
+        'webchat_global_quota_state',
+        'webchat_global_daily_usage',
         'webchat_quota_states',
         'webchat_daily_usage',
         'webchat_requests'
       ])
       and relation.relrowsecurity
   ),
-  3,
+  5,
   'all private WebChat quota tables have row level security enabled'
 );
 
@@ -45,6 +68,8 @@ select is(
     from pg_catalog.pg_policies
     where schemaname = 'private'
       and tablename = any(array[
+        'webchat_global_quota_state',
+        'webchat_global_daily_usage',
         'webchat_quota_states',
         'webchat_daily_usage',
         'webchat_requests'
@@ -58,6 +83,12 @@ select ok(
   not pg_catalog.has_table_privilege('anon', 'private.webchat_quota_states', 'SELECT')
     and not pg_catalog.has_table_privilege(
       'authenticated', 'private.webchat_daily_usage', 'SELECT'
+    )
+    and not pg_catalog.has_table_privilege(
+      'service_role', 'private.webchat_global_daily_usage', 'SELECT'
+    )
+    and not pg_catalog.has_table_privilege(
+      'service_role', 'private.webchat_global_quota_state', 'UPDATE'
     )
     and not pg_catalog.has_table_privilege(
       'service_role', 'private.webchat_requests', 'SELECT'
@@ -74,7 +105,7 @@ select ok(
 select ok(
   not pg_catalog.has_function_privilege(
     'anon',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and not pg_catalog.has_function_privilege(
@@ -98,7 +129,7 @@ select ok(
 select ok(
   pg_catalog.has_function_privilege(
     'service_role',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and pg_catalog.has_function_privilege(
@@ -116,7 +147,7 @@ select ok(
       'public.release_webchat_request(uuid,text,uuid,text)',
       'EXECUTE'
     ),
-  'the service role can call every WebChat quota RPC'
+  'the legacy primitive test transaction can call every WebChat quota RPC'
 );
 
 select ok(
@@ -230,6 +261,22 @@ values
     '{"provider":"email","providers":["email"]}'::jsonb,
     '{"full_name":"WebChat Delete Fixture"}'::jsonb,
     now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-0000-0000-000000001910',
+    'authenticated', 'authenticated', 'webchat-global-a@example.test', 'test-password', now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"WebChat Global Fixture A"}'::jsonb,
+    now(), now(), '', '', '', ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000000',
+    '00000000-0000-0000-0000-000000001911',
+    'authenticated', 'authenticated', 'webchat-global-b@example.test', 'test-password', now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"full_name":"WebChat Global Fixture B"}'::jsonb,
+    now(), now(), '', '', '', ''
   );
 
 update public.profiles
@@ -249,6 +296,8 @@ select throws_ok(
       5,
       10,
       1000,
+      1000,
+      100000,
       100,
       180
     )
@@ -256,6 +305,50 @@ select throws_ok(
   '42501',
   'An active member account is required.',
   'a suspended member cannot claim WebChat quota'
+);
+reset role;
+
+set local role service_role;
+select throws_ok(
+  $$
+    select * from public.claim_webchat_request(
+      '00000000-0000-0000-0000-000000001901',
+      'invalid-global-request-limit',
+      repeat('a', 64),
+      '90000000-0000-4000-8000-000000001901',
+      5,
+      10,
+      1000,
+      0,
+      100000,
+      100,
+      180
+    )
+  $$,
+  '22023',
+  'Global daily request limit must be between 1 and 100000000.',
+  'the global daily request limit is validated before accounting'
+);
+
+select throws_ok(
+  $$
+    select * from public.claim_webchat_request(
+      '00000000-0000-0000-0000-000000001901',
+      'invalid-global-token-limit',
+      repeat('a', 64),
+      '91000000-0000-4000-8000-000000001901',
+      5,
+      10,
+      1000,
+      1000,
+      99,
+      100,
+      180
+    )
+  $$,
+  '22023',
+  'Global daily token limit must be between 100 and 1000000000000000.',
+  'the global daily token limit is validated before accounting'
 );
 reset role;
 
@@ -279,6 +372,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -336,6 +431,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -348,6 +445,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -360,6 +459,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -372,6 +473,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -564,6 +667,21 @@ select ok(
   'known finalization replaces the reservation with trusted daily usage'
 );
 
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage
+    where usage_date = (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date
+      and request_count = 1
+      and input_tokens = 50
+      and output_tokens = 20
+      and unknown_tokens = 0
+      and total_tokens = 70
+      and reserved_tokens = 0
+  ),
+  'known finalization replaces the global reservation with trusted usage once'
+);
+
 set local role service_role;
 create temporary table main_repeat_finalize as
 select * from public.finalize_webchat_request(
@@ -617,6 +735,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   120,
   180
 );
@@ -666,6 +786,21 @@ select ok(
   'unknown finalization preserves trusted usage and moves the reservation into unknown tokens'
 );
 
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage
+    where usage_date = (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date
+      and request_count = 2
+      and input_tokens = 50
+      and output_tokens = 20
+      and unknown_tokens = 120
+      and total_tokens = 190
+      and reserved_tokens = 0
+  ),
+  'unknown finalization conservatively charges the global token budget once'
+);
+
 set local role service_role;
 create temporary table release_claim as
 select * from public.claim_webchat_request(
@@ -676,6 +811,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   90,
   180
 );
@@ -763,6 +900,8 @@ select * from public.claim_webchat_request(
   5,
   10,
   1000,
+  1000,
+  100000,
   90,
   180
 );
@@ -790,6 +929,8 @@ select * from public.claim_webchat_request(
   1,
   10,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -818,6 +959,8 @@ select * from public.claim_webchat_request(
   1,
   10,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -855,6 +998,8 @@ select * from public.claim_webchat_request(
   10,
   1,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -883,6 +1028,8 @@ select * from public.claim_webchat_request(
   10,
   1,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -920,6 +1067,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   100,
+  1000,
+  100000,
   80,
   180
 );
@@ -948,6 +1097,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   100,
+  1000,
+  100000,
   30,
   180
 );
@@ -986,6 +1137,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   80,
   180
 );
@@ -1012,6 +1165,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   80,
   180
 );
@@ -1024,6 +1179,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -1077,6 +1234,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   100,
   180
 );
@@ -1109,6 +1268,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -1164,6 +1325,47 @@ select ok(
   'an expired worker is fenced from overwriting its conservative terminal charge'
 );
 
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage as global_usage
+    where global_usage.usage_date = (
+      pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai'
+    )::date
+      and global_usage.request_count = (
+        select pg_catalog.sum(usage.request_count)::integer
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+      and global_usage.input_tokens = (
+        select pg_catalog.sum(usage.input_tokens)
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+      and global_usage.output_tokens = (
+        select pg_catalog.sum(usage.output_tokens)
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+      and global_usage.unknown_tokens = (
+        select pg_catalog.sum(usage.unknown_tokens)
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+      and global_usage.total_tokens = (
+        select pg_catalog.sum(usage.total_tokens)
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+      and global_usage.reserved_tokens = (
+        select pg_catalog.sum(usage.reserved_tokens)
+        from private.webchat_daily_usage as usage
+        where usage.usage_date = global_usage.usage_date
+      )
+  ),
+  'stale claim and started recovery keep global and per-user accounting consistent'
+);
+
 set local role service_role;
 create temporary table delete_claim as
 select * from public.claim_webchat_request(
@@ -1174,6 +1376,8 @@ select * from public.claim_webchat_request(
   10,
   10,
   1000,
+  1000,
+  100000,
   50,
   180
 );
@@ -1195,8 +1399,13 @@ select is(
       where user_id = '00000000-0000-0000-0000-000000001909')
   )::integer,
   3,
-  'all three private WebChat rows exist before profile deletion'
+  'all three per-user private WebChat rows exist before profile deletion'
 );
+
+create temporary table delete_global_before as
+select request_count, total_tokens, reserved_tokens
+from private.webchat_global_daily_usage
+where usage_date = (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date;
 
 delete from public.profiles
 where id = '00000000-0000-0000-0000-000000001909';
@@ -1211,7 +1420,231 @@ select is(
       where user_id = '00000000-0000-0000-0000-000000001909')
   )::integer,
   0,
-  'profile deletion cascades through all private WebChat quota records'
+  'profile deletion cascades through all per-user WebChat quota records'
+);
+
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage as usage
+    cross join delete_global_before as before_delete
+    where usage.usage_date = (
+      pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai'
+    )::date
+      and usage.request_count = before_delete.request_count
+      and usage.total_tokens = before_delete.total_tokens
+      and usage.reserved_tokens = before_delete.reserved_tokens
+  ),
+  'profile deletion cannot refund or erase the cross-member daily budget'
+);
+
+create temporary table global_baseline as
+select
+  usage_date,
+  request_count,
+  input_tokens,
+  output_tokens,
+  unknown_tokens,
+  total_tokens,
+  reserved_tokens,
+  total_tokens + reserved_tokens as effective_tokens
+from private.webchat_global_daily_usage
+where usage_date = (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date;
+
+grant select on global_baseline to service_role;
+
+set local role service_role;
+create temporary table global_request_blocked as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-request-blocked',
+  repeat('a', 64),
+  '10000000-0000-4000-8000-000000001910',
+  10,
+  10,
+  1000,
+  (select request_count from global_baseline),
+  (select effective_tokens + 1000 from global_baseline),
+  40,
+  180
+);
+create temporary table global_token_blocked as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-token-blocked',
+  repeat('b', 64),
+  '20000000-0000-4000-8000-000000001910',
+  10,
+  10,
+  1000,
+  (select request_count + 10 from global_baseline),
+  (select effective_tokens + 29 from global_baseline),
+  30,
+  180
+);
+reset role;
+
+select is(
+  (select decision from global_request_blocked),
+  'global_daily_request_limited',
+  'the cross-member Beijing-day request ceiling rejects a new claim'
+);
+
+select is(
+  (select decision from global_token_blocked),
+  'global_daily_token_limited',
+  'the cross-member used plus reserved token ceiling rejects a new claim'
+);
+
+set local role service_role;
+create temporary table global_first_claim as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-first-claim',
+  repeat('c', 64),
+  '30000000-0000-4000-8000-000000001910',
+  10,
+  10,
+  1000,
+  (select request_count + 1 from global_baseline),
+  (select effective_tokens + 1000 from global_baseline),
+  40,
+  180
+);
+create temporary table global_second_request_blocked as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001911',
+  'global-second-request-blocked',
+  repeat('d', 64),
+  '10000000-0000-4000-8000-000000001911',
+  10,
+  10,
+  1000,
+  (select request_count + 1 from global_baseline),
+  (select effective_tokens + 1000 from global_baseline),
+  40,
+  180
+);
+create temporary table global_first_release as
+select public.release_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-first-claim',
+  '30000000-0000-4000-8000-000000001910',
+  'global_limit_fixture_release'
+) as value;
+reset role;
+
+select ok(
+  (select decision = 'acquired' from global_first_claim)
+    and (
+      select decision = 'global_daily_request_limited'
+      from global_second_request_blocked
+    ),
+  'different members share one atomically reserved global request allowance'
+);
+
+select is(
+  (select value from global_first_release),
+  true,
+  'pre-start release refunds the global request and token reservation'
+);
+
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage as usage
+    join global_baseline as baseline using (usage_date)
+    where usage.request_count = baseline.request_count
+      and usage.total_tokens = baseline.total_tokens
+      and usage.reserved_tokens = baseline.reserved_tokens
+  ),
+  'global release restores the aggregate counters to their pre-claim values'
+);
+
+set local role service_role;
+create temporary table global_unknown_claim as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-unknown-claim',
+  repeat('e', 64),
+  '40000000-0000-4000-8000-000000001910',
+  10,
+  10,
+  1000,
+  (select request_count + 10 from global_baseline),
+  (select effective_tokens + 100 from global_baseline),
+  60,
+  180
+);
+create temporary table global_unknown_mark as
+select public.mark_webchat_request_started(
+  '00000000-0000-0000-0000-000000001910',
+  'global-unknown-claim',
+  '40000000-0000-4000-8000-000000001910'
+) as value;
+create temporary table global_unknown_finalize as
+select * from public.finalize_webchat_request(
+  '00000000-0000-0000-0000-000000001910',
+  'global-unknown-claim',
+  '40000000-0000-4000-8000-000000001910',
+  'stream_interrupted',
+  null,
+  null,
+  null
+);
+create temporary table global_second_token_blocked as
+select * from public.claim_webchat_request(
+  '00000000-0000-0000-0000-000000001911',
+  'global-second-token-blocked',
+  repeat('f', 64),
+  '20000000-0000-4000-8000-000000001911',
+  10,
+  10,
+  1000,
+  (select request_count + 10 from global_baseline),
+  (select effective_tokens + 100 from global_baseline),
+  50,
+  180
+);
+reset role;
+
+select ok(
+  (select decision = 'acquired' from global_unknown_claim)
+    and (select value from global_unknown_mark)
+    and (select transitioned from global_unknown_finalize)
+    and (select charged_tokens = 60 from global_unknown_finalize),
+  'unknown post-start usage moves the full reservation into global consumption'
+);
+
+select is(
+  (select decision from global_second_token_blocked),
+  'global_daily_token_limited',
+  'one member cannot reserve tokens beyond capacity already consumed by another member'
+);
+
+select ok(
+  exists (
+    select 1
+    from private.webchat_global_daily_usage as usage
+    join global_baseline as baseline using (usage_date)
+    where usage.request_count = baseline.request_count + 1
+      and usage.input_tokens = baseline.input_tokens
+      and usage.output_tokens = baseline.output_tokens
+      and usage.unknown_tokens = baseline.unknown_tokens + 60
+      and usage.total_tokens = baseline.total_tokens + 60
+      and usage.reserved_tokens = baseline.reserved_tokens
+  ),
+  'global unknown-usage finalization and rejected claims leave exact aggregate counters'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from private.webchat_requests
+    where user_id = '00000000-0000-0000-0000-000000001911'
+  ),
+  0,
+  'global-limit rejections create no per-user idempotency ledger rows'
 );
 
 select * from finish();

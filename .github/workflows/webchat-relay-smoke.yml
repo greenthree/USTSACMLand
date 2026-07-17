@@ -1,0 +1,56 @@
+name: WebChat relay compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_abort:
+        description: Verify that an in-flight Responses stream settles after client Abort
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webchat-relay-compatibility
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify relay workflow invariants
+        run: npm run check:webchat-relay-workflow
+
+      - name: Run billable relay compatibility smoke
+        env:
+          CHAT_RELAY_BASE_URL: ${{ secrets.CHAT_RELAY_BASE_URL }}
+          CHAT_RELAY_API_KEY: ${{ secrets.CHAT_RELAY_API_KEY }}
+          CHAT_RELAY_MODEL: ${{ secrets.CHAT_RELAY_MODEL }}
+          WEBCHAT_RELAY_ABORT_CHECK: ${{ inputs.include_abort }}
+          WEBCHAT_RELAY_REPORT_PATH: artifacts/webchat-relay-compatibility.json
+        run: npm run check:webchat-relay
+
+      - name: Upload sanitized compatibility report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: webchat-relay-compatibility-${{ github.run_id }}
+          path: artifacts/webchat-relay-compatibility.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -11,9 +11,42 @@ export const bundleBudget = {
     'RankingsPage-',
     'LoginPage-',
     'AccountPage-',
+    'AssistantPage-',
     'AdminOverviewPage-',
     'AdminSyncPage-',
   ],
+}
+
+const CHAT_VALUE_IMPORT_PATTERN = /(?:from\s*|import\s*)["'](?:@assistant-ui\/[^"']+|ai)["']/
+
+async function sourceFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(directory, entry.name)
+      if (entry.isDirectory()) return sourceFiles(path)
+      return /\.[cm]?[jt]sx?$/.test(entry.name) ? [path] : []
+    }),
+  )
+  return files.flat()
+}
+
+export async function verifyChatImportBoundary(sourceDirectory = join(process.cwd(), 'src')) {
+  const files = await sourceFiles(sourceDirectory)
+  const violations = []
+
+  for (const file of files) {
+    const normalized = file.replaceAll('\\', '/')
+    if (normalized.includes('/features/chat/')) continue
+    const source = await readFile(file, 'utf8')
+    if (CHAT_VALUE_IMPORT_PATTERN.test(source)) violations.push(normalized)
+  }
+
+  if (violations.length > 0) {
+    throw new Error(
+      `Chat runtime dependencies escaped the lazy feature boundary: ${violations.join(', ')}`,
+    )
+  }
 }
 
 function formatKib(bytes) {
@@ -73,6 +106,7 @@ async function main() {
     readFile(join(distDirectory, 'index.html'), 'utf8'),
     readAssets(join(distDirectory, 'assets')),
   ])
+  await verifyChatImportBoundary()
   const report = verifyBundleBudget({ html, assets })
   console.log(
     `Verified production bundle budget: ${report.entryName} ${formatKib(report.entryRawBytes)} raw / ${formatKib(report.entryGzipBytes)} gzip.`,

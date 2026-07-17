@@ -7,9 +7,13 @@ import { RouteAccessibility } from './components/RouteAccessibility'
 import { StandaloneRouteLoading } from './components/RouteLoading'
 import { AdminLayout } from './components/admin/AdminLayout'
 import { MembersDataProvider } from './data/MembersDataProvider'
+import { webChatUiEnabled } from './features/chat/chatAvailability'
 
 const AccountPage = lazy(() =>
   import('./pages/AccountPage').then((module) => ({ default: module.AccountPage })),
+)
+const AssistantPage = lazy(() =>
+  import('./pages/AssistantPage').then((module) => ({ default: module.AssistantPage })),
 )
 const ForgotPasswordPage = lazy(() =>
   import('./pages/ForgotPasswordPage').then((module) => ({
@@ -81,6 +85,11 @@ const AdminSourceHealthPage = lazy(() =>
 const AdminSyncPage = lazy(() =>
   import('./pages/admin/AdminSyncPage').then((module) => ({ default: module.AdminSyncPage })),
 )
+const AdminWebChatPage = lazy(() =>
+  import('./pages/admin/AdminWebChatPage').then((module) => ({
+    default: module.AdminWebChatPage,
+  })),
+)
 
 function PublicMembersOutlet() {
   return (
@@ -88,6 +97,11 @@ function PublicMembersOutlet() {
       <Outlet />
     </MembersDataProvider>
   )
+}
+
+function WebChatRoute({ children }: { children: React.ReactNode }) {
+  if (!webChatUiEnabled) return <Navigate replace to="/" />
+  return <RequireAuth>{children}</RequireAuth>
 }
 
 export default function App() {
@@ -118,6 +132,14 @@ export default function App() {
               }
             />
             <Route
+              path="assistant"
+              element={
+                <WebChatRoute>
+                  <AssistantPage />
+                </WebChatRoute>
+              }
+            />
+            <Route
               path="admin"
               element={
                 <RequireAdmin>
@@ -132,6 +154,7 @@ export default function App() {
               <Route path="announcements" element={<AdminAnnouncementsPage />} />
               <Route path="sync" element={<AdminSyncPage />} />
               <Route path="health" element={<AdminSourceHealthPage />} />
+              <Route path="webchat" element={<AdminWebChatPage />} />
               <Route path="audit" element={<AdminAuditPage />} />
             </Route>
           </Route>

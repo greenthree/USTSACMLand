@@ -45,6 +45,7 @@ for (const route of [
   '/admin/accounts',
   '/admin/members',
   '/admin/sync',
+  '/admin/webchat',
   '/admin/members/member-1',
 ]) {
   test(`${route} passes the administrator axe gate`, async ({ page }) => {

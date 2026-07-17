@@ -62,7 +62,7 @@ M0 验收条件：
 - [x] 建立注册后自动创建 profile 的触发器。
 - [x] 建立仅限 service role / SQL 管理员的一次性首管理员初始化流程。
 - [x] 为 RLS、唯一约束和角色提升攻击编写数据库测试（2026-07-16 PostgreSQL 17 空库 CI 已执行 15 个 pgTAP 文件、257 项与真实调用一致的断言并通过，覆盖匿名访客、普通成员、停用成员、管理员、私表拒绝、公开视图过滤、QQ/平台绑定唯一冲突、管理员交接和最后管理员保护）。
-- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-16，35 个生产 migration 与四个 Edge Function 已部署；`delete-account` v3 已切换为目标绑定租约、事务内 fence 标记及 Auth/Profile/租约原子提交。生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留；非破坏性 RPC 烟测确认 missing Profile 拒绝、释放后不可复用及匿名 401。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、Storage/受控约束 `409`、双连接锁和响应丢失对账尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
+- [ ] 定义并实现账号删除、停用、数据保留和匿名化策略：普通成员需再次验证密码并二次确认后自助硬删除；管理员必须先交接权限；业务数据级联删除，审计记录移除全部个人标识，停用状态继续保留数据但停止公开与同步（截至 2026-07-17，43 个生产 migration 与六个 Edge Function 已部署；`delete-account` v3 已切换为目标绑定租约、事务内 fence 标记及 Auth/Profile/租约原子提交。生产随机临时成员双会话烟测确认错误密码拒绝、改密后两个 access/refresh 会话失效、旧密码失效、新密码可登录、缺少恢复令牌时注销返回 `503` 且账号保留；非破坏性 RPC 烟测确认 missing Profile 拒绝、释放后不可复用及匿名 401。仍缺最小权限 `DELETION_RECOVERY_GITHUB_TOKEN`，因此成功注销、恢复下限写入/确认、Storage/受控约束 `409`、双连接锁和响应丢失对账尚未完成；若要求独立持有因子，仍需决定是否增加邮箱 OTP/MFA）。
 - [ ] 验证注销恢复租约的长尾边界：GitHub 恢复下限请求有 5 秒超时并额外预留 1 小时；最终 Auth 删除已改为 service-role-only 数据库 RPC，对恢复租约单例行 `FOR UPDATE` 后设置事务内 owner/target fence 标记，并在同一事务删除 `auth.users`。Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，因此 Edge Runtime 计时器冻结或部署切换时其他请求都无法越过最终数据库边界。PostgreSQL 17 空库 CI 已通过 16 个 pgTAP 文件、289 项断言；生产非破坏性烟测确认 missing Profile 拒绝、租约释放、释放后不可复用、匿名 401 和无遗留阻塞。仍需配置生产恢复令牌后完成真实删除、Storage/受控约束 `409`、双连接阻塞、提交耗时、旧 JWT RLS 与响应丢失对账验收。
 
 M1 验收条件：
@@ -188,7 +188,7 @@ M4 验收条件：
 - [x] 公告管理和 CSV 导出：公告草稿/发布/定时/归档/删除、50 条游标分页、乐观锁、审计、对话框可访问性及当前筛选成员 CSV 已完成。2026-07-17 生产随机临时管理员真实烟测确认草稿隐藏、即时发布可见、未来定时隐藏、归档隐藏、后台列表、当前版本删除和五条审计动作；旧版本更新从此前 90 秒无响应修复为 369 ms 内返回 HTTP 409/`PT409` 且不覆盖数据，临时 Auth/Profile/公告均清理为 0。PostgreSQL 17 空库 CI 通过 290 项断言，证据见 `docs/evidence/production-announcement-lifecycle-2026-07-17.md`。
 - [x] 高风险操作二次确认；全量同步显示已验证平台账号影响范围，对话框具有初始焦点、首尾循环、Escape 关闭和跨浏览器触发器回焦。
 - [x] 管理接口添加速率限制：成员、平台绑定、手工统计、公告 RPC 与同步 Edge Function 已接入原子固定窗口限流。2026-07-17 生产随机临时管理员烟测确认公告 RPC 超额返回 HTTP 429/`PT429`、结构化等待 51 秒且不创建公告；`sync-stats` 全体范围超额返回 HTTP 429，`Retry-After` 响应头与 JSON 均为 596 秒且在任务分发前失败。生产后台实际显示“操作过于频繁，约 20 秒后可重试”，保留输入且无相关 console 错误。临时 Auth/Profile/限流桶/公告均清理为 0，PostgreSQL 17 空库 CI 通过 290 项断言，证据见 `docs/evidence/production-admin-rate-limit-smoke-2026-07-17.md`。
-- [x] 编写越权、CSRF、重复提交和批量操作回归测试：身份矩阵、敌意来源预检、活动同步原子去重、批量范围校验和高风险确认均已有自动化覆盖；清单驱动 pgTAP 已在 PostgreSQL 17 空库 CI 通过，确认全部 19 个浏览器可达管理员 RPC 对普通与停用成员统一返回 `42501`，8 个 `_unlimited` 实现不可由浏览器角色执行。
+- [x] 编写越权、CSRF、重复提交和批量操作回归测试：身份矩阵、敌意来源预检、活动同步原子去重、批量范围校验和高风险确认均已有自动化覆盖；清单驱动 pgTAP 已在 PostgreSQL 17 空库 CI 通过，确认全部 21 个浏览器可达管理员 RPC 对普通与停用成员统一返回 `42501`，9 个内部实现不可由浏览器角色执行。
 
 M5 验收条件：
 
@@ -202,14 +202,14 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-17 部署核对确认项目 `ACTIVE_HEALTHY`、39 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均为 ACTIVE；`sync-stats` v23 已包含数据库队列 scoped-token 边界，正式/恶意 Origin、匿名方法和 JWT 边界检查通过）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-17 部署核对确认项目 `ACTIVE_HEALTHY`、45 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat` 六个函数均为 ACTIVE；WebChat 使用仓库 import map 部署，服务端与数据库请求开关已对显式授权账号开放，生产 Pages 客户端入口仍隐藏。部署证据见 `docs/evidence/webchat-closed-production-deployment-2026-07-17.md` 与 `docs/evidence/webchat-model-visibility-production-2026-07-17.md`）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
-- [x] 在生产 Secrets 和真实仓库中验证全部工作流（2026-07-16 严格仓库就绪检查退出码为 0：CI、Pages、同步、Secret scan、Dependabot 与加密数据库备份均有当前 main 的成功真实运行；六个必需 Actions Secret、恢复下限变量、main ruleset、原生安全功能和 30 天 Actions 保留均已确认。首次备份 run `29509805851` 使用短期数据库凭据完成六部分导出、AES-256 加密、GitHub 端解密自检、14 天 Artifact 上传及下载后的本地独立校验，证据见 `docs/evidence/first-encrypted-database-backup-2026-07-16.md`）。
+- [x] 在生产 Secrets 和真实仓库中验证首版及当前已启用的生产工作流（2026-07-16 严格仓库就绪检查退出码为 0：CI、Pages、同步、Secret scan、Dependabot 与加密数据库备份均有当前 main 的成功真实运行；六个必需 Actions Secret、恢复下限变量、main ruleset、原生安全功能和 30 天 Actions 保留均已确认。首次备份 run `29509805851` 使用短期数据库凭据完成六部分导出、AES-256 加密、GitHub 端解密自检、14 天 Artifact 上传及下载后的本地独立校验，证据见 `docs/evidence/first-encrypted-database-backup-2026-07-16.md`；尚未运行的 WebChat 真实中转站手动工作流继续由对应功能条目跟踪）。
 - [x] 在仓库中接入 npm/GitHub Actions Dependabot 周更、完整历史 Gitleaks 扫描，并把工作流第三方 Action 固定到完整提交 SHA（2026-07-16 使用官方 Gitleaks `v8.30.1` 对 18 个本地提交和 324 个可提交文件执行脱敏扫描，均无泄漏；证据见 `docs/evidence/local-secret-scan-2026-07-16.md`，远端首次 workflow 结果仍由下一项验收）。
 - [x] 按仓库保护文档配置 `main` ruleset、GitHub 原生 Secret scanning/push protection 和 Private Vulnerability Reporting，并验证 Dependabot 与秘密扫描首次真实运行（2026-07-16 `Protect main release branch` ruleset 已启用且无 bypass，要求 PR、解决 review conversation、禁止删除/force push，并严格要求 `verify`、`database-security`、`gitleaks`；Secret scanning、push protection、Private Vulnerability Reporting、Dependabot security updates 与 30 天 Actions 保留均已启用，main 的 Secret scan 和 Dependabot 首次真实运行成功）。
-- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、35 个 migration、0 pending、四个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PostgreSQL 17 空库 CI 已通过 289 项权限/事务断言。2026-07-16 生产随机普通、停用和管理员三身份真实 JWT 矩阵 11/11 通过，证据见 `docs/evidence/production-rls-identity-matrix-2026-07-16.md`；随后两个随机成员完成真实管理员提升、接管、降级和两条审计，已有 JWT 随数据库角色即时获得/失去后台权限，目标绑定租约删除后两个旧 JWT 均无法读取、写入私有 Profile 或调用后台，Auth/Profile 零残留，证据见 `docs/evidence/production-admin-role-handoff-old-jwt-2026-07-16.md`。此前烟测也已确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭；仍需配置恢复令牌后的成功自助注销、Storage/受控约束 `409`、双连接锁与响应丢失对账验收）。
-- [ ] 增加错误监控、同步失败告警和数据库备份方案（四个 Edge Function 的非业务型 500 已接入固定类别、无 message/stack/身份信息、1.5 秒超时且不重试的运行时 Webhook；前端已增加 React 顶层错误边界及 `window.error`/未处理 Promise 的脱敏本地事件；2026-07-16 首次生产六部分逻辑备份已成功，Auth 数据、AES-256 加密、解密自检、14 天 Artifact、下载后本地校验和恢复下限 metadata 均已验证。Supabase PITR 仍未启用且可用物理备份为 0；还需配置生产告警 Secrets、完成告警投递、受控注销和隔离项目恢复演练，之后才能整项验收）。
+- [ ] 完成生产 RLS 审计、管理员账号保护和最小权限检查（严格就绪检查已确认项目健康、45 个 migration、0 pending、六个函数、schema lint 0、八个私有资源拒绝匿名访问、五个公开视图不含 QQ/角色/审核状态，以及正式/恶意 Origin 和匿名方法边界；PR #57 的 `database-security` 已在 PostgreSQL 17 空库通过 24 个 pgTAP 文件、599 项权限/事务断言。2026-07-16 生产随机普通、停用和管理员三身份真实 JWT 矩阵 11/11 通过，证据见 `docs/evidence/production-rls-identity-matrix-2026-07-16.md`；随后两个随机成员完成真实管理员提升、接管、降级和两条审计，已有 JWT 随数据库角色即时获得/失去后台权限，目标绑定租约删除后两个旧 JWT 均无法读取、写入私有 Profile 或调用后台，Auth/Profile 零残留，证据见 `docs/evidence/production-admin-role-handoff-old-jwt-2026-07-16.md`。此前烟测也已确认资料触发器、错误密码拒绝、双会话改密与全局失效、注销 `503` 失败关闭；仍需配置恢复令牌后的成功自助注销、Storage/受控约束 `409`、双连接锁与响应丢失对账验收）。
+- [ ] 增加错误监控、同步失败告警和数据库备份方案（六个 Edge Function 的非业务型 500 已接入固定类别、无 message/stack/身份信息、1.5 秒超时且不重试的运行时 Webhook；前端已增加 React 顶层错误边界及 `window.error`/未处理 Promise 的脱敏本地事件；2026-07-16 首次生产六部分逻辑备份已成功，Auth 数据、AES-256 加密、解密自检、14 天 Artifact、下载后本地校验和恢复下限 metadata 均已验证。Supabase PITR 仍未启用且可用物理备份为 0；还需配置生产告警 Secrets、完成告警投递、受控注销和隔离项目恢复演练，之后才能整项验收）。
 - [ ] 进行数据源限流演练、QOJ 会话过期演练和单平台停机演练（QOJ 凭据拒绝、Cloudflare challenge、Firecrawl 429 与会话清理已有固定测试，待生产受控演练）。
 - [x] 编写部署、回滚、凭据轮换、数据源修复和管理员交接文档，并明确前向数据库修复、QOJ 禁止自动重试、最小权限和交接顺序。
 - [x] 补充隐私说明、自助删除渠道、数据生命周期和第三方数据来源声明，并同步站内隐私页。
@@ -230,8 +230,11 @@ M6 验收条件：
 
 - [x] 按知识点和训练阶段组织新手学习引导（独立 `/learning` 交互页可根据“完全不会写代码 / 已会基础语法 / 想开始参赛”即时推荐牛客、洛谷或 Codeforces；四周计划支持切换周次、勾选任务、本地保存与重置进度，五阶段进阶路线支持按需展开，并接入一键 C++ 环境配置、算法竞赛 Wiki、XCPC Link、ACM 群组坐标汇总、知识地图、训练节奏与开放资源；首页与主导航已接入，桌面/移动 Chromium 的路由、焦点、交互、横向溢出及 axe WCAG A/AA 门禁通过）。
 - [ ] 每日一题、题目讨论和完成记录。
-- [ ] 接入大模型的 AI 聊天学习助手，用于知识问答、代码讲解和训练复盘，使用根目录下的 `WEBCHATROADMAP.md` 规划。
+- [ ] 接入大模型的 AI 聊天学习助手，用于知识问答、代码讲解和训练复盘，使用根目录下的 `WEBCHATROADMAP.md` 规划（安全 API、流式 `/assistant` 工作台、成员与全站原子配额、Vault 中转站配置、管理员逐账号授权/限额、脱敏预算告警、隐私说明和真实 Responses 协议验收均已完成。2026-07-17 生产已对齐 45 个 migration，`webchat` v5 为 ACTIVE；PR #57 在提交 `d943e07` 上的 `verify`、`database-security`、`gitleaks` 均通过，其中 PostgreSQL 17 空库执行 24 个 pgTAP 文件、599 项断言。服务端与数据库请求开关已对显式授权账号开放；测试账号当日 4 次受控请求累计结算 6,416 Token、预留归零，页面显示与模型自报均为 `gpt-5.6-sol`。生产 `VITE_WEBCHAT_UI_ENABLED=false` 继续隐藏 Pages 入口；剩余任务是决定 3–5 人正式试运行名单和 Pages 入口启用时点，并完成试运行观察）。
+- [x] 在已授权账号的 `/assistant` 显示后端实际解析的当前模型，并将同一个经过白名单校验的模型名写入服务端系统提示词、额度指纹和上游请求；未授权或停用账号不能发现模型，任何账号都不能读取 Base URL、Key、全站预算或他人额度。迁移 `202607170010` 已部署，localhost 生产 RPC 刷新烟测显示 `gpt-5.6-sol` 且 console 无错误。
+- [x] 完成 AI 学习助手的本地多浏览器、移动端、宽屏、键盘、减少动画与 axe 门禁；Chromium 同时驱动 10 个独立页面和 10 路并行 HTTP 流，验证流式回复互不串扰且完成后无残留活动连接。PR #57 的 Actions run `29593307984` 已实际通过该专用 WebChat 浏览器矩阵；真实中转站的 3–5 人试运行与连续观察仍由总功能条目跟踪。
 - [ ] 自定义时间范围的刷题增量榜、周榜和月榜。
+- [x] 完成 AI 学习助手隐私披露：说明消息会转发给管理员配置的中转站及上游模型、本站不保存对话正文，以及私有额度账本的最小字段边界；真实中转站的留存、训练、删除与跨境政策仍作为启用前验收项。
 - [ ] CF/AtCoder Rating 曲线与比赛明细。
 - [ ] 过题明细、题目难度分布和标签统计。
 - [ ] 训练目标、连续活跃天数和个人数据导出。

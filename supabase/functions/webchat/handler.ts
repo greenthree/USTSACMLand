@@ -1,11 +1,14 @@
 import { corsHeaders, resolveCorsOrigin } from '../_shared/cors.ts'
 import {
   prepareWebChatQuota,
+  type WebChatBudgetAlertClaim,
   type WebChatClaimResult,
   type WebChatQuotaPolicy,
   type WebChatUsage,
 } from './quota.ts'
 import { parseWebChatRequest, RequestValidationError } from './request.ts'
+import type { WebChatRelayRuntimeConfig } from './runtime-config.ts'
+import type { WebChatMemberRuntimeAccess } from './member-access.ts'
 import { type StartWebChatOptions, WebChatUpstreamError } from './upstream.ts'
 
 export interface WebChatUser {
@@ -14,15 +17,23 @@ export interface WebChatUser {
 
 export interface WebChatServices {
   getUser(token: string): Promise<WebChatUser | null>
-  isProfileApproved(userId: string): Promise<boolean>
+  readMemberRuntimeAccess(userId: string): Promise<WebChatMemberRuntimeAccess>
+  readRelayRuntimeConfig(): Promise<WebChatRelayRuntimeConfig>
   claimWebChatRequest(input: {
     userId: string
     requestId: string
     fingerprint: string
     ownerToken: string
     reservedTokens: number
-    policy: WebChatQuotaPolicy
+    minuteRequestLimit: number
+    leaseSeconds: number
   }): Promise<WebChatClaimResult>
+  claimWebChatBudgetAlert(input: {
+    budgetKind: 'requests' | 'tokens'
+    budgetLimit: number
+    attemptedReservedTokens: number
+  }): Promise<WebChatBudgetAlertClaim>
+  notifyWebChatBudgetAlert(alert: WebChatBudgetAlertClaim): Promise<void>
   markWebChatRequestStarted(userId: string, requestId: string, ownerToken: string): Promise<boolean>
   finalizeWebChatRequest(
     userId: string,
@@ -47,8 +58,13 @@ export interface WebChatHandlerDependencies {
   maxMessageChars?: number
   maxTotalChars?: number
   quotaPolicy: WebChatQuotaPolicy
+  buildSystemPrompt(model: string): string
   createServices(): WebChatServices
-  startChat(options: StartWebChatOptions): Promise<Response>
+  startChat(
+    options: StartWebChatOptions,
+    runtimeConfig: WebChatRelayRuntimeConfig,
+    systemPrompt: string,
+  ): Promise<Response>
   reportUnexpectedError(request: Request, error: unknown): Promise<void>
 }
 
@@ -84,6 +100,12 @@ function originAllowed(request: Request, configuredOrigins: string): boolean {
 function quotaError(result: WebChatClaimResult): ApiError {
   const retryAfter = result.retryAfterSeconds === null ? null : String(result.retryAfterSeconds)
   switch (result.decision) {
+    case 'member_access_denied':
+      return new ApiError(403, 'chat_access_denied', '当前账号尚未开通 AI 学习助手')
+    case 'request_token_limited':
+      return new ApiError(413, 'chat_request_token_limit', '当前对话内容过长，请缩短后重新发送')
+    case 'requests_disabled':
+      return new ApiError(503, 'chat_paused', 'AI 学习助手已由管理员暂停')
     case 'active_concurrent':
       return new ApiError(409, 'generation_in_progress', '已有一条 AI 回复正在生成', retryAfter)
     case 'minute_limited':
@@ -97,6 +119,20 @@ function quotaError(result: WebChatClaimResult): ApiError {
       )
     case 'daily_token_limited':
       return new ApiError(429, 'chat_daily_token_limited', '今日 AI 助手额度已用完', retryAfter)
+    case 'global_daily_request_limited':
+      return new ApiError(
+        503,
+        'chat_global_request_budget_exhausted',
+        '今日全站 AI 请求预算已用完',
+        retryAfter,
+      )
+    case 'global_daily_token_limited':
+      return new ApiError(
+        503,
+        'chat_global_token_budget_exhausted',
+        '今日全站 AI 额度已用完',
+        retryAfter,
+      )
     case 'idempotency_conflict':
       return new ApiError(409, 'request_id_conflict', '请求标识已用于不同内容，请重新发送')
     case 'duplicate_active':
@@ -186,8 +222,17 @@ export function createWebChatHandler(
       if (!user) {
         throw new ApiError(401, 'unauthorized', '登录状态已失效，请重新登录')
       }
-      if (!(await services.isProfileApproved(user.id))) {
+      const memberAccess = await services.readMemberRuntimeAccess(user.id)
+      if (!memberAccess.accountEligible) {
         throw new ApiError(403, 'account_ineligible', '当前账号不能使用 AI 学习助手')
+      }
+      if (!memberAccess.enabled) {
+        throw new ApiError(403, 'chat_access_denied', '当前账号尚未开通 AI 学习助手')
+      }
+
+      const runtimeConfig = await services.readRelayRuntimeConfig()
+      if (!runtimeConfig.requestsEnabled) {
+        throw new ApiError(503, 'chat_paused', 'AI 学习助手已由管理员暂停')
       }
 
       const body = await parseWebChatRequest(request, {
@@ -196,8 +241,16 @@ export function createWebChatHandler(
         maxMessageChars: dependencies.maxMessageChars,
         maxTotalChars: dependencies.maxTotalChars,
       })
-      const quota = await prepareWebChatQuota(body.messages, dependencies.quotaPolicy)
-      if (quota.reservedTokens > dependencies.quotaPolicy.dailyTokenLimit) {
+      const systemPrompt = dependencies.buildSystemPrompt(runtimeConfig.model)
+      const requestQuotaPolicy = {
+        ...dependencies.quotaPolicy,
+        model: runtimeConfig.model,
+        systemPrompt,
+        dailyRequestLimit: memberAccess.dailyRequestLimit,
+        dailyTokenLimit: memberAccess.dailyTokenLimit,
+      }
+      const quota = await prepareWebChatQuota(body.messages, requestQuotaPolicy)
+      if (quota.reservedTokens > requestQuotaPolicy.dailyTokenLimit) {
         throw new ApiError(413, 'chat_request_token_limit', '当前对话内容过长，请缩短后重新发送')
       }
 
@@ -208,30 +261,68 @@ export function createWebChatHandler(
         fingerprint: quota.fingerprint,
         ownerToken,
         reservedTokens: quota.reservedTokens,
-        policy: dependencies.quotaPolicy,
+        minuteRequestLimit: requestQuotaPolicy.minuteRequestLimit,
+        leaseSeconds: requestQuotaPolicy.leaseSeconds,
       })
-      if (claim.decision !== 'acquired') throw quotaError(claim)
+      if (claim.decision !== 'acquired') {
+        const budgetKinds: Array<'requests' | 'tokens'> =
+          claim.decision === 'global_daily_request_limited'
+            ? ['requests']
+            : claim.decision === 'global_daily_token_limited'
+              ? ['tokens']
+              : claim.decision === 'minute_limited' ||
+                  claim.decision === 'daily_request_limited' ||
+                  claim.decision === 'daily_token_limited'
+                ? ['requests', 'tokens']
+                : []
+        for (const budgetKind of budgetKinds) {
+          try {
+            const alert = await services.claimWebChatBudgetAlert({
+              budgetKind,
+              budgetLimit:
+                budgetKind === 'requests'
+                  ? runtimeConfig.globalDailyRequestLimit
+                  : runtimeConfig.globalDailyTokenLimit,
+              attemptedReservedTokens: budgetKind === 'tokens' ? quota.reservedTokens : 0,
+            })
+            if (alert.shouldNotify) await services.notifyWebChatBudgetAlert(alert)
+          } catch (alertError) {
+            // Alerting is operational telemetry. A delivery or marker failure
+            // must not turn a deterministic budget rejection into a 500.
+            try {
+              await dependencies.reportUnexpectedError(request, alertError)
+            } catch {
+              // The quota response remains authoritative even if monitoring is unavailable.
+            }
+          }
+        }
+        throw quotaError(claim)
+      }
 
       try {
-        const response = await dependencies.startChat({
-          messages: body.messages,
-          userId: user.id,
-          requestSignal: request.signal,
-          requestId: currentRequestId,
-          quotaLifecycle: {
-            markStarted: () =>
-              services.markWebChatRequestStarted(user.id, currentRequestId, ownerToken),
-            finalize: (outcome, usage) =>
-              services.finalizeWebChatRequest(
-                user.id,
-                currentRequestId,
-                ownerToken,
-                outcome,
-                usage,
-              ),
+        const response = await dependencies.startChat(
+          {
+            messages: body.messages,
+            userId: user.id,
+            requestSignal: request.signal,
+            requestId: currentRequestId,
+            quotaLifecycle: {
+              markStarted: () =>
+                services.markWebChatRequestStarted(user.id, currentRequestId, ownerToken),
+              finalize: (outcome, usage) =>
+                services.finalizeWebChatRequest(
+                  user.id,
+                  currentRequestId,
+                  ownerToken,
+                  outcome,
+                  usage,
+                ),
+            },
+            reportUnexpectedError: (error) => dependencies.reportUnexpectedError(request, error),
           },
-          reportUnexpectedError: (error) => dependencies.reportUnexpectedError(request, error),
-        })
+          runtimeConfig,
+          systemPrompt,
+        )
         return streamResponse(response, request, dependencies.allowedOrigins, currentRequestId)
       } catch (error) {
         try {

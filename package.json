@@ -16,6 +16,8 @@
     "check:supabase-preflight": "node scripts/check-supabase-readiness.mjs --preflight",
     "check:supabase-readiness": "node scripts/check-supabase-readiness.mjs",
     "check:sync-workflow": "node scripts/check-sync-workflow.mjs",
+    "check:webchat-relay": "node scripts/check-webchat-relay.mjs",
+    "check:webchat-relay-workflow": "node scripts/check-webchat-relay-workflow.mjs",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -24,6 +26,7 @@
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:production": "playwright test --config=playwright.production.config.ts",
+    "test:e2e:webchat": "playwright test --config=playwright.webchat.config.ts",
     "test:watch": "vitest",
     "verify:backup-recovery-floor": "node scripts/verify-backup-recovery-floor.mjs"
   },

@@ -100,6 +100,19 @@ describe('route authorization', () => {
     expect(screen.getByRole('link', { name: /公告管理/ })).toHaveClass('active')
   })
 
+  it('exposes WebChat configuration to approved demo administrators', async () => {
+    sessionStorage.setItem(demoSessionKey, 'admin@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/admin/webchat']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'WebChat 配置' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /WebChat 配置/ })).toHaveClass('active')
+    expect(document.title).toBe('WebChat 配置 | USTS ACM Land')
+  })
+
   it('keeps the privacy notice public', async () => {
     render(
       <MemoryRouter initialEntries={['/privacy']}>
@@ -114,6 +127,19 @@ describe('route authorization', () => {
       'href',
       'https://github.com/greenthree/USTSACMLand/blob/main/docs/third-party-data-sources.md',
     )
+  })
+
+  it('keeps the unfinished AI assistant route hidden by default', async () => {
+    sessionStorage.setItem(demoSessionKey, 'member@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/assistant']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'AI 助手' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /把卡住你的地方/ })).not.toBeInTheDocument()
   })
 
   it('exposes a skip link and moves route focus after client-side navigation', async () => {

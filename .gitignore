@@ -39,6 +39,7 @@ service-account*.json
 .npmrc.local
 
 # Additional generated reports
+artifacts/
 playwright-report/
 test-results/
 .cache/

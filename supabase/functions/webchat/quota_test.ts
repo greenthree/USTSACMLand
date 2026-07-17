@@ -1,5 +1,6 @@
 import { deepStrictEqual, match, strictEqual, throws } from 'node:assert/strict'
 import {
+  parseWebChatBudgetAlertClaim,
   parseWebChatClaimResult,
   parseWebChatTransition,
   parseWebChatUsage,
@@ -100,6 +101,62 @@ Deno.test('webchat quota parses fenced transition and trusted Responses usage', 
     }),
     { inputTokens: 20, outputTokens: 11, totalTokens: 31 },
   )
+})
+
+Deno.test('webchat quota parses only aggregate budget alert claims', () => {
+  deepStrictEqual(
+    parseWebChatBudgetAlertClaim([
+      {
+        should_notify: true,
+        budget_kind: 'tokens',
+        usage_date: '2026-07-17',
+        budget_limit: 1_000_000,
+        request_count: 28,
+        settled_tokens: 940_000,
+        reserved_tokens: 40_000,
+        attempted_reserved_tokens: 21_024,
+        observed_usage: 1_001_024,
+        observed_at: '2026-07-17T10:00:00.000Z',
+        reset_at: '2026-07-17T16:00:00.000Z',
+      },
+    ]),
+    {
+      shouldNotify: true,
+      budgetKind: 'tokens',
+      usageDate: '2026-07-17',
+      budgetLimit: 1_000_000,
+      requestCount: 28,
+      settledTokens: 940_000,
+      reservedTokens: 40_000,
+      attemptedReservedTokens: 21_024,
+      observedUsage: 1_001_024,
+      observedAt: '2026-07-17T10:00:00.000Z',
+      resetAt: '2026-07-17T16:00:00.000Z',
+    },
+  )
+
+  for (const row of [
+    { budget_kind: 'messages' },
+    { budget_kind: 'tokens', usage_date: 'invalid' },
+  ]) {
+    throws(
+      () =>
+        parseWebChatBudgetAlertClaim({
+          should_notify: false,
+          usage_date: '2026-07-17',
+          budget_limit: 1,
+          request_count: 0,
+          settled_tokens: 0,
+          reserved_tokens: 0,
+          attempted_reserved_tokens: 0,
+          observed_usage: 0,
+          observed_at: '2026-07-17T10:00:00.000Z',
+          reset_at: '2026-07-17T16:00:00.000Z',
+          ...row,
+        }),
+      /invalid/,
+    )
+  }
 })
 
 Deno.test('webchat quota rejects missing or inconsistent trusted usage', () => {

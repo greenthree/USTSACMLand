@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 19,
-      assertionCount: 394,
-      releaseMigrationCount: 25,
+      fileCount: 24,
+      assertionCount: 599,
+      releaseMigrationCount: 30,
     })
   })
 
@@ -71,6 +71,16 @@ describe('CI workflow', () => {
     ).toThrow(/webchat Edge Function/)
     expect(() =>
       verifyCiWorkflow(
+        workflow.replace('          supabase/functions/webchat-config/index.ts\n', ''),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/webchat-config Edge Function/)
+    expect(() =>
+      verifyCiWorkflow(
         workflow,
         packageJson,
         pgTapFiles,
@@ -79,6 +89,19 @@ describe('CI workflow', () => {
         supabaseConfig.replace('[functions.webchat]\nverify_jwt = true', '[functions.webchat]'),
       ),
     ).toThrow(/webchat Edge Function must enable JWT verification/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig.replace(
+          '[functions.webchat-config]\nverify_jwt = true',
+          '[functions.webchat-config]',
+        ),
+      ),
+    ).toThrow(/webchat-config Edge Function must enable JWT verification/)
   })
 
   it('rejects unrestricted or network-capable Edge unit tests', () => {
@@ -133,7 +156,7 @@ describe('CI workflow', () => {
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/at least 19 pgTAP files/)
+    ).toThrow(/at least 24 pgTAP files/)
     const regressed = pgTapFiles.map((file) =>
       file.name === '13_non_luogu_atomic_persistence.test.sql'
         ? { ...file, content: file.content.replace('select plan(27);', 'select plan(1);') }
@@ -170,11 +193,80 @@ describe('CI workflow', () => {
         workflow,
         packageJson,
         pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170006_webchat_relay_admin_config.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170006_webchat_relay_admin_config/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170007_webchat_budget_monitoring.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170007_webchat_budget_monitoring/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170008_webchat_member_access.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170008_webchat_member_access/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170009_webchat_admin_access.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170009_webchat_admin_access/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607170010_webchat_model_visibility.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607170010_webchat_model_visibility/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
         migrationFiles,
         deployWorkflow.replace('workflow_run:', 'push:'),
         supabaseConfig,
       ),
     ).toThrow(/triggered by completion|independent push trigger/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow.replace(
+          "VITE_WEBCHAT_UI_ENABLED: ${{ vars.VITE_WEBCHAT_UI_ENABLED || 'false' }}",
+          'VITE_WEBCHAT_UI_ENABLED: false',
+        ),
+        supabaseConfig,
+      ),
+    ).toThrow(/explicit VITE_WEBCHAT_UI_ENABLED repository variable/)
   })
 
   it('requires the local database used by CI to match production PostgreSQL 17', () => {

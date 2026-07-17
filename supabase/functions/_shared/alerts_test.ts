@@ -2,6 +2,7 @@ import { deepStrictEqual, rejects, strictEqual } from 'node:assert/strict'
 import {
   deliverFirecrawlCreditAlert,
   deliverSyncFailureAlert,
+  deliverWebChatBudgetAlert,
   shouldNotifySyncFailure,
   type SyncFailureAlert,
 } from './alerts.ts'
@@ -151,4 +152,54 @@ Deno.test('Firecrawl credit alerts contain only aggregate quota fields', async (
   })
   strictEqual(requestBody.includes('apiKey'), false)
   strictEqual(requestBody.includes('member'), false)
+})
+
+Deno.test('WebChat budget alerts contain only aggregate daily usage fields', async () => {
+  let requestBody = ''
+  const result = await deliverWebChatBudgetAlert(
+    {
+      budgetKind: 'tokens',
+      usageDate: '2026-07-17',
+      budgetLimit: 1_000_000,
+      observedUsage: 1_001_024,
+      requestCount: 28,
+      settledTokens: 940_000,
+      reservedTokens: 40_000,
+      observedAt: '2026-07-17T10:00:00.000Z',
+      resetAt: '2026-07-17T16:00:00.000Z',
+    },
+    {
+      webhookUrl: 'https://alerts.example.test/sync',
+      webhookToken: 'test-token',
+      fetcher: (_input, init) => {
+        requestBody = typeof init?.body === 'string' ? init.body : ''
+        return Promise.resolve(new Response(null, { status: 204 }))
+      },
+    },
+  )
+
+  deepStrictEqual(result, { configured: true, delivered: true, status: 204 })
+  deepStrictEqual(JSON.parse(requestBody), {
+    version: 1,
+    event: 'webchat_budget_exhausted',
+    budgetKind: 'tokens',
+    usageDate: '2026-07-17',
+    budgetLimit: 1_000_000,
+    observedUsage: 1_001_024,
+    requestCount: 28,
+    settledTokens: 940_000,
+    reservedTokens: 40_000,
+    observedAt: '2026-07-17T10:00:00.000Z',
+    resetAt: '2026-07-17T16:00:00.000Z',
+  })
+  for (const forbidden of [
+    'memberId',
+    'requestId',
+    'message',
+    'baseUrl',
+    'apiKey',
+    'attemptedReservedTokens',
+  ]) {
+    strictEqual(requestBody.includes(forbidden), false)
+  }
 })

@@ -10,6 +10,8 @@ const memberDetailMocks = vi.hoisted(() => ({
   setManualStats: vi.fn(),
   setAccountStatus: vi.fn(),
   triggerSync: vi.fn(),
+  fetchWebChatAccess: vi.fn(),
+  updateWebChatAccess: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
@@ -25,6 +27,16 @@ vi.mock('../../lib/adminPlatformAccounts', () => ({
 vi.mock('../../lib/adminImmediateSync', () => ({
   triggerAdminImmediateSync: memberDetailMocks.triggerSync,
 }))
+vi.mock('../../lib/webChatMemberAccess', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/webChatMemberAccess')>(
+    '../../lib/webChatMemberAccess',
+  )
+  return {
+    ...actual,
+    fetchAdminWebChatMemberAccess: memberDetailMocks.fetchWebChatAccess,
+    updateAdminWebChatMemberAccess: memberDetailMocks.updateWebChatAccess,
+  }
+})
 
 import { AdminMemberDetailPage } from './AdminMemberDetailPage'
 
@@ -51,6 +63,20 @@ describe('AdminMemberDetailPage', () => {
     memberDetailMocks.setManualStats.mockResolvedValue(undefined)
     memberDetailMocks.setAccountStatus.mockResolvedValue(undefined)
     memberDetailMocks.triggerSync.mockResolvedValue(undefined)
+    memberDetailMocks.fetchWebChatAccess.mockResolvedValue({
+      enabled: false,
+      dailyRequestLimit: 10,
+      dailyTokenLimit: 40_000,
+      version: 1,
+      updatedAt: '2026-07-17T08:00:00Z',
+    })
+    memberDetailMocks.updateWebChatAccess.mockResolvedValue({
+      enabled: true,
+      dailyRequestLimit: 12,
+      dailyTokenLimit: 50_000,
+      version: 2,
+      updatedAt: '2026-07-17T09:00:00Z',
+    })
   })
 
   it('shows the member profile, six platforms, and XCPC automatic matching boundary', async () => {
@@ -83,6 +109,44 @@ describe('AdminMemberDetailPage', () => {
       '2026-07-13T09:00:00+08:00',
     )
     expect(await screen.findByText('牛客 账号已保存，等待验证。')).toBeInTheDocument()
+  })
+
+  it('lets an administrator enable WebChat and set member daily limits', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByRole('heading', { name: '沈亦安' })
+
+    const enabled = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
+    const requestLimit = screen.getByRole('spinbutton', { name: /每日请求上限/ })
+    const tokenLimit = screen.getByRole('spinbutton', { name: /每日 Token 上限/ })
+    await user.click(enabled)
+    await user.clear(requestLimit)
+    await user.type(requestLimit, '12')
+    await user.clear(tokenLimit)
+    await user.type(tokenLimit, '50000')
+    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '开放首批试运行')
+    await user.click(screen.getByRole('button', { name: '保存权限与额度' }))
+
+    expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
+      memberId: 'member-1',
+      enabled: true,
+      dailyRequestLimit: 12,
+      dailyTokenLimit: 50_000,
+      expectedVersion: 1,
+      reason: '开放首批试运行',
+    })
+    expect(await screen.findByText('成员 AI 助手权限与额度已保存。')).toBeInTheDocument()
+    expect(screen.getByText('配置版本 v2')).toBeInTheDocument()
+  })
+
+  it('keeps member platform details available when WebChat access loading fails', async () => {
+    memberDetailMocks.fetchWebChatAccess.mockRejectedValue(new Error('授权服务暂时不可用'))
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: '沈亦安' })).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /Codeforces/ })).toBeInTheDocument()
+    expect(await screen.findByText('授权服务暂时不可用')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
   })
 
   it('validates a pending account through the adapter before reporting success', async () => {

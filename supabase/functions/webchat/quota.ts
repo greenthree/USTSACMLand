@@ -18,10 +18,15 @@ export interface WebChatQuotaPreparation {
 
 export type WebChatClaimDecision =
   | 'acquired'
+  | 'member_access_denied'
+  | 'request_token_limited'
+  | 'requests_disabled'
   | 'active_concurrent'
   | 'minute_limited'
   | 'daily_request_limited'
   | 'daily_token_limited'
+  | 'global_daily_request_limited'
+  | 'global_daily_token_limited'
   | 'duplicate_active'
   | 'duplicate_terminal'
   | 'idempotency_conflict'
@@ -41,14 +46,33 @@ export interface WebChatUsage {
   totalTokens: number
 }
 
+export interface WebChatBudgetAlertClaim {
+  shouldNotify: boolean
+  budgetKind: 'requests' | 'tokens'
+  usageDate: string
+  budgetLimit: number
+  requestCount: number
+  settledTokens: number
+  reservedTokens: number
+  attemptedReservedTokens: number
+  observedUsage: number
+  observedAt: string
+  resetAt: string
+}
+
 const encoder = new TextEncoder()
 const FINGERPRINT_PATTERN = /^[a-f0-9]{64}$/
 const CLAIM_DECISIONS = new Set<WebChatClaimDecision>([
   'acquired',
+  'member_access_denied',
+  'request_token_limited',
+  'requests_disabled',
   'active_concurrent',
   'minute_limited',
   'daily_request_limited',
   'daily_token_limited',
+  'global_daily_request_limited',
+  'global_daily_token_limited',
   'duplicate_active',
   'duplicate_terminal',
   'idempotency_conflict',
@@ -141,6 +165,42 @@ export function parseWebChatTransition(value: unknown): {
     transitioned: row.transitioned,
     status: row.status,
     chargedTokens: nonnegativeInteger(row.charged_tokens, 'charged token count'),
+  }
+}
+
+function timestamp(value: unknown, name: string): string {
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+    throw new Error(`WebChat budget alert RPC returned an invalid ${name}`)
+  }
+  return value
+}
+
+export function parseWebChatBudgetAlertClaim(value: unknown): WebChatBudgetAlertClaim {
+  const row = asRecord(Array.isArray(value) ? value[0] : value)
+  if (
+    typeof row.should_notify !== 'boolean' ||
+    (row.budget_kind !== 'requests' && row.budget_kind !== 'tokens') ||
+    typeof row.usage_date !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(row.usage_date)
+  ) {
+    throw new Error('WebChat budget alert RPC returned invalid data')
+  }
+
+  return {
+    shouldNotify: row.should_notify,
+    budgetKind: row.budget_kind,
+    usageDate: row.usage_date,
+    budgetLimit: nonnegativeInteger(row.budget_limit, 'budget limit'),
+    requestCount: nonnegativeInteger(row.request_count, 'global request count'),
+    settledTokens: nonnegativeInteger(row.settled_tokens, 'global settled tokens'),
+    reservedTokens: nonnegativeInteger(row.reserved_tokens, 'global reserved tokens'),
+    attemptedReservedTokens: nonnegativeInteger(
+      row.attempted_reserved_tokens,
+      'attempted token reservation',
+    ),
+    observedUsage: nonnegativeInteger(row.observed_usage, 'observed global usage'),
+    observedAt: timestamp(row.observed_at, 'observation timestamp'),
+    resetAt: timestamp(row.reset_at, 'reset timestamp'),
   }
 }
 

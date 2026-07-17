@@ -4,6 +4,7 @@ import X from 'lucide-react/dist/esm/icons/x'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
+import { webChatUiEnabled } from '../features/chat/chatAvailability'
 import { Brand } from './Brand'
 import { RouteLoading } from './RouteLoading'
 
@@ -59,6 +60,11 @@ export function AppShell() {
             {user ? (
               <NavLink to="/account" onClick={() => setOpen(false)}>
                 我的资料
+              </NavLink>
+            ) : null}
+            {webChatUiEnabled && user ? (
+              <NavLink to="/assistant" onClick={() => setOpen(false)}>
+                AI 助手
               </NavLink>
             ) : null}
             {user?.role === 'admin' && user.reviewStatus === 'approved' ? (
