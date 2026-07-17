@@ -19,6 +19,25 @@ export interface NormalizedSyncRequest {
   cursor?: number
 }
 
+export interface AdminSyncRateLimitRule {
+  actionKey: string
+  maxRequests: number
+  windowSeconds: number
+}
+
+export function adminSyncRateLimitRule(
+  request: Pick<NormalizedSyncRequest, 'scope' | 'cursor'>,
+): AdminSyncRateLimitRule {
+  if (request.scope === 'all') {
+    return request.cursor === undefined
+      ? { actionKey: 'admin.sync.all', maxRequests: 2, windowSeconds: 600 }
+      : { actionKey: 'admin.sync.all.page', maxRequests: 60, windowSeconds: 600 }
+  }
+  return request.cursor === undefined
+    ? { actionKey: 'admin.sync.scoped', maxRequests: 12, windowSeconds: 60 }
+    : { actionKey: 'admin.sync.scoped.page', maxRequests: 120, windowSeconds: 60 }
+}
+
 export function maySyncXcpcElo(request: NormalizedSyncRequest): boolean {
   if (request.scope === 'queue') return false
   return request.platforms === undefined || request.platforms.includes('xcpc_elo')

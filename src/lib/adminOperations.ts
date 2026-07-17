@@ -548,16 +548,38 @@ async function triggerAdminSync(
 ): Promise<AdminSyncBatchResult> {
   if (!supabase) return { requested: 0, succeeded: 0, queued: 0, failed: 0 }
 
-  const { data, error } = await supabase.functions.invoke('sync-stats', {
-    body,
-  })
-  if (error) throw new Error(`${errorPrefix}：${error.message}`)
-  const response = recordValue(data)
-  return {
-    requested: numberValue(response.requested),
-    succeeded: numberValue(response.succeeded),
-    queued: numberValue(response.queued),
-    failed: numberValue(response.failed),
+  const total: AdminSyncBatchResult = { requested: 0, succeeded: 0, queued: 0, failed: 0 }
+  const seenCursors = new Set<number>()
+  let cursor: number | null = null
+
+  while (true) {
+    const { data, error } = await supabase.functions.invoke('sync-stats', {
+      body: {
+        ...body,
+        batch_size: 6,
+        ...(cursor === null ? {} : { cursor }),
+      },
+    })
+    if (error) {
+      const mapped = await adminFunctionError(errorPrefix, error)
+      throw total.requested > 0
+        ? new Error(`${mapped.message}（此前已处理 ${total.requested} 个平台账号。）`)
+        : mapped
+    }
+
+    const response = recordValue(data)
+    total.requested += numberValue(response.requested)
+    total.succeeded += numberValue(response.succeeded)
+    total.queued += numberValue(response.queued)
+    total.failed += numberValue(response.failed)
+
+    const nextCursor = nullableNumber(response.nextCursor)
+    if (nextCursor === null) return total
+    if (nextCursor <= 0 || nextCursor === cursor || seenCursors.has(nextCursor)) {
+      throw new Error(`${errorPrefix}：同步分页游标未继续前进。`)
+    }
+    seenCursors.add(nextCursor)
+    cursor = nextCursor
   }
 }
 
