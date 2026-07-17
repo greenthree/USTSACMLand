@@ -25,8 +25,9 @@ import {
   isPlatformAccountEligible,
 } from './account-verification.ts'
 import { buildSyncJobTarget } from './job.ts'
+import { completeSyncJobAttempt } from './job-completion.ts'
 import { buildPlatformPersistenceState, persistNonLuoguResult } from './persistence.ts'
-import { maxAttemptsForPlatforms, nextRetryAt } from './retry.ts'
+import { maxAttemptsForPlatforms } from './retry.ts'
 
 interface SyncRequest {
   memberId?: string
@@ -679,39 +680,24 @@ Deno.serve(async (request) => {
     )
 
     const failures = persisted.filter(({ result }) => !result.ok)
-    const finishedAt = new Date().toISOString()
     const firstFailure = failures[0]?.result
-    const retryAt =
-      jobAttempt < jobMaxAttempts
-        ? nextRetryAt(
-            syncedPlatforms,
-            persisted.map(({ result }) => result),
-            jobAttempt,
-            new Date(finishedAt),
-          )
-        : null
-    const jobCompletion = retryAt
-      ? {
-          status: 'queued' as const,
-          scheduled_for: retryAt,
-          started_at: null,
-          finished_at: null,
-        }
-      : {
-          status: (failures.length === 0 ? 'succeeded' : 'failed') as 'succeeded' | 'failed',
-          finished_at: finishedAt,
-        }
-    const { error: finishJobError } = await serviceClient
-      .from('sync_jobs')
-      .update({
-        ...jobCompletion,
-        last_error_code: firstFailure && !firstFailure.ok ? firstFailure.error.code : null,
-        last_error_message:
-          firstFailure && !firstFailure.ok ? firstFailure.error.message.slice(0, 4_000) : null,
-      })
-      .eq('id', jobId)
-    if (finishJobError) {
-      throw new Error(`Could not finish sync job: ${finishJobError.message}`)
+    const completion = await completeSyncJobAttempt(serviceClient, {
+      jobId,
+      attempt: jobAttempt,
+      succeeded: failures.length === 0,
+      retryable:
+        persisted.length === 1 &&
+        firstFailure !== undefined &&
+        !firstFailure.ok &&
+        firstFailure.error.retryable,
+      errorCode: firstFailure && !firstFailure.ok ? firstFailure.error.code : null,
+      errorMessage: firstFailure && !firstFailure.ok ? firstFailure.error.message : null,
+    })
+    if (!completion.transitioned) {
+      throw new ApiError(409, 'Synchronization attempt is no longer current')
+    }
+    if (!['queued', 'succeeded', 'failed'].includes(completion.status)) {
+      throw new Error(`Synchronization attempt reached invalid status ${completion.status}`)
     }
 
     const alertFailures = failures.flatMap(({ result }) =>
@@ -719,13 +705,13 @@ Deno.serve(async (request) => {
         ? []
         : [{ platform: result.platform, code: result.error.code }],
     )
-    if (!retryAt && alertFailures.length > 0) {
+    if (completion.status === 'failed' && alertFailures.length > 0) {
       await notifySyncFailure({
         jobId,
         triggerType,
         attempt: jobAttempt,
         maxAttempts: jobMaxAttempts,
-        failedAt: finishedAt,
+        failedAt: completion.transitionedAt ?? new Date().toISOString(),
         failures: alertFailures,
       })
     }
@@ -734,16 +720,16 @@ Deno.serve(async (request) => {
       {
         jobId,
         memberId: body.memberId,
-        status: retryAt ? 'queued' : failures.length === 0 ? 'succeeded' : 'failed',
+        status: completion.status,
         attempt: jobAttempt,
         maxAttempts: jobMaxAttempts,
-        retryAt,
+        retryAt: completion.retryAt,
         results: persisted.map(({ result, runId }) => ({
           runId,
           ...publicAdapterResult(result),
         })),
       },
-      retryAt ? 202 : failures.length === 0 ? 200 : 207,
+      completion.status === 'queued' ? 202 : completion.status === 'succeeded' ? 200 : 207,
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown sync error'
@@ -751,28 +737,36 @@ Deno.serve(async (request) => {
       await notifyRuntimeError(runtimeErrorAlert('sync-member', request, error))
     }
     if (jobId !== null && serviceClient) {
-      const failedAt = new Date().toISOString()
-      const { error: failJobError } = await serviceClient
-        .from('sync_jobs')
-        .update({
-          status: 'failed',
-          finished_at: failedAt,
-          last_error_code: 'unknown',
-          last_error_message: message.slice(0, 1_000),
-        })
-        .eq('id', jobId)
-      if (!failJobError && jobPlatforms.length > 0) {
-        await notifySyncFailure({
+      try {
+        const completion = await completeSyncJobAttempt(serviceClient, {
           jobId,
-          triggerType: jobTriggerType,
           attempt: jobAttempt,
-          maxAttempts: jobMaxAttempts,
-          failedAt,
-          failures: jobPlatforms.map((platform) => ({
-            platform,
-            code: 'unknown',
-          })),
+          succeeded: false,
+          errorCode: 'unknown',
+          errorMessage: message.slice(0, 1_000),
         })
+        if (completion.transitioned && completion.status === 'failed' && jobPlatforms.length > 0) {
+          await notifySyncFailure({
+            jobId,
+            triggerType: jobTriggerType,
+            attempt: jobAttempt,
+            maxAttempts: jobMaxAttempts,
+            failedAt: completion.transitionedAt ?? new Date().toISOString(),
+            failures: jobPlatforms.map((platform) => ({
+              platform,
+              code: 'unknown',
+            })),
+          })
+        }
+      } catch (completionError) {
+        console.error(
+          JSON.stringify({
+            event: 'sync_job_completion_failed',
+            jobId,
+            errorType:
+              completionError instanceof Error ? completionError.name : typeof completionError,
+          }),
+        )
       }
     }
     if (error instanceof AdminRateLimitError) {
