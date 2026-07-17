@@ -118,7 +118,7 @@ M2 验收条件：
 - [x] 实现 HTTP 超时/有限重试和管理员/计划任务活动任务去重。
 - [x] 完成队列最大重试、指数退避和跨平台并发限额：单平台持久重试、QOJ 禁止自动重试、原子领取、故障恢复和平台并发编排均已实现。2026-07-17 新增 attempt 感知的原子完成 RPC，旧 worker 不能覆盖重新领取后的新 attempt；PostgreSQL 17 空库 CI 通过 17 个 pgTAP 文件、314 项断言。生产随机非公开夹具确认首次/第二次失败严格退避 120/240 秒、第三次耗尽、stale Run 关闭为 `timeout`、迟到 attempt 返回 `transitioned=false`、QOJ 即使 retryable 也不排队，清理后 Profile/Job/Run 为 0。Codeforces、AtCoder、XCPC ELO、牛客、洛谷、QOJ 的实测最大并发分别为 2、2、4、1、1、1；QOJ 本轮两次上游请求均为结构化 `source_unavailable`，但保持串行与单次尝试，数据源健康仍由独立故障演练条目跟踪。证据见 `docs/evidence/production-sync-queue-reliability-2026-07-17.md`。
 - [x] 区分 `not_found`、`auth_expired`、`rate_limited`、`schema_changed`、`timeout` 等结构化错误码。
-- [x] 实现 GitHub Actions 分组定时与手动触发：日更组北京时间 07:00/19:00，周更组每周二 08:00，到期重试队列每 5 分钟处理一次；2026-07-16 生产五平台手动批次按稳定游标分为 10 页、每页最多 3 个账号并完整走到 `hasMore=false`，未再出现 Supabase HTTP 546，脱敏证据见 `docs/evidence/paginated-sync-production-smoke-2026-07-16.md`。
+- [x] 实现分组定时与手动触发：日更组由 GitHub Actions 在北京时间 07:00/19:00 运行，周更组每周二 08:00 运行；到期重试队列由 Supabase `pg_cron + pg_net` 单主每 5 分钟处理，GitHub 仅保留管理员手动 `queue` 应急入口。2026-07-16 生产五平台手动批次按稳定游标分为 10 页、每页最多 3 个账号并完整走到 `hasMore=false`，未再出现 Supabase HTTP 546，证据见 `docs/evidence/paginated-sync-production-smoke-2026-07-16.md`。2026-07-17 生产 Vault、scoped token、`sync-stats` v23 和第 39 个 migration 已按安全顺序部署；连续 03:40/03:45 UTC 两次 cron 成功、HTTP 200、队列和 pg_net 零残留且无重复 attempt，严格就绪检查确认 `queue scheduler readiness=true`，证据见 `docs/evidence/database-sync-queue-scheduler-production-2026-07-17.md`。
 - [x] 平台账号验证通过后立即同步该平台；同步失败不回滚验证状态。
 - [ ] 增加同步失败通知（终态失败脱敏 Webhook、5 秒超时和不影响主任务的失败隔离已实现；2026-07-15 生产 Secret 审计确认告警 URL/Token 均缺失，待配置与投递烟测后验收）。
 - [x] 添加计划批次新鲜度规则：日更平台错过最近 07:00/19:00 批次、周更平台错过最近周二 08:00 批次并超过执行宽限后才标记过期，同时区分正常、已过期和不可用。
@@ -202,7 +202,7 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-16 严格就绪检查确认项目 `ACTIVE_HEALTHY`、35 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均已部署；`delete-account` v3 ACTIVE，正式/恶意 Origin、匿名方法和 JWT 边界检查通过）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-17 部署核对确认项目 `ACTIVE_HEALTHY`、39 个 migration、0 pending、schema lint 0，`sync-member`、`sync-stats`、`delete-account`、`change-password` 四个函数均为 ACTIVE；`sync-stats` v23 已包含数据库队列 scoped-token 边界，正式/恶意 Origin、匿名方法和 JWT 边界检查通过）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
 - [x] 在生产 Secrets 和真实仓库中验证全部工作流（2026-07-16 严格仓库就绪检查退出码为 0：CI、Pages、同步、Secret scan、Dependabot 与加密数据库备份均有当前 main 的成功真实运行；六个必需 Actions Secret、恢复下限变量、main ruleset、原生安全功能和 30 天 Actions 保留均已确认。首次备份 run `29509805851` 使用短期数据库凭据完成六部分导出、AES-256 加密、GitHub 端解密自检、14 天 Artifact 上传及下载后的本地独立校验，证据见 `docs/evidence/first-encrypted-database-backup-2026-07-16.md`）。

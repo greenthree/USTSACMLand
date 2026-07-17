@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、四个 Edge Function 和 38 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。PostgreSQL 17 空库 CI 已通过 17 个 pgTAP 文件、314 项断言；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、计划同步分页和 QOJ 单次尝试均有生产烟测证据。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、四个 Edge Function 和 39 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。PostgreSQL 17 空库 CI 已通过 18 个 pgTAP 文件、328 项断言；XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
 
 ## 已实现
 
