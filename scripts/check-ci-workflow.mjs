@@ -143,11 +143,26 @@ export function verifyCiWorkflow(
   supabaseConfig = '',
 ) {
   const denoCheckStep = extractStep(workflow, 'Check Edge Functions')
-  for (const entrypoint of ['sync-member', 'sync-stats', 'delete-account', 'change-password']) {
+  for (const entrypoint of [
+    'sync-member',
+    'sync-stats',
+    'delete-account',
+    'change-password',
+    'webchat',
+  ]) {
     requireMatch(
       denoCheckStep,
       new RegExp(`supabase/functions/${entrypoint}/index\\.ts`),
       `CI must type-check the ${entrypoint} Edge Function entrypoint.`,
+    )
+    const functionConfig =
+      supabaseConfig.match(
+        new RegExp(`\\[functions\\.${entrypoint}\\][\\s\\S]*?(?=\\r?\\n\\[|$)`),
+      )?.[0] ?? ''
+    requireMatch(
+      functionConfig,
+      /\bverify_jwt\s*=\s*true\b/,
+      `The ${entrypoint} Edge Function must enable JWT verification.`,
     )
   }
 

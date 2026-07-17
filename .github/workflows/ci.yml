@@ -73,6 +73,7 @@ jobs:
           supabase/functions/sync-stats/index.ts
           supabase/functions/delete-account/index.ts
           supabase/functions/change-password/index.ts
+          supabase/functions/webchat/index.ts
 
       - name: Lint Edge Functions
         run: deno lint --config supabase/functions/deno.json supabase/functions

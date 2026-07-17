@@ -31,7 +31,8 @@ export function corsHeaders(
   return {
     ...(allowedOrigin ? { 'access-control-allow-origin': allowedOrigin } : {}),
     ...(allowedOrigin && allowedOrigin !== '*' ? { vary: 'Origin' } : {}),
-    'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
+    'access-control-allow-headers':
+      'authorization, apikey, content-type, x-client-info, x-request-id',
     'access-control-allow-methods': 'POST, OPTIONS',
   }
 }
