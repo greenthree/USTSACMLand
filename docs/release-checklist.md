@@ -57,8 +57,8 @@
 - [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 使用仓库 import map 部署成功。
 - [ ] 如本次发布 WebChat：`webchat-config` 与 `webchat` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
-- [ ] 发布记录包含当前 Git SHA 与四个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
-- [ ] `npm run check:supabase-readiness` 确认四个函数均精确允许正式 Pages Origin、不允许恶意 Origin，且匿名 GET 只返回 `401` 或 `405`。
+- [ ] 发布记录包含当前 Git SHA 与六个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
+- [ ] `npm run check:supabase-readiness` 确认六个函数均精确允许正式 Pages Origin、不允许恶意 Origin，且匿名 GET 只返回 `401` 或 `405`。
 - [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。

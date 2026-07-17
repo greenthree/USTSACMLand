@@ -73,7 +73,7 @@ npm run check:supabase-preflight
 
 该命令退出码为 `1` 时不得继续发布。先处理缺失 Secret、远端独有 migration、项目健康、权限或 schema lint 等真正的前置阻塞；待部署 migration 与函数本身会保留为 warning。
 
-2026-07-16 的只读生产探测确认 `sync-member` 与 `sync-stats` 对 `https://greenthree.github.io` 的预检返回精确 `Access-Control-Allow-Origin` 和 `Vary: Origin`，对 `https://attacker.example` 不返回允许源，匿名 GET 返回 `401`。尚未部署的 `delete-account` 以 `404` 失败，新增 `change-password` 也尚未部署，因此发布门禁保持阻塞；部署后必须重新运行检查，不能用另两个函数的通过结果替代。
+2026-07-17 的生产核对确认 43 个 migration 已全部应用，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 六个函数均为 ACTIVE。WebChat 使用仓库 import map 部署，`CHAT_ENABLED=false`；localhost 预检返回精确允许源和 200，缺少 Authorization 的 POST 返回 401，不再存在函数 404。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。
 
 先核对本地与远端 migration，不直接在生产 SQL Editor 手工粘贴仓库 migration：
 
@@ -109,7 +109,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
   --use-api --import-map supabase/functions/deno.json
 ```
 
-WebChat 不随其他函数直接启用。首次部署或更换中转站前，先在 GitHub Actions Secrets 中配置 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，手动运行 `WebChat relay compatibility`，并下载检查 14 天保留的脱敏报告。只有非流式、typed SSE、Usage 和 Abort 四项均通过后，才应用 WebChat 配额、成员授权与配置 migration，部署 `webchat-config` 与 `webchat`，然后由管理员在 `/admin/webchat` 写入同一组 Base URL、模型和 Key，设置全站北京时间每日请求/Token 预算，并继续保持“允许成员发起 AI 请求”关闭。Key 只进入 Supabase Vault；保存后页面必须清空密钥输入框，刷新时只能看到配置状态、开关、预算、版本和更新时间。随后在成员详情中只为 3–5 名试运行成员打开“允许使用 AI 学习助手”，逐人设置每日请求与 Token 上限并填写原因；无授权行默认拒绝，停用账号与非普通成员始终无效。成员端 `/assistant` 应只显示自己的当日已用、预留、剩余和北京时间重置时间。此时保持 `CHAT_ENABLED=false`，先验证环境禁用态 `503`、数据库暂停态 `503`、CORS、匿名拒绝、管理员配置边界、成员默认拒绝、撤权/降额竞态、逐人及全站预算边界。完成真实中转站、额度和隐私验收后，先受控设置 `CHAT_ENABLED=true`，再由管理员打开数据库请求开关，最后在下一次前端 Pages 构建中设置 `VITE_WEBCHAT_UI_ENABLED=true`。`CHAT_RELAY_*` 与 `CHAT_GLOBAL_*` Supabase Function Secrets 只在数据库 RPC 没有返回中转站配置行时作为部署引导/应急回退；成员每日额度没有环境变量回退。数据库配置行一旦存在，后台暂停开关和预算始终优先，启用状态下缺少地址、模型或 Vault Key 会失败关闭。任一阶段失败时立即关闭数据库请求开关，并按需要恢复 `CHAT_ENABLED=false` 与 `VITE_WEBCHAT_UI_ENABLED=false`；不能只隐藏导航而继续让后端消费模型额度。完整步骤见 [WebChat 中转站兼容性验收](./webchat-relay-compatibility.md)。
+WebChat 不随其他函数直接启用。可以先在 `VITE_WEBCHAT_UI_ENABLED=false`、`CHAT_ENABLED=false` 和数据库 `requests_enabled=false` 的三层关闭态下应用配额、成员授权与配置 migration，并使用仓库 import map 部署 `webchat-config` 与 `webchat`；这一步只提供管理员配置入口和失败关闭边界，不允许成员调用中转站。首次启用或更换中转站前，在 GitHub Actions Secrets 中配置 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，手动运行 `WebChat relay compatibility`，并下载检查 14 天保留的脱敏报告。非流式、typed SSE、Usage 和 Abort 四项均通过后，再由管理员在 `/admin/webchat` 写入同一组 Base URL、模型和 Key，设置全站北京时间每日请求/Token 预算，并继续保持“允许成员发起 AI 请求”关闭。Key 只进入 Supabase Vault；保存后页面必须清空密钥输入框，刷新时只能看到配置状态、开关、预算、版本和更新时间。随后在成员详情中只为 3–5 名试运行成员打开“允许使用 AI 学习助手”，逐人设置每日请求与 Token 上限并填写原因；无授权行默认拒绝，停用账号与非普通成员始终无效。成员端 `/assistant` 应只显示自己的当日已用、预留、剩余和北京时间重置时间。此时保持 `CHAT_ENABLED=false`，先验证环境禁用态 `503`、数据库暂停态 `503`、CORS、匿名拒绝、管理员配置边界、成员默认拒绝、撤权/降额竞态、逐人及全站预算边界。完成真实中转站、额度和隐私验收后，先受控设置 `CHAT_ENABLED=true`，再由管理员打开数据库请求开关，最后在下一次前端 Pages 构建中设置 `VITE_WEBCHAT_UI_ENABLED=true`。`CHAT_RELAY_*` 与 `CHAT_GLOBAL_*` Supabase Function Secrets 只在数据库 RPC 没有返回中转站配置行时作为部署引导/应急回退；成员每日额度没有环境变量回退。数据库配置行一旦存在，后台暂停开关和预算始终优先，启用状态下缺少地址、模型或 Vault Key 会失败关闭。任一阶段失败时立即关闭数据库请求开关，并按需要恢复 `CHAT_ENABLED=false` 与 `VITE_WEBCHAT_UI_ENABLED=false`；不能只隐藏导航而继续让后端消费模型额度。完整步骤见 [WebChat 中转站兼容性验收](./webchat-relay-compatibility.md)。
 
 Pages 的客户端开关使用 GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED`，只接受小写 `true` 或 `false`；未配置时 workflow 固定回退为 `false`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
 
@@ -118,7 +118,7 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 部署后执行受控烟测：
 
 0. 先运行 `npm run check:supabase-readiness` 严格验收；任何待部署 migration、缺失函数、错误 JWT/import map 或函数边界都会阻塞后续 Pages 发布。
-   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和四个函数部署后的版本号。
+   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和六个函数部署后的版本号。
 
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。
