@@ -1,6 +1,6 @@
 # 运行时、同步失败与额度通知
 
-七个 Edge Function 支持通过可选 HTTPS Webhook 通知未预期运行时错误；同步服务还会通知终态失败和 Firecrawl 低额度，WebChat 会通知全站日预算首次阻断。未配置 Webhook 时业务行为保持不变。
+八个 Edge Function 支持通过可选 HTTPS Webhook 通知未预期运行时错误；同步服务还会通知终态失败和 Firecrawl 低额度，WebChat 会通知全站日预算首次阻断。未配置 Webhook 时业务行为保持不变。
 
 ## Supabase Secrets
 
