@@ -2,7 +2,6 @@ import {
   promptCacheKey,
   responsesEndpoint,
   responsesInput,
-  supportsExplicitPromptCaching,
   type WebChatMessage,
 } from '../webchat/upstream.ts'
 
@@ -140,10 +139,9 @@ async function requestBody(
     model,
     instructions:
       'This is an automated prompt-cache verification request. Follow the final instruction exactly.',
-    input: responsesInput(model, probeMessages(includeFollowUp)),
+    input: responsesInput(probeMessages(includeFollowUp)),
     max_output_tokens: CACHE_PROBE_MAX_OUTPUT_TOKENS,
     prompt_cache_key: await promptCacheKey(model, CACHE_PROBE_VERSION),
-    ...(supportsExplicitPromptCaching(model) ? { prompt_cache_options: { mode: 'explicit' } } : {}),
     store: false,
     stream: false,
   }

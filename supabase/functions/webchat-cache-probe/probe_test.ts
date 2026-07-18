@@ -78,7 +78,7 @@ Deno.test('cache probe parses Responses cached-token usage without requiring cac
 })
 
 Deno.test(
-  'cache probe sends an incremental typed conversation with one reusable explicit prefix',
+  'cache probe sends an incremental plain conversation with one reusable implicit prefix',
   async () => {
     const requests: Array<{ url: string; body: string; headers: Headers }> = []
     const fetcher: typeof fetch = async (input, init) => {
@@ -102,14 +102,14 @@ Deno.test(
     strictEqual(firstBody.prompt_cache_key, secondBody.prompt_cache_key)
     strictEqual(firstBody.stream, false)
     strictEqual(firstBody.store, false)
-    deepStrictEqual(firstBody.prompt_cache_options, { mode: 'explicit' })
+    strictEqual('prompt_cache_options' in firstBody, false)
     const firstInput = firstBody.input as Array<Record<string, unknown>>
     const secondInput = secondBody.input as Array<Record<string, unknown>>
     deepStrictEqual(secondInput[0], firstInput[0])
     strictEqual(firstInput.length, 1)
     strictEqual(secondInput.length, 3)
     match(JSON.stringify(firstInput), /cache probe validation.*Reply only with OK\./s)
-    match(JSON.stringify(firstInput), /prompt_cache_breakpoint/)
+    strictEqual(JSON.stringify(firstInput).includes('prompt_cache_breakpoint'), false)
     strictEqual(result.reusedInputTokens, 1_536)
     deepStrictEqual(result.aggregateUsage, {
       inputTokens: 3_200,

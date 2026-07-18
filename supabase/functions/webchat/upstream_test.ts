@@ -5,7 +5,6 @@ import {
   responsesInput,
   safetyIdentifier,
   startWebChat,
-  supportsExplicitPromptCaching,
   type WebChatUpstreamConfig,
 } from './upstream.ts'
 
@@ -58,59 +57,23 @@ Deno.test('webchat derives a stable model and prompt-version cache routing key',
   strictEqual(first === changed, false)
 })
 
-Deno.test(
-  'webchat adds explicit historical breakpoints only for GPT-5.6 and later families',
-  () => {
-    strictEqual(supportsExplicitPromptCaching('gpt-5.6'), true)
-    strictEqual(supportsExplicitPromptCaching('gpt-5.6-sol'), true)
-    strictEqual(supportsExplicitPromptCaching('gpt-6.0'), true)
-    strictEqual(supportsExplicitPromptCaching('gpt-5.5'), false)
-    strictEqual(supportsExplicitPromptCaching('openai/gpt-5.6'), false)
-    strictEqual(supportsExplicitPromptCaching('relay-custom-model'), false)
-  },
-)
-
-Deno.test('webchat preserves explicit breakpoints on every historical user turn', () => {
+Deno.test('webchat preserves a byte-stable plain-message prefix across turns', () => {
   deepStrictEqual(
-    responsesInput('gpt-5.6', [
+    responsesInput([
       { id: 'user-1', role: 'user', text: '第一问' },
       { id: 'assistant-1', role: 'assistant', text: '第一答' },
       { id: 'user-2', role: 'user', text: '继续' },
     ]),
     [
-      {
-        type: 'message',
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: '第一问',
-            prompt_cache_breakpoint: { mode: 'explicit' },
-          },
-        ],
-      },
-      {
-        type: 'message',
-        role: 'assistant',
-        content: [{ type: 'input_text', text: '第一答' }],
-      },
-      {
-        type: 'message',
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: '继续',
-            prompt_cache_breakpoint: { mode: 'explicit' },
-          },
-        ],
-      },
+      { role: 'user', content: '第一问' },
+      { role: 'assistant', content: '第一答' },
+      { role: 'user', content: '继续' },
     ],
   )
 })
 
 Deno.test(
-  'webchat uses the relay-compatible explicit cache policy and historical breakpoints',
+  'webchat uses the relay-compatible implicit cache policy and plain messages',
   async () => {
     let requestUrl = ''
     let requestBody: Record<string, unknown> = {}
@@ -133,26 +96,14 @@ Deno.test(
     const output = await response.text()
 
     strictEqual(requestUrl, 'https://relay.example.test/v1/responses')
-    deepStrictEqual(requestBody.input, [
-      {
-        type: 'message',
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: '解释二分答案',
-            prompt_cache_breakpoint: { mode: 'explicit' },
-          },
-        ],
-      },
-    ])
+    deepStrictEqual(requestBody.input, [{ role: 'user', content: '解释二分答案' }])
     strictEqual(requestBody.model, 'gpt-5.6')
     strictEqual(requestBody.instructions, 'Server-owned prompt')
     strictEqual(requestBody.max_output_tokens, 2048)
     strictEqual(requestBody.store, false)
     strictEqual(requestBody.stream, true)
     match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
-    deepStrictEqual(requestBody.prompt_cache_options, { mode: 'explicit' })
+    strictEqual('prompt_cache_options' in requestBody, false)
     match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
     strictEqual('tools' in requestBody, false)
     strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
