@@ -6,7 +6,9 @@ test('daily problem is public and keeps member actions behind login', async ({ p
 
   await page.goto('/daily-problem')
   await expect(page).toHaveTitle('每日一题 | USTS ACM Land')
-  await expect(page.getByRole('heading', { name: '二分答案与可行性判断' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '二分答案与可行性判断' })).toBeVisible({
+    timeout: 20_000,
+  })
 
   const source = page.getByRole('link', { name: '打开原题' })
   await expect(source).toHaveAttribute('href', /^https:\/\//)

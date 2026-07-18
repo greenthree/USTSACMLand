@@ -1,10 +1,24 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, vi } from 'vitest'
 import { MembersDataContext } from '../data/membersDataContext'
 import { mockMembers } from '../data/mock'
+import {
+  currentBeijingDate,
+  formatPracticeDateRange,
+  practicePresetRange,
+  type PracticeIncrementRecord,
+} from '../lib/practiceIncrements'
+import { solvedPlatforms } from '../lib/platforms'
 import type { Member } from '../types/domain'
 import { RankingsPage } from './RankingsPage'
+
+const incrementMocks = vi.hoisted(() => ({ load: vi.fn() }))
+
+vi.mock('../data/practiceIncrementRankings', () => ({
+  loadPublicPracticeIncrements: incrementMocks.load,
+}))
 
 function createPaginatedMembers(count: number): Member[] {
   return Array.from({ length: count }, (_, index) => {
@@ -24,17 +38,41 @@ function createPaginatedMembers(count: number): Member[] {
   })
 }
 
-function renderWithMembers(members: Member[]) {
+function renderWithMembers(members: Member[], demo = true) {
   return render(
     <MemoryRouter>
-      <MembersDataContext.Provider value={{ members, loading: false, error: null, demo: true }}>
+      <MembersDataContext.Provider value={{ members, loading: false, error: null, demo }}>
         <RankingsPage />
       </MembersDataContext.Provider>
     </MemoryRouter>,
   )
 }
 
+function createIncrementRecords(members: Member[]): PracticeIncrementRecord[] {
+  return members.flatMap((member, memberIndex) =>
+    solvedPlatforms.map((platform, platformIndex) => {
+      const endCount = member.stats[platform].solved
+      const delta = endCount === null ? null : memberIndex * 10 + platformIndex + 1
+      return {
+        memberId: member.id,
+        platform,
+        delta,
+        baselineCount: endCount === null || delta === null ? null : endCount - delta,
+        endCount,
+        baselineAt: endCount === null ? null : '2026-07-12T19:00:00+08:00',
+        endAt: endCount === null ? null : '2026-07-18T07:00:00+08:00',
+        coverageStatus: endCount === null ? ('missing_baseline' as const) : ('complete' as const),
+      }
+    }),
+  )
+}
+
 describe('RankingsPage', () => {
+  beforeEach(() => {
+    incrementMocks.load.mockReset()
+    incrementMocks.load.mockResolvedValue(createIncrementRecords(mockMembers))
+  })
+
   it('switches between rating and solved rankings', async () => {
     const user = userEvent.setup()
     render(
@@ -90,6 +128,62 @@ describe('RankingsPage', () => {
     expect(screen.getByRole('columnheader', { name: '平台账号' })).toBeInTheDocument()
     expect(screen.getByText('MingYuanGu')).toBeInTheDocument()
   }, 10_000)
+
+  it('switches between cumulative, weekly, monthly and custom practice ranges', async () => {
+    const user = userEvent.setup()
+    renderWithMembers(mockMembers, false)
+    const today = currentBeijingDate()
+    const week = practicePresetRange('week', today)
+    const month = practicePresetRange('month', today)
+
+    await user.click(screen.getByRole('button', { name: '刷题榜' }))
+    expect(screen.getByRole('button', { name: '累计总数' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('columnheader', { name: '总通过题数' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '本周' }))
+    expect(await screen.findByRole('heading', { name: '刷题增量榜' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(incrementMocks.load).toHaveBeenLastCalledWith(week, expect.any(AbortSignal)),
+    )
+    expect(screen.getByText(formatPracticeDateRange(week))).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '区间新增题数' })).toBeInTheDocument()
+    expect(screen.getAllByText('5/5 个平台').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
+    expect(screen.getByRole('columnheader', { name: '新增通过题数' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '区间末累计' })).toBeInTheDocument()
+    expect(screen.getAllByText('统计完整').length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: '本月' }))
+    await waitFor(() =>
+      expect(incrementMocks.load).toHaveBeenLastCalledWith(month, expect.any(AbortSignal)),
+    )
+    expect(await screen.findByText(formatPracticeDateRange(month))).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '自定义' }))
+    const startInput = screen.getByLabelText('开始日期')
+    const endInput = screen.getByLabelText('结束日期')
+    await user.clear(startInput)
+    await user.type(startInput, today)
+    await user.clear(endInput)
+    await user.type(endInput, week.startDate)
+    await user.click(screen.getByRole('button', { name: '应用范围' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('开始日期不能晚于结束日期。')
+
+    await user.clear(endInput)
+    await user.type(endInput, today)
+    await user.click(screen.getByRole('button', { name: '应用范围' }))
+    await waitFor(() =>
+      expect(incrementMocks.load).toHaveBeenLastCalledWith(
+        { startDate: today, endDate: today },
+        expect.any(AbortSignal),
+      ),
+    )
+
+    await user.click(screen.getByRole('button', { name: '累计总数' }))
+    expect(screen.getByRole('heading', { name: '刷题榜' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '通过题数' })).toBeInTheDocument()
+  }, 15_000)
 
   it('activates ranking modes and platform tabs from the keyboard', async () => {
     const user = userEvent.setup()
