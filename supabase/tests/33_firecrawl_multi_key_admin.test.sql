@@ -624,6 +624,9 @@ update public.profiles
 set role = 'member'
 where id = '00000000-0000-4000-8000-000000000331';
 
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claims', '{}', true);
+
 do $$
 begin
   if not public.acquire_account_deletion_recovery_lease(
