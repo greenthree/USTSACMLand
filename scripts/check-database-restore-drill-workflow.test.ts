@@ -75,7 +75,10 @@ describe('encrypted database restore drill workflow', () => {
   it('rejects incomplete or non-atomic restore coverage', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
-        workflow.replace('--file "$restore_dir/auth-data.sql"', '--file "$restore_dir/data.sql"'),
+        workflow.replace(
+          '--file "$container_restore/auth-data.sql"',
+          '--file "$container_restore/data.sql"',
+        ),
       ),
     ).toThrow(/atomically restore/)
     expect(() =>
@@ -83,22 +86,33 @@ describe('encrypted database restore drill workflow', () => {
     ).toThrow(/atomically restore/)
   })
 
-  it('requires least-role Auth cleanup and import boundaries', () => {
+  it('requires the disposable container platform-admin restore boundary', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
-        workflow.replace('          set local role supabase_auth_admin;\n', ''),
+        workflow.replace("          db_container='supabase_db_usts-acm-land'\n", ''),
       ),
-    ).toThrow(/least platform role/)
+    ).toThrow(/atomically restore/)
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
-        workflow.replace("            --command 'set local role supabase_auth_admin' \\\n", ''),
+        workflow.replace('--username supabase_admin', '--username postgres'),
       ),
-    ).toThrow(/Auth owner role/)
+    ).toThrow(/atomically restore/)
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
-        workflow.replace("            --command 'reset role' \\\n", ''),
+        workflow.replace(
+          '          docker exec "$db_container" rm -rf "$container_restore"\n          trap - EXIT',
+          '          trap - EXIT',
+        ),
       ),
-    ).toThrow(/Auth owner role/)
+    ).toThrow(/copied into the disposable database container/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace(
+          '          docker exec "$db_container" psql \\\n',
+          '          psql "$DB_URL" \\\n',
+        ),
+      ),
+    ).toThrow(/platform-admin socket|atomically restore/)
   })
 
   it('rejects missing Auth login or RLS smoke checks', () => {
