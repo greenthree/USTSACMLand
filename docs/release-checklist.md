@@ -101,7 +101,7 @@
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [ ] 使用两个数据库连接验证最终 RPC 的行锁 fencing：竞争接管在删除事务结束前持续阻塞；记录完整提交耗时、响应丢失后的状态对账，以及旧 access JWT 无法越过 live Profile/RLS 边界。
 - [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
-- [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成且含 `restore-manifest.json` 的真实 Artifact，运行手动 `Encrypted database restore drill`，完成来源/恢复下限、解密、单事务恢复、7 项行数、孤儿关系、密码登录、RLS、匿名边界和明文清理核对。
+- [x] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成且含 `restore-manifest.json` 与 `auth-hooks.sql` 的真实 Artifact，运行手动 `Encrypted database restore drill`；run `29656219433` 完成来源/恢复下限、解密、单事务恢复、7 项行数、4 类孤儿、3 个 Auth hooks、注册建档、密码登录、RLS、匿名边界、受控注销和明文清理核对，证据见 [生产加密数据库隔离恢复演练](./evidence/database-restore-drill-2026-07-19.md)。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
 - [ ] 已由项目负责人选择并加入 `LICENSE`；在此之前不得把源码描述为开源。
 - [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。

@@ -42,7 +42,7 @@
 - `ustsacmland-database-backup.enc`
 - `ustsacmland-database-backup.enc.sha256`
 
-密文保留 14 天且不再次压缩。按每日任务计算，仓库备份的目标 RPO 为 24 小时；RTO 只有在首次恢复演练后才能确认，演练前不得宣传确定的恢复时长。
+密文保留 14 天且不再次压缩。按每日任务计算，仓库备份的目标 RPO 为 24 小时。2026-07-19 首次真实 Artifact 隔离演练的 GitHub Actions 端到端耗时为 2 分 7 秒，其中数据库恢复与验证阶段为 3 秒，因此当前数据库逻辑恢复的自动化 RTO 基线按约 3 分钟记录。该基线不包含新建远端项目、Secrets/Auth 回调、Edge Functions、DNS、第三方凭据和业务复核，完整站点事故恢复 RTO 仍须通过远端灾备演练确认。
 
 `.github/workflows/database-restore-drill.yml` 提供手动隔离恢复演练。管理员输入一个来自 `main` 的成功 `Encrypted database backup` run ID；工作流会同时核对来源仓库、工作流路径、分支、结论、run attempt、Artifact 名称和过期状态，不能把其他工作流或 PR 产物冒充为生产备份。该工作流没有 Supabase Access Token、项目引用或远端数据库连接，只把备份恢复到 GitHub Runner 中一次性的本地 Supabase/PostgreSQL 17，完成后无状态销毁。
 
@@ -147,3 +147,5 @@ psql \
 - 每月确认最旧可下载 Artifact 与 14 天策略一致，并核对 Supabase 实际套餐和 Dashboard 备份页。
 
 只有“最近备份存在”不能证明可恢复；必须以隔离项目成功登录和数据核对作为恢复验收证据。
+
+首次真实演练的 run、聚合行数、Auth/RLS、受控注销、清理结果和 RTO 边界见 [生产加密数据库隔离恢复演练证据](./evidence/database-restore-drill-2026-07-19.md)。
