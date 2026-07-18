@@ -1,4 +1,9 @@
-import { promptCacheKey, responsesEndpoint } from '../webchat/upstream.ts'
+import {
+  promptCacheKey,
+  responsesEndpoint,
+  responsesInput,
+  type WebChatMessage,
+} from '../webchat/upstream.ts'
 
 const CACHE_PROBE_REPETITIONS = 768
 const CACHE_PROBE_VERSION = 'cache-probe-v1'
@@ -101,12 +106,40 @@ function probeInput(): string {
   return `${stablePrefix}\nReply only with OK.`
 }
 
-async function requestBody(model: string): Promise<Record<string, unknown>> {
+function probeMessages(includeFollowUp: boolean): WebChatMessage[] {
+  const messages: WebChatMessage[] = [
+    {
+      id: 'cache-probe-user-1',
+      role: 'user',
+      text: probeInput(),
+    },
+  ]
+  if (includeFollowUp) {
+    messages.push(
+      {
+        id: 'cache-probe-assistant-1',
+        role: 'assistant',
+        text: 'OK',
+      },
+      {
+        id: 'cache-probe-user-2',
+        role: 'user',
+        text: 'Confirm the same instruction by replying only with OK.',
+      },
+    )
+  }
+  return messages
+}
+
+async function requestBody(
+  model: string,
+  includeFollowUp: boolean,
+): Promise<Record<string, unknown>> {
   return {
     model,
     instructions:
       'This is an automated prompt-cache verification request. Follow the final instruction exactly.',
-    input: probeInput(),
+    input: responsesInput(model, probeMessages(includeFollowUp)),
     max_output_tokens: CACHE_PROBE_MAX_OUTPUT_TOKENS,
     prompt_cache_key: await promptCacheKey(model, CACHE_PROBE_VERSION),
     store: false,
@@ -115,12 +148,15 @@ async function requestBody(model: string): Promise<Record<string, unknown>> {
 }
 
 export async function cacheProbeReservationTokens(model: string): Promise<number> {
-  const serialized = JSON.stringify(await requestBody(model))
+  const bodies = await Promise.all([requestBody(model, false), requestBody(model, true)])
+  const encodedBytes = bodies.reduce(
+    (total, body) => total + encoder.encode(JSON.stringify(body)).byteLength,
+    0,
+  )
   // A token must consume at least one encoded byte. Reserve two complete
   // requests, their maximum outputs, and provider framing that is not visible
   // in the JSON payload so an honest Usage response cannot exceed the claim.
-  const perRequest = encoder.encode(serialized).byteLength + CACHE_PROBE_MAX_OUTPUT_TOKENS + 1_024
-  const reservation = perRequest * 2
+  const reservation = encodedBytes + (CACHE_PROBE_MAX_OUTPUT_TOKENS + 1_024) * bodies.length
   if (!Number.isSafeInteger(reservation) || reservation < 1_024 || reservation > 1_000_000) {
     throw new CacheProbeError('reservation_invalid', 'Cache probe reservation is invalid', 500)
   }
@@ -213,9 +249,18 @@ function aggregateUsage(first: CacheProbeUsage, second: CacheProbeUsage): CacheP
 export async function runCacheProbe(config: CacheProbeRuntimeConfig): Promise<CacheProbeResult> {
   const endpoint = responsesEndpoint(config.baseUrl)
   const fetcher = config.fetcher ?? fetch
-  const body = await requestBody(config.model)
-  const first = await performRequest(fetcher, endpoint, config.apiKey, body, config.timeoutMs)
-  const second = await performRequest(fetcher, endpoint, config.apiKey, body, config.timeoutMs)
+  const [firstBody, secondBody] = await Promise.all([
+    requestBody(config.model, false),
+    requestBody(config.model, true),
+  ])
+  const first = await performRequest(fetcher, endpoint, config.apiKey, firstBody, config.timeoutMs)
+  const second = await performRequest(
+    fetcher,
+    endpoint,
+    config.apiKey,
+    secondBody,
+    config.timeoutMs,
+  )
   const result: CacheProbeResult = {
     model: config.model,
     first,

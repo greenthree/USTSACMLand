@@ -147,7 +147,6 @@ export async function startWebChat(
   const fetcher = config.fetcher ?? fetch
   const safetyId = await safetyIdentifier(options.userId)
   const cacheKey = await promptCacheKey(config.model, config.promptVersion)
-  const explicitPromptCaching = supportsExplicitPromptCaching(config.model)
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -214,7 +213,6 @@ export async function startWebChat(
         input: responsesInput(config.model, options.messages),
         max_output_tokens: config.maxOutputTokens,
         prompt_cache_key: cacheKey,
-        ...(explicitPromptCaching ? { prompt_cache_options: { mode: 'explicit' } } : {}),
         safety_identifier: safetyId,
         store: false,
         stream: true,

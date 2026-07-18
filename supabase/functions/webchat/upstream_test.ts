@@ -58,14 +58,17 @@ Deno.test('webchat derives a stable model and prompt-version cache routing key',
   strictEqual(first === changed, false)
 })
 
-Deno.test('webchat enables explicit prompt caching only for GPT-5.6 and later families', () => {
-  strictEqual(supportsExplicitPromptCaching('gpt-5.6'), true)
-  strictEqual(supportsExplicitPromptCaching('gpt-5.6-sol'), true)
-  strictEqual(supportsExplicitPromptCaching('gpt-6.0'), true)
-  strictEqual(supportsExplicitPromptCaching('gpt-5.5'), false)
-  strictEqual(supportsExplicitPromptCaching('openai/gpt-5.6'), false)
-  strictEqual(supportsExplicitPromptCaching('relay-custom-model'), false)
-})
+Deno.test(
+  'webchat adds explicit historical breakpoints only for GPT-5.6 and later families',
+  () => {
+    strictEqual(supportsExplicitPromptCaching('gpt-5.6'), true)
+    strictEqual(supportsExplicitPromptCaching('gpt-5.6-sol'), true)
+    strictEqual(supportsExplicitPromptCaching('gpt-6.0'), true)
+    strictEqual(supportsExplicitPromptCaching('gpt-5.5'), false)
+    strictEqual(supportsExplicitPromptCaching('openai/gpt-5.6'), false)
+    strictEqual(supportsExplicitPromptCaching('relay-custom-model'), false)
+  },
+)
 
 Deno.test('webchat preserves explicit breakpoints on every historical user turn', () => {
   deepStrictEqual(
@@ -106,58 +109,61 @@ Deno.test('webchat preserves explicit breakpoints on every historical user turn'
   )
 })
 
-Deno.test('webchat sends only server-owned Responses API configuration', async () => {
-  let requestUrl = ''
-  let requestBody: Record<string, unknown> = {}
-  const fetcher: typeof fetch = async (input, init) => {
-    requestUrl = String(input)
-    requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
-    strictEqual(new Headers(init?.headers).get('authorization'), 'Bearer server-only-key')
-    strictEqual(init?.redirect, 'error')
-    return sse([
-      { type: 'response.output_text.delta', delta: '先找单调性。' },
-      { type: 'response.completed', response: { usage } },
+Deno.test(
+  'webchat uses implicit caching plus server-owned explicit historical breakpoints',
+  async () => {
+    let requestUrl = ''
+    let requestBody: Record<string, unknown> = {}
+    const fetcher: typeof fetch = async (input, init) => {
+      requestUrl = String(input)
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      strictEqual(new Headers(init?.headers).get('authorization'), 'Bearer server-only-key')
+      strictEqual(init?.redirect, 'error')
+      return sse([
+        { type: 'response.output_text.delta', delta: '先找单调性。' },
+        { type: 'response.completed', response: { usage } },
+      ])
+    }
+
+    const response = await startWebChat(config(fetcher), {
+      messages,
+      userId: '11111111-1111-4111-8111-111111111111',
+      requestId: 'request-1',
+    })
+    const output = await response.text()
+
+    strictEqual(requestUrl, 'https://relay.example.test/v1/responses')
+    deepStrictEqual(requestBody.input, [
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: '解释二分答案',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+      },
     ])
-  }
-
-  const response = await startWebChat(config(fetcher), {
-    messages,
-    userId: '11111111-1111-4111-8111-111111111111',
-    requestId: 'request-1',
-  })
-  const output = await response.text()
-
-  strictEqual(requestUrl, 'https://relay.example.test/v1/responses')
-  deepStrictEqual(requestBody.input, [
-    {
-      type: 'message',
-      role: 'user',
-      content: [
-        {
-          type: 'input_text',
-          text: '解释二分答案',
-          prompt_cache_breakpoint: { mode: 'explicit' },
-        },
-      ],
-    },
-  ])
-  strictEqual(requestBody.model, 'gpt-5.6')
-  strictEqual(requestBody.instructions, 'Server-owned prompt')
-  strictEqual(requestBody.max_output_tokens, 2048)
-  strictEqual(requestBody.store, false)
-  strictEqual(requestBody.stream, true)
-  match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
-  deepStrictEqual(requestBody.prompt_cache_options, { mode: 'explicit' })
-  match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
-  strictEqual('tools' in requestBody, false)
-  strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
-  strictEqual(response.headers.get('x-usts-chat-prompt-version'), 'usts-learning-assistant-v1')
-  strictEqual(response.headers.get('cache-control'), 'private, no-store, no-transform')
-  match(output, /"type":"start"/)
-  match(output, /"type":"text-delta".*先找单调性。/)
-  match(output, /"type":"finish"/)
-  match(output, /data: \[DONE\]/)
-})
+    strictEqual(requestBody.model, 'gpt-5.6')
+    strictEqual(requestBody.instructions, 'Server-owned prompt')
+    strictEqual(requestBody.max_output_tokens, 2048)
+    strictEqual(requestBody.store, false)
+    strictEqual(requestBody.stream, true)
+    match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
+    strictEqual('prompt_cache_options' in requestBody, false)
+    match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
+    strictEqual('tools' in requestBody, false)
+    strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
+    strictEqual(response.headers.get('x-usts-chat-prompt-version'), 'usts-learning-assistant-v1')
+    strictEqual(response.headers.get('cache-control'), 'private, no-store, no-transform')
+    match(output, /"type":"start"/)
+    match(output, /"type":"text-delta".*先找单调性。/)
+    match(output, /"type":"finish"/)
+    match(output, /data: \[DONE\]/)
+  },
+)
 
 Deno.test(
   'webchat marks the claim before fetch and finalizes trusted completion usage',
