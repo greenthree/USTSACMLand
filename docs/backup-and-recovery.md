@@ -10,7 +10,7 @@
 - Pro、Team、Enterprise 的每日备份保留期分别为 7、14、30 天。
 - PITR 是 Pro/Team/Enterprise 的附加能力；启用后以可选择时间点的物理备份替代每日备份。
 - 数据库备份只包含 Storage 元数据，不包含 Storage API 中的文件对象。
-- Supabase CLI 默认排除 `auth`、`storage` 等平台管理 Schema，因此本站另行导出 `auth` 数据，才能保留用户和密码哈希。
+- 本站把通用业务数据 dump 限定为 `public,private`，并另行导出 `auth` 数据，才能在避免重复表的同时保留用户和密码哈希。
 
 2026-07-15 对正式项目的只读 CLI 核验结果为：`pitr_enabled=false`、可用物理备份 0 份。`walg_enabled=true` 只表示底层能力状态，不能当作已有恢复点。因此在 Dashboard 或 CLI 出现可用物理备份前，本站只能依赖本文件定义的加密逻辑备份，且首次成功 Artifact 和隔离恢复演练仍是发布阻塞项。
 
@@ -30,7 +30,7 @@
 
 - `roles.sql`：自定义数据库角色。
 - `schema.sql`：应用 Schema、函数、RLS 和权限。
-- `data.sql`：应用业务数据；明确排除另行导出的 `auth.*` 与 `supabase_migrations.*`，避免恢复时重复写入。
+- `data.sql`：只包含应用的 `public`、`private` 业务数据；`auth` 与 `supabase_migrations` 使用独立 dump，避免恢复时重复写入。
 - `auth-data.sql`：`auth` Schema 的用户、身份和密码哈希等数据。
 - `migrations-schema.sql`、`migrations-data.sql`：Supabase migration 历史。
 - `restore-manifest.json`：从三份 data-only dump 计算的 7 个关键表聚合行数，只用于恢复后完整性比对，不保存任何行内容。
@@ -47,7 +47,7 @@
 
 永久注销采用外部恢复下限。`delete-account` 的目标绑定数据库租约覆盖“取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 GitHub fine-grained PAT 更新并回读确认 `BACKUP_RECOVERY_NOT_BEFORE` → 续期并停止外部阶段心跳 → 调用最终删除 RPC”的完整临界区；变量只含 UTC 时间，不含成员身份。最终 RPC 对租约单例行和目标 Profile 加锁，重新验证 owner、target、有效期、角色与活动同步后，在同一数据库事务删除 `auth.users` 并消费租约，Auth/Profile 级联与审计匿名化只会整体提交或回滚。租约冲突、取得或删除前续期失败、写入或回读确认失败时不得删除 Auth 用户，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409` 并保留账号及业务数据。恢复时间再额外增加一小时安全余量，避免运行环境时钟偏差让下限落到实际删除时间之前。
 
-当前网站没有使用 Supabase Storage 保存成员文件。将来一旦使用 Storage，必须先增加对象文件的独立导出与恢复流程，不能把数据库备份当作文件备份。
+当前网站没有使用 Supabase Storage 保存成员文件，仓库逻辑备份也不导出 `storage` Schema。将来一旦使用 Storage，必须先增加 Storage 元数据和对象文件的独立导出与恢复流程，不能把当前数据库备份当作文件备份。
 
 ## GitHub Actions Secrets
 

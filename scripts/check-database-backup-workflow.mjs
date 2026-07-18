@@ -91,15 +91,17 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     '--file "$backup_dir/migrations-schema.sql"',
     '--file "$backup_dir/migrations-data.sql"',
     '--schema supabase_migrations',
-    "--exclude 'auth.*'",
-    "--exclude 'supabase_migrations.*'",
-    "--exclude 'storage.buckets_vectors'",
-    "--exclude 'storage.vector_indexes'",
+    '--schema public,private',
   ]) {
     if (!workflow.includes(requiredFragment)) {
       throw new Error(`Backup workflow is missing required dump coverage: ${requiredFragment}`)
     }
   }
+  requireMatch(
+    workflow,
+    /--file "\$backup_dir\/data\.sql" \\\r?\n\s+--use-copy \\\r?\n\s+--data-only \\\r?\n\s+--schema public,private(?:\r?\n|$)/,
+    'The general data dump must be restricted to the application public and private schemas.',
+  )
 
   requireMatch(
     workflow,

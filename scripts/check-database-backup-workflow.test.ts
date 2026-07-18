@@ -17,13 +17,13 @@ describe('encrypted database backup workflow', () => {
 
   it('keeps the general data dump disjoint from separate Auth and migration dumps', () => {
     expect(() =>
-      verifyDatabaseBackupWorkflow(workflow.replace("            --exclude 'auth.*' \\\n", '')),
-    ).toThrow(/--exclude 'auth\.\*'/)
-    expect(() =>
       verifyDatabaseBackupWorkflow(
-        workflow.replace("            --exclude 'supabase_migrations.*' \\\n", ''),
+        workflow.replace('--schema public,private', '--schema public,private,auth'),
       ),
-    ).toThrow(/--exclude 'supabase_migrations\.\*'/)
+    ).toThrow(/application public and private schemas/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('--schema public,private', '')),
+    ).toThrow(/--schema public,private/)
   })
 
   it('rejects removal of the external account-deletion recovery floor', () => {
