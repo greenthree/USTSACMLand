@@ -150,12 +150,31 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
     'rest/v1/profiles?select=id&id=neq.$canary_id&limit=1',
     'rest/v1/public_members?select=id&limit=1',
     'anonymous_private_status',
+    'anonymous_private_empty',
     'verify-database-restore-drill.mjs',
   ]) {
     if (!workflow.includes(fragment)) {
       throw new Error(`Restore drill is missing Auth/RLS or aggregate verification: ${fragment}`)
     }
   }
+  for (const phase of [
+    'Restore transaction completed.',
+    'Aggregate row-count and orphan queries completed.',
+    'Isolated Auth canary created.',
+    'Isolated Auth password login completed.',
+    'Authenticated own-Profile RLS checks completed.',
+    'Anonymous REST boundary checks completed.',
+    'Isolated Auth canary cleanup completed.',
+  ]) {
+    if (!workflow.includes(phase)) {
+      throw new Error(`Restore drill is missing a sanitized diagnostic phase: ${phase}`)
+    }
+  }
+  requireMatch(
+    workflow,
+    /anonymous_private_status" == 200[\s\S]*type == "array" and length == 0[\s\S]*anonymous_private_empty=true[\s\S]*anonymous_private_status" != 401[\s\S]*anonymous_private_status" != 403/,
+    'Restore drill must accept only denied or strictly empty RLS-filtered anonymous private responses.',
+  )
   if (/curl[^\n]*(?:greenthree\.github\.io|supabase\.co|127\.0\.0\.1:5432[12])/i.test(workflow)) {
     throw new Error('Restore smoke requests must use only the local API URL discovered at runtime.')
   }

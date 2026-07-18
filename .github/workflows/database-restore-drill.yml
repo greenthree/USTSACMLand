@@ -245,6 +245,7 @@ jobs:
             --file "$container_restore/migrations-schema.sql" \
             --file "$container_restore/migrations-data.sql" \
             --command 'set session_replication_role = origin'
+          echo '::notice::Restore transaction completed.'
 
           docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
@@ -282,6 +283,7 @@ jobs:
                 where a.id is null
               )
             )::text" > "$orphans"
+          echo '::notice::Aggregate row-count and orphan queries completed.'
 
           canary_email="restore-drill-$GITHUB_RUN_ID@example.invalid"
           canary_password="$(openssl rand -base64 36 | tr -d '=+/\n' | cut -c1-32)"
@@ -298,7 +300,11 @@ jobs:
             --data-binary "@$RUNNER_TEMP/canary-create-request.json" \
             --output "$RUNNER_TEMP/canary-create-response.json"
           canary_id="$(jq -r '.id' "$RUNNER_TEMP/canary-create-response.json")"
-          [[ "$canary_id" =~ ^[0-9a-f-]{36}$ ]]
+          if [[ ! "$canary_id" =~ ^[0-9a-f-]{36}$ ]]; then
+            echo '::error::Isolated Auth canary creation did not return a UUID.'
+            exit 1
+          fi
+          echo '::notice::Isolated Auth canary created.'
 
           jq -n --arg email "$canary_email" --arg password "$canary_password" \
             '{email: $email, password: $password}' > "$RUNNER_TEMP/canary-login-request.json"
@@ -309,49 +315,79 @@ jobs:
             --data-binary "@$RUNNER_TEMP/canary-login-request.json" \
             --output "$RUNNER_TEMP/canary-login-response.json"
           access_token="$(jq -r '.access_token' "$RUNNER_TEMP/canary-login-response.json")"
-          test -n "$access_token"
-          test "$access_token" != null
+          if [[ -z "$access_token" || "$access_token" == null ]]; then
+            echo '::error::Isolated Auth password login returned no access token.'
+            exit 1
+          fi
+          echo '::notice::Isolated Auth password login completed.'
 
           curl --fail --silent --show-error \
             "$API_URL/rest/v1/profiles?select=id&id=eq.$canary_id" \
             --header "apikey: $ANON_KEY" \
             --header "Authorization: Bearer $access_token" \
             --output "$RUNNER_TEMP/canary-own-profile.json"
-          test "$(jq 'length' "$RUNNER_TEMP/canary-own-profile.json")" -eq 1
+          if [[ "$(jq 'length' "$RUNNER_TEMP/canary-own-profile.json")" -ne 1 ]]; then
+            echo '::error::Authenticated canary could not read exactly its own Profile.'
+            exit 1
+          fi
 
           curl --fail --silent --show-error \
             "$API_URL/rest/v1/profiles?select=id&id=neq.$canary_id&limit=1" \
             --header "apikey: $ANON_KEY" \
             --header "Authorization: Bearer $access_token" \
             --output "$RUNNER_TEMP/canary-other-profiles.json"
-          test "$(jq 'length' "$RUNNER_TEMP/canary-other-profiles.json")" -eq 0
+          if [[ "$(jq 'length' "$RUNNER_TEMP/canary-other-profiles.json")" -ne 0 ]]; then
+            echo '::error::Authenticated canary could read another Profile.'
+            exit 1
+          fi
+          echo '::notice::Authenticated own-Profile RLS checks completed.'
 
           anonymous_public_status="$(curl --silent --show-error \
             --output "$RUNNER_TEMP/anonymous-public.json" \
             --write-out '%{http_code}' \
             "$API_URL/rest/v1/public_members?select=id&limit=1" \
             --header "apikey: $ANON_KEY")"
-          test "$anonymous_public_status" -eq 200
-          jq -e 'type == "array"' "$RUNNER_TEMP/anonymous-public.json" > /dev/null
+          if [[ "$anonymous_public_status" != 200 ]] \
+            || ! jq -e 'type == "array"' "$RUNNER_TEMP/anonymous-public.json" > /dev/null; then
+            echo '::error::Anonymous public member view smoke check failed.'
+            exit 1
+          fi
 
           anonymous_private_status="$(curl --silent --show-error \
             --output "$RUNNER_TEMP/anonymous-private.json" \
             --write-out '%{http_code}' \
             "$API_URL/rest/v1/profiles?select=id&limit=1" \
             --header "apikey: $ANON_KEY")"
-          [[ "$anonymous_private_status" == 401 || "$anonymous_private_status" == 403 ]]
+          anonymous_private_empty=false
+          if [[ "$anonymous_private_status" == 200 ]]; then
+            if ! jq -e 'type == "array" and length == 0' \
+              "$RUNNER_TEMP/anonymous-private.json" > /dev/null; then
+              echo '::error::Anonymous private Profile query returned visible rows.'
+              exit 1
+            fi
+            anonymous_private_empty=true
+          elif [[ "$anonymous_private_status" != 401 && "$anonymous_private_status" != 403 ]]; then
+            echo '::error::Anonymous private Profile query did not fail closed.'
+            exit 1
+          fi
+          echo '::notice::Anonymous REST boundary checks completed.'
 
           curl --fail --silent --show-error \
             --request DELETE "$API_URL/auth/v1/admin/users/$canary_id" \
             --header "apikey: $SERVICE_ROLE_KEY" \
             --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
             --output "$RUNNER_TEMP/canary-delete-response.json"
-          test "$(docker exec "$db_container" psql --username supabase_admin --dbname postgres \
+          canary_remaining="$(docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 --variable canary_id="$canary_id" \
             --command "select pg_catalog.count(*) from auth.users u
               full join public.profiles p on p.id = u.id
-              where pg_catalog.coalesce(u.id, p.id) = :'canary_id'::uuid")" -eq 0
+              where pg_catalog.coalesce(u.id, p.id) = :'canary_id'::uuid")"
+          if [[ "$canary_remaining" -ne 0 ]]; then
+            echo '::error::Isolated Auth canary cleanup left residual rows.'
+            exit 1
+          fi
+          echo '::notice::Isolated Auth canary cleanup completed.'
 
           restore_finished="$(date +%s)"
           completed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -365,6 +401,7 @@ jobs:
             --slurpfile orphanCounts "$orphans" \
             --argjson anonymousPublicStatus "$anonymous_public_status" \
             --argjson anonymousPrivateStatus "$anonymous_private_status" \
+            --argjson anonymousPrivateEmpty "$anonymous_private_empty" \
             '{
               sourceRunId: $sourceRunId,
               sourceSha: $sourceSha,
@@ -382,7 +419,8 @@ jobs:
               },
               restSmoke: {
                 anonymousPublicStatus: $anonymousPublicStatus,
-                anonymousPrivateStatus: $anonymousPrivateStatus
+                anonymousPrivateStatus: $anonymousPrivateStatus,
+                anonymousPrivateEmpty: $anonymousPrivateEmpty
               }
             }' > "$observation"
 
