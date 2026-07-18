@@ -44,7 +44,7 @@ export class WebChatUpstreamError extends Error {
 
 const encoder = new TextEncoder()
 
-function responsesEndpoint(baseUrl: string): string {
+export function responsesEndpoint(baseUrl: string): string {
   let url: URL
   try {
     url = new URL(baseUrl)

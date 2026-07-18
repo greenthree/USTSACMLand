@@ -76,3 +76,6 @@ verify_jwt = true
 
 [functions.webchat-config]
 verify_jwt = true
+
+[functions.webchat-cache-probe]
+verify_jwt = true

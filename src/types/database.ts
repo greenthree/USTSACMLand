@@ -1555,6 +1555,22 @@ export type Database = {
           usage_date: string
         }[]
       }
+      claim_webchat_cache_probe: {
+        Args: {
+          lease_seconds?: number
+          requested_owner_token: string
+          requested_probe_id: string
+          requested_reserved_tokens?: number
+        }
+        Returns: {
+          decision: string
+          remaining_global_requests: number
+          remaining_global_tokens: number
+          retry_after_seconds: number | null
+          status: string
+          usage_date: string
+        }[]
+      }
       claim_webchat_request_internal: {
         Args: {
           daily_request_limit: number
@@ -1735,6 +1751,23 @@ export type Database = {
           transitioned: boolean
         }[]
       }
+      finalize_webchat_cache_probe: {
+        Args: {
+          observed_cache_write_tokens?: number
+          observed_cached_input_tokens?: number
+          probe_outcome: string
+          requested_owner_token: string
+          requested_probe_id: string
+          used_input_tokens?: number
+          used_output_tokens?: number
+          used_total_tokens?: number
+        }
+        Returns: {
+          charged_tokens: number
+          status: string
+          transitioned: boolean
+        }[]
+      }
       get_public_practice_increments: {
         Args: { range_end_date: string; range_start_date: string }
         Returns: {
@@ -1786,6 +1819,10 @@ export type Database = {
           requested_request_id: string
           requested_user_id: string
         }
+        Returns: boolean
+      }
+      mark_webchat_cache_probe_started: {
+        Args: { requested_owner_token: string; requested_probe_id: string }
         Returns: boolean
       }
       read_daily_problem_feed: {
@@ -1888,6 +1925,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      release_webchat_cache_probe: {
+        Args: {
+          release_reason: string
+          requested_owner_token: string
+          requested_probe_id: string
+        }
+        Returns: boolean
+      }
       renew_account_deletion_recovery_lease: {
         Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
@@ -1965,6 +2010,7 @@ export type Database = {
         }[]
       }
       purge_expired_webchat_conversations: { Args: never; Returns: number }
+      purge_webchat_cache_probe_runs: { Args: never; Returns: number }
       rename_own_webchat_conversation: {
         Args: { requested_conversation_id: string; requested_title: string }
         Returns: undefined

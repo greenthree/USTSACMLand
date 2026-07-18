@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 30,
-      assertionCount: 738,
-      releaseMigrationCount: 35,
+      fileCount: 31,
+      assertionCount: 779,
+      releaseMigrationCount: 36,
     })
   })
 
@@ -81,6 +81,16 @@ describe('CI workflow', () => {
     ).toThrow(/webchat-config Edge Function/)
     expect(() =>
       verifyCiWorkflow(
+        workflow.replace('          supabase/functions/webchat-cache-probe/index.ts\n', ''),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/webchat-cache-probe Edge Function/)
+    expect(() =>
+      verifyCiWorkflow(
         workflow,
         packageJson,
         pgTapFiles,
@@ -102,6 +112,19 @@ describe('CI workflow', () => {
         ),
       ),
     ).toThrow(/webchat-config Edge Function must enable JWT verification/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig.replace(
+          '[functions.webchat-cache-probe]\nverify_jwt = true',
+          '[functions.webchat-cache-probe]',
+        ),
+      ),
+    ).toThrow(/webchat-cache-probe Edge Function must enable JWT verification/)
   })
 
   it('rejects unrestricted or network-capable Edge unit tests', () => {
@@ -288,6 +311,17 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/202607180005_webchat_conversation_history/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607180006_webchat_cache_probe_accounting.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607180006_webchat_cache_probe_accounting/)
 
     expect(() =>
       verifyCiWorkflow(

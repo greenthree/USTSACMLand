@@ -1,0 +1,44 @@
+name: WebChat production cache probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webchat-production-cache-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Verify cache probe workflow invariants
+        run: node scripts/check-webchat-cache-probe-workflow.mjs
+
+      - name: Run billable production cache probe
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WEBCHAT_CACHE_PROBE_REPORT_PATH: artifacts/webchat-production-cache-probe.json
+        run: node scripts/check-webchat-production-cache-probe.mjs
+
+      - name: Upload sanitized cache probe report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: webchat-production-cache-probe-${{ github.run_id }}
+          path: artifacts/webchat-production-cache-probe.json
+          if-no-files-found: warn
+          retention-days: 14
