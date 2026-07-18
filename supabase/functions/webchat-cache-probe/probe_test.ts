@@ -78,7 +78,7 @@ Deno.test('cache probe parses Responses cached-token usage without requiring cac
 })
 
 Deno.test(
-  'cache probe sends two byte-identical eligible requests with one stable cache key',
+  'cache probe sends an incremental typed conversation with one reusable explicit prefix',
   async () => {
     const requests: Array<{ url: string; body: string; headers: Headers }> = []
     const fetcher: typeof fetch = async (input, init) => {
@@ -94,13 +94,22 @@ Deno.test(
 
     strictEqual(requests.length, 2)
     strictEqual(requests[0]?.url, 'https://relay.example.test/v1/responses')
-    strictEqual(requests[0]?.body, requests[1]?.body)
+    strictEqual(requests[0]?.body === requests[1]?.body, false)
     strictEqual(requests[0]?.headers.get('authorization'), 'Bearer server-only-cache-probe-key')
-    const body = JSON.parse(requests[0]?.body ?? '{}') as Record<string, unknown>
-    match(String(body.prompt_cache_key), /^[a-f0-9]{64}$/)
-    strictEqual(body.stream, false)
-    strictEqual(body.store, false)
-    match(String(body.input), /cache probe validation.*Reply only with OK\./s)
+    const firstBody = JSON.parse(requests[0]?.body ?? '{}') as Record<string, unknown>
+    const secondBody = JSON.parse(requests[1]?.body ?? '{}') as Record<string, unknown>
+    match(String(firstBody.prompt_cache_key), /^[a-f0-9]{64}$/)
+    strictEqual(firstBody.prompt_cache_key, secondBody.prompt_cache_key)
+    strictEqual(firstBody.stream, false)
+    strictEqual(firstBody.store, false)
+    strictEqual('prompt_cache_options' in firstBody, false)
+    const firstInput = firstBody.input as Array<Record<string, unknown>>
+    const secondInput = secondBody.input as Array<Record<string, unknown>>
+    deepStrictEqual(secondInput[0], firstInput[0])
+    strictEqual(firstInput.length, 1)
+    strictEqual(secondInput.length, 3)
+    match(JSON.stringify(firstInput), /cache probe validation.*Reply only with OK\./s)
+    match(JSON.stringify(firstInput), /prompt_cache_breakpoint/)
     strictEqual(result.reusedInputTokens, 1_536)
     deepStrictEqual(result.aggregateUsage, {
       inputTokens: 3_200,
