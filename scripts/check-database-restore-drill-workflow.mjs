@@ -129,19 +129,19 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   )
   requireMatch(
     workflow,
-    /psql "\$DB_URL"[\s\S]*--single-transaction[\s\S]*--file "\$restore_dir\/roles\.sql"[\s\S]*--file "\$restore_dir\/schema\.sql"[\s\S]*--file "\$restore_dir\/data\.sql"[\s\S]*--file "\$restore_dir\/auth-data\.sql"[\s\S]*--file "\$restore_dir\/migrations-schema\.sql"[\s\S]*--file "\$restore_dir\/migrations-data\.sql"/,
+    /db_container='supabase_db_usts-acm-land'[\s\S]*docker inspect "\$db_container"[\s\S]*docker cp "\$restore_dir\/\." "\$db_container:\$container_restore\/"[\s\S]*docker exec "\$db_container" psql[\s\S]*--username supabase_admin[\s\S]*--single-transaction[\s\S]*--file "\$container_restore\/roles\.sql"[\s\S]*--file "\$container_restore\/schema\.sql"[\s\S]*--file "\$container_restore\/data\.sql"[\s\S]*--file "\$container_restore\/auth-data\.sql"[\s\S]*--file "\$container_restore\/migrations-schema\.sql"[\s\S]*--file "\$container_restore\/migrations-data\.sql"/,
     'Restore drill must atomically restore roles, schema, business data, Auth data, and migration history.',
   )
   requireMatch(
     workflow,
-    /set local role supabase_auth_admin;[\s\S]*truncate table[\s\S]*reset role;[\s\S]*drop schema if exists supabase_migrations cascade;/,
-    'Restore drill must use the least platform role needed to clear local Auth data.',
+    /trap 'docker exec "\$db_container" rm -rf "\$container_restore"[\s\S]*docker exec "\$db_container" rm -rf "\$container_restore"[\s\S]*trap - EXIT/,
+    'Restore drill must remove decrypted files copied into the disposable database container.',
   )
-  requireMatch(
-    workflow,
-    /--file "\$restore_dir\/data\.sql" \\\r?\n\s+--command 'set local role supabase_auth_admin' \\\r?\n\s+--file "\$restore_dir\/auth-data\.sql" \\\r?\n\s+--command 'reset role'/,
-    'Restore drill must scope the Supabase Auth owner role only around Auth data import.',
-  )
+  if (/\bpsql "\$DB_URL"|set (?:local )?role supabase_auth_admin/i.test(workflow)) {
+    throw new Error(
+      'Restore drill must use only the disposable container platform-admin socket, not role escalation from the local client.',
+    )
+  }
 
   for (const fragment of [
     'auth/v1/admin/users',

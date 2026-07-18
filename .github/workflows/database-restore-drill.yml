@@ -191,24 +191,21 @@ jobs:
           counts="$RUNNER_TEMP/restored-row-counts.json"
           orphans="$RUNNER_TEMP/restored-orphan-counts.json"
           observation="$RUNNER_TEMP/restore-observation.json"
+          db_container='supabase_db_usts-acm-land'
+          container_restore="/tmp/usts-restore-$GITHUB_RUN_ID"
           mkdir -p artifacts
 
           npx --yes supabase@2.109.1 status -o env > "$status_env"
           set -a
           source "$status_env"
           set +a
-          : "${DB_URL:?Missing local DB_URL}"
           : "${API_URL:?Missing local API_URL}"
           : "${ANON_KEY:?Missing local ANON_KEY}"
           : "${SERVICE_ROLE_KEY:?Missing local SERVICE_ROLE_KEY}"
-
-          if ! command -v psql > /dev/null; then
-            sudo apt-get update
-            sudo apt-get install --yes postgresql-client
-          fi
+          docker inspect "$db_container" > /dev/null
+          trap 'docker exec "$db_container" rm -rf "$container_restore" > /dev/null 2>&1 || true' EXIT
 
           cat > "$pre_restore" <<'SQL'
-          set local role supabase_auth_admin;
           do $$
           declare
             truncate_command text;
@@ -225,28 +222,32 @@ jobs:
             end if;
           end;
           $$;
-          reset role;
           drop schema if exists supabase_migrations cascade;
           SQL
 
-          psql "$DB_URL" \
+          docker exec "$db_container" mkdir -p "$container_restore"
+          docker cp "$restore_dir/." "$db_container:$container_restore/"
+          docker cp "$pre_restore" "$db_container:$container_restore/pre-restore.sql"
+
+          docker exec "$db_container" psql \
+            --username supabase_admin \
+            --dbname postgres \
             --no-psqlrc \
             --quiet \
             --single-transaction \
             --variable ON_ERROR_STOP=1 \
-            --file "$restore_dir/roles.sql" \
-            --file "$pre_restore" \
-            --file "$restore_dir/schema.sql" \
+            --file "$container_restore/roles.sql" \
+            --file "$container_restore/pre-restore.sql" \
+            --file "$container_restore/schema.sql" \
             --command 'set session_replication_role = replica' \
-            --file "$restore_dir/data.sql" \
-            --command 'set local role supabase_auth_admin' \
-            --file "$restore_dir/auth-data.sql" \
-            --command 'reset role' \
-            --file "$restore_dir/migrations-schema.sql" \
-            --file "$restore_dir/migrations-data.sql" \
+            --file "$container_restore/data.sql" \
+            --file "$container_restore/auth-data.sql" \
+            --file "$container_restore/migrations-schema.sql" \
+            --file "$container_restore/migrations-data.sql" \
             --command 'set session_replication_role = origin'
 
-          psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+          docker exec "$db_container" psql --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 \
             --command "select pg_catalog.json_build_object(
               'profiles', (select pg_catalog.count(*) from public.profiles),
@@ -258,7 +259,8 @@ jobs:
               'migrations', (select pg_catalog.count(*) from supabase_migrations.schema_migrations)
             )::text" > "$counts"
 
-          psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+          docker exec "$db_container" psql --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 \
             --command "select pg_catalog.json_build_object(
               'profilesWithoutAuth', (
@@ -344,7 +346,8 @@ jobs:
             --header "apikey: $SERVICE_ROLE_KEY" \
             --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
             --output "$RUNNER_TEMP/canary-delete-response.json"
-          test "$(psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+          test "$(docker exec "$db_container" psql --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 --variable canary_id="$canary_id" \
             --command "select pg_catalog.count(*) from auth.users u
               full join public.profiles p on p.id = u.id
@@ -387,6 +390,8 @@ jobs:
             "$restore_dir/restore-manifest.json" \
             "$observation" \
             artifacts/database-restore-drill.json
+          docker exec "$db_container" rm -rf "$container_restore"
+          trap - EXIT
 
       - name: Stop isolated local Supabase
         if: always()
