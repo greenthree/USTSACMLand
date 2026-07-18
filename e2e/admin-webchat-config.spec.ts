@@ -54,8 +54,8 @@ test('administrator can inspect the pilot roster and open its member policy', as
   await expect(pilot).toBeVisible()
   await expect(pilot.getByLabel('试运行摘要')).toContainText('已配置账号')
   await expect(pilot.getByRole('heading', { name: '试运行成员' })).toBeVisible()
-  await expect(pilot.getByText('8 / 30')).toBeVisible()
-  await expect(pilot.getByText(/已结算 18,420 · 预留 4,000 · 剩余 77,580/)).toBeVisible()
+  await expect(pilot.getByText('8 / 300')).toBeVisible()
+  await expect(pilot.getByText(/已结算 18,420 · 预留 4,000 · 剩余 977,580/)).toBeVisible()
 
   await pilot.getByRole('link', { name: '查看详情' }).click()
   await expect(page).toHaveURL(/\/admin\/members\/00000000-0000-4000-8000-000000000101$/)

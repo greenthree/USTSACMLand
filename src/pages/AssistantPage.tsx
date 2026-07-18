@@ -10,15 +10,6 @@ import '../features/chat/chat.css'
 import { formatInteger } from '../lib/format'
 import { fetchOwnWebChatUsage, type WebChatMemberUsage } from '../lib/webChatMemberAccess'
 
-const beijingResetFormatter = new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Asia/Shanghai',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
-
 export function AssistantPage() {
   const [usage, setUsage] = useState<WebChatMemberUsage | null>(null)
   const [usageLoading, setUsageLoading] = useState(true)
@@ -79,14 +70,14 @@ export function AssistantPage() {
         </div>
       </section>
 
-      <section className="assistant-quota" aria-label="今日 AI 助手额度" aria-busy={usageLoading}>
+      <section className="assistant-quota" aria-label="AI 助手累计额度" aria-busy={usageLoading}>
         <div className="assistant-quota-heading">
           <Gauge size={20} aria-hidden="true" />
           <div>
-            <strong>今日使用额度</strong>
+            <strong>累计使用额度</strong>
             <span>
               {usage
-                ? `当前模型 ${usage.model ?? '未配置'} · 统计日期 ${usage.usageDate} · 北京时间 ${beijingResetFormatter.format(new Date(usage.resetAt))} 重置`
+                ? `当前模型 ${usage.model ?? '未配置'} · 额度由管理员设定，不会每日重置`
                 : '正在读取成员授权与额度'}
             </span>
           </div>
@@ -119,7 +110,7 @@ export function AssistantPage() {
                 </dd>
               </div>
               <div>
-                <dt>今日已用</dt>
+                <dt>累计已用</dt>
                 <dd>{formatInteger(usage.requests.used)}</dd>
               </div>
             </dl>
@@ -146,7 +137,7 @@ export function AssistantPage() {
           </p>
         ) : (
           <p className="assistant-quota-loading" role="status">
-            正在读取今日额度…
+            正在读取累计额度…
           </p>
         )}
       </section>

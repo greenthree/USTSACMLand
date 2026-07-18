@@ -6,6 +6,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: '14.5'
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_rate_limit_buckets: {
@@ -1040,8 +1065,8 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: {
           access_enabled: boolean
-          daily_request_limit: number
-          daily_token_limit: number
+          total_request_limit: number
+          total_token_limit: number
           updated_at: string
           version: number
         }[]
@@ -1198,21 +1223,24 @@ export type Database = {
         Returns: {
           access_enabled: boolean
           active_request_count: number
-          daily_request_limit: number
-          daily_token_limit: number
           full_name: string
           grade: string
           last_request_at: string
           major: string
           remaining_requests: number
           remaining_tokens: number
-          request_count: number
           reserved_tokens: number
           review_status: Database['public']['Enums']['profile_review_status']
           role: Database['public']['Enums']['app_role']
-          settled_tokens: number
+          today_request_count: number
+          today_reserved_tokens: number
+          today_settled_tokens: number
+          today_usage_date: string
+          total_request_limit: number
+          total_token_limit: number
           updated_at: string
-          usage_date: string
+          used_requests: number
+          used_tokens: number
           user_id: string
           version: number
         }[]
@@ -1352,14 +1380,14 @@ export type Database = {
           expected_version: number
           reason: string
           requested_access_enabled: boolean
-          requested_daily_request_limit: number
-          requested_daily_token_limit: number
+          requested_total_request_limit: number
+          requested_total_token_limit: number
           target_profile_id: string
         }
         Returns: {
           access_enabled: boolean
-          daily_request_limit: number
-          daily_token_limit: number
+          total_request_limit: number
+          total_token_limit: number
           updated_at: string
           version: number
         }[]
@@ -1468,6 +1496,14 @@ export type Database = {
         Returns: boolean
       }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
+      calculate_webchat_member_total_usage: {
+        Args: { checked_at?: string; requested_user_id: string }
+        Returns: {
+          reserved_tokens: number
+          used_requests: number
+          used_tokens: number
+        }[]
+      }
       can_edit_own_data: { Args: never; Returns: boolean }
       claim_authorized_webchat_request: {
         Args: {
@@ -1481,9 +1517,9 @@ export type Database = {
         }
         Returns: {
           decision: string
-          remaining_daily_requests: number
-          remaining_daily_tokens: number
           remaining_minute_requests: number
+          remaining_total_requests: number
+          remaining_total_tokens: number
           retry_after_seconds: number
           status: string
         }[]
@@ -1519,7 +1555,7 @@ export type Database = {
           usage_date: string
         }[]
       }
-      claim_webchat_request: {
+      claim_webchat_request_internal: {
         Args: {
           daily_request_limit: number
           daily_token_limit: number
@@ -1538,6 +1574,29 @@ export type Database = {
           remaining_daily_requests: number
           remaining_daily_tokens: number
           remaining_minute_requests: number
+          retry_after_seconds: number
+          status: string
+        }[]
+      }
+      claim_webchat_total_request: {
+        Args: {
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          lease_seconds?: number
+          minute_request_limit: number
+          requested_fingerprint: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_reserved_tokens: number
+          requested_user_id: string
+          total_request_limit: number
+          total_token_limit: number
+        }
+        Returns: {
+          decision: string
+          remaining_minute_requests: number
+          remaining_total_requests: number
+          remaining_total_tokens: number
           retry_after_seconds: number
           status: string
         }[]
@@ -1740,16 +1799,14 @@ export type Database = {
         Args: never
         Returns: {
           access_enabled: boolean
-          daily_request_limit: number
-          daily_token_limit: number
           model: string
           remaining_requests: number
           remaining_tokens: number
-          request_count: number
           reserved_tokens: number
-          reset_at: string
-          settled_tokens: number
-          usage_date: string
+          total_request_limit: number
+          total_token_limit: number
+          used_requests: number
+          used_tokens: number
         }[]
       }
       read_sync_queue_scheduler_health: { Args: never; Returns: Json }
@@ -1770,8 +1827,8 @@ export type Database = {
         Returns: {
           access_enabled: boolean
           account_eligible: boolean
-          daily_request_limit: number
-          daily_token_limit: number
+          total_request_limit: number
+          total_token_limit: number
           version: number
         }[]
       }
@@ -1801,6 +1858,10 @@ export type Database = {
         }[]
       }
       read_xcpc_elo_cache: { Args: never; Returns: Json }
+      reconcile_expired_webchat_member_requests: {
+        Args: { checked_at: string; requested_user_id: string }
+        Returns: undefined
+      }
       release_account_deletion_recovery_lease: {
         Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
@@ -1985,6 +2046,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       account_verification_status: ['pending', 'verified', 'invalid', 'disabled'],

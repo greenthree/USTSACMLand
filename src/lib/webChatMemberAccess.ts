@@ -3,8 +3,8 @@ import { supabase } from './supabase'
 
 export interface WebChatMemberAccess {
   enabled: boolean
-  dailyRequestLimit: number
-  dailyTokenLimit: number
+  totalRequestLimit: number
+  totalTokenLimit: number
   version: number
   updatedAt: string | null
 }
@@ -12,8 +12,6 @@ export interface WebChatMemberAccess {
 export interface WebChatMemberUsage {
   enabled: boolean
   model: string | null
-  usageDate: string
-  resetAt: string
   requests: {
     limit: number
     used: number
@@ -30,16 +28,16 @@ export interface WebChatMemberUsage {
 export interface UpdateWebChatMemberAccessInput {
   memberId: string
   enabled: boolean
-  dailyRequestLimit: number
-  dailyTokenLimit: number
+  totalRequestLimit: number
+  totalTokenLimit: number
   expectedVersion: number
   reason: string
 }
 
 interface WebChatMemberAccessRow {
   access_enabled: unknown
-  daily_request_limit: unknown
-  daily_token_limit: unknown
+  total_request_limit: unknown
+  total_token_limit: unknown
   version: unknown
   updated_at: unknown
 }
@@ -47,15 +45,13 @@ interface WebChatMemberAccessRow {
 interface WebChatMemberUsageRow {
   access_enabled: unknown
   model: unknown
-  usage_date: unknown
-  daily_request_limit: unknown
-  request_count: unknown
+  total_request_limit: unknown
+  used_requests: unknown
   remaining_requests: unknown
-  daily_token_limit: unknown
-  settled_tokens: unknown
+  total_token_limit: unknown
+  used_tokens: unknown
   reserved_tokens: unknown
   remaining_tokens: unknown
-  reset_at: unknown
 }
 
 export class WebChatMemberAccessConflictError extends Error {
@@ -67,8 +63,8 @@ export class WebChatMemberAccessConflictError extends Error {
 
 const demoAccess: WebChatMemberAccess = {
   enabled: true,
-  dailyRequestLimit: 30,
-  dailyTokenLimit: 100_000,
+  totalRequestLimit: 300,
+  totalTokenLimit: 1_000_000,
   version: 1,
   updatedAt: '2026-07-17T08:00:00+08:00',
 }
@@ -76,10 +72,8 @@ const demoAccess: WebChatMemberAccess = {
 const demoUsage: WebChatMemberUsage = {
   enabled: true,
   model: 'gpt-5.6-sol',
-  usageDate: '2026-07-17',
-  resetAt: '2026-07-17T16:00:00.000Z',
-  requests: { limit: 30, used: 8, remaining: 22 },
-  tokens: { limit: 100_000, settled: 18_400, reserved: 0, remaining: 81_600 },
+  requests: { limit: 300, used: 8, remaining: 292 },
+  tokens: { limit: 1_000_000, settled: 18_400, reserved: 0, remaining: 981_600 },
 }
 
 function singleRow(value: unknown, label: string): Record<string, unknown> {
@@ -113,8 +107,8 @@ export function mapWebChatMemberAccess(value: unknown): WebChatMemberAccess {
 
   return {
     enabled: row.access_enabled,
-    dailyRequestLimit: integer(row.daily_request_limit, '成员每日请求上限', 1),
-    dailyTokenLimit: integer(row.daily_token_limit, '成员每日 Token 上限', 100),
+    totalRequestLimit: integer(row.total_request_limit, '成员累计请求总上限', 1),
+    totalTokenLimit: integer(row.total_token_limit, '成员累计 Token 总上限', 100),
     version: integer(row.version, '成员 AI 助手配置版本'),
     updatedAt: timestamp(row.updated_at, '成员 AI 助手配置时间', true),
   }
@@ -125,18 +119,16 @@ export function mapWebChatMemberUsage(value: unknown): WebChatMemberUsage {
   if (
     typeof row.access_enabled !== 'boolean' ||
     (row.model !== null &&
-      (typeof row.model !== 'string' || !/^[A-Za-z0-9._:/-]{1,128}$/.test(row.model))) ||
-    typeof row.usage_date !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(row.usage_date)
+      (typeof row.model !== 'string' || !/^[A-Za-z0-9._:/-]{1,128}$/.test(row.model)))
   ) {
     throw new Error('AI 助手额度返回了无效数据。')
   }
 
-  const requestLimit = integer(row.daily_request_limit, '每日请求上限', 1)
-  const requestCount = integer(row.request_count, '今日请求数')
+  const requestLimit = integer(row.total_request_limit, '累计请求总上限', 1)
+  const requestCount = integer(row.used_requests, '累计请求数')
   const remainingRequests = integer(row.remaining_requests, '剩余请求数')
-  const tokenLimit = integer(row.daily_token_limit, '每日 Token 上限', 100)
-  const settledTokens = integer(row.settled_tokens, '已结算 Token')
+  const tokenLimit = integer(row.total_token_limit, '累计 Token 总上限', 100)
+  const settledTokens = integer(row.used_tokens, '累计已结算 Token')
   const reservedTokens = integer(row.reserved_tokens, '预留 Token')
   const remainingTokens = integer(row.remaining_tokens, '剩余 Token')
 
@@ -150,8 +142,6 @@ export function mapWebChatMemberUsage(value: unknown): WebChatMemberUsage {
   return {
     enabled: row.access_enabled,
     model: row.model as string | null,
-    usageDate: row.usage_date,
-    resetAt: timestamp(row.reset_at, 'AI 助手额度重置时间') as string,
     requests: { limit: requestLimit, used: requestCount, remaining: remainingRequests },
     tokens: {
       limit: tokenLimit,
@@ -180,8 +170,8 @@ export async function updateAdminWebChatMemberAccess(
   if (!supabase) {
     return {
       enabled: input.enabled,
-      dailyRequestLimit: input.dailyRequestLimit,
-      dailyTokenLimit: input.dailyTokenLimit,
+      totalRequestLimit: input.totalRequestLimit,
+      totalTokenLimit: input.totalTokenLimit,
       version: input.expectedVersion + 1,
       updatedAt: new Date().toISOString(),
     }
@@ -190,8 +180,8 @@ export async function updateAdminWebChatMemberAccess(
   const { data, error } = await supabase.rpc('admin_update_webchat_member_access', {
     target_profile_id: input.memberId,
     requested_access_enabled: input.enabled,
-    requested_daily_request_limit: input.dailyRequestLimit,
-    requested_daily_token_limit: input.dailyTokenLimit,
+    requested_total_request_limit: input.totalRequestLimit,
+    requested_total_token_limit: input.totalTokenLimit,
     expected_version: input.expectedVersion,
     reason: input.reason.trim(),
   })

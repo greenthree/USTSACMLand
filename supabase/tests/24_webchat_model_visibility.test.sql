@@ -32,7 +32,7 @@ select ok(
 
 select matches(
   pg_catalog.pg_get_function_result('public.read_own_webchat_usage()'::regprocedure),
-  '^TABLE\(access_enabled boolean, model text, usage_date date,',
+  '^TABLE\(access_enabled boolean, model text, total_request_limit integer,',
   'nullable model is the second field in the own-usage result'
 );
 
@@ -118,8 +118,8 @@ where id in (
 insert into private.webchat_member_access (
   user_id,
   access_enabled,
-  daily_request_limit,
-  daily_token_limit,
+  total_request_limit,
+  total_token_limit,
   updated_by
 )
 values
@@ -211,24 +211,22 @@ select ok(
     from authorized_member_usage
     where access_enabled
       and model = 'gpt-5.6'
-      and daily_request_limit = 5
-      and request_count = 1
+      and total_request_limit = 5
+      and used_requests = 1
       and remaining_requests = 4
-      and daily_token_limit = 1000
-      and settled_tokens = 50
+      and total_token_limit = 1000
+      and used_tokens = 50
       and reserved_tokens = 0
       and remaining_tokens = 950
   ),
   'an authorized member sees the model and preserved virtual expired-claim refund'
 );
 
-select is(
-  (select reset_at from authorized_member_usage),
-  (
-    ((select usage_date from authorized_member_usage) + 1)::timestamp
-      at time zone 'Asia/Shanghai'
-  ),
-  'model visibility does not change the next Beijing-midnight quota reset'
+select ok(
+  pg_catalog.pg_get_function_result(
+    'public.read_own_webchat_usage()'::regprocedure
+  ) !~ '(usage_date|reset_at)',
+  'member quota output no longer advertises a daily reset'
 );
 
 select ok(
@@ -260,11 +258,11 @@ select ok(
     from authorized_admin_usage
     where access_enabled
       and model = 'gpt-5.6'
-      and daily_request_limit = 8
-      and request_count = 0
+      and total_request_limit = 8
+      and used_requests = 0
       and remaining_requests = 8
-      and daily_token_limit = 2000
-      and settled_tokens = 0
+      and total_token_limit = 2000
+      and used_tokens = 0
       and reserved_tokens = 0
       and remaining_tokens = 2000
   ),
@@ -288,8 +286,8 @@ select ok(
     from denied_member_usage
     where not access_enabled
       and model is null
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
   ),
   'an approved account without private authorization cannot discover the model'
 );
@@ -311,8 +309,8 @@ select ok(
     from suspended_admin_usage
     where not access_enabled
       and model is null
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
   ),
   'a suspended administrator cannot discover the model despite a stored enabled policy'
 );
@@ -334,8 +332,8 @@ select ok(
     from unknown_profile_usage
     where not access_enabled
       and model is null
-      and request_count = 0
-      and settled_tokens = 0
+      and used_requests = 0
+      and used_tokens = 0
       and reserved_tokens = 0
   ),
   'an authenticated JWT without a profile receives no model or usage disclosure'
@@ -349,16 +347,14 @@ select is(
   ),
   array[
     'access_enabled',
-    'daily_request_limit',
-    'daily_token_limit',
     'model',
     'remaining_requests',
     'remaining_tokens',
-    'request_count',
     'reserved_tokens',
-    'reset_at',
-    'settled_tokens',
-    'usage_date'
+    'total_request_limit',
+    'total_token_limit',
+    'used_requests',
+    'used_tokens'
   ]::text[],
   'model-aware own usage exposes only the documented self-policy aggregate fields'
 );
@@ -414,8 +410,8 @@ select ok(
     from unconfigured_model_usage
     where access_enabled
       and model is null
-      and daily_request_limit = 8
-      and daily_token_limit = 2000
+      and total_request_limit = 8
+      and total_token_limit = 2000
   ),
   'an authorized account sees null when no relay model is configured'
 );

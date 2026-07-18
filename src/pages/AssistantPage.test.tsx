@@ -20,8 +20,6 @@ import { AssistantPage } from './AssistantPage'
 const usage = {
   enabled: true,
   model: 'gpt-5.6-sol',
-  usageDate: '2026-07-17',
-  resetAt: '2026-07-17T16:00:00Z',
   requests: { limit: 30, used: 8, remaining: 22 },
   tokens: { limit: 100_000, settled: 18_400, reserved: 0, remaining: 81_600 },
 }
@@ -37,7 +35,7 @@ function renderAssistantPage() {
 describe('AssistantPage member quota gate', () => {
   beforeEach(() => assistantMocks.fetchUsage.mockReset())
 
-  it('shows the authorized member daily request and Token allowance', async () => {
+  it('shows the authorized member cumulative request and Token allowance', async () => {
     assistantMocks.fetchUsage.mockResolvedValue(usage)
     renderAssistantPage()
 
@@ -46,13 +44,14 @@ describe('AssistantPage member quota gate', () => {
       'href',
       '/privacy',
     )
-    const quota = screen.getByRole('region', { name: '今日 AI 助手额度' })
+    const quota = screen.getByRole('region', { name: 'AI 助手累计额度' })
     expect(quota).toHaveTextContent('剩余请求')
     expect(quota).toHaveTextContent('22')
     expect(quota).toHaveTextContent('81,600')
     expect(quota).toHaveTextContent('18,400')
     expect(quota).toHaveTextContent('当前模型 gpt-5.6-sol')
-    expect(quota).toHaveTextContent('北京时间 07/18 00:00 重置')
+    expect(quota).toHaveTextContent('额度由管理员设定，不会每日重置')
+    expect(quota).toHaveTextContent('累计已用')
   })
 
   it('does not mount the chat runtime for a member without access', async () => {

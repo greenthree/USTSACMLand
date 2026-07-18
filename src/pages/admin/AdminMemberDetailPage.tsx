@@ -169,8 +169,8 @@ export function AdminMemberDetailPage() {
   const [webChatAccessSaving, setWebChatAccessSaving] = useState(false)
   const [webChatAccessError, setWebChatAccessError] = useState('')
   const [webChatEnabled, setWebChatEnabled] = useState(false)
-  const [webChatDailyRequestLimit, setWebChatDailyRequestLimit] = useState('30')
-  const [webChatDailyTokenLimit, setWebChatDailyTokenLimit] = useState('100000')
+  const [webChatTotalRequestLimit, setWebChatTotalRequestLimit] = useState('30')
+  const [webChatTotalTokenLimit, setWebChatTotalTokenLimit] = useState('100000')
   const [webChatReason, setWebChatReason] = useState('')
   const dialogRef = useRef<HTMLElement | null>(null)
   const dialogTriggerRef = useRef<HTMLElement | null>(null)
@@ -204,8 +204,8 @@ export function AdminMemberDetailPage() {
   const applyWebChatAccess = useCallback((access: WebChatMemberAccess) => {
     setWebChatAccess(access)
     setWebChatEnabled(access.enabled)
-    setWebChatDailyRequestLimit(String(access.dailyRequestLimit))
-    setWebChatDailyTokenLimit(String(access.dailyTokenLimit))
+    setWebChatTotalRequestLimit(String(access.totalRequestLimit))
+    setWebChatTotalTokenLimit(String(access.totalTokenLimit))
     setWebChatReason('')
   }, [])
 
@@ -232,23 +232,23 @@ export function AdminMemberDetailPage() {
     event.preventDefault()
     if (!member || !webChatAccess) return
 
-    const dailyRequestLimit = Number(webChatDailyRequestLimit)
-    const dailyTokenLimit = Number(webChatDailyTokenLimit)
+    const totalRequestLimit = Number(webChatTotalRequestLimit)
+    const totalTokenLimit = Number(webChatTotalTokenLimit)
     const reason = webChatReason.trim()
     if (
-      !Number.isSafeInteger(dailyRequestLimit) ||
-      dailyRequestLimit < 1 ||
-      dailyRequestLimit > 10_000
+      !Number.isSafeInteger(totalRequestLimit) ||
+      totalRequestLimit < 1 ||
+      totalRequestLimit > 10_000
     ) {
-      setWebChatAccessError('每日请求上限必须是 1 到 10000 之间的整数。')
+      setWebChatAccessError('累计请求总上限必须是 1 到 10000 之间的整数。')
       return
     }
     if (
-      !Number.isSafeInteger(dailyTokenLimit) ||
-      dailyTokenLimit < 100 ||
-      dailyTokenLimit > 1_000_000_000
+      !Number.isSafeInteger(totalTokenLimit) ||
+      totalTokenLimit < 100 ||
+      totalTokenLimit > 1_000_000_000
     ) {
-      setWebChatAccessError('每日 Token 上限必须是 100 到 1000000000 之间的整数。')
+      setWebChatAccessError('累计 Token 总上限必须是 100 到 1000000000 之间的整数。')
       return
     }
     if (webChatEnabled && member.status !== 'active') {
@@ -266,8 +266,8 @@ export function AdminMemberDetailPage() {
       const nextAccess = await updateAdminWebChatMemberAccess({
         memberId: member.id,
         enabled: webChatEnabled,
-        dailyRequestLimit,
-        dailyTokenLimit,
+        totalRequestLimit,
+        totalTokenLimit,
         expectedVersion: webChatAccess.version,
         reason,
       })
@@ -589,13 +589,13 @@ export function AdminMemberDetailPage() {
         ? `手工录入 ${platformLabels[dialog.item.platform]} 数据`
         : `解绑 ${platformLabels[dialog.item.platform]} 账号`
     : ''
-  const parsedWebChatRequestLimit = Number(webChatDailyRequestLimit)
-  const parsedWebChatTokenLimit = Number(webChatDailyTokenLimit)
+  const parsedWebChatRequestLimit = Number(webChatTotalRequestLimit)
+  const parsedWebChatTokenLimit = Number(webChatTotalTokenLimit)
   const webChatAccessChanged = Boolean(
     webChatAccess &&
     (webChatEnabled !== webChatAccess.enabled ||
-      parsedWebChatRequestLimit !== webChatAccess.dailyRequestLimit ||
-      parsedWebChatTokenLimit !== webChatAccess.dailyTokenLimit),
+      parsedWebChatRequestLimit !== webChatAccess.totalRequestLimit ||
+      parsedWebChatTokenLimit !== webChatAccess.totalTokenLimit),
   )
 
   return (
@@ -658,7 +658,7 @@ export function AdminMemberDetailPage() {
             <div className="section-title-row">
               <div>
                 <h2>AI 助手访问</h2>
-                <p>逐账号开放试运行，并设置北京时间每日请求与 Token 上限。</p>
+                <p>逐账号开放试运行，并设置累计请求与 Token 总上限。</p>
               </div>
               <button
                 className="secondary-button"
@@ -698,30 +698,30 @@ export function AdminMemberDetailPage() {
                   </span>
                 </label>
                 <label>
-                  <span>每日请求上限</span>
+                  <span>累计请求总上限</span>
                   <input
                     required
                     type="number"
                     min={1}
                     max={10_000}
                     step={1}
-                    value={webChatDailyRequestLimit}
+                    value={webChatTotalRequestLimit}
                     disabled={webChatAccessSaving}
-                    onChange={(event) => setWebChatDailyRequestLimit(event.target.value)}
+                    onChange={(event) => setWebChatTotalRequestLimit(event.target.value)}
                   />
-                  <small>北京时间每日 00:00 重置。</small>
+                  <small>不会每日重置；提高上限可追加可用额度。</small>
                 </label>
                 <label>
-                  <span>每日 Token 上限</span>
+                  <span>累计 Token 总上限</span>
                   <input
                     required
                     type="number"
                     min={100}
                     max={1_000_000_000}
                     step={100}
-                    value={webChatDailyTokenLimit}
+                    value={webChatTotalTokenLimit}
                     disabled={webChatAccessSaving}
-                    onChange={(event) => setWebChatDailyTokenLimit(event.target.value)}
+                    onChange={(event) => setWebChatTotalTokenLimit(event.target.value)}
                   />
                   <small>已结算与正在预留的 Token 共同占用额度。</small>
                 </label>

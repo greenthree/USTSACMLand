@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 27,
-      assertionCount: 679,
-      releaseMigrationCount: 32,
+      fileCount: 28,
+      assertionCount: 698,
+      releaseMigrationCount: 33,
     })
   })
 
@@ -259,6 +259,17 @@ describe('CI workflow', () => {
         workflow,
         packageJson,
         pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607180003_webchat_total_member_quotas.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607180003_webchat_total_member_quotas/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
         migrationFiles,
         deployWorkflow.replace('workflow_run:', 'push:'),
         supabaseConfig,
@@ -324,5 +335,13 @@ describe('CI workflow', () => {
         databaseTypes.replace('read_daily_problem_feed:', 'removed_daily_problem_feed:'),
       ),
     ).toThrow(/read_daily_problem_feed/)
+    expect(() =>
+      verifyDatabaseTypes(
+        databaseTypes.replace('requested_total_request_limit:', 'removed_total_request_limit:'),
+      ),
+    ).toThrow(/requested_total_request_limit/)
+    expect(() =>
+      verifyDatabaseTypes(`${databaseTypes}\nrequested_daily_request_limit: number`),
+    ).toThrow(/daily member quota API/)
   })
 })

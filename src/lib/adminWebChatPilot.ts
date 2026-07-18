@@ -12,9 +12,8 @@ export interface AdminWebChatPilotMember {
   role: WebChatPilotRole
   accountStatus: WebChatPilotAccountStatus
   accessEnabled: boolean
-  dailyRequestLimit: number
-  dailyTokenLimit: number
-  usageDate: string
+  totalRequestLimit: number
+  totalTokenLimit: number
   requestCount: number
   settledTokens: number
   reservedTokens: number
@@ -34,11 +33,10 @@ interface AdminWebChatPilotMemberRow {
   role: string
   review_status: string
   access_enabled: boolean
-  daily_request_limit: number | string
-  daily_token_limit: number | string
-  usage_date: string
-  request_count: number | string
-  settled_tokens: number | string
+  total_request_limit: number | string
+  total_token_limit: number | string
+  used_requests: number | string
+  used_tokens: number | string
   reserved_tokens: number | string
   remaining_requests: number | string
   remaining_tokens: number | string
@@ -57,14 +55,13 @@ const demoMembers: AdminWebChatPilotMember[] = [
     role: 'member',
     accountStatus: 'approved',
     accessEnabled: true,
-    dailyRequestLimit: 30,
-    dailyTokenLimit: 100_000,
-    usageDate: '2026-07-18',
+    totalRequestLimit: 300,
+    totalTokenLimit: 1_000_000,
     requestCount: 8,
     settledTokens: 18_420,
     reservedTokens: 4_000,
-    remainingRequests: 22,
-    remainingTokens: 77_580,
+    remainingRequests: 292,
+    remainingTokens: 977_580,
     activeRequestCount: 1,
     lastRequestAt: '2026-07-18T08:30:00+08:00',
     version: 2,
@@ -94,17 +91,16 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
   if (
     !uuidPattern.test(row.user_id) ||
     typeof row.access_enabled !== 'boolean' ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(row.usage_date) ||
     !['member', 'admin'].includes(row.role) ||
     !['approved', 'suspended'].includes(row.review_status)
   ) {
     throw new Error('试运行成员列表返回了无效数据。')
   }
 
-  const dailyRequestLimit = integer(row.daily_request_limit, '每日请求上限')
-  const dailyTokenLimit = integer(row.daily_token_limit, '每日 Token 上限')
-  const requestCount = integer(row.request_count, '今日请求数')
-  const settledTokens = integer(row.settled_tokens, '已结算 Token')
+  const totalRequestLimit = integer(row.total_request_limit, '累计请求总上限')
+  const totalTokenLimit = integer(row.total_token_limit, '累计 Token 总上限')
+  const requestCount = integer(row.used_requests, '累计请求数')
+  const settledTokens = integer(row.used_tokens, '累计已结算 Token')
   const reservedTokens = integer(row.reserved_tokens, '预留 Token')
   const remainingRequests = integer(row.remaining_requests, '剩余请求数')
   const remainingTokens = integer(row.remaining_tokens, '剩余 Token')
@@ -112,12 +108,12 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
   const version = integer(row.version, '配置版本')
 
   if (
-    dailyRequestLimit < 1 ||
-    dailyTokenLimit < 100 ||
+    totalRequestLimit < 1 ||
+    totalTokenLimit < 100 ||
     version < 1 ||
     activeRequestCount > 1 ||
-    remainingRequests !== Math.max(dailyRequestLimit - requestCount, 0) ||
-    remainingTokens !== Math.max(dailyTokenLimit - settledTokens - reservedTokens, 0)
+    remainingRequests !== Math.max(totalRequestLimit - requestCount, 0) ||
+    remainingTokens !== Math.max(totalTokenLimit - settledTokens - reservedTokens, 0)
   ) {
     throw new Error('试运行成员列表返回了不一致的额度数据。')
   }
@@ -130,9 +126,8 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
     role: row.role as WebChatPilotRole,
     accountStatus: row.review_status as WebChatPilotAccountStatus,
     accessEnabled: row.access_enabled,
-    dailyRequestLimit,
-    dailyTokenLimit,
-    usageDate: row.usage_date,
+    totalRequestLimit,
+    totalTokenLimit,
     requestCount,
     settledTokens,
     reservedTokens,

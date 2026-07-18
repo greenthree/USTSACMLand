@@ -124,7 +124,7 @@ select ok(
 select ok(
   not pg_catalog.has_function_privilege(
     'service_role',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request_internal(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and not pg_catalog.has_function_privilege(
@@ -408,8 +408,8 @@ select ok(
     select 1
     from default_admin_access
     where not access_enabled
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
       and version = 0
       and updated_at is null
   ),
@@ -437,8 +437,8 @@ select ok(
     select 1
     from default_self_admin_access
     where not access_enabled
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
       and version = 0
       and updated_at is null
   ),
@@ -452,8 +452,8 @@ select throws_ok(
     )
   $$,
   '22023',
-  'Member daily request limit must be between 1 and 10000.',
-  'member daily request limits enforce the supported lower boundary'
+  'Member total request limit must be between 1 and 10000.',
+  'member total request limits enforce the supported lower boundary'
 );
 
 select throws_ok(
@@ -463,8 +463,8 @@ select throws_ok(
     )
   $$,
   '22023',
-  'Member daily token limit must be between 100 and 1000000000.',
-  'member daily token limits enforce the supported lower boundary'
+  'Member total token limit must be between 100 and 1000000000.',
+  'member total token limits enforce the supported lower boundary'
 );
 
 select throws_ok(
@@ -495,8 +495,8 @@ select ok(
     select 1
     from initial_member_update
     where access_enabled
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
       and version = 1
       and updated_at is not null
   ),
@@ -509,8 +509,8 @@ select ok(
     from private.webchat_member_access
     where user_id = '00000000-0000-0000-0000-000000002202'
       and access_enabled
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
       and version = 1
       and updated_by = '00000000-0000-0000-0000-000000002201'
   ),
@@ -524,7 +524,7 @@ select ok(
     where action = 'webchat_member_access_update'
       and target_table = 'webchat_member_access'
       and target_id = '00000000-0000-0000-0000-000000002202'
-      and before_data = '{"accessEnabled":false,"dailyRequestLimit":30,"dailyTokenLimit":100000,"version":0}'::jsonb
+      and before_data = '{"accessEnabled":false,"totalRequestLimit":30,"totalTokenLimit":100000,"version":0}'::jsonb
   ),
   'the first audit snapshot records the effective deny-by-default state'
 );
@@ -535,7 +535,7 @@ select ok(
     from public.audit_logs
     where action = 'webchat_member_access_update'
       and target_id = '00000000-0000-0000-0000-000000002202'
-      and after_data = '{"accessEnabled":true,"dailyRequestLimit":2,"dailyTokenLimit":500,"version":1}'::jsonb
+      and after_data = '{"accessEnabled":true,"totalRequestLimit":2,"totalTokenLimit":500,"version":1}'::jsonb
   ),
   'the audit records the exact post-update access and limit state'
 );
@@ -549,7 +549,7 @@ select ok(
       and metadata ->> 'profile_id' = '00000000-0000-0000-0000-000000002202'
       and metadata ->> 'reason' = 'Enable initial pilot access'
       and metadata -> 'changedFields'
-        = '["accessEnabled","dailyRequestLimit","dailyTokenLimit"]'::jsonb
+        = '["accessEnabled","totalRequestLimit","totalTokenLimit"]'::jsonb
   ),
   'the audit lists the reason and changed non-secret fields'
 );
@@ -593,8 +593,8 @@ select ok(
   exists (
     select 1 from second_member_update
     where access_enabled
-      and daily_request_limit = 3
-      and daily_token_limit = 800
+      and total_request_limit = 3
+      and total_token_limit = 800
       and version = 2
   ),
   'a current optimistic version advances the policy and its version atomically'
@@ -609,8 +609,8 @@ select ok(
   exists (
     select 1 from refreshed_admin_access
     where access_enabled
-      and daily_request_limit = 3
-      and daily_token_limit = 800
+      and total_request_limit = 3
+      and total_token_limit = 800
       and version = 2
   ),
   'the administrative reader returns the latest member policy version'
@@ -630,7 +630,7 @@ select throws_ok(
 reset role;
 
 insert into private.webchat_member_access (
-  user_id, access_enabled, daily_request_limit, daily_token_limit, updated_by
+  user_id, access_enabled, total_request_limit, total_token_limit, updated_by
 )
 values
   ('00000000-0000-0000-0000-000000002205', true, 5, 1000, '00000000-0000-0000-0000-000000002201'),
@@ -662,8 +662,8 @@ select ok(
     select 1 from default_runtime_access
     where account_eligible
       and not access_enabled
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
       and version = 0
   ),
   'runtime access also treats a missing policy row as denied version-zero defaults'
@@ -674,8 +674,8 @@ select ok(
     select 1 from allowed_runtime_access
     where account_eligible
       and access_enabled
-      and daily_request_limit = 3
-      and daily_token_limit = 800
+      and total_request_limit = 3
+      and total_token_limit = 800
       and version = 2
   ),
   'runtime access returns the configured active member policy without profile details'
@@ -686,8 +686,8 @@ select ok(
     select 1 from suspended_runtime_access
     where not account_eligible
       and access_enabled
-      and daily_request_limit = 5
-      and daily_token_limit = 1000
+      and total_request_limit = 5
+      and total_token_limit = 1000
   ),
   'runtime access separates account eligibility from the stored member switch'
 );
@@ -701,8 +701,8 @@ select is(
   array[
     'access_enabled',
     'account_eligible',
-    'daily_request_limit',
-    'daily_token_limit',
+    'total_request_limit',
+    'total_token_limit',
     'version'
   ]::text[],
   'runtime access exposes no member identity, PII, or audit metadata fields'
@@ -795,7 +795,7 @@ reset role;
 
 select is(
   (select decision from oversized_claim),
-  'request_token_limited',
+  'member_total_token_limited',
   'one request larger than the administrator limit returns a structured denial'
 );
 
@@ -804,8 +804,8 @@ select ok(
     select 1 from exact_claim
     where decision = 'acquired'
       and status = 'claimed'
-      and remaining_daily_requests = 2
-      and remaining_daily_tokens = 0
+      and remaining_total_requests = 2
+      and remaining_total_tokens = 0
   ),
   'a reservation exactly equal to the member token limit is claimed atomically'
 );
@@ -825,21 +825,21 @@ select ok(
   exists (
     select 1 from allowed_usage
     where access_enabled
-      and daily_request_limit = 3
-      and request_count = 1
+      and total_request_limit = 3
+      and used_requests = 1
       and remaining_requests = 2
-      and daily_token_limit = 800
-      and settled_tokens = 0
+      and total_token_limit = 800
+      and used_tokens = 0
       and reserved_tokens = 800
       and remaining_tokens = 0
   ),
   'the member sees current request, reservation, limits, and exact remaining quota'
 );
 
-select is(
-  (select reset_at from allowed_usage),
-  (((select usage_date from allowed_usage) + 1)::timestamp at time zone 'Asia/Shanghai'),
-  'member quota resets at the next Beijing midnight'
+select ok(
+  pg_catalog.pg_get_function_result('public.read_own_webchat_usage()'::regprocedure)
+    !~ '(usage_date|reset_at)',
+  'member quota output no longer advertises a daily reset'
 );
 
 select is(
@@ -850,16 +850,14 @@ select is(
   ),
   array[
     'access_enabled',
-    'daily_request_limit',
-    'daily_token_limit',
     'model',
     'remaining_requests',
     'remaining_tokens',
-    'request_count',
     'reserved_tokens',
-    'reset_at',
-    'settled_tokens',
-    'usage_date'
+    'total_request_limit',
+    'total_token_limit',
+    'used_requests',
+    'used_tokens'
   ]::text[],
   'own usage exposes only effective policy and aggregate self-usage fields'
 );
@@ -887,7 +885,7 @@ reset role;
 select ok(
   exists (
     select 1 from released_usage
-    where request_count = 0
+    where used_requests = 0
       and remaining_requests = 3
       and reserved_tokens = 0
       and remaining_tokens = 800
@@ -951,9 +949,9 @@ reset role;
 select ok(
   exists (
     select 1 from expired_claimed_usage
-    where request_count = 1
+    where used_requests = 1
       and remaining_requests = 4
-      and settled_tokens = 50
+      and used_tokens = 50
       and reserved_tokens = 0
       and remaining_tokens = 950
   ),
@@ -986,9 +984,9 @@ reset role;
 select ok(
   exists (
     select 1 from expired_started_usage
-    where request_count = 2
+    where used_requests = 2
       and remaining_requests = 3
-      and settled_tokens = 350
+      and used_tokens = 350
       and reserved_tokens = 0
       and remaining_tokens = 650
   ),
@@ -1116,7 +1114,7 @@ select ok(
 
 select is(
   (select decision from request_limit_second),
-  'daily_request_limited',
+  'member_total_request_limited',
   'the database-enforced administrator request limit blocks the next daily request'
 );
 
@@ -1134,9 +1132,9 @@ reset role;
 select ok(
   exists (
     select 1 from request_limit_usage
-    where request_count = 1
+    where used_requests = 1
       and remaining_requests = 0
-      and settled_tokens = 20
+      and used_tokens = 20
       and reserved_tokens = 0
       and remaining_tokens = 980
   ),
@@ -1191,7 +1189,7 @@ select ok(
 
 select is(
   (select decision from token_limit_second),
-  'daily_token_limited',
+  'member_total_token_limited',
   'settled plus requested tokens cannot exceed the administrator token limit'
 );
 

@@ -64,7 +64,7 @@ export function AdminWebChatPilotPanel() {
       <header className="webchat-pilot-heading">
         <div>
           <h2 id="webchat-pilot-title">试运行成员</h2>
-          <p>仅汇总已显式配置 AI 权限的账号与北京时间今日额度，不读取对话内容。</p>
+          <p>仅汇总已显式配置 AI 权限账号的累计额度与活动状态，不读取对话内容。</p>
         </div>
         <button
           className="secondary-button"
@@ -91,12 +91,12 @@ export function AdminWebChatPilotPanel() {
           </div>
           <div>
             <Activity size={18} aria-hidden="true" />
-            <span>今日请求</span>
+            <span>累计请求</span>
             <strong>{number(summary.requestCount)}</strong>
           </div>
           <div>
             <Coins size={18} aria-hidden="true" />
-            <span>今日占用 Token</span>
+            <span>累计占用 Token</span>
             <strong>{number(summary.occupiedTokens)}</strong>
           </div>
           <div>
@@ -128,14 +128,14 @@ export function AdminWebChatPilotPanel() {
       {members.length > 0 ? (
         <div className="compact-table-wrap admin-table-wrap webchat-pilot-table-wrap">
           <table className="compact-table admin-members-table webchat-pilot-table">
-            <caption className="sr-only">WebChat 试运行成员今日用量</caption>
+            <caption className="sr-only">WebChat 试运行成员累计用量</caption>
             <thead>
               <tr>
                 <th scope="col">成员</th>
                 <th scope="col">年级 / 专业</th>
                 <th scope="col">权限与状态</th>
-                <th scope="col">今日请求</th>
-                <th scope="col">今日 Token</th>
+                <th scope="col">累计请求</th>
+                <th scope="col">累计 Token</th>
                 <th scope="col">活动请求</th>
                 <th scope="col">最近请求</th>
                 <th scope="col">操作</th>
@@ -163,16 +163,16 @@ export function AdminWebChatPilotPanel() {
                       {member.version}
                     </small>
                   </td>
-                  <td data-label="今日请求">
+                  <td data-label="累计请求">
                     <strong>
-                      {number(member.requestCount)} / {number(member.dailyRequestLimit)}
+                      {number(member.requestCount)} / {number(member.totalRequestLimit)}
                     </strong>
                     <small>剩余 {number(member.remainingRequests)}</small>
                   </td>
-                  <td data-label="今日 Token">
+                  <td data-label="累计 Token">
                     <strong>
                       {number(member.settledTokens + member.reservedTokens)} /{' '}
-                      {number(member.dailyTokenLimit)}
+                      {number(member.totalTokenLimit)}
                     </strong>
                     <small>
                       已结算 {number(member.settledTokens)} · 预留 {number(member.reservedTokens)} ·
@@ -181,7 +181,7 @@ export function AdminWebChatPilotPanel() {
                   </td>
                   <td data-label="活动请求">
                     <strong>{number(member.activeRequestCount)}</strong>
-                    <small>统计日期 {member.usageDate}</small>
+                    <small>当前正在生成</small>
                   </td>
                   <td data-label="最近请求">
                     <span>

@@ -18,8 +18,8 @@ const quotaPolicy: WebChatQuotaPolicy = {
   promptVersion: 'prompt-v1',
   maxOutputTokens: 2_048,
   minuteRequestLimit: 3,
-  dailyRequestLimit: 30,
-  dailyTokenLimit: 100_000,
+  memberTotalRequestLimit: 30,
+  memberTotalTokenLimit: 100_000,
   leaseSeconds: 180,
 }
 const runtimeConfig: WebChatRelayRuntimeConfig = {
@@ -33,8 +33,8 @@ const runtimeConfig: WebChatRelayRuntimeConfig = {
 const memberAccess: WebChatMemberRuntimeAccess = {
   accountEligible: true,
   enabled: true,
-  dailyRequestLimit: 30,
-  dailyTokenLimit: 100_000,
+  totalRequestLimit: 30,
+  totalTokenLimit: 100_000,
   version: 1,
 }
 
@@ -81,8 +81,8 @@ function services(overrides: Partial<WebChatServices> = {}): WebChatServices {
         decision: 'acquired',
         status: 'claimed',
         remainingMinuteRequests: 2,
-        remainingDailyRequests: 29,
-        remainingDailyTokens: 90_000,
+        remainingTotalRequests: 29,
+        remainingTotalTokens: 90_000,
         retryAfterSeconds: null,
       }
     },
@@ -359,8 +359,8 @@ Deno.test('webchat resolves the actual relay model before quota fingerprinting',
               decision: 'acquired',
               status: 'claimed',
               remainingMinuteRequests: 2,
-              remainingDailyRequests: 29,
-              remainingDailyTokens: 90_000,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
               retryAfterSeconds: null,
             }
           },
@@ -414,8 +414,8 @@ Deno.test(
                 decision: 'acquired',
                 status: 'claimed',
                 remainingMinuteRequests: 2,
-                remainingDailyRequests: 29,
-                remainingDailyTokens: 90_000,
+                remainingTotalRequests: 29,
+                remainingTotalTokens: 90_000,
                 retryAfterSeconds: null,
               }
             },
@@ -459,8 +459,8 @@ Deno.test('webchat maps atomic quota decisions without calling the relay', async
     ['requests_disabled', 503, 'chat_paused'],
     ['active_concurrent', 409, 'generation_in_progress'],
     ['minute_limited', 429, 'chat_minute_limited'],
-    ['daily_request_limited', 429, 'chat_daily_request_limited'],
-    ['daily_token_limited', 429, 'chat_daily_token_limited'],
+    ['member_total_request_limited', 429, 'chat_total_request_limited'],
+    ['member_total_token_limited', 429, 'chat_total_token_limited'],
     ['global_daily_request_limited', 503, 'chat_global_request_budget_exhausted'],
     ['global_daily_token_limited', 503, 'chat_global_token_budget_exhausted'],
     ['duplicate_active', 409, 'duplicate_request_active'],
@@ -477,8 +477,8 @@ Deno.test('webchat maps atomic quota decisions without calling the relay', async
                 decision,
                 status: 'blocked',
                 remainingMinuteRequests: 0,
-                remainingDailyRequests: 0,
-                remainingDailyTokens: 0,
+                remainingTotalRequests: 0,
+                remainingTotalTokens: 0,
                 retryAfterSeconds: decision === 'idempotency_conflict' ? null : 9,
               }
             },
@@ -507,8 +507,8 @@ Deno.test('webchat sends only the first claimed global budget alert', async () =
               decision: 'global_daily_token_limited',
               status: 'blocked',
               remainingMinuteRequests: 2,
-              remainingDailyRequests: 29,
-              remainingDailyTokens: 90_000,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
               retryAfterSeconds: 60,
             }
           },
@@ -560,8 +560,8 @@ Deno.test('webchat preserves the quota response when budget alerting fails', asy
               decision: 'global_daily_request_limited',
               status: 'blocked',
               remainingMinuteRequests: 2,
-              remainingDailyRequests: 29,
-              remainingDailyTokens: 90_000,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
               retryAfterSeconds: 60,
             }
           },
@@ -583,7 +583,7 @@ Deno.test('webchat preserves the quota response when budget alerting fails', asy
   strictEqual(errors.length, 1)
 })
 
-Deno.test('webchat checks global budgets when a member daily limit wins precedence', async () => {
+Deno.test('webchat does not report a member total limit as a global budget event', async () => {
   const checkedKinds: string[] = []
   const notifiedKinds: string[] = []
   const response = await createWebChatHandler(
@@ -592,11 +592,11 @@ Deno.test('webchat checks global budgets when a member daily limit wins preceden
         services({
           async claimWebChatRequest() {
             return {
-              decision: 'daily_request_limited',
+              decision: 'member_total_request_limited',
               status: 'blocked',
               remainingMinuteRequests: 2,
-              remainingDailyRequests: 0,
-              remainingDailyTokens: 90_000,
+              remainingTotalRequests: 0,
+              remainingTotalTokens: 90_000,
               retryAfterSeconds: 60,
             }
           },
@@ -627,13 +627,14 @@ Deno.test('webchat checks global budgets when a member daily limit wins preceden
   strictEqual(response.status, 429)
   strictEqual(
     ((await responseBody(response)).error as { code: string }).code,
-    'chat_daily_request_limited',
+    'chat_total_request_limited',
   )
-  deepStrictEqual(checkedKinds, ['requests', 'tokens'])
-  deepStrictEqual(notifiedKinds, ['requests'])
+  strictEqual(response.headers.get('retry-after'), null)
+  deepStrictEqual(checkedKinds, [])
+  deepStrictEqual(notifiedKinds, [])
 })
 
-Deno.test('webchat checks global budgets when a member minute limit wins precedence', async () => {
+Deno.test('webchat does not report a minute limit as a global budget event', async () => {
   const checkedKinds: string[] = []
   const response = await createWebChatHandler(
     dependencies({
@@ -644,8 +645,8 @@ Deno.test('webchat checks global budgets when a member minute limit wins precede
               decision: 'minute_limited',
               status: 'blocked',
               remainingMinuteRequests: 0,
-              remainingDailyRequests: 29,
-              remainingDailyTokens: 90_000,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
               retryAfterSeconds: 60,
             }
           },
@@ -674,7 +675,7 @@ Deno.test('webchat checks global budgets when a member minute limit wins precede
     ((await responseBody(response)).error as { code: string }).code,
     'chat_minute_limited',
   )
-  deepStrictEqual(checkedKinds, ['requests', 'tokens'])
+  deepStrictEqual(checkedKinds, [])
 })
 
 Deno.test('webchat releases only the pre-start claim when relay startup fails', async () => {
@@ -700,7 +701,7 @@ Deno.test('webchat releases only the pre-start claim when relay startup fails', 
 })
 
 Deno.test(
-  'webchat rejects a request whose conservative reservation exceeds the daily budget',
+  'webchat rejects a request whose conservative reservation exceeds the member total budget',
   async () => {
     let claimed = false
     const response = await createWebChatHandler(
@@ -708,7 +709,7 @@ Deno.test(
         createServices: () =>
           services({
             async readMemberRuntimeAccess() {
-              return { ...memberAccess, dailyTokenLimit: 100 }
+              return { ...memberAccess, totalTokenLimit: 100 }
             },
             async claimWebChatRequest() {
               claimed = true

@@ -1,8 +1,8 @@
 export interface WebChatMemberRuntimeAccess {
   accountEligible: boolean
   enabled: boolean
-  dailyRequestLimit: number
-  dailyTokenLimit: number
+  totalRequestLimit: number
+  totalTokenLimit: number
   version: number
 }
 
@@ -26,8 +26,8 @@ export function parseWebChatMemberRuntimeAccess(value: unknown): WebChatMemberRu
   return {
     accountEligible: record.account_eligible,
     enabled: record.access_enabled,
-    dailyRequestLimit: integer(record.daily_request_limit, 'daily request limit', 1),
-    dailyTokenLimit: integer(record.daily_token_limit, 'daily token limit', 100),
+    totalRequestLimit: integer(record.total_request_limit, 'total request limit', 1),
+    totalTokenLimit: integer(record.total_token_limit, 'total token limit', 100),
     version: integer(record.version, 'configuration version', 0),
   }
 }

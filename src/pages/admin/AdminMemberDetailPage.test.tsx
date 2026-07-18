@@ -65,15 +65,15 @@ describe('AdminMemberDetailPage', () => {
     memberDetailMocks.triggerSync.mockResolvedValue(undefined)
     memberDetailMocks.fetchWebChatAccess.mockResolvedValue({
       enabled: false,
-      dailyRequestLimit: 10,
-      dailyTokenLimit: 40_000,
+      totalRequestLimit: 10,
+      totalTokenLimit: 40_000,
       version: 1,
       updatedAt: '2026-07-17T08:00:00Z',
     })
     memberDetailMocks.updateWebChatAccess.mockResolvedValue({
       enabled: true,
-      dailyRequestLimit: 12,
-      dailyTokenLimit: 50_000,
+      totalRequestLimit: 12,
+      totalTokenLimit: 50_000,
       version: 2,
       updatedAt: '2026-07-17T09:00:00Z',
     })
@@ -111,14 +111,14 @@ describe('AdminMemberDetailPage', () => {
     expect(await screen.findByText('牛客 账号已保存，等待验证。')).toBeInTheDocument()
   })
 
-  it('lets an administrator enable WebChat and set member daily limits', async () => {
+  it('lets an administrator enable WebChat and set cumulative member limits', async () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('heading', { name: '沈亦安' })
 
     const enabled = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
-    const requestLimit = screen.getByRole('spinbutton', { name: /每日请求上限/ })
-    const tokenLimit = screen.getByRole('spinbutton', { name: /每日 Token 上限/ })
+    const requestLimit = screen.getByRole('spinbutton', { name: /累计请求总上限/ })
+    const tokenLimit = screen.getByRole('spinbutton', { name: /累计 Token 总上限/ })
     await user.click(enabled)
     await user.clear(requestLimit)
     await user.type(requestLimit, '12')
@@ -130,8 +130,8 @@ describe('AdminMemberDetailPage', () => {
     expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
       memberId: 'member-1',
       enabled: true,
-      dailyRequestLimit: 12,
-      dailyTokenLimit: 50_000,
+      totalRequestLimit: 12,
+      totalTokenLimit: 50_000,
       expectedVersion: 1,
       reason: '开放首批试运行',
     })

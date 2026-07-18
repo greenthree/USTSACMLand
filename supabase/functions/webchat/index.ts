@@ -59,8 +59,8 @@ const quotaPolicy: WebChatQuotaPolicy = {
   minuteRequestLimit: integerEnv('CHAT_REQUESTS_PER_MINUTE', 3, 1, 1_000),
   // Replaced with the current private member policy before any reservation
   // or claim. These values only satisfy the shared preparation type.
-  dailyRequestLimit: 30,
-  dailyTokenLimit: 100_000,
+  memberTotalRequestLimit: 30,
+  memberTotalTokenLimit: 100_000,
   leaseSeconds: integerEnv(
     'CHAT_CLAIM_LEASE_SECONDS',
     Math.max(180, minimumLeaseSeconds),

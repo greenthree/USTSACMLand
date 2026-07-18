@@ -20,9 +20,8 @@ const members = [
     role: 'member' as const,
     accountStatus: 'approved' as const,
     accessEnabled: true,
-    dailyRequestLimit: 20,
-    dailyTokenLimit: 80_000,
-    usageDate: '2026-07-18',
+    totalRequestLimit: 20,
+    totalTokenLimit: 80_000,
     requestCount: 6,
     settledTokens: 12_000,
     reservedTokens: 3_000,
@@ -41,9 +40,8 @@ const members = [
     role: 'admin' as const,
     accountStatus: 'suspended' as const,
     accessEnabled: false,
-    dailyRequestLimit: 10,
-    dailyTokenLimit: 20_000,
-    usageDate: '2026-07-18',
+    totalRequestLimit: 10,
+    totalTokenLimit: 20_000,
     requestCount: 0,
     settledTokens: 0,
     reservedTokens: 0,
@@ -74,7 +72,7 @@ describe('AdminWebChatPilotPanel', () => {
     const summary = within(region).getByLabelText('试运行摘要')
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
     expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
-    expect(within(summary).getByText('今日占用 Token').nextSibling).toHaveTextContent('15,000')
+    expect(within(summary).getByText('累计占用 Token').nextSibling).toHaveTextContent('15,000')
     expect(within(region).getByText('6 / 20')).toBeInTheDocument()
     expect(within(region).getByText(/已结算 12,000 · 预留 3,000 · 剩余 65,000/)).toBeInTheDocument()
     expect(within(region).getByText(/账号已停用/)).toBeInTheDocument()
