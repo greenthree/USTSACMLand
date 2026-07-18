@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 24,
-      assertionCount: 599,
-      releaseMigrationCount: 30,
+      fileCount: 26,
+      assertionCount: 658,
+      releaseMigrationCount: 31,
     })
   })
 
@@ -156,7 +156,7 @@ describe('CI workflow', () => {
         deployWorkflow,
         supabaseConfig,
       ),
-    ).toThrow(/at least 24 pgTAP files/)
+    ).toThrow(/contiguous|at least 26 pgTAP files/)
     const regressed = pgTapFiles.map((file) =>
       file.name === '13_non_luogu_atomic_persistence.test.sql'
         ? { ...file, content: file.content.replace('select plan(27);', 'select plan(1);') }
@@ -248,6 +248,17 @@ describe('CI workflow', () => {
         workflow,
         packageJson,
         pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607180001_daily_problem_learning.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607180001_daily_problem_learning/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
         migrationFiles,
         deployWorkflow.replace('workflow_run:', 'push:'),
         supabaseConfig,
@@ -300,10 +311,18 @@ describe('CI workflow', () => {
     ).toThrow(/recognized assertion calls/)
   })
 
-  it('protects generated types for service-only cache tables and atomic RPCs', () => {
+  it('protects generated types for service-only tables and privileged RPCs', () => {
     expect(() => verifyDatabaseTypes(databaseTypes)).not.toThrow()
     expect(() =>
       verifyDatabaseTypes(databaseTypes.replace('xcpc_elo_cache_state:', 'removed_cache_state:')),
     ).toThrow(/xcpc_elo_cache_state/)
+    expect(() =>
+      verifyDatabaseTypes(databaseTypes.replace('daily_problems:', 'removed_daily_problems:')),
+    ).toThrow(/daily_problems/)
+    expect(() =>
+      verifyDatabaseTypes(
+        databaseTypes.replace('read_daily_problem_feed:', 'removed_daily_problem_feed:'),
+      ),
+    ).toThrow(/read_daily_problem_feed/)
   })
 })

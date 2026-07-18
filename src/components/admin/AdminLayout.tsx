@@ -1,5 +1,6 @@
 import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check'
 import FileClock from 'lucide-react/dist/esm/icons/file-clock'
+import CalendarCheck2 from 'lucide-react/dist/esm/icons/calendar-check-2'
 import Gauge from 'lucide-react/dist/esm/icons/gauge'
 import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse'
 import IdCard from 'lucide-react/dist/esm/icons/id-card'
@@ -16,6 +17,7 @@ const adminItems = [
   { to: '/admin/members', label: '成员管理', icon: Users },
   { to: '/admin/accounts', label: '平台账号', icon: IdCard },
   { to: '/admin/announcements', label: '公告管理', icon: Megaphone },
+  { to: '/admin/daily-problems', label: '每日一题', icon: CalendarCheck2 },
   { to: '/admin/sync', label: '同步中心', icon: RefreshCw },
   { to: '/admin/health', label: '数据源健康', icon: HeartPulse },
   { to: '/admin/webchat', label: 'WebChat 配置', icon: MessageSquareLock },

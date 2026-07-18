@@ -211,6 +211,40 @@ values
     )$$
   ),
   (
+    'public.admin_list_daily_problems(integer,bigint)'::regprocedure,
+    'select * from public.admin_list_daily_problems(50, null)'
+  ),
+  (
+    'public.admin_upsert_daily_problem(bigint,date,text,text,text,text,text,text[],text,integer,public.daily_problem_status,timestamptz)'::regprocedure,
+    $$select * from public.admin_upsert_daily_problem(
+      null,
+      current_date,
+      'Authorization fixture',
+      'Codeforces',
+      'CF-1A',
+      'https://codeforces.com/problemset/problem/1/A',
+      '入门',
+      array['implementation'],
+      'Authorization fixture.',
+      20,
+      'draft'::public.daily_problem_status,
+      null
+    )$$
+  ),
+  (
+    'public.admin_delete_daily_problem(bigint,timestamptz)'::regprocedure,
+    'select public.admin_delete_daily_problem(99903, now())'
+  ),
+  (
+    'public.admin_set_daily_problem_comment_visibility(bigint,boolean,text,timestamptz)'::regprocedure,
+    $$select * from public.admin_set_daily_problem_comment_visibility(
+      99904,
+      false,
+      'authorization fixture',
+      now()
+    )$$
+  ),
+  (
     'public.admin_get_webchat_member_access(uuid)'::regprocedure,
     $$select * from public.admin_get_webchat_member_access(
       '00000000-0000-0000-0000-0000000001a1'

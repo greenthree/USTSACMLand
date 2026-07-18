@@ -5,7 +5,7 @@ export function PrivacyPage() {
         <p className="legal-kicker">USTS ACM Land</p>
         <h1>隐私说明</h1>
         <p>说明成员账号、公开榜单和第三方数据同步涉及的数据范围。</p>
-        <small>更新日期：2026 年 7 月 17 日</small>
+        <small>更新日期：2026 年 7 月 18 日</small>
       </header>
 
       <article className="legal-body">
@@ -30,8 +30,16 @@ export function PrivacyPage() {
           <ul>
             <li>确认集训队成员身份并管理平台绑定。</li>
             <li>生成队内 Rating 榜、刷题榜和成员详情。</li>
+            <li>提供每日题目、成员完成记录和队内讨论。</li>
             <li>执行定时同步、故障诊断、安全审计和滥用防护。</li>
           </ul>
+        </section>
+
+        <section>
+          <h2>每日题目与讨论</h2>
+          <p>
+            每日题目由管理员维护，题面仍保留在对应竞赛平台，本网站只保存题目链接、标题、难度、标签和训练提示。已登录且账号启用的成员可以记录完成状态并参与讨论；讨论作者只在成员范围内显示，管理员可以隐藏不合适的内容。访客可以查看已发布且已到日期的题目，但不能读取成员完成明细或讨论内容，公开页面只展示匿名聚合数量。
+          </p>
         </section>
 
         <section>

@@ -29,6 +29,9 @@ const LoginPage = lazy(() =>
 const LearningPage = lazy(() =>
   import('./pages/LearningPage').then((module) => ({ default: module.LearningPage })),
 )
+const DailyProblemPage = lazy(() =>
+  import('./pages/DailyProblemPage').then((module) => ({ default: module.DailyProblemPage })),
+)
 const MemberPage = lazy(() =>
   import('./pages/MemberPage').then((module) => ({ default: module.MemberPage })),
 )
@@ -90,6 +93,11 @@ const AdminWebChatPage = lazy(() =>
     default: module.AdminWebChatPage,
   })),
 )
+const AdminDailyProblemsPage = lazy(() =>
+  import('./pages/admin/AdminDailyProblemsPage').then((module) => ({
+    default: module.AdminDailyProblemsPage,
+  })),
+)
 
 function PublicMembersOutlet() {
   return (
@@ -122,6 +130,8 @@ export default function App() {
               <Route path="members/:memberId" element={<MemberPage />} />
             </Route>
             <Route path="learning" element={<LearningPage />} />
+            <Route path="daily-problem" element={<DailyProblemPage />} />
+            <Route path="daily-problem/:date" element={<DailyProblemPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
             <Route
               path="account"
@@ -152,6 +162,7 @@ export default function App() {
               <Route path="members/:memberId" element={<AdminMemberDetailPage />} />
               <Route path="accounts" element={<AdminAccountsPage />} />
               <Route path="announcements" element={<AdminAnnouncementsPage />} />
+              <Route path="daily-problems" element={<AdminDailyProblemsPage />} />
               <Route path="sync" element={<AdminSyncPage />} />
               <Route path="health" element={<AdminSourceHealthPage />} />
               <Route path="webchat" element={<AdminWebChatPage />} />

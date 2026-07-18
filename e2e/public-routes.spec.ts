@@ -99,6 +99,7 @@ test('public pages do not create page-level horizontal overflow', async ({ page 
   for (const route of [
     '/',
     '/learning',
+    '/daily-problem',
     '/rankings',
     '/members',
     '/privacy',

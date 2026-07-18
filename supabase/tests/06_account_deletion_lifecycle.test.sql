@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(33);
+select plan(34);
 
 select ok(
   public.acquire_account_deletion_recovery_lease(
@@ -263,6 +263,40 @@ values (
   '{"profile_id":"00000000-0000-0000-0000-0000000000f6","note":"Deletion Fixture Note"}'::jsonb
 );
 
+insert into public.daily_problems (
+  id, problem_date, title, source_platform, external_problem_id, source_url,
+  difficulty, tags, training_note, estimated_minutes, status, published_at
+)
+overriding system value
+values (
+  99605,
+  (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date - 100,
+  'Deleted member learning fixture',
+  'Codeforces',
+  'CF-99605',
+  'https://codeforces.com/problemset/problem/1/A',
+  '入门',
+  array['lifecycle'],
+  'Account-deletion cascade fixture.',
+  15,
+  'published',
+  pg_catalog.clock_timestamp() - interval '100 days'
+);
+
+insert into public.daily_problem_completions (problem_id, profile_id)
+values (99605, '00000000-0000-0000-0000-0000000000f6');
+
+insert into public.daily_problem_comments (
+  id, problem_id, author_id, body
+)
+overriding system value
+values (
+  99606,
+  99605,
+  '00000000-0000-0000-0000-0000000000f6',
+  'Deleted member discussion fixture.'
+);
+
 do $$
 begin
   if not public.acquire_account_deletion_recovery_lease(
@@ -330,6 +364,17 @@ select is(
   )::integer,
   0,
   'hard deletion removes synchronization jobs and runs'
+);
+
+select is(
+  (
+    (select count(*) from public.daily_problem_completions
+      where profile_id = '00000000-0000-0000-0000-0000000000f6')
+    + (select count(*) from public.daily_problem_comments
+      where author_id = '00000000-0000-0000-0000-0000000000f6')
+  )::integer,
+  0,
+  'hard deletion removes personal daily problem completion and discussion identities'
 );
 
 select ok(
@@ -543,6 +588,43 @@ values (
   '00000000-0000-0000-0000-0000000000fa'
 );
 
+insert into public.daily_problems (
+  id, problem_date, title, source_platform, external_problem_id, source_url,
+  difficulty, tags, training_note, estimated_minutes, status, published_at,
+  created_by, updated_by
+)
+overriding system value
+values (
+  99607,
+  (pg_catalog.clock_timestamp() at time zone 'Asia/Shanghai')::date - 101,
+  'Former administrator daily problem fixture',
+  'Luogu',
+  'P1000',
+  'https://www.luogu.com.cn/problem/P1000',
+  '入门',
+  array['lifecycle'],
+  'Former administrator Auth-reference fixture.',
+  10,
+  'published',
+  pg_catalog.clock_timestamp() - interval '101 days',
+  '00000000-0000-0000-0000-0000000000fa',
+  '00000000-0000-0000-0000-0000000000fa'
+);
+
+insert into public.daily_problem_comments (
+  id, problem_id, author_id, body, is_visible, hidden_at, hidden_by
+)
+overriding system value
+values (
+  99608,
+  99607,
+  '00000000-0000-0000-0000-0000000000fb',
+  'Former administrator moderation reference fixture.',
+  false,
+  pg_catalog.clock_timestamp(),
+  '00000000-0000-0000-0000-0000000000fa'
+);
+
 insert into public.audit_logs (
   actor_id, action, target_table, target_id, metadata
 )
@@ -616,6 +698,17 @@ select ok(
     from public.profiles
     where id = '00000000-0000-0000-0000-0000000000fb'
   )
+  and (
+    select created_by = '00000000-0000-0000-0000-0000000000fa'
+      and updated_by = '00000000-0000-0000-0000-0000000000fa'
+    from public.daily_problems
+    where id = 99607
+  )
+  and (
+    select hidden_by = '00000000-0000-0000-0000-0000000000fa'
+    from public.daily_problem_comments
+    where id = 99608
+  )
   and exists (
     select 1
     from public.audit_logs
@@ -679,8 +772,18 @@ select ok(
     select approved_by is null
     from public.profiles
     where id = '00000000-0000-0000-0000-0000000000fb'
+  )
+  and (
+    select created_by is null and updated_by is null
+    from public.daily_problems
+    where id = 99607
+  )
+  and (
+    select hidden_by is null
+    from public.daily_problem_comments
+    where id = 99608
   ),
-  'Auth foreign keys owned by a deleted former administrator are cleared'
+  'Auth foreign keys owned by a deleted former administrator are cleared across learning content'
 );
 
 select ok(
