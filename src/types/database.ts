@@ -81,7 +81,7 @@ export type Database = {
           id: number
           published_at: string | null
           status: Database['public']['Enums']['announcement_status']
-          title: string
+          title: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -93,7 +93,7 @@ export type Database = {
           id?: never
           published_at?: string | null
           status?: Database['public']['Enums']['announcement_status']
-          title: string
+          title: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -260,7 +260,7 @@ export type Database = {
           source_url: string
           status: Database['public']['Enums']['daily_problem_status']
           tags: string[]
-          title: string
+          title: string | null
           training_note: string
           updated_at: string
           updated_by: string | null
@@ -1902,6 +1902,86 @@ export type Database = {
         Returns: {
           completed_at: string
         }[]
+      }
+      create_own_webchat_conversation: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      delete_own_webchat_conversation: {
+        Args: { requested_conversation_id: string }
+        Returns: undefined
+      }
+      delete_own_webchat_messages: {
+        Args: { requested_conversation_id: string; requested_message_ids: string[] }
+        Returns: number
+      }
+      get_own_webchat_conversation: {
+        Args: { requested_conversation_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_own_webchat_conversations: {
+        Args: {
+          cursor_id?: string
+          cursor_last_message_at?: string
+          requested_limit?: number
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      load_own_webchat_messages: {
+        Args: { requested_conversation_id: string }
+        Returns: {
+          content: Json
+          format: string
+          id: string
+          parent_id: string | null
+          position: number
+        }[]
+      }
+      purge_expired_webchat_conversations: { Args: never; Returns: number }
+      rename_own_webchat_conversation: {
+        Args: { requested_conversation_id: string; requested_title: string }
+        Returns: undefined
+      }
+      set_own_webchat_conversation_archived: {
+        Args: { requested_archived: boolean; requested_conversation_id: string }
+        Returns: undefined
+      }
+      upsert_own_webchat_message: {
+        Args: {
+          requested_content: Json
+          requested_conversation_id: string
+          requested_format: string
+          requested_message_id: string
+          requested_parent_id: string | null
+        }
+        Returns: number
       }
       validate_xcpc_elo_cache_refresh: {
         Args: {

@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 29,
-      assertionCount: 719,
-      releaseMigrationCount: 34,
+      fileCount: 30,
+      assertionCount: 738,
+      releaseMigrationCount: 35,
     })
   })
 
@@ -277,6 +277,17 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/202607180004_public_practice_increment_rankings/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607180005_webchat_conversation_history.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607180005_webchat_conversation_history/)
 
     expect(() =>
       verifyCiWorkflow(

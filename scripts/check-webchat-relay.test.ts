@@ -2,12 +2,25 @@ import { readFile, rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import {
   RelayCompatibilityError,
+  parseRelayCacheUsage,
   parseRelayUsage,
   resolveResponsesEndpoint,
   runRelayCompatibility,
 } from './check-webchat-relay.mjs'
 
 const usage = { input_tokens: 12, output_tokens: 8, total_tokens: 20 }
+const cacheMissUsage = {
+  input_tokens: 1_600,
+  output_tokens: 2,
+  total_tokens: 1_602,
+  input_tokens_details: { cached_tokens: 0, cache_write_tokens: 1_536 },
+}
+const cacheHitUsage = {
+  input_tokens: 1_600,
+  output_tokens: 2,
+  total_tokens: 1_602,
+  input_tokens_details: { cached_tokens: 1_536, cache_write_tokens: 0 },
+}
 
 function sse(events: unknown[], signal?: AbortSignal): Response {
   const encoder = new TextEncoder()
@@ -43,7 +56,7 @@ function sse(events: unknown[], signal?: AbortSignal): Response {
   return new Response(stream, { headers: { 'content-type': 'text/event-stream' } })
 }
 
-function nonStreamingResponse() {
+function nonStreamingResponse(responseUsage = usage) {
   return Response.json({
     id: 'resp-private',
     model: 'gpt-5.6-actual',
@@ -53,7 +66,7 @@ function nonStreamingResponse() {
         content: [{ type: 'output_text', text: 'compatibility output must stay private' }],
       },
     ],
-    usage,
+    usage: responseUsage,
   })
 }
 
@@ -91,6 +104,14 @@ describe('WebChat relay compatibility checker', () => {
     })
     expect(parseRelayUsage({ response: { usage: { ...usage, total_tokens: 1 } } })).toBeNull()
     expect(parseRelayUsage({ response: {} })).toBeNull()
+    expect(parseRelayCacheUsage({ response: { usage: cacheHitUsage } })).toEqual({
+      inputTokens: 1_600,
+      outputTokens: 2,
+      totalTokens: 1_602,
+      cachedInputTokens: 1_536,
+      cacheWriteTokens: 0,
+    })
+    expect(parseRelayCacheUsage({ response: { usage } })).toBeNull()
   })
 
   it('validates non-streaming, typed SSE, Usage, and in-flight Abort without leaking content', async () => {
@@ -103,7 +124,9 @@ describe('WebChat relay compatibility checker', () => {
         authorization: new Headers(init?.headers).get('authorization'),
       })
       if (call === 1) return nonStreamingResponse()
-      if (call === 2) return sse(completedEvents(), init?.signal ?? undefined)
+      if (call === 2) return nonStreamingResponse(cacheMissUsage)
+      if (call === 3) return nonStreamingResponse(cacheHitUsage)
+      if (call === 4) return sse(completedEvents(), init?.signal ?? undefined)
       return sse(
         [
           { type: 'response.created', response: { model: 'gpt-5.6-actual' } },
@@ -134,6 +157,7 @@ describe('WebChat relay compatibility checker', () => {
         },
         checks: {
           nonStreaming: { actualModel: 'gpt-5.6-actual' },
+          promptCaching: { reusedInputTokens: 1_536 },
           streaming: {
             actualModel: 'gpt-5.6-actual',
             deltaCount: 2,
@@ -142,12 +166,16 @@ describe('WebChat relay compatibility checker', () => {
           abort: { settleResult: 'aborted' },
         },
       })
-      expect(requests).toHaveLength(3)
+      expect(requests).toHaveLength(5)
       expect(requests.every((request) => request.authorization === 'Bearer secret-api-key')).toBe(
         true,
       )
       expect(requests[0]?.body).toMatchObject({ model: 'gpt-5.6', store: false, stream: false })
-      expect(requests[1]?.body).toMatchObject({ model: 'gpt-5.6', store: false, stream: true })
+      expect(requests[1]?.body).toMatchObject({ model: 'gpt-5.6', store: false, stream: false })
+      expect(requests[2]?.body).toMatchObject({ model: 'gpt-5.6', store: false, stream: false })
+      expect(requests[1]?.body.input).toBe(requests[2]?.body.input)
+      expect(requests[1]?.body.prompt_cache_key).toBe(requests[2]?.body.prompt_cache_key)
+      expect(requests[3]?.body).toMatchObject({ model: 'gpt-5.6', store: false, stream: true })
 
       const saved = await readFile(reportPath, 'utf8')
       expect(saved).not.toContain('secret-api-key')
@@ -183,6 +211,7 @@ describe('WebChat relay compatibility checker', () => {
           model: 'gpt-5.6',
           fetcher,
           timeoutMs: 5_000,
+          checkCache: false,
           reportPath,
         }),
       ).rejects.toMatchObject({ code: 'stream_missing_usage' })
@@ -193,5 +222,26 @@ describe('WebChat relay compatibility checker', () => {
     } finally {
       await rm(reportPath, { force: true })
     }
+  })
+
+  it('fails when a repeated eligible prefix still reports zero cached input tokens', async () => {
+    let call = 0
+    const fetcher: typeof fetch = vi.fn(async () => {
+      call += 1
+      if (call === 1) return nonStreamingResponse()
+      return nonStreamingResponse(cacheMissUsage)
+    })
+
+    await expect(
+      runRelayCompatibility({
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret-api-key',
+        model: 'gpt-5.6',
+        fetcher,
+        timeoutMs: 5_000,
+        checkAbort: false,
+      }),
+    ).rejects.toMatchObject({ code: 'cache_probe_miss' })
+    expect(fetcher).toHaveBeenCalledTimes(3)
   })
 })

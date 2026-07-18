@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 48 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。每日一题、完成记录和成员讨论已随 PR #60 上线；仓库现包含 28 个 pgTAP 文件、698 项断言，主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手，仍待完成正式试运行连续观察。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 49 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。每日一题、完成记录、成员讨论和刷题增量榜已上线；当前分支定义 50 个 migration、30 个 pgTAP 文件和 738 项断言，其中新增的 WebChat 私有历史会话 migration 尚待本轮发布。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手，本轮增加刷新恢复、历史会话、“思考中”和稳定提示词缓存路由键，仍待完成正式试运行连续观察。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
 
 ## 已实现
 
@@ -17,9 +17,9 @@
 - 资料页专业联想直接读取根目录 `专业目录.txt`，支持目录匹配与目录外专业自由输入。
 - `/account` 登录守卫、`/admin` 管理员角色守卫、会话态导航和退出。
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
-- 8 张账号/榜单核心业务表、3 张每日题目学习表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、7 张 WebChat 私有配置/额度/账本表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
+- 8 张账号/榜单核心业务表、3 张每日题目学习表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、9 张 WebChat 私有配置/额度/账本/历史表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
-- WebChat 安全 API、管理员配置与按账号授权的前端工作台：`webchat`、`webchat-config` 已部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、停止、重新生成、复制、清空和 Markdown/代码块，并在每次请求时动态读取最新会话、生成独立请求 ID。生产 `VITE_WEBCHAT_UI_ENABLED=true` 已向登录账号启用 Pages 路由和导航，服务端与数据库仍会逐请求复核账号授权；聊天依赖保持在独立懒加载路由块内。
+- WebChat 安全 API、管理员配置与按账号授权的前端工作台：`webchat`、`webchat-config` 已部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、首正文前“思考中”、停止、重新生成、复制、Markdown/代码块、刷新恢复、新建/切换/删除私有历史会话，并在每次请求时动态读取最新会话、生成独立请求 ID。生产 `VITE_WEBCHAT_UI_ENABLED=true` 已向登录账号启用 Pages 路由和导航，服务端与数据库仍会逐请求复核账号授权；聊天依赖保持在独立懒加载路由块内。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
 - GitHub Pages 构建/部署、SPA `404.html` 回退和 CI；日更平台每天两次、周更平台每周一次的同步工作流；Dependabot 周更与完整历史 Gitleaks 门禁。
@@ -230,13 +230,13 @@ Supabase Function Secrets/配置：
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
-WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和一次性告警标记。Supabase `service_role` 本身是可访问 Vault 的平台高权限后端凭据，因此只允许部署在受控 Edge Function 中；网站配置读取和审计接口永远不向浏览器返回 Key。账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。
+WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和一次性告警标记。Supabase `service_role` 本身是可访问 Vault 的平台高权限后端凭据，因此只允许部署在受控 Edge Function 中；网站配置读取和审计接口永远不向浏览器返回 Key。额度账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 且不接受目标成员 ID 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
 
-AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。本站不保存问题正文、模型回复或聊天历史，只保留执行限额所需的私有聚合账本；中转站和上游模型的留存、训练、删除与跨境政策必须在真实试运行前由维护者核对，未确认前不得打开生产三层开关。站内披露见 [`/privacy`](https://greenthree.github.io/USTSACMLand/privacy)。
+AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。为支持刷新恢复和历史会话，本站私有数据库最多为每个账号保存 100 个会话，单会话最多 120 条消息/1 MiB，最后活动超过 180 天自动清理；成员可自行删除，注销时随 Profile 级联删除。历史接口只绑定当前登录账号，额度账本仍不保存正文。中转站和上游模型的留存、训练、删除与跨境政策必须由维护者持续核对。站内披露见 [`/privacy`](https://greenthree.github.io/USTSACMLand/privacy)，工程边界见[WebChat 私有历史会话](./docs/webchat-conversation-history.md)。
 
 `npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只证明本地协议与客户端隔离，不能替代真实中转站费用、Usage 和 Abort 验收。
 
-真实中转站上线前必须先运行手动兼容性验收：非流式响应需要返回可见文本、实际模型 ID 和 Usage；流式响应需要使用 Responses typed SSE，并依次观察 `response.created`、至少一个 `response.output_text.delta`/`response.refusal.delta` 和带 Usage 的 `response.completed`；Abort 检查必须在首个增量后两秒内结束客户端流。验收器不记录 Prompt、回复、请求 ID、Key 或中转站主机，只上传主机 SHA-256、路径、模型、事件类型、时延和 Token 数，Artifact 保留 14 天。配置与发布顺序见 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)。
+真实中转站上线前必须先运行手动兼容性验收：非流式响应需要返回可见文本、实际模型 ID 和 Usage；流式响应需要使用 Responses typed SSE，并依次观察 `response.created`、至少一个 `response.output_text.delta`/`response.refusal.delta` 和带 Usage 的 `response.completed`；Abort 检查必须在首个增量后两秒内结束客户端流。生产请求与验收请求都携带由模型和系统提示词版本派生的稳定 `prompt_cache_key`；官方缓存仍要求至少 1024 个输入 Token 和精确重复前缀，短对话 `cached_tokens=0` 不代表配置失败。手动验收现默认连续发送两次相同的 1024 Token 以上长前缀，要求第二次 `input_tokens_details.cached_tokens > 0`，从而直接发现中转站未透传缓存键、未稳定路由或未回传缓存 Usage 的问题。验收器不记录 Prompt、回复、请求 ID、Key 或中转站主机，只上传主机 SHA-256、路径、模型、事件类型、时延和 Token 数，Artifact 保留 14 天。配置与发布顺序见 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)。
 
 数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 
@@ -265,7 +265,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-17 共有 45 个 migration，远端无 pending。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-18 共有 49 个 production migration，当前分支新增的第 50 个私有历史会话 migration 尚待发布。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 

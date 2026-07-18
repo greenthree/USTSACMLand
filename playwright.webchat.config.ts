@@ -20,19 +20,21 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm run dev -- --host 127.0.0.1 --port 4175 --strictPort',
+      command: 'npm run dev -- --mode e2e --host 127.0.0.1 --port 4175 --strictPort',
       url: baseURL,
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: {
         VITE_WEBCHAT_UI_ENABLED: 'true',
         VITE_WEBCHAT_API_URL: 'http://127.0.0.1:4176/api/chat',
+        VITE_SUPABASE_URL: '',
+        VITE_SUPABASE_ANON_KEY: '',
       },
     },
     {
       command: 'node e2e/mock-webchat-server.mjs',
       url: 'http://127.0.0.1:4176/health',
-      reuseExistingServer: false,
+      reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },
   ],

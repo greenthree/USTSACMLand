@@ -45,10 +45,16 @@ function renderChat(transport: ChatTransport<UIMessage>, onUsageChanged?: () => 
 
 describe('AI learning assistant workspace', () => {
   beforeEach(() => {
+    localStorage.clear()
     signOut.mockReset().mockResolvedValue()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
-  it('fills a suggestion, streams a reply, copies or retries it, and clears the conversation', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('fills a suggestion, streams a reply, exposes history actions, and deletes the conversation', async () => {
     const user = userEvent.setup()
     const onUsageChanged = vi.fn()
     renderChat(new MockChatTransport({ chunkDelayMs: 0 }), onUsageChanged)
@@ -63,27 +69,44 @@ describe('AI learning assistant workspace', () => {
     expect(screen.getByRole('button', { name: '复制回复' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '清空对话' }))
+    await user.click(screen.getByRole('button', { name: '删除对话' }))
     expect(
-      screen.getByRole('heading', { name: '把题意、思路或代码放到工作台上。' }),
+      await screen.findByRole('heading', { name: '把题意、思路或代码放到工作台上。' }),
     ).toBeInTheDocument()
     expect(screen.queryByText(/我们先拆解这个问题/)).not.toBeInTheDocument()
   })
 
-  it('stops an active stream and keeps clear disabled while generation is running', async () => {
+  it('shows thinking before visible text and keeps deletion disabled while generation is running', async () => {
     const user = userEvent.setup()
-    renderChat(new MockChatTransport({ chunkDelayMs: 25 }))
+    renderChat(new MockChatTransport({ chunkDelayMs: 100 }))
 
     await user.type(screen.getByRole('textbox', { name: '向 AI 学习助手提问' }), '输出长讲解')
     await user.click(screen.getByRole('button', { name: '发送问题' }))
 
+    expect(await screen.findByText('思考中')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: '停止生成' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '清空对话' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '删除对话' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '停止生成' }))
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '发送问题' })).toBeInTheDocument()
     })
+  })
+
+  it('restores the active conversation after a refresh-style remount', async () => {
+    const user = userEvent.setup()
+    const first = renderChat(new MockChatTransport({ chunkDelayMs: 0 }))
+
+    await user.type(screen.getByRole('textbox', { name: '向 AI 学习助手提问' }), '刷新后继续')
+    await user.click(screen.getByRole('button', { name: '发送问题' }))
+    expect(await screen.findByText(/我们先拆解这个问题：刷新后继续/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /刷新后继续刚刚/ })).toBeInTheDocument()
+
+    first.unmount()
+    renderChat(new MockChatTransport({ chunkDelayMs: 0 }))
+
+    expect((await screen.findAllByText('刷新后继续')).length).toBeGreaterThanOrEqual(2)
+    expect(await screen.findByText(/我们先拆解这个问题：刷新后继续/)).toBeInTheDocument()
   })
 
   it('keeps a failed request visible after the run finishes', async () => {

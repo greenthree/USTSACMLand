@@ -2,16 +2,18 @@ import { render, screen } from '@testing-library/react'
 import { PrivacyPage } from './PrivacyPage'
 
 describe('PrivacyPage', () => {
-  it('discloses WebChat relay processing, local retention, and private quota metadata', () => {
+  it('discloses WebChat relay processing, private history retention, and quota metadata', () => {
     render(<PrivacyPage />)
 
     const section = screen.getByRole('heading', { name: 'AI 学习助手' }).closest('section')
     expect(section).not.toBeNull()
     expect(section).toHaveTextContent('中转站及其上游模型')
-    expect(section).toHaveTextContent('不在本站数据库保存问题正文、模型回复或聊天历史')
+    expect(section).toHaveTextContent('Supabase 私有数据库中保存会话标题、成员问题和模型可见回复')
+    expect(section).toHaveTextContent('管理员默认也不能读取其他成员的对话正文')
+    expect(section).toHaveTextContent('180 天后自动删除')
     expect(section).toHaveTextContent('不可逆内容指纹')
     expect(section).toHaveTextContent('受管理员最终选择的服务和该服务政策约束')
-    expect(section).toHaveTextContent('正式开放前')
+    expect(section).toHaveTextContent('持续核对真实中转站的数据政策')
   })
 
   it('keeps credentials and private member fields outside the public ranking disclosure', () => {

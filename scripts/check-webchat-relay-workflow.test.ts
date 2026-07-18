@@ -10,6 +10,7 @@ describe('WebChat relay compatibility workflow', () => {
       manualOnly: true,
       retentionDays: 14,
       abortCheck: true,
+      cacheCheck: true,
     })
   })
 

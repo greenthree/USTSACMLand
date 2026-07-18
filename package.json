@@ -38,6 +38,7 @@
     "@assistant-ui/react-markdown": "0.14.6",
     "@supabase/supabase-js": "^2.110.6",
     "ai": "7.0.30",
+    "assistant-stream": "0.3.26",
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

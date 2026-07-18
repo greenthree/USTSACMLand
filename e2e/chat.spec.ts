@@ -56,10 +56,48 @@ test('authenticated members send a typed request and receive a streamed reply', 
     },
   })
 
-  await page.getByRole('button', { name: '清空对话' }).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: '删除对话', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: '把题意、思路或代码放到工作台上。' }),
   ).toBeVisible()
+})
+
+test('the active conversation survives refresh and remains available in history', async ({
+  page,
+}) => {
+  await openAsMember(page)
+  const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
+  await composer.fill('刷新恢复验证')
+  await composer.press('Enter')
+  await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+
+  const historyItem = page.getByRole('button', { name: /刷新恢复验证/ }).first()
+  await expect(historyItem).toBeVisible()
+  await page.reload()
+
+  await expect(page.getByText('刷新恢复验证', { exact: true }).last()).toBeVisible()
+  await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+
+  await page.getByRole('button', { name: '新建对话' }).click()
+  await expect(
+    page.getByRole('heading', { name: '把题意、思路或代码放到工作台上。' }),
+  ).toBeVisible()
+  await historyItem.click()
+  await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+})
+
+test('the workbench shows thinking until the first visible reply text arrives', async ({
+  page,
+}) => {
+  await openAsMember(page)
+  const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
+  await composer.fill('检查思考状态')
+  await composer.press('Enter')
+
+  await expect(page.getByText('思考中', { exact: true })).toBeVisible()
+  await expect(page.getByText('思考状态结束。')).toBeVisible()
+  await expect(page.getByText('思考中', { exact: true })).toHaveCount(0)
 })
 
 test('stop generation aborts the in-flight upstream stream', async ({ page, request }) => {

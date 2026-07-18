@@ -88,6 +88,10 @@ export async function safetyIdentifier(userId: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+export function promptCacheKey(model: string, promptVersion: string): Promise<string> {
+  return safetyIdentifier(`usts-acm-land:webchat:${model}:${promptVersion}`)
+}
+
 function upstreamError(response: Response): WebChatUpstreamError {
   if (response.status === 429) {
     return new WebChatUpstreamError(
@@ -113,6 +117,7 @@ export async function startWebChat(
   }
   const fetcher = config.fetcher ?? fetch
   const safetyId = await safetyIdentifier(options.userId)
+  const cacheKey = await promptCacheKey(config.model, config.promptVersion)
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -181,6 +186,7 @@ export async function startWebChat(
           content: text,
         })),
         max_output_tokens: config.maxOutputTokens,
+        prompt_cache_key: cacheKey,
         safety_identifier: safetyId,
         store: false,
         stream: true,

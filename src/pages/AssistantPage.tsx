@@ -55,8 +55,8 @@ export function AssistantPage() {
           <article>
             <BotMessageSquare size={20} aria-hidden="true" />
             <div>
-              <strong>MVP 临时会话</strong>
-              <span>刷新页面会清空当前对话，本阶段不提供聊天历史。</span>
+              <strong>私有历史会话</strong>
+              <span>对话会自动保存，刷新后可继续；历史内容仅当前账号本人可见。</span>
             </div>
           </article>
           <article>
