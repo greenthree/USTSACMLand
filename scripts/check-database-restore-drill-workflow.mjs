@@ -182,6 +182,11 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
     /anonymous_private_status" == 200[\s\S]*type == "array" and length == 0[\s\S]*anonymous_private_empty=true[\s\S]*anonymous_private_status" != 401[\s\S]*anonymous_private_status" != 403/,
     'Restore drill must accept only denied or strictly empty RLS-filtered anonymous private responses.',
   )
+  requireMatch(
+    workflow,
+    /canary_id" =~ \^\[0-9a-f-\]\{36\}\$[\s\S]*delete_auth_user_with_recovery_lease[\s\S]*pg_catalog\.coalesce\(u\.id, p\.id\) = '\$canary_id'::uuid/,
+    'Restore drill must validate the canary UUID before checking fenced-deletion cleanup.',
+  )
   if (/curl[^\n]*(?:greenthree\.github\.io|supabase\.co|127\.0\.0\.1:5432[12])/i.test(workflow)) {
     throw new Error('Restore smoke requests must use only the local API URL discovered at runtime.')
   }

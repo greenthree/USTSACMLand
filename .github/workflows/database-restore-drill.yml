@@ -427,10 +427,10 @@ jobs:
             "$RUNNER_TEMP/canary-delete-response.json" > /dev/null
           canary_remaining="$(docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
-            --variable ON_ERROR_STOP=1 --variable canary_id="$canary_id" \
+            --variable ON_ERROR_STOP=1 \
             --command "select pg_catalog.count(*) from auth.users u
               full join public.profiles p on p.id = u.id
-              where pg_catalog.coalesce(u.id, p.id) = :'canary_id'::uuid")"
+              where pg_catalog.coalesce(u.id, p.id) = '$canary_id'::uuid")"
           if [[ "$canary_remaining" -ne 0 ]]; then
             echo '::error::Isolated Auth canary cleanup left residual rows.'
             exit 1
