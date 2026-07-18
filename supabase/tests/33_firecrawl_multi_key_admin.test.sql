@@ -620,7 +620,37 @@ select ok(
   'the entire Firecrawl administration audit remains free of raw Key material'
 );
 
+update public.profiles
+set role = 'member'
+where id = '00000000-0000-4000-8000-000000000331';
+
+do $$
+begin
+  if not public.acquire_account_deletion_recovery_lease(
+    '33000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000331'
+  ) then
+    raise exception 'Could not acquire the Firecrawl administrator deletion test lease';
+  end if;
+  perform pg_catalog.set_config(
+    'app.account_deletion_owner_token',
+    '33000000-0000-4000-8000-000000000001',
+    true
+  );
+  perform pg_catalog.set_config(
+    'app.account_deletion_target_user_id',
+    '00000000-0000-4000-8000-000000000331',
+    true
+  );
+end;
+$$;
+
 delete from auth.users where id = '00000000-0000-4000-8000-000000000331';
+
+select public.release_account_deletion_recovery_lease(
+  '33000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000331'
+);
 
 select is(
   (
