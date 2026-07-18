@@ -47,6 +47,8 @@ const requiredReleaseMigrations = [
   '202607180004_public_practice_increment_rankings.sql',
   '202607180005_webchat_conversation_history.sql',
   '202607180006_webchat_cache_probe_accounting.sql',
+  '202607190001_webchat_real_request_cache_accounting.sql',
+  '202607190002_firecrawl_multi_key_admin.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -125,6 +127,13 @@ export function verifyDatabaseTypes(databaseTypes) {
     'upsert_own_webchat_message',
     'delete_own_webchat_messages',
     'purge_expired_webchat_conversations',
+    'admin_list_firecrawl_api_keys',
+    'admin_upsert_firecrawl_api_key',
+    'admin_delete_firecrawl_api_key',
+    'select_firecrawl_runtime_key',
+    'list_firecrawl_runtime_keys',
+    'read_firecrawl_runtime_key',
+    'record_firecrawl_key_observation',
   ]) {
     requireMatch(
       databaseTypes,
@@ -249,6 +258,7 @@ export function verifyCiWorkflow(
     'webchat',
     'webchat-config',
     'webchat-cache-probe',
+    'firecrawl-config',
   ]) {
     requireMatch(
       denoCheckStep,

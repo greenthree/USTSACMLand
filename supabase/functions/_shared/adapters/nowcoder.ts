@@ -388,10 +388,24 @@ export function createFirecrawlNowcoderProvider(
         )
       } catch (error) {
         if (error instanceof HttpError && error.status === 401) {
-          throw new HttpError('Firecrawl API key is invalid or expired', 'auth_expired', false, 401)
+          throw new HttpError(
+            'Firecrawl API key is invalid or expired',
+            'auth_expired',
+            false,
+            401,
+            undefined,
+            { authTarget: 'firecrawl' },
+          )
         }
         if (error instanceof HttpError && error.status === 403) {
-          throw new HttpError('Firecrawl API access is forbidden', 'auth_required', false, 403)
+          throw new HttpError(
+            'Firecrawl API access is forbidden',
+            'auth_required',
+            false,
+            403,
+            undefined,
+            { authTarget: 'firecrawl' },
+          )
         }
         throw error
       }

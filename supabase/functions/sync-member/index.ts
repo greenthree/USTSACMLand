@@ -11,6 +11,10 @@ import { notifySyncFailure, shouldNotifySyncFailure } from '../_shared/alerts.ts
 import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
 import { createXcpcEloAdapter } from '../_shared/adapters/xcpc-elo.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
+import {
+  createRuntimeNowcoderAdapter,
+  createRuntimeQojAdapter,
+} from '../_shared/firecrawl-runtime-adapters.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
 import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
 import {
@@ -27,7 +31,7 @@ import {
 import { buildSyncJobTarget } from './job.ts'
 import { completeSyncJobAttempt } from './job-completion.ts'
 import { buildPlatformPersistenceState, persistNonLuoguResult } from './persistence.ts'
-import { maxAttemptsForPlatforms } from './retry.ts'
+import { maxAttemptsForPlatforms, mayAutomaticallyRetryPlatformFailure } from './retry.ts'
 
 interface SyncRequest {
   memberId?: string
@@ -340,7 +344,16 @@ async function persistResult(
   try {
     // external_id preserves case for case-sensitive platforms. The normalized
     // value exists for uniqueness checks, not for upstream requests.
-    const adapter = account.platform === 'xcpc_elo' ? xcpcAdapter : adapters[account.platform]
+    const adapter =
+      account.platform === 'xcpc_elo'
+        ? xcpcAdapter
+        : account.platform === 'qoj'
+          ? createRuntimeQojAdapter(client, {
+              operationId: `qoj:${jobId}:${attempt}:${account.id}`,
+            })
+          : account.platform === 'nowcoder'
+            ? createRuntimeNowcoderAdapter(client)
+            : adapters[account.platform]
     if (!adapter) {
       throw new Error('XCPC ELO shared cache adapter is unavailable')
     }
@@ -689,7 +702,7 @@ Deno.serve(async (request) => {
         persisted.length === 1 &&
         firstFailure !== undefined &&
         !firstFailure.ok &&
-        firstFailure.error.retryable,
+        mayAutomaticallyRetryPlatformFailure(firstFailure.platform, firstFailure.error.retryable),
       errorCode: firstFailure && !firstFailure.ok ? firstFailure.error.code : null,
       errorMessage: firstFailure && !firstFailure.ok ? firstFailure.error.message : null,
     })

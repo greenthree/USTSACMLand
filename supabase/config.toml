@@ -79,3 +79,6 @@ verify_jwt = true
 
 [functions.webchat-cache-probe]
 verify_jwt = true
+
+[functions.firecrawl-config]
+verify_jwt = true

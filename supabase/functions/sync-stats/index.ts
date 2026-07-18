@@ -1,10 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { AdminRateLimitError, consumeAdminRateLimit } from '../_shared/admin-rate-limit.ts'
-import { notifyFirecrawlCreditAlert } from '../_shared/alerts.ts'
 import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
 import { PLATFORM_IDS, type PlatformId } from '../_shared/adapters/index.ts'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
-import { readFirecrawlCreditUsage } from '../_shared/firecrawl-usage.ts'
 import { toAdapterHttpError } from '../_shared/http.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
 import {
@@ -14,6 +12,7 @@ import {
 } from '../_shared/sync-result.ts'
 import { createSupabaseXcpcDatasetLoader } from '../_shared/xcpc-cache.ts'
 import { dispatchWithPlatformLimits, type SyncDispatchTarget } from './dispatch.ts'
+import { monitorFirecrawlCredits } from './firecrawl-credit-monitor.ts'
 import { shouldCheckFirecrawlCredits } from './firecrawl-monitor.ts'
 import { buildCursorPage } from './pagination.ts'
 import {
@@ -301,23 +300,7 @@ Deno.serve(async (request) => {
 
     if (shouldCheckFirecrawlCredits(privilegedScheduler, scope, platforms, cursor)) {
       try {
-        const usage = await readFirecrawlCreditUsage()
-        if (
-          usage.configured &&
-          usage.severity &&
-          usage.remainingCredits !== null &&
-          usage.planCredits !== null &&
-          usage.percentRemaining !== null
-        ) {
-          await notifyFirecrawlCreditAlert({
-            checkedAt: new Date().toISOString(),
-            remainingCredits: usage.remainingCredits,
-            planCredits: usage.planCredits,
-            percentRemaining: Number(usage.percentRemaining.toFixed(2)),
-            billingPeriodEnd: usage.billingPeriodEnd,
-            severity: usage.severity,
-          })
-        }
+        await monitorFirecrawlCredits(serviceClient)
       } catch {
         console.warn(JSON.stringify({ event: 'firecrawl_credit_check_failed' }))
       }

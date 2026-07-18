@@ -11,11 +11,12 @@ Deno.test('Firecrawl credits are not checked for queue retries or manual adminis
   strictEqual(shouldCheckFirecrawlCredits(false, 'platforms', ['qoj'], undefined), false)
 })
 
-Deno.test('Firecrawl credits are not checked for batches that do not include QOJ', () => {
+Deno.test('Firecrawl credits cover Nowcoder fallback but skip unrelated platform batches', () => {
   strictEqual(
-    shouldCheckFirecrawlCredits(true, 'platforms', ['codeforces', 'nowcoder'], undefined),
+    shouldCheckFirecrawlCredits(true, 'platforms', ['codeforces', 'atcoder'], undefined),
     false,
   )
+  strictEqual(shouldCheckFirecrawlCredits(true, 'platforms', ['nowcoder'], undefined), true)
 })
 
 Deno.test('all-scope scheduled batches check QOJ credits before the first page', () => {

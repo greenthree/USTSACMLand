@@ -271,6 +271,31 @@ export interface AdminSourceHealthGroup {
   latestErrorCode: string | null
 }
 
+export type FirecrawlKeyHealthStatus =
+  'unknown' | 'healthy' | 'warning' | 'critical' | 'degraded' | 'rate_limited' | 'auth_failed'
+
+export interface AdminFirecrawlKey {
+  id: string
+  label: string
+  keyConfigured: boolean
+  enabled: boolean
+  priority: number
+  healthStatus: FirecrawlKeyHealthStatus
+  consecutiveFailures: number
+  cooldownUntil: string | null
+  lastSelectedAt: string | null
+  lastCheckedAt: string | null
+  lastSuccessAt: string | null
+  lastFailureAt: string | null
+  lastErrorCode: string | null
+  creditsRemaining: number | null
+  creditsTotal: number | null
+  billingPeriodEnd: string | null
+  version: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface AdminSyncBatchResult {
   requested: number
   succeeded: number

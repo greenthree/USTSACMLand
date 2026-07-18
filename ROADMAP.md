@@ -36,7 +36,7 @@
 - [x] 实现 QOJ Firecrawl `/interact` 临时会话自动登录、结构校验、限流错误和完整登录健康检查脚本。
 - [x] 完成生产 QOJ 自动登录烟测并保存可复核证据：2026-07-16 通过已部署 `sync-member` 使用当前生产 QOJ/Firecrawl Secrets 受控触发一次真实同步，单次尝试成功、题数为 10，随后匿名公开视图确认相同来源版本、成功时间、题数和 `fresh` 状态；证据已脱敏保存于 `docs/evidence/qoj-production-smoke-2026-07-16.md`。
 - [ ] 配置 QOJ 登录失败告警和 Firecrawl 用量监控（终态失败脱敏 Webhook已实现；每周 QOJ 批次前 Firecrawl 额度检查、25% warning、10% critical、5 秒超时、禁止自动重试和脱敏 Payload 已实现。2026-07-15 CLI 实测为 409/1000、周期截止 2026-07-24，但生产 `SYNC_ALERT_WEBHOOK_URL/TOKEN` 仍缺失，待部署、投递烟测和确认 CLI 与生产 Key 属于同一团队）。
-- [ ] 允许管理员在后台配置、启停和轮换多个 Firecrawl API Key：密钥只进入 Supabase Vault，浏览器只能看到脱敏状态；支持逐 Key 健康度/额度观测和明确的选择策略，单 Key 故障不能泄漏密钥或绕过 QOJ 禁止自动重试边界，所有变更需实时管理员复核、原因、乐观锁、限流和审计。
+- [ ] 允许管理员在后台配置、启停和轮换多个 Firecrawl API Key：Vault 多 Key Schema、后台“数据源健康”管理面板、逐 Key 一次性额度检查、零额度/过期检查启用围栏、优先级 + 最久未使用轮转、认证隔离/限流冷却、牛客延迟回退、旧环境 Key 兼容边界、QOJ operation ID 数据库一次性 claim 与旧队列零重试 fencing、实时管理员复核、原因、乐观锁、限流和脱敏审计已在仓库实现；额度告警等级由数据库按观测比例复核，密钥只进入 Supabase Vault，浏览器只看到脱敏状态。待 PostgreSQL 17 CI、生产 migration/Edge/Pages 部署、录入现有 Key、检查并启用以及 QOJ/牛客真实烟测后验收。
 - [x] 为每个平台保存脱敏固定样本并编写契约测试。
 - [x] 编写架构决策记录：部署、认证、定时任务、秘密管理和 QOJ 备用方案。
 

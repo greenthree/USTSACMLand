@@ -88,6 +88,7 @@ jobs:
           supabase/functions/webchat/index.ts
           supabase/functions/webchat-config/index.ts
           supabase/functions/webchat-cache-probe/index.ts
+          supabase/functions/firecrawl-config/index.ts
 
       - name: Lint Edge Functions
         run: deno lint --config supabase/functions/deno.json supabase/functions

@@ -1,5 +1,9 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict'
-import { maxAttemptsForPlatforms, PLATFORM_CONCURRENCY_LIMITS } from './retry.ts'
+import {
+  maxAttemptsForPlatforms,
+  mayAutomaticallyRetryPlatformFailure,
+  PLATFORM_CONCURRENCY_LIMITS,
+} from './retry.ts'
 
 Deno.test('single-platform jobs have bounded retries while QOJ never retries automatically', () => {
   strictEqual(maxAttemptsForPlatforms(['codeforces']), 3)
@@ -17,4 +21,11 @@ Deno.test('platform concurrency limits keep expensive sources serialized', () =>
     luogu: 1,
     qoj: 1,
   })
+})
+
+Deno.test('QOJ failures never re-enter the queue even when legacy jobs allow more attempts', () => {
+  strictEqual(mayAutomaticallyRetryPlatformFailure('qoj', true), false)
+  strictEqual(mayAutomaticallyRetryPlatformFailure('qoj', false), false)
+  strictEqual(mayAutomaticallyRetryPlatformFailure('nowcoder', true), true)
+  strictEqual(mayAutomaticallyRetryPlatformFailure('codeforces', false), false)
 })

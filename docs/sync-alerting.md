@@ -1,6 +1,6 @@
 # 运行时、同步失败与额度通知
 
-六个 Edge Function 支持通过可选 HTTPS Webhook 通知未预期运行时错误；同步服务还会通知终态失败和 Firecrawl 低额度，WebChat 会通知全站日预算首次阻断。未配置 Webhook 时业务行为保持不变。
+七个 Edge Function 支持通过可选 HTTPS Webhook 通知未预期运行时错误；同步服务还会通知终态失败和 Firecrawl 低额度，WebChat 会通知全站日预算首次阻断。未配置 Webhook 时业务行为保持不变。
 
 ## Supabase Secrets
 
@@ -15,11 +15,11 @@
 - QOJ 不自动重试，因此认证失败、限流、结构变化等终态错误会在本次任务结束时通知。
 - 请求校验失败、账号不存在/格式无效和仍在排队的临时失败不通知；认证过期、未配置、限流、结构变化、源不可用、超时及未知内部错误会通知。
 - Webhook 超时为 5 秒且不自动重试。投递失败只写入不含 URL、Token 和个人信息的结构化警告，不改变同步任务结果。
-- 每周 QOJ 计划批次开始前只读取一次 Firecrawl `/v2/team/credit-usage`。剩余额度不高于 25% 时发送 `warning`，不高于 10% 时发送 `critical`；队列重试和管理员手动同步不重复检查，避免告警风暴。
+- 每周 QOJ 或牛客计划批次开始前，对数据库凭据池中每个已启用 Firecrawl Key 各读取一次 `/v2/team/credit-usage`；最多并发检查两个 Key，单 Key 失败不会阻止其他 Key。剩余额度不高于 25% 时发送 `warning`，不高于 10% 时发送 `critical`，数据库会根据收到的额度再次计算并拒绝矛盾等级；队列重试和管理员手动同步不重复检查，避免告警风暴。
 - Firecrawl 用量检查超时为 5 秒且不自动重试。检查或告警投递失败只记录脱敏事件，不阻断 QOJ 同步。
 - WebChat 全站请求或 Token 预算首次阻断时，数据库分别原子 claim 当天一次告警标记；并发请求中每类每天只有一个请求获得投递资格。Token 阻断按“已结算 + 正在预留 + 本次保守预留”判断，后台用量只显示已结算与正在预留。
 - WebChat 预算 Webhook 使用同一组 Secret、5 秒超时且不自动重试。标记或投递失败不会把确定的 `503` 额度拒绝改成 `500`，也不会让请求越过预算。
-- `sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat`、`webchat-config` 仅在顶层出现非预期 500 错误时发送 `runtime_error`；400/401/403/404/409/429 等已知业务拒绝不发送。
+- `sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat`、`webchat-config`、`firecrawl-config` 仅在顶层出现非预期 500 错误时发送 `runtime_error`；400/401/403/404/409/429 等已知业务拒绝不发送。
 - 运行时告警超时为 1.5 秒，不重试；投递失败不会改变原 HTTP 状态或响应正文。
 
 ## Payload
@@ -45,6 +45,7 @@ Firecrawl 低额度通知使用独立事件：
 {
   "version": 1,
   "event": "firecrawl_credit_low",
+  "keyId": "00000000-0000-4000-8000-000000000301",
   "checkedAt": "2026-07-15T16:00:00.000Z",
   "remainingCredits": 90,
   "planCredits": 1000,
@@ -54,7 +55,7 @@ Firecrawl 低额度通知使用独立事件：
 }
 ```
 
-该 Payload 只含团队总额度，不包含 API Key、团队 ID、成员身份或抓取目标。
+该 Payload 只含不可逆推出密钥的内部 Key UUID 与团队总额度，不包含 API Key、Vault Secret ID、团队 ID、管理员标签、成员身份或抓取目标。
 
 WebChat 全站预算通知使用独立事件：
 
