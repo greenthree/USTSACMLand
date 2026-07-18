@@ -41,6 +41,7 @@ const requiredReleaseMigrations = [
   '202607170008_webchat_member_access.sql',
   '202607170009_webchat_admin_access.sql',
   '202607170010_webchat_model_visibility.sql',
+  '202607180001_daily_problem_learning.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -48,7 +49,13 @@ function requireMatch(source, pattern, message) {
 }
 
 export function verifyDatabaseTypes(databaseTypes) {
-  for (const table of ['xcpc_elo_cache_state', 'xcpc_elo_cache_players']) {
+  for (const table of [
+    'xcpc_elo_cache_state',
+    'xcpc_elo_cache_players',
+    'daily_problems',
+    'daily_problem_completions',
+    'daily_problem_comments',
+  ]) {
     requireMatch(
       databaseTypes,
       new RegExp(`\\b${table}:\\s*\\{`),
@@ -83,6 +90,15 @@ export function verifyDatabaseTypes(databaseTypes) {
     'admin_set_member_role',
     'renew_account_deletion_recovery_lease',
     'delete_auth_user_with_recovery_lease',
+    'read_daily_problem_feed',
+    'set_own_daily_problem_completion',
+    'list_daily_problem_comments',
+    'create_daily_problem_comment',
+    'delete_own_daily_problem_comment',
+    'admin_list_daily_problems',
+    'admin_upsert_daily_problem',
+    'admin_delete_daily_problem',
+    'admin_set_daily_problem_comment_visibility',
   ]) {
     requireMatch(
       databaseTypes,

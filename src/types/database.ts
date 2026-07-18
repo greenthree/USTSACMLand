@@ -38,6 +38,13 @@ export type Database = {
             referencedRelation: 'profiles'
             referencedColumns: ['id']
           },
+          {
+            foreignKeyName: 'admin_rate_limit_buckets_actor_id_fkey'
+            columns: ['actor_id']
+            isOneToOne: false
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
+          },
         ]
       }
       announcements: {
@@ -114,6 +121,211 @@ export type Database = {
           target_table?: string
         }
         Relationships: []
+      }
+      daily_problem_comments: {
+        Row: {
+          author_id: string
+          body: string
+          created_at: string
+          hidden_at: string | null
+          hidden_by: string | null
+          id: number
+          is_visible: boolean
+          problem_id: number
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          body: string
+          created_at?: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          id?: never
+          is_visible?: boolean
+          problem_id: number
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          body?: string
+          created_at?: string
+          hidden_at?: string | null
+          hidden_by?: string | null
+          id?: never
+          is_visible?: boolean
+          problem_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'daily_problem_comments_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'daily_problem_comments_author_id_fkey'
+            columns: ['author_id']
+            isOneToOne: false
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'daily_problem_comments_problem_id_fkey'
+            columns: ['problem_id']
+            isOneToOne: false
+            referencedRelation: 'daily_problems'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      daily_problem_completions: {
+        Row: {
+          completed_at: string
+          problem_id: number
+          profile_id: string
+        }
+        Insert: {
+          completed_at?: string
+          problem_id: number
+          profile_id: string
+        }
+        Update: {
+          completed_at?: string
+          problem_id?: number
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'daily_problem_completions_problem_id_fkey'
+            columns: ['problem_id']
+            isOneToOne: false
+            referencedRelation: 'daily_problems'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'daily_problem_completions_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'daily_problem_completions_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      daily_problems: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string | null
+          difficulty: string | null
+          estimated_minutes: number | null
+          external_problem_id: string
+          id: number
+          problem_date: string
+          published_at: string | null
+          source_platform: string
+          source_url: string
+          status: Database['public']['Enums']['daily_problem_status']
+          tags: string[]
+          title: string
+          training_note: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          difficulty?: string | null
+          estimated_minutes?: number | null
+          external_problem_id: string
+          id?: never
+          problem_date: string
+          published_at?: string | null
+          source_platform: string
+          source_url: string
+          status?: Database['public']['Enums']['daily_problem_status']
+          tags?: string[]
+          title: string
+          training_note: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          difficulty?: string | null
+          estimated_minutes?: number | null
+          external_problem_id?: string
+          id?: never
+          problem_date?: string
+          published_at?: string | null
+          source_platform?: string
+          source_url?: string
+          status?: Database['public']['Enums']['daily_problem_status']
+          tags?: string[]
+          title?: string
+          training_note?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
+      luogu_sync_states: {
+        Row: {
+          account_external_id: string
+          boundary_record_id: string | null
+          boundary_submit_time: number | null
+          last_full_sync_at: string
+          platform_account_id: number
+          problem_ids: string[]
+          state_version: number
+          total_records: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_external_id: string
+          boundary_record_id?: string | null
+          boundary_submit_time?: number | null
+          last_full_sync_at: string
+          platform_account_id: number
+          problem_ids?: string[]
+          state_version?: number
+          total_records?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_external_id?: string
+          boundary_record_id?: string | null
+          boundary_submit_time?: number | null
+          last_full_sync_at?: string
+          platform_account_id?: number
+          problem_ids?: string[]
+          state_version?: number
+          total_records?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'luogu_sync_states_platform_account_id_fkey'
+            columns: ['platform_account_id']
+            isOneToOne: true
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['id']
+          },
+        ]
       }
       platform_accounts: {
         Row: {
@@ -235,50 +447,6 @@ export type Database = {
             isOneToOne: true
             referencedRelation: 'public_platform_accounts'
             referencedColumns: ['profile_id', 'platform']
-          },
-        ]
-      }
-      luogu_sync_states: {
-        Row: {
-          account_external_id: string
-          boundary_record_id: string | null
-          boundary_submit_time: number | null
-          last_full_sync_at: string
-          platform_account_id: number
-          problem_ids: string[]
-          state_version: number
-          total_records: number | null
-          updated_at: string
-        }
-        Insert: {
-          account_external_id: string
-          boundary_record_id?: string | null
-          boundary_submit_time?: number | null
-          last_full_sync_at: string
-          platform_account_id: number
-          problem_ids?: string[]
-          state_version?: number
-          total_records?: number | null
-          updated_at?: string
-        }
-        Update: {
-          account_external_id?: string
-          boundary_record_id?: string | null
-          boundary_submit_time?: number | null
-          last_full_sync_at?: string
-          platform_account_id?: number
-          problem_ids?: string[]
-          state_version?: number
-          total_records?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'luogu_sync_states_platform_account_id_fkey'
-            columns: ['platform_account_id']
-            isOneToOne: true
-            referencedRelation: 'platform_accounts'
-            referencedColumns: ['id']
           },
         ]
       }
@@ -790,41 +958,25 @@ export type Database = {
         Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
       }
-      release_account_deletion_recovery_lease: {
-        Args: { p_owner_token: string; p_target_user_id: string }
-        Returns: boolean
-      }
-      renew_account_deletion_recovery_lease: {
-        Args: { p_owner_token: string; p_target_user_id: string }
-        Returns: boolean
-      }
-      delete_auth_user_with_recovery_lease: {
-        Args: { p_owner_token: string; p_user_id: string }
+      acquire_xcpc_elo_cache_refresh: {
+        Args: {
+          cache_ttl_seconds: number
+          lease_seconds: number
+          requested_owner: string
+        }
         Returns: Json
       }
-      consume_admin_rate_limit: {
-        Args: {
-          rate_action_key: string
-          rate_actor_id: string
-          rate_max_requests: number
-          rate_window_seconds: number
-        }
-        Returns: {
-          remaining_requests: number
-          resets_at: string
-        }[]
+      admin_delete_announcement: {
+        Args: { expected_updated_at: string; target_announcement_id: number }
+        Returns: boolean
       }
-      admin_get_overview: {
-        Args: never
-        Returns: {
-          approved_member_count: number
-          credential_error_count: number
-          failed_job_count_24h: number
-          overdue_stat_count: number
-          pending_member_count: number
-          running_job_count: number
-          verified_account_count: number
-        }[]
+      admin_delete_announcement_unlimited: {
+        Args: { expected_updated_at: string; target_announcement_id: number }
+        Returns: boolean
+      }
+      admin_delete_daily_problem: {
+        Args: { expected_updated_at: string; target_problem_id: number }
+        Returns: boolean
       }
       admin_get_member_detail: {
         Args: { target_profile_id: string }
@@ -858,6 +1010,18 @@ export type Database = {
           verified_at: string
         }[]
       }
+      admin_get_overview: {
+        Args: never
+        Returns: {
+          approved_member_count: number
+          credential_error_count: number
+          failed_job_count_24h: number
+          overdue_stat_count: number
+          pending_member_count: number
+          running_job_count: number
+          verified_account_count: number
+        }[]
+      }
       admin_get_source_health: {
         Args: { lookback_hours?: number }
         Returns: {
@@ -872,6 +1036,51 @@ export type Database = {
           total_runs: number
         }[]
       }
+      admin_get_webchat_member_access: {
+        Args: { target_profile_id: string }
+        Returns: {
+          access_enabled: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          updated_at: string
+          version: number
+        }[]
+      }
+      admin_list_active_sync_jobs: {
+        Args: { before_job_id?: number; row_limit?: number }
+        Returns: {
+          attempt_count: number
+          created_at: string
+          job_id: number
+          last_error_code: Database['public']['Enums']['sync_error_code']
+          max_attempts: number
+          member_name: string
+          platform: Database['public']['Enums']['platform_name']
+          profile_id: string
+          scheduled_for: string
+          scope: Database['public']['Enums']['sync_job_scope']
+          started_at: string
+          status: Database['public']['Enums']['sync_job_status']
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
+        }[]
+      }
+      admin_list_announcements: {
+        Args: { before_announcement_id?: number; row_limit?: number }
+        Returns: {
+          announcement_id: number
+          body: string
+          created_at: string
+          created_by: string
+          created_by_label: string
+          expires_at: string
+          published_at: string
+          status: Database['public']['Enums']['announcement_status']
+          title: string
+          updated_at: string
+          updated_by: string
+          updated_by_label: string
+        }[]
+      }
       admin_list_audit_logs: {
         Args: { before_log_id?: number; row_limit?: number }
         Returns: {
@@ -884,6 +1093,67 @@ export type Database = {
           target_id: string
           target_label: string
           target_table: string
+        }[]
+      }
+      admin_list_daily_problems: {
+        Args: { before_problem_id?: number; row_limit?: number }
+        Returns: {
+          archived_at: string
+          comment_count: number
+          completion_count: number
+          created_at: string
+          created_by: string
+          created_by_label: string
+          difficulty: string
+          estimated_minutes: number
+          external_problem_id: string
+          hidden_comment_count: number
+          problem_date: string
+          problem_id: number
+          published_at: string
+          source_platform: string
+          source_url: string
+          status: Database['public']['Enums']['daily_problem_status']
+          tags: string[]
+          title: string
+          training_note: string
+          updated_at: string
+          updated_by: string
+          updated_by_label: string
+          version: number
+        }[]
+      }
+      admin_list_member_activity: {
+        Args: { row_limit?: number; target_profile_id: string }
+        Returns: {
+          action: string
+          created_at: string
+          detail: string
+          event_id: string
+          event_kind: string
+          platform: string
+          run_status: string
+          source_version: string
+          target_table: string
+        }[]
+      }
+      admin_list_members: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          grade: string
+          id: string
+          is_public: boolean
+          major: string
+          platform_count: number
+          qq: string
+          review_status: Database['public']['Enums']['profile_review_status']
+          role: Database['public']['Enums']['app_role']
+          suspension_note: string
+          updated_at: string
+          verified_platform_count: number
         }[]
       }
       admin_list_platform_accounts: {
@@ -901,74 +1171,6 @@ export type Database = {
           verification_error_code: Database['public']['Enums']['sync_error_code']
           verification_error_message: string
           verified_at: string
-        }[]
-      }
-      admin_list_members: {
-        Args: never
-        Returns: {
-          created_at: string
-          email: string
-          full_name: string
-          grade: string
-          id: string
-          is_public: boolean
-          major: string
-          platform_count: number
-          qq: string
-          role: Database['public']['Enums']['app_role']
-          review_status: Database['public']['Enums']['profile_review_status']
-          suspension_note: string
-          updated_at: string
-          verified_platform_count: number
-        }[]
-      }
-      admin_list_announcements: {
-        Args: { before_announcement_id?: number; row_limit?: number }
-        Returns: {
-          announcement_id: number
-          body: string
-          created_at: string
-          created_by: string | null
-          created_by_label: string
-          expires_at: string | null
-          published_at: string | null
-          status: Database['public']['Enums']['announcement_status']
-          title: string
-          updated_at: string
-          updated_by: string | null
-          updated_by_label: string
-        }[]
-      }
-      admin_list_member_activity: {
-        Args: { row_limit?: number; target_profile_id: string }
-        Returns: {
-          action: string
-          created_at: string
-          detail: string
-          event_id: string
-          event_kind: string
-          platform: string
-          run_status: string
-          source_version: string
-          target_table: string
-        }[]
-      }
-      admin_list_active_sync_jobs: {
-        Args: { before_job_id?: number; row_limit?: number }
-        Returns: {
-          attempt_count: number
-          created_at: string
-          job_id: number
-          last_error_code: Database['public']['Enums']['sync_error_code'] | null
-          max_attempts: number
-          member_name: string | null
-          platform: Database['public']['Enums']['platform_name'] | null
-          profile_id: string | null
-          scheduled_for: string
-          scope: Database['public']['Enums']['sync_job_scope']
-          started_at: string | null
-          status: Database['public']['Enums']['sync_job_status']
-          trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
       admin_list_sync_runs: {
@@ -991,23 +1193,50 @@ export type Database = {
           trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
-      admin_set_platform_account_status: {
+      admin_set_daily_problem_comment_visibility: {
         Args: {
-          error_message: string
           expected_updated_at: string
-          next_status: Database['public']['Enums']['account_verification_status']
-          target_account_id: number
+          moderation_reason: string
+          requested_visible: boolean
+          target_comment_id: number
         }
-        Returns: Database['public']['Enums']['account_verification_status']
+        Returns: {
+          comment_id: number
+          comment_updated_at: string
+          comment_visible: boolean
+        }[]
       }
-      admin_set_member_suspension: {
+      admin_set_manual_platform_stats: {
         Args: {
-          expected_updated_at: string
-          note?: string
-          suspended: boolean
+          expected_stat_updated_at?: string
+          manual_current_rating: number
+          manual_max_rating: number
+          manual_note: string
+          manual_solved_count: number
+          manual_source_observed_at: string
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
-        Returns: string
+        Returns: {
+          stat_updated_at: string
+          sync_run_id: number
+        }[]
+      }
+      admin_set_manual_platform_stats_unlimited: {
+        Args: {
+          expected_stat_updated_at?: string
+          manual_current_rating: number
+          manual_max_rating: number
+          manual_note: string
+          manual_solved_count: number
+          manual_source_observed_at: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: {
+          stat_updated_at: string
+          sync_run_id: number
+        }[]
       }
       admin_set_member_role: {
         Args: {
@@ -1018,21 +1247,57 @@ export type Database = {
         }
         Returns: string
       }
-      admin_set_manual_platform_stats: {
+      admin_set_member_suspension: {
         Args: {
-          expected_stat_updated_at?: string
-          manual_current_rating: number | null
-          manual_max_rating: number | null
-          manual_note: string
-          manual_solved_count: number | null
-          manual_source_observed_at: string | null
+          expected_updated_at: string
+          note?: string
+          suspended: boolean
+          target_profile_id: string
+        }
+        Returns: string
+      }
+      admin_set_member_suspension_unlimited: {
+        Args: {
+          expected_updated_at: string
+          note?: string
+          suspended: boolean
+          target_profile_id: string
+        }
+        Returns: string
+      }
+      admin_set_platform_account_status: {
+        Args: {
+          error_message: string
+          expected_updated_at: string
+          next_status: Database['public']['Enums']['account_verification_status']
+          target_account_id: number
+        }
+        Returns: Database['public']['Enums']['account_verification_status']
+      }
+      admin_set_platform_account_status_unlimited: {
+        Args: {
+          error_message: string
+          expected_updated_at: string
+          next_status: Database['public']['Enums']['account_verification_status']
+          target_account_id: number
+        }
+        Returns: Database['public']['Enums']['account_verification_status']
+      }
+      admin_unbind_member_platform_account: {
+        Args: {
+          expected_updated_at: string
           target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
-        Returns: {
-          stat_updated_at: string
-          sync_run_id: number
-        }[]
+        Returns: boolean
+      }
+      admin_unbind_member_platform_account_unlimited: {
+        Args: {
+          expected_updated_at: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: boolean
       }
       admin_update_member_profile: {
         Args: {
@@ -1046,286 +1311,17 @@ export type Database = {
         }
         Returns: string
       }
-      admin_unbind_member_platform_account: {
+      admin_update_member_profile_unlimited: {
         Args: {
           expected_updated_at: string
-          target_platform: Database['public']['Enums']['platform_name']
+          member_full_name: string
+          member_grade: string
+          member_is_public: boolean
+          member_major: string
+          member_qq: string
           target_profile_id: string
         }
-        Returns: boolean
-      }
-      admin_delete_announcement: {
-        Args: { expected_updated_at: string; target_announcement_id: number }
-        Returns: boolean
-      }
-      admin_upsert_announcement: {
-        Args: {
-          announcement_body: string
-          announcement_expires_at: string | null
-          announcement_published_at: string | null
-          announcement_status: Database['public']['Enums']['announcement_status']
-          announcement_title: string
-          expected_updated_at: string | null
-          target_announcement_id: number | null
-        }
-        Returns: {
-          announcement_id: number
-          announcement_updated_at: string
-        }[]
-      }
-      admin_upsert_member_platform_account: {
-        Args: {
-          expected_updated_at?: string
-          new_external_id: string
-          target_platform: Database['public']['Enums']['platform_name']
-          target_profile_id: string
-        }
-        Returns: {
-          account_id: number
-          account_status: Database['public']['Enums']['account_verification_status']
-          account_updated_at: string
-        }[]
-      }
-      commit_platform_sync_result: {
-        Args: {
-          expected_external_id: string
-          run_duration_ms: number
-          run_finished_at: string
-          run_metrics: Json | null
-          stat_current_rating: number | null
-          stat_error_code: Database['public']['Enums']['sync_error_code'] | null
-          stat_error_message: string | null
-          stat_fetched_at: string
-          stat_last_success_at: string | null
-          stat_max_rating: number | null
-          stat_solved_count: number | null
-          stat_source_observed_at: string | null
-          stat_source_version: string | null
-          stat_stale_after: string | null
-          stat_status: Database['public']['Enums']['stat_freshness_status']
-          sync_succeeded: boolean
-          target_job_id: number
-          target_platform_account_id: number
-          target_run_id: number
-        }
-        Returns: undefined
-      }
-      commit_luogu_sync_result: {
-        Args: {
-          expected_external_id: string
-          expected_state_version: number
-          run_duration_ms: number
-          run_finished_at: string
-          run_metrics: Json | null
-          state_boundary_record_id: string | null
-          state_boundary_submit_time: number | null
-          state_last_full_sync_at: string | null
-          state_problem_ids: string[] | null
-          state_total_records: number | null
-          stat_current_rating: number | null
-          stat_error_code: Database['public']['Enums']['sync_error_code'] | null
-          stat_error_message: string | null
-          stat_fetched_at: string
-          stat_last_success_at: string | null
-          stat_max_rating: number | null
-          stat_solved_count: number | null
-          stat_source_observed_at: string | null
-          stat_source_version: string | null
-          stat_stale_after: string | null
-          stat_status: Database['public']['Enums']['stat_freshness_status']
-          sync_succeeded: boolean
-          target_job_id: number
-          target_platform_account_id: number
-          target_run_id: number
-        }
-        Returns: number
-      }
-      claim_due_sync_jobs: {
-        Args: { batch_limit?: number; stale_timeout?: string }
-        Returns: {
-          attempt_count: number
-          job_id: number
-          max_attempts: number
-          payload: Json
-          platform: Database['public']['Enums']['platform_name']
-          profile_id: string
-        }[]
-      }
-      claim_webchat_request: {
-        Args: {
-          daily_request_limit: number
-          daily_token_limit: number
-          global_daily_request_limit: number
-          global_daily_token_limit: number
-          lease_seconds?: number
-          minute_request_limit: number
-          requested_fingerprint: string
-          requested_owner_token: string
-          requested_request_id: string
-          requested_reserved_tokens: number
-          requested_user_id: string
-        }
-        Returns: {
-          decision: string
-          remaining_daily_requests: number
-          remaining_daily_tokens: number
-          remaining_minute_requests: number
-          retry_after_seconds: number | null
-          status: string
-        }[]
-      }
-      claim_authorized_webchat_request: {
-        Args: {
-          lease_seconds?: number
-          minute_request_limit: number
-          requested_fingerprint: string
-          requested_owner_token: string
-          requested_request_id: string
-          requested_reserved_tokens: number
-          requested_user_id: string
-        }
-        Returns: {
-          decision: string
-          remaining_daily_requests: number
-          remaining_daily_tokens: number
-          remaining_minute_requests: number
-          retry_after_seconds: number | null
-          status: string
-        }[]
-      }
-      claim_webchat_budget_alert: {
-        Args: {
-          requested_budget_kind: string
-          requested_limit: number
-          requested_reserved_tokens?: number
-        }
-        Returns: {
-          attempted_reserved_tokens: number
-          budget_kind: string
-          budget_limit: number
-          observed_at: string
-          observed_usage: number
-          request_count: number
-          reserved_tokens: number
-          reset_at: string
-          settled_tokens: number
-          should_notify: boolean
-          usage_date: string
-        }[]
-      }
-      mark_webchat_request_started: {
-        Args: {
-          requested_owner_token: string
-          requested_request_id: string
-          requested_user_id: string
-        }
-        Returns: boolean
-      }
-      mark_authorized_webchat_request_started: {
-        Args: {
-          requested_owner_token: string
-          requested_request_id: string
-          requested_user_id: string
-        }
-        Returns: boolean
-      }
-      finalize_webchat_request: {
-        Args: {
-          request_outcome: string
-          requested_owner_token: string
-          requested_request_id: string
-          requested_user_id: string
-          used_input_tokens?: number | null
-          used_output_tokens?: number | null
-          used_total_tokens?: number | null
-        }
-        Returns: {
-          charged_tokens: number
-          status: string
-          transitioned: boolean
-        }[]
-      }
-      release_webchat_request: {
-        Args: {
-          release_reason: string
-          requested_owner_token: string
-          requested_request_id: string
-          requested_user_id: string
-        }
-        Returns: boolean
-      }
-      read_webchat_relay_config: {
-        Args: never
-        Returns: {
-          api_key_configured: boolean
-          base_url: string | null
-          global_daily_request_limit: number
-          global_daily_token_limit: number
-          model: string | null
-          requests_enabled: boolean
-          updated_at: string
-          version: number
-        }[]
-      }
-      read_webchat_global_budget_usage: {
-        Args: never
-        Returns: {
-          request_budget_alerted_at: string | null
-          request_count: number
-          reserved_tokens: number
-          reset_at: string
-          settled_tokens: number
-          token_budget_alerted_at: string | null
-          usage_date: string
-        }[]
-      }
-      read_webchat_relay_runtime_config: {
-        Args: never
-        Returns: {
-          api_key: string | null
-          base_url: string | null
-          global_daily_request_limit: number
-          global_daily_token_limit: number
-          model: string | null
-          requests_enabled: boolean
-          version: number
-        }[]
-      }
-      read_webchat_member_runtime_access: {
-        Args: { requested_user_id: string }
-        Returns: {
-          access_enabled: boolean
-          account_eligible: boolean
-          daily_request_limit: number
-          daily_token_limit: number
-          version: number
-        }[]
-      }
-      read_own_webchat_usage: {
-        Args: never
-        Returns: {
-          access_enabled: boolean
-          daily_request_limit: number
-          daily_token_limit: number
-          model: string | null
-          remaining_requests: number
-          remaining_tokens: number
-          request_count: number
-          reserved_tokens: number
-          reset_at: string
-          settled_tokens: number
-          usage_date: string
-        }[]
-      }
-      admin_get_webchat_member_access: {
-        Args: { target_profile_id: string }
-        Returns: {
-          access_enabled: boolean
-          daily_request_limit: number
-          daily_token_limit: number
-          updated_at: string | null
-          version: number
-        }[]
+        Returns: string
       }
       admin_update_webchat_member_access: {
         Args: {
@@ -1349,7 +1345,7 @@ export type Database = {
           actor_id: string
           expected_version: number
           reason: string
-          replacement_api_key: string | null
+          replacement_api_key: string
           requested_base_url: string
           requested_global_daily_request_limit?: number
           requested_global_daily_token_limit?: number
@@ -1367,57 +1363,454 @@ export type Database = {
           version: number
         }[]
       }
-      complete_sync_job_attempt: {
+      admin_upsert_announcement: {
         Args: {
-          attempt_succeeded: boolean
-          expected_attempt: number
-          failure_code?: Database['public']['Enums']['sync_error_code'] | null
-          failure_message?: string | null
-          failure_retryable?: boolean
-          target_job_id: number
+          announcement_body: string
+          announcement_expires_at: string
+          announcement_published_at: string
+          announcement_status: Database['public']['Enums']['announcement_status']
+          announcement_title: string
+          expected_updated_at: string
+          target_announcement_id: number
         }
         Returns: {
-          job_status: Database['public']['Enums']['sync_job_status']
-          retry_at: string | null
-          transitioned: boolean
-          transitioned_at: string | null
+          announcement_id: number
+          announcement_updated_at: string
         }[]
       }
-      bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
-      acquire_xcpc_elo_cache_refresh: {
-        Args: { cache_ttl_seconds: number; lease_seconds: number; requested_owner: string }
-        Returns: Json
+      admin_upsert_announcement_unlimited: {
+        Args: {
+          announcement_body: string
+          announcement_expires_at: string
+          announcement_published_at: string
+          announcement_status: Database['public']['Enums']['announcement_status']
+          announcement_title: string
+          expected_updated_at: string
+          target_announcement_id: number
+        }
+        Returns: {
+          announcement_id: number
+          announcement_updated_at: string
+        }[]
       }
+      admin_upsert_daily_problem: {
+        Args: {
+          expected_updated_at: string
+          problem_date: string
+          problem_difficulty: string
+          problem_estimated_minutes: number
+          problem_external_problem_id: string
+          problem_source_platform: string
+          problem_source_url: string
+          problem_tags: string[]
+          problem_title: string
+          problem_training_note: string
+          requested_status: Database['public']['Enums']['daily_problem_status']
+          target_problem_id: number
+        }
+        Returns: {
+          problem_id: number
+          problem_updated_at: string
+        }[]
+      }
+      admin_upsert_member_platform_account: {
+        Args: {
+          expected_updated_at?: string
+          new_external_id: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: {
+          account_id: number
+          account_status: Database['public']['Enums']['account_verification_status']
+          account_updated_at: string
+        }[]
+      }
+      admin_upsert_member_platform_account_unlimited: {
+        Args: {
+          expected_updated_at?: string
+          new_external_id: string
+          target_platform: Database['public']['Enums']['platform_name']
+          target_profile_id: string
+        }
+        Returns: {
+          account_id: number
+          account_status: Database['public']['Enums']['account_verification_status']
+          account_updated_at: string
+        }[]
+      }
+      audit_json_contains_identifier: {
+        Args: { identifier: string; value: Json }
+        Returns: boolean
+      }
+      bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       can_edit_own_data: { Args: never; Returns: boolean }
+      claim_authorized_webchat_request: {
+        Args: {
+          lease_seconds?: number
+          minute_request_limit: number
+          requested_fingerprint: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_reserved_tokens: number
+          requested_user_id: string
+        }
+        Returns: {
+          decision: string
+          remaining_daily_requests: number
+          remaining_daily_tokens: number
+          remaining_minute_requests: number
+          retry_after_seconds: number
+          status: string
+        }[]
+      }
+      claim_due_sync_jobs: {
+        Args: { batch_limit?: number; stale_timeout?: string }
+        Returns: {
+          attempt_count: number
+          job_id: number
+          max_attempts: number
+          payload: Json
+          platform: Database['public']['Enums']['platform_name']
+          profile_id: string
+        }[]
+      }
+      claim_webchat_budget_alert: {
+        Args: {
+          requested_budget_kind: string
+          requested_limit: number
+          requested_reserved_tokens?: number
+        }
+        Returns: {
+          attempted_reserved_tokens: number
+          budget_kind: string
+          budget_limit: number
+          observed_at: string
+          observed_usage: number
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          should_notify: boolean
+          usage_date: string
+        }[]
+      }
+      claim_webchat_request: {
+        Args: {
+          daily_request_limit: number
+          daily_token_limit: number
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          lease_seconds?: number
+          minute_request_limit: number
+          requested_fingerprint: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_reserved_tokens: number
+          requested_user_id: string
+        }
+        Returns: {
+          decision: string
+          remaining_daily_requests: number
+          remaining_daily_tokens: number
+          remaining_minute_requests: number
+          retry_after_seconds: number
+          status: string
+        }[]
+      }
+      commit_luogu_sync_result: {
+        Args: {
+          expected_external_id: string
+          expected_state_version: number
+          run_duration_ms: number
+          run_finished_at: string
+          run_metrics: Json
+          stat_current_rating: number
+          stat_error_code: Database['public']['Enums']['sync_error_code']
+          stat_error_message: string
+          stat_fetched_at: string
+          stat_last_success_at: string
+          stat_max_rating: number
+          stat_solved_count: number
+          stat_source_observed_at: string
+          stat_source_version: string
+          stat_stale_after: string
+          stat_status: Database['public']['Enums']['stat_freshness_status']
+          state_boundary_record_id: string
+          state_boundary_submit_time: number
+          state_last_full_sync_at: string
+          state_problem_ids: string[]
+          state_total_records: number
+          sync_succeeded: boolean
+          target_job_id: number
+          target_platform_account_id: number
+          target_run_id: number
+        }
+        Returns: number
+      }
+      commit_platform_sync_result: {
+        Args: {
+          expected_external_id: string
+          run_duration_ms: number
+          run_finished_at: string
+          run_metrics: Json
+          stat_current_rating: number
+          stat_error_code: Database['public']['Enums']['sync_error_code']
+          stat_error_message: string
+          stat_fetched_at: string
+          stat_last_success_at: string
+          stat_max_rating: number
+          stat_solved_count: number
+          stat_source_observed_at: string
+          stat_source_version: string
+          stat_stale_after: string
+          stat_status: Database['public']['Enums']['stat_freshness_status']
+          sync_succeeded: boolean
+          target_job_id: number
+          target_platform_account_id: number
+          target_run_id: number
+        }
+        Returns: undefined
+      }
       commit_xcpc_elo_cache_refresh: {
         Args: {
           cache_ttl_seconds: number
           requested_owner: string
-          response_etag: string | null
-          response_last_modified: string | null
+          response_etag: string
+          response_last_modified: string
           response_players: Json
           response_source_generated_at: string
         }
         Returns: number
       }
+      complete_sync_job_attempt: {
+        Args: {
+          attempt_succeeded: boolean
+          expected_attempt: number
+          failure_code?: Database['public']['Enums']['sync_error_code']
+          failure_message?: string
+          failure_retryable?: boolean
+          target_job_id: number
+        }
+        Returns: {
+          job_status: Database['public']['Enums']['sync_job_status']
+          retry_at: string
+          transitioned: boolean
+          transitioned_at: string
+        }[]
+      }
+      consume_admin_rate_limit: {
+        Args: {
+          rate_action_key: string
+          rate_actor_id: string
+          rate_max_requests: number
+          rate_window_seconds: number
+        }
+        Returns: {
+          remaining_requests: number
+          resets_at: string
+        }[]
+      }
+      create_daily_problem_comment: {
+        Args: { comment_body: string; target_problem_id: number }
+        Returns: {
+          comment_id: number
+          created_at: string
+          updated_at: string
+        }[]
+      }
+      delete_auth_user_with_recovery_lease: {
+        Args: { p_owner_token: string; p_user_id: string }
+        Returns: Json
+      }
+      delete_own_daily_problem_comment: {
+        Args: { expected_updated_at: string; target_comment_id: number }
+        Returns: boolean
+      }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']
-          failure_message: string | null
+          failure_message: string
           requested_owner: string
           retry_after_seconds: number
         }
         Returns: boolean
       }
+      finalize_webchat_request: {
+        Args: {
+          request_outcome: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+          used_input_tokens?: number
+          used_output_tokens?: number
+          used_total_tokens?: number
+        }
+        Returns: {
+          charged_tokens: number
+          status: string
+          transitioned: boolean
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
-      read_xcpc_elo_cache: { Args: never; Returns: Json }
+      is_trusted_profile_management_actor: {
+        Args: { actor_auth_role: string; actor_session_user: unknown }
+        Returns: boolean
+      }
+      list_daily_problem_comments: {
+        Args: {
+          before_comment_id?: number
+          row_limit?: number
+          target_problem_id: number
+        }
+        Returns: {
+          author_id: string
+          author_label: string
+          author_name: string
+          body: string
+          can_delete: boolean
+          comment_id: number
+          created_at: string
+          problem_id: number
+          updated_at: string
+          visibility: string
+        }[]
+      }
+      mark_authorized_webchat_request_started: {
+        Args: {
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      mark_webchat_request_started: {
+        Args: {
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      read_daily_problem_feed: {
+        Args: { before_problem_date?: string; row_limit?: number }
+        Returns: {
+          comment_count: number
+          completion_count: number
+          difficulty: string
+          estimated_minutes: number
+          external_problem_id: string
+          my_completed_at: string
+          problem_date: string
+          problem_id: number
+          published_at: string
+          source_platform: string
+          source_url: string
+          tags: string[]
+          title: string
+          training_note: string
+          updated_at: string
+        }[]
+      }
+      read_own_webchat_usage: {
+        Args: never
+        Returns: {
+          access_enabled: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          model: string
+          remaining_requests: number
+          remaining_tokens: number
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          usage_date: string
+        }[]
+      }
       read_sync_queue_scheduler_health: { Args: never; Returns: Json }
+      read_webchat_global_budget_usage: {
+        Args: never
+        Returns: {
+          request_budget_alerted_at: string
+          request_count: number
+          reserved_tokens: number
+          reset_at: string
+          settled_tokens: number
+          token_budget_alerted_at: string
+          usage_date: string
+        }[]
+      }
+      read_webchat_member_runtime_access: {
+        Args: { requested_user_id: string }
+        Returns: {
+          access_enabled: boolean
+          account_eligible: boolean
+          daily_request_limit: number
+          daily_token_limit: number
+          version: number
+        }[]
+      }
+      read_webchat_relay_config: {
+        Args: never
+        Returns: {
+          api_key_configured: boolean
+          base_url: string
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          model: string
+          requests_enabled: boolean
+          updated_at: string
+          version: number
+        }[]
+      }
+      read_webchat_relay_runtime_config: {
+        Args: never
+        Returns: {
+          api_key: string
+          base_url: string
+          global_daily_request_limit: number
+          global_daily_token_limit: number
+          model: string
+          requests_enabled: boolean
+          version: number
+        }[]
+      }
+      read_xcpc_elo_cache: { Args: never; Returns: Json }
+      release_account_deletion_recovery_lease: {
+        Args: { p_owner_token: string; p_target_user_id: string }
+        Returns: boolean
+      }
+      release_webchat_request: {
+        Args: {
+          release_reason: string
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      renew_account_deletion_recovery_lease: {
+        Args: { p_owner_token: string; p_target_user_id: string }
+        Returns: boolean
+      }
+      require_daily_problem_member: { Args: never; Returns: string }
+      scrub_account_deletion_audit: {
+        Args: { deleted_user_id: string }
+        Returns: undefined
+      }
+      set_own_daily_problem_completion: {
+        Args: { requested_completed: boolean; target_problem_id: number }
+        Returns: {
+          completed_at: string
+        }[]
+      }
       validate_xcpc_elo_cache_refresh: {
         Args: {
           cache_ttl_seconds: number
           requested_owner: string
-          response_etag: string | null
-          response_last_modified: string | null
+          response_etag: string
+          response_last_modified: string
         }
         Returns: number
       }
@@ -1426,6 +1819,7 @@ export type Database = {
       account_verification_status: 'pending' | 'verified' | 'invalid' | 'disabled'
       announcement_status: 'draft' | 'published' | 'archived'
       app_role: 'member' | 'admin'
+      daily_problem_status: 'draft' | 'published' | 'archived'
       platform_name: 'codeforces' | 'nowcoder' | 'atcoder' | 'xcpc_elo' | 'luogu' | 'qoj'
       profile_review_status: 'pending' | 'approved' | 'rejected' | 'suspended'
       stat_freshness_status: 'fresh' | 'stale' | 'unavailable'
@@ -1572,6 +1966,7 @@ export const Constants = {
       account_verification_status: ['pending', 'verified', 'invalid', 'disabled'],
       announcement_status: ['draft', 'published', 'archived'],
       app_role: ['member', 'admin'],
+      daily_problem_status: ['draft', 'published', 'archived'],
       platform_name: ['codeforces', 'nowcoder', 'atcoder', 'xcpc_elo', 'luogu', 'qoj'],
       profile_review_status: ['pending', 'approved', 'rejected', 'suspended'],
       stat_freshness_status: ['fresh', 'stale', 'unavailable'],

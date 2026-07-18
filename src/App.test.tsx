@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
@@ -98,6 +98,23 @@ describe('route authorization', () => {
 
     expect(await screen.findByRole('heading', { name: '公告管理' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /公告管理/ })).toHaveClass('active')
+  })
+
+  it('exposes daily problem management to approved demo administrators', async () => {
+    sessionStorage.setItem(demoSessionKey, 'admin@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/admin/daily-problems']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: '每日一题管理' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('navigation', { name: '后台导航' })).getByRole('link', {
+        name: '每日一题',
+      }),
+    ).toHaveClass('active')
+    expect(document.title).toBe('每日一题管理 | USTS ACM Land')
   })
 
   it('exposes WebChat configuration to approved demo administrators', async () => {

@@ -440,6 +440,20 @@ function auditAction(row: AdminAuditRow, details: Record<string, unknown>): stri
     return '更新公告'
   }
 
+  if (row.target_table === 'daily_problems') {
+    if (row.action === 'insert') return '创建每日一题'
+    if (row.action === 'delete') return '删除每日一题'
+    if (details.after_status === 'archived') return '归档每日一题'
+    if (details.after_status === 'published') return '发布每日一题'
+    return '更新每日一题'
+  }
+
+  if (row.target_table === 'daily_problem_comments') {
+    if (details.after_visibility === 'hidden') return '隐藏题目讨论'
+    if (details.after_visibility === 'visible') return '恢复题目讨论'
+    return '管理题目讨论'
+  }
+
   const actionLabels: Record<string, string> = {
     insert: '新增记录',
     update: '更新记录',

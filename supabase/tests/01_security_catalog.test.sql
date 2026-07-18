@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(32);
 
 select is(
   (
@@ -338,6 +338,82 @@ select is(
   ),
   1,
   'successful source snapshots have an idempotency index'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from pg_catalog.pg_class as relation
+    join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = any(array[
+        'daily_problems', 'daily_problem_completions', 'daily_problem_comments'
+      ])
+      and relation.relrowsecurity
+  ),
+  3,
+  'all daily learning identity tables enable row level security'
+);
+
+select ok(
+  not exists (
+    select 1
+    from unnest(array['anon', 'authenticated']) as browser(role_name)
+    cross join unnest(array[
+      'public.daily_problems',
+      'public.daily_problem_completions',
+      'public.daily_problem_comments'
+    ]) as base_table(table_name)
+    cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE']) as access(privilege_name)
+    where pg_catalog.has_table_privilege(
+      browser.role_name,
+      base_table.table_name,
+      access.privilege_name
+    )
+  ),
+  'daily learning identities have no browser-facing base-table privileges'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_proc as procedure
+    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname = any(array[
+        'require_daily_problem_member',
+        'read_daily_problem_feed',
+        'set_own_daily_problem_completion',
+        'list_daily_problem_comments',
+        'create_daily_problem_comment',
+        'delete_own_daily_problem_comment',
+        'admin_list_daily_problems',
+        'admin_upsert_daily_problem',
+        'admin_delete_daily_problem',
+        'admin_set_daily_problem_comment_visibility'
+      ])
+      and (
+        not procedure.prosecdef
+        or coalesce(procedure.proconfig::text, '') not like '%search_path=%'
+      )
+  ),
+  'daily learning RPCs are SECURITY DEFINER and pin their search path'
+);
+
+select ok(
+  pg_catalog.has_function_privilege(
+    'anon', 'public.read_daily_problem_feed(integer,date)', 'EXECUTE'
+  )
+    and not pg_catalog.has_function_privilege(
+      'anon', 'public.list_daily_problem_comments(bigint,integer,bigint)', 'EXECUTE'
+    )
+    and not pg_catalog.has_function_privilege(
+      'anon', 'public.set_own_daily_problem_completion(bigint,boolean)', 'EXECUTE'
+    )
+    and not pg_catalog.has_function_privilege(
+      'anon', 'public.admin_list_daily_problems(integer,bigint)', 'EXECUTE'
+    ),
+  'anonymous access is limited to the sanitized daily problem feed'
 );
 
 select * from finish();

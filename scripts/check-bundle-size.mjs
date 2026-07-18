@@ -8,11 +8,13 @@ export const bundleBudget = {
   entryGzipBytes: 160 * 1024,
   requiredRouteChunks: [
     'HomePage-',
+    'DailyProblemPage-',
     'RankingsPage-',
     'LoginPage-',
     'AccountPage-',
     'AssistantPage-',
     'AdminOverviewPage-',
+    'AdminDailyProblemsPage-',
     'AdminSyncPage-',
   ],
 }

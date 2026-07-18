@@ -281,7 +281,10 @@ export function HomePage() {
                 <h3>每日一题</h3>
                 <p>提供稳定的日常练习入口与题目讨论。</p>
               </div>
-              <span>规划中</span>
+              <Link to="/daily-problem" aria-label="进入每日一题">
+                已上线
+                <ArrowRight size={13} aria-hidden="true" />
+              </Link>
             </article>
             <article>
               <MessagesSquare size={21} aria-hidden="true" />

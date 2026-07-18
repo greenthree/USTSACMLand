@@ -11,6 +11,7 @@ export type AccountVerificationStatus = 'pending' | 'verified' | 'invalid' | 'di
 export type AdminMemberStatus = 'active' | 'suspended'
 export type AdminMemberRole = 'member' | 'admin'
 export type AnnouncementStatus = 'draft' | 'published' | 'archived'
+export type DailyProblemStatus = 'draft' | 'published' | 'archived'
 export type SyncStatus = 'fresh' | 'stale' | 'error' | 'missing' | 'syncing'
 export type SyncRunStatus = 'success' | 'running' | 'failed' | 'queued' | 'skipped'
 export type SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
@@ -100,6 +101,55 @@ export interface AdminAnnouncementInput {
   status: AnnouncementStatus
   publishedAt: string | null
   expiresAt: string | null
+  expectedUpdatedAt: string | null
+}
+
+export interface DailyProblem {
+  id: number
+  date: string
+  title: string
+  sourcePlatform: string
+  externalProblemId: string
+  sourceUrl: string
+  difficulty: string
+  tags: string[]
+  trainingNote: string
+  estimatedMinutes: number | null
+  completionCount: number
+  commentCount: number
+  completedAt: string | null
+}
+
+export interface DailyProblemComment {
+  id: number
+  problemId: number
+  authorId: string | null
+  authorLabel: string
+  body: string
+  visibility: 'visible' | 'hidden'
+  createdAt: string
+  updatedAt: string
+  canDelete: boolean
+}
+
+export interface AdminDailyProblem extends DailyProblem {
+  status: DailyProblemStatus
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminDailyProblemInput {
+  id: number | null
+  date: string
+  title: string
+  sourcePlatform: string
+  externalProblemId: string
+  sourceUrl: string
+  difficulty: string
+  tags: string[]
+  trainingNote: string
+  estimatedMinutes: number | null
+  status: DailyProblemStatus
   expectedUpdatedAt: string | null
 }
 

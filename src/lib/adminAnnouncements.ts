@@ -2,6 +2,13 @@ import { supabase } from './supabase'
 import { adminRpcError } from './adminRateLimit'
 import type { AdminAnnouncement, AdminAnnouncementInput } from '../types/domain'
 
+interface RpcResponse {
+  data: unknown
+  error: { message: string; code?: string } | null
+}
+
+type UntypedRpc = (functionName: string, args: Record<string, unknown>) => PromiseLike<RpcResponse>
+
 interface AdminAnnouncementRow {
   announcement_id: number | string
   title: string
@@ -55,7 +62,8 @@ export async function saveAdminAnnouncement(
     return { id: input.id ?? Date.now(), updatedAt: new Date().toISOString() }
   }
 
-  const { data, error } = await supabase.rpc('admin_upsert_announcement', {
+  const rpc = supabase.rpc.bind(supabase) as unknown as UntypedRpc
+  const { data, error } = await rpc('admin_upsert_announcement', {
     target_announcement_id: input.id,
     announcement_title: input.title,
     announcement_body: input.body,
@@ -65,7 +73,9 @@ export async function saveAdminAnnouncement(
     expected_updated_at: input.expectedUpdatedAt,
   })
   if (error) throw adminRpcError('公告保存失败', error)
-  const row = data?.[0]
+  const row = Array.isArray(data)
+    ? (data[0] as { announcement_id: number | string; announcement_updated_at: string } | undefined)
+    : undefined
   if (!row) throw new Error('公告保存失败：服务端未返回公告版本。')
   return { id: Number(row.announcement_id), updatedAt: row.announcement_updated_at }
 }

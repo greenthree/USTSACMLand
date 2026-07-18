@@ -11,6 +11,7 @@ import { RouteLoading } from './RouteLoading'
 const navItems = [
   { to: '/', label: '首页', end: true },
   { to: '/learning', label: '学习', end: false },
+  { to: '/daily-problem', label: '每日一题', end: false },
   { to: '/rankings', label: '榜单', end: false },
 ]
 

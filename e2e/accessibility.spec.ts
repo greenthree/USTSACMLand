@@ -26,6 +26,7 @@ function assertNoViolations(route: string, violations: AxeViolationSummary[]) {
 for (const route of [
   '/',
   '/learning',
+  '/daily-problem',
   '/rankings',
   '/login',
   '/register',
@@ -43,6 +44,7 @@ for (const route of [
 
 for (const route of [
   '/admin/accounts',
+  '/admin/daily-problems',
   '/admin/members',
   '/admin/sync',
   '/admin/webchat',

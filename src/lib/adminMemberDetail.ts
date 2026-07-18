@@ -11,6 +11,13 @@ import {
   type ReviewStatus,
 } from '../types/domain'
 
+interface RpcResponse {
+  data: unknown
+  error: { message: string; code?: string } | null
+}
+
+type UntypedRpc = (functionName: string, args: Record<string, unknown>) => PromiseLike<RpcResponse>
+
 interface AdminMemberDetailRow {
   id: string
   email: string | null
@@ -179,7 +186,8 @@ export async function setAdminManualPlatformStats(
 ): Promise<void> {
   if (!supabase) return
 
-  const { error } = await supabase.rpc('admin_set_manual_platform_stats', {
+  const rpc = supabase.rpc.bind(supabase) as unknown as UntypedRpc
+  const { error } = await rpc('admin_set_manual_platform_stats', {
     target_profile_id: memberId,
     target_platform: platform,
     manual_current_rating: values.currentRating,
