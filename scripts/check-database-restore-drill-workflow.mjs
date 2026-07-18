@@ -132,6 +132,16 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
     /psql "\$DB_URL"[\s\S]*--single-transaction[\s\S]*--file "\$restore_dir\/roles\.sql"[\s\S]*--file "\$restore_dir\/schema\.sql"[\s\S]*--file "\$restore_dir\/data\.sql"[\s\S]*--file "\$restore_dir\/auth-data\.sql"[\s\S]*--file "\$restore_dir\/migrations-schema\.sql"[\s\S]*--file "\$restore_dir\/migrations-data\.sql"/,
     'Restore drill must atomically restore roles, schema, business data, Auth data, and migration history.',
   )
+  requireMatch(
+    workflow,
+    /set local role supabase_auth_admin;[\s\S]*truncate table[\s\S]*reset role;[\s\S]*drop schema if exists supabase_migrations cascade;/,
+    'Restore drill must use the least platform role needed to clear local Auth data.',
+  )
+  requireMatch(
+    workflow,
+    /--file "\$restore_dir\/data\.sql" \\\r?\n\s+--command 'set local role supabase_auth_admin' \\\r?\n\s+--file "\$restore_dir\/auth-data\.sql" \\\r?\n\s+--command 'reset role'/,
+    'Restore drill must scope the Supabase Auth owner role only around Auth data import.',
+  )
 
   for (const fragment of [
     'auth/v1/admin/users',
