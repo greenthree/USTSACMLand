@@ -100,6 +100,8 @@ WEBCHAT_RELAY_REPORT_PATH=artifacts/webchat-relay-compatibility.json
 
 该探针只验证当前 Supabase Vault 配置实际走通后的缓存读写，不替代首次接入或更换中转站时的完整非流式、流式和 Abort 兼容性验收。
 
+2026-07-18 的生产 run [`29650242439`](https://github.com/greenthree/USTSACMLand/actions/runs/29650242439) 已完成一次无重试复核：首个请求输入 2335 Token、缓存命中 0，第二个相同请求命中 1792 个输入 Token。当前中转站能够透传缓存键和重复前缀，并回传可验证的 `cached_tokens`；脱敏记录见[生产命中证据](./evidence/webchat-input-cache-production-smoke-2026-07-18.md)。
+
 ## 通过后的部署顺序
 
 1. 保持 `VITE_WEBCHAT_UI_ENABLED=false`、Supabase `CHAT_ENABLED=false` 与数据库成员请求开关关闭。
