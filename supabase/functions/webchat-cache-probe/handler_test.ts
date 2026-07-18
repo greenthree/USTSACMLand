@@ -8,6 +8,14 @@ import {
 import { CacheProbeError, type CacheProbeResult } from './probe.ts'
 
 const serviceRoleKey = 'service-role-test-key'
+
+function testToken(payload: Record<string, unknown>): string {
+  const encoded = btoa(JSON.stringify(payload))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+  return `header.${encoded}.signature`
+}
 const runtimeConfig = {
   baseUrl: 'https://relay.example.test/v1',
   apiKey: 'relay-secret-key',
@@ -100,7 +108,7 @@ function request(headers: HeadersInit = {}): Request {
 }
 
 Deno.test(
-  'cache probe endpoint accepts POST only and requires the exact service-role token',
+  'cache probe endpoint accepts POST only and requires gateway-verified service-role authorization',
   async () => {
     const currentHandler = handler(services())
     const methodResponse = await currentHandler(
@@ -119,6 +127,16 @@ Deno.test(
     )
     strictEqual(unauthorized.status, 401)
     strictEqual((await unauthorized.json()).error.code, 'unauthorized')
+
+    const rotatedServiceRole = await currentHandler(
+      request({ authorization: `Bearer ${testToken({ role: 'service_role' })}` }),
+    )
+    strictEqual(rotatedServiceRole.status, 200)
+
+    const authenticatedUser = await currentHandler(
+      request({ authorization: `Bearer ${testToken({ role: 'authenticated' })}` }),
+    )
+    strictEqual(authenticatedUser.status, 401)
   },
 )
 

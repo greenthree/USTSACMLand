@@ -1,4 +1,5 @@
 import type { WebChatRelayRuntimeConfig } from '../webchat/runtime-config.ts'
+import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
 import { CacheProbeError, type CacheProbeResult, type CacheProbeRuntimeConfig } from './probe.ts'
 
 export interface CacheProbeClaimResult {
@@ -70,7 +71,10 @@ function equalSecret(left: string, right: string): boolean {
 
 function authorize(request: Request, serviceRoleKey: string): void {
   const match = (request.headers.get('authorization') ?? '').match(/^Bearer\s+([^\s]+)$/i)
-  if (!match || !equalSecret(match[1], serviceRoleKey)) {
+  if (
+    !match ||
+    (!equalSecret(match[1], serviceRoleKey) && gatewayVerifiedJwtRole(match[1]) !== 'service_role')
+  ) {
     throw new ApiError(401, 'unauthorized', 'Service-role authorization is required')
   }
   if (request.headers.has('origin')) {
