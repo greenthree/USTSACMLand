@@ -430,7 +430,7 @@ jobs:
             --variable ON_ERROR_STOP=1 \
             --command "select pg_catalog.count(*) from auth.users u
               full join public.profiles p on p.id = u.id
-              where pg_catalog.coalesce(u.id, p.id) = '$canary_id'::uuid")"
+              where coalesce(u.id, p.id) = '$canary_id'::uuid")"
           if [[ "$canary_remaining" -ne 0 ]]; then
             echo '::error::Isolated Auth canary cleanup left residual rows.'
             exit 1

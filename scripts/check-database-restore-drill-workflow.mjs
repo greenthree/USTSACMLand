@@ -184,7 +184,7 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   )
   requireMatch(
     workflow,
-    /canary_id" =~ \^\[0-9a-f-\]\{36\}\$[\s\S]*delete_auth_user_with_recovery_lease[\s\S]*pg_catalog\.coalesce\(u\.id, p\.id\) = '\$canary_id'::uuid/,
+    /canary_id" =~ \^\[0-9a-f-\]\{36\}\$[\s\S]*delete_auth_user_with_recovery_lease[\s\S]*where coalesce\(u\.id, p\.id\) = '\$canary_id'::uuid/,
     'Restore drill must validate the canary UUID before checking fenced-deletion cleanup.',
   )
   if (/curl[^\n]*(?:greenthree\.github\.io|supabase\.co|127\.0\.0\.1:5432[12])/i.test(workflow)) {
