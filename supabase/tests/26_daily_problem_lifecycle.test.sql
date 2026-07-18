@@ -164,6 +164,8 @@ select ok(
   'a newly published past-date problem enters the public feed'
 );
 
+reset role;
+
 select ok(
   exists (
     select 1
@@ -175,6 +177,8 @@ select ok(
   ),
   'daily problem creation is audited with the administrator identity'
 );
+
+set local role authenticated;
 
 insert into updated_problem
 select *
@@ -320,6 +324,8 @@ select ok(
   ),
   'a never-published draft can be physically deleted'
 );
+
+reset role;
 
 select ok(
   exists (
@@ -474,6 +480,8 @@ select ok(
   (select comment_visible from restored_comment),
   'an administrator can restore a hidden member comment'
 );
+
+reset role;
 
 select is(
   (
