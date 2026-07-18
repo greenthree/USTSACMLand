@@ -172,7 +172,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -209,7 +209,7 @@ GitHub Actions Secrets：
 - `VITE_SUPABASE_ANON_KEY`
 - `SUPABASE_ACCESS_TOKEN`（仅供加密数据库备份；CLI 每次运行动态取得短期数据库登录，不保存长期数据库密码）
 - `BACKUP_ENCRYPTION_PASSPHRASE`（独立随机口令，至少 32 个字符）
-- WebChat 真实中转站验收启用前另需 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`；三者只供手动 `WebChat relay compatibility` 工作流使用，不能配置为 `VITE_*`，也不会在 PR、push 或定时任务中自动消费模型额度。
+- WebChat 首次接入或更换中转站时的完整协议/Abort 验收另需 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`；三者只供手动 `WebChat relay compatibility` 工作流使用，不能配置为 `VITE_*`，也不会在 PR、push 或定时任务中自动消费模型额度。已写入管理员后台和 Supabase Vault 的生产配置使用独立 `WebChat production cache probe` 复核缓存，只复用现有 `SUPABASE_PROJECT_REF`、`SUPABASE_SERVICE_ROLE_KEY`，无需在 GitHub 再保存一份中转站地址、Key 或模型。
 
 Supabase Function Secrets/配置：
 
@@ -220,6 +220,7 @@ Supabase Function Secrets/配置：
 - `LUOGU_CSRF_TOKEN`（与 Cookie 对应的 CSRF Token）
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
 - 可选：`SYNC_ALERT_WEBHOOK_URL`（仅 HTTPS）、`SYNC_ALERT_WEBHOOK_TOKEN`
+- 可选：`WEBCHAT_CACHE_PROBE_TIMEOUT_MS`（单次上游缓存探针超时，默认 120000ms；两次请求共享的数据库租约会据此保持足够余量）
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
 - WebChat 默认由三层开关关闭：浏览器 `VITE_WEBCHAT_UI_ENABLED=false` 隐藏导航并拒绝 `/assistant`，服务端 `CHAT_ENABLED=false` 是最高优先级的环境熔断，数据库 `requests_enabled=false` 允许管理员在 `/admin/webchat` 立即暂停新请求。管理员还可修改中转站 Base URL、固定模型、API Key 和全站北京时间每日请求/Token 上限：地址、模型、开关、预算和版本保存在 `private` 单例表，Key 只写入 Supabase Vault，读取接口只返回“已配置/未配置”，浏览器永远拿不到旧 Key；每次修改还要求原因、实时管理员复核、速率限制和乐观锁，并写入不含 Key 的审计。后台同时读取当天全站请求数、已结算/预留 Token、剩余额度与北京时间重置时间；请求和 Token 预算首次阻断分别在固定全局锁下原子标记，每类每天最多投递一次 `webchat_budget_exhausted` 脱敏 Webhook，Payload 不含成员、请求、消息、中转站地址或 Key，投递失败不改变原额度拒绝结果且不自动重试。管理员还必须在账号详情的“AI 助手访问”中逐人授权并设置累计请求与 Token 总限额；无私有授权行、授权关闭、账号停用或角色不是成员/管理员均默认拒绝。已授权账号的 `/assistant` 只读取后端当前模型名和自己的累计已用、预留、总限额与剩余额度，不返回其他账号、全站预算、中转站地址或 Key；成员额度不会每日重置，管理员提高总限额可追加可用额度，历史用量始终保留。WebChat 请求会先检查账号授权，再读取含 Vault Key 的运行时配置；数据库原子 claim 在付费请求前二次读取账号授权、累计成员额度、数据库总开关和全站日预算，管理员撤权、暂停或降额不会被预读竞态绕过。只有数据库中转站配置行尚不存在时才会使用 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`、`CHAT_GLOBAL_REQUESTS_PER_DAY` 与 `CHAT_GLOBAL_TOKENS_PER_DAY` 环境变量；逐账号累计额度不使用环境变量回退。数据库行一旦存在，其暂停开关和全站预算始终优先；若管理员开启请求但地址、模型或 Vault Key 不完整，请求会失败关闭。原子并发、滑动分钟、逐账号累计总额度、跨全部账号的全站日预算以及 `request_id + fingerprint + owner_token` 幂等租约均由数据库 RPC 实现；全站账本在 claim、释放、超时回收和已知/未知 Usage 结算时使用固定锁序更新，动态模型会进入请求指纹，并写入该次请求的服务端系统提示词。启用时还须配置 `CHAT_ALLOWED_ORIGINS` 和 `CHAT_SYSTEM_PROMPT_VERSION`。请求、消息、总字符、输出与超时上限使用 `.env.example` 中的 `CHAT_MAX_*` / `CHAT_REQUEST_TIMEOUT_MS`；系统分钟限流与租约使用 `CHAT_REQUESTS_PER_MINUTE`、`CHAT_CLAIM_LEASE_SECONDS`，逐账号累计请求与 Token 总限额只由管理员后台配置，其中租约必须至少比上游超时多 30 秒。禁止添加任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
@@ -230,13 +231,13 @@ Supabase Function Secrets/配置：
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
-WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和一次性告警标记。Supabase `service_role` 本身是可访问 Vault 的平台高权限后端凭据，因此只允许部署在受控 Edge Function 中；网站配置读取和审计接口永远不向浏览器返回 Key。额度账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 且不接受目标成员 ID 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
+WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和一次性告警标记。Supabase `service_role` 本身是可访问 Vault 的平台高权限后端凭据，因此只允许部署在受控 Edge Function 中；网站配置读取和审计接口永远不向浏览器返回 Key。额度账本只保存用户 UUID、请求 ID、SHA-256 指纹、租约和聚合用量，不保存消息正文；同一成员同时最多有一个生成任务。生产缓存探针另用 service-role-only 账本固定计入全站 2 次请求，并按两次完整请求 JSON 的 UTF-8 字节数、最大输出和协议余量动态计算保守 Token 预留，不占任何成员额度，30 分钟冷却且无自动重试；异常 Usage 超过预留时会清除不可信计数、按预留上限记入未知用量并让探针失败，不能越过全站硬额度。其 Edge Function 拒绝浏览器 `Origin`，只从 Vault 读取当前中转站配置，180 天内仅保留模型 Usage、缓存 Token 计数、租约和结果，不保存 Prompt、回复、Base URL 或 Key。会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 且不接受目标成员 ID 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
 
 AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。为支持刷新恢复和历史会话，本站私有数据库最多为每个账号保存 100 个会话，单会话最多 120 条消息/1 MiB，最后活动超过 180 天自动清理；成员可自行删除，注销时随 Profile 级联删除。历史接口只绑定当前登录账号，额度账本仍不保存正文。中转站和上游模型的留存、训练、删除与跨境政策必须由维护者持续核对。站内披露见 [`/privacy`](https://greenthree.github.io/USTSACMLand/privacy)，工程边界见[WebChat 私有历史会话](./docs/webchat-conversation-history.md)。
 
 `npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只证明本地协议与客户端隔离，不能替代真实中转站费用、Usage 和 Abort 验收。
 
-真实中转站上线前必须先运行手动兼容性验收：非流式响应需要返回可见文本、实际模型 ID 和 Usage；流式响应需要使用 Responses typed SSE，并依次观察 `response.created`、至少一个 `response.output_text.delta`/`response.refusal.delta` 和带 Usage 的 `response.completed`；Abort 检查必须在首个增量后两秒内结束客户端流。生产请求与验收请求都携带由模型和系统提示词版本派生的稳定 `prompt_cache_key`；官方缓存仍要求至少 1024 个输入 Token 和精确重复前缀，短对话 `cached_tokens=0` 不代表配置失败。手动验收现默认连续发送两次相同的 1024 Token 以上长前缀，要求第二次 `input_tokens_details.cached_tokens > 0`，从而直接发现中转站未透传缓存键、未稳定路由或未回传缓存 Usage 的问题。验收器不记录 Prompt、回复、请求 ID、Key 或中转站主机，只上传主机 SHA-256、路径、模型、事件类型、时延和 Token 数，Artifact 保留 14 天。配置与发布顺序见 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)。
+真实中转站上线前必须先运行手动兼容性验收：非流式响应需要返回可见文本、实际模型 ID 和 Usage；流式响应需要使用 Responses typed SSE，并依次观察 `response.created`、至少一个 `response.output_text.delta`/`response.refusal.delta` 和带 Usage 的 `response.completed`；Abort 检查必须在首个增量后两秒内结束客户端流。生产请求与验收请求都携带由模型和系统提示词版本派生的稳定 `prompt_cache_key`；官方缓存仍要求至少 1024 个输入 Token 和精确重复前缀，短对话 `cached_tokens=0` 不代表配置失败。完整中转站工作流继续验证非流式、流式、Abort 和可选缓存；已配置生产环境则由 service-role-only `webchat-cache-probe` 连续发送两次字节一致的 1024 Token 以上长前缀，要求第二次 `input_tokens_details.cached_tokens > 0`。生产探针只使用现有 Supabase GitHub Secrets，从 Vault 读取中转站值，脱敏 Artifact 保留 14 天。配置与发布顺序见 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)。
 
 数据库队列调度器在 Supabase Vault 保存 `sync_queue_endpoint`、公开的 `sync_queue_anon_key` 和与 `SYNC_QUEUE_TOKEN` 相同的 `sync_queue_scheduler_token`。Vault 不保存 service role key；cron catalog 只保存私有函数调用。`read_sync_queue_scheduler_health()` 仅向 service role 返回配置是否齐全、最近调度时间、HTTP 状态和近 15 分钟 cron 聚合，不返回 URL、请求头、正文、Token 或响应正文。
 
@@ -275,7 +276,7 @@ npx --yes supabase@2.109.1 db push --linked --include-all
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password \
   --use-api --import-map supabase/functions/deno.json
 # 可先在三层关闭态部署；正式启用前必须通过 WebChat 发布检查单。
-npx --yes supabase@2.109.1 functions deploy webchat webchat-config \
+npx --yes supabase@2.109.1 functions deploy webchat webchat-config webchat-cache-probe \
   --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```

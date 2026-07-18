@@ -49,6 +49,9 @@ jobs:
       - name: Check WebChat relay workflow invariants
         run: npm run check:webchat-relay-workflow
 
+      - name: Check WebChat cache probe workflow invariants
+        run: npm run check:webchat-cache-probe-workflow
+
       - name: Test
         run: npm test
 
@@ -81,6 +84,7 @@ jobs:
           supabase/functions/change-password/index.ts
           supabase/functions/webchat/index.ts
           supabase/functions/webchat-config/index.ts
+          supabase/functions/webchat-cache-probe/index.ts
 
       - name: Lint Edge Functions
         run: deno lint --config supabase/functions/deno.json supabase/functions

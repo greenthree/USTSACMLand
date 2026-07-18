@@ -17,6 +17,8 @@
     "check:supabase-readiness": "node scripts/check-supabase-readiness.mjs",
     "check:sync-workflow": "node scripts/check-sync-workflow.mjs",
     "check:webchat-relay": "node scripts/check-webchat-relay.mjs",
+    "check:webchat-cache-probe": "node scripts/check-webchat-production-cache-probe.mjs",
+    "check:webchat-cache-probe-workflow": "node scripts/check-webchat-cache-probe-workflow.mjs",
     "check:webchat-relay-workflow": "node scripts/check-webchat-relay-workflow.mjs",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",

@@ -46,6 +46,7 @@ const requiredReleaseMigrations = [
   '202607180003_webchat_total_member_quotas.sql',
   '202607180004_public_practice_increment_rankings.sql',
   '202607180005_webchat_conversation_history.sql',
+  '202607180006_webchat_cache_probe_accounting.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -88,6 +89,11 @@ export function verifyDatabaseTypes(databaseTypes) {
     'admin_update_webchat_relay_config',
     'read_webchat_global_budget_usage',
     'claim_webchat_budget_alert',
+    'claim_webchat_cache_probe',
+    'mark_webchat_cache_probe_started',
+    'finalize_webchat_cache_probe',
+    'release_webchat_cache_probe',
+    'purge_webchat_cache_probe_runs',
     'admin_get_webchat_member_access',
     'admin_update_webchat_member_access',
     'admin_list_webchat_pilot_members',
@@ -229,6 +235,7 @@ export function verifyCiWorkflow(
     'change-password',
     'webchat',
     'webchat-config',
+    'webchat-cache-probe',
   ]) {
     requireMatch(
       denoCheckStep,
