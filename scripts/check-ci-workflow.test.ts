@@ -35,6 +35,38 @@ describe('CI workflow', () => {
     })
   })
 
+  it('requires the encrypted restore drill workflow checker', () => {
+    expect(() =>
+      verifyCiWorkflow(
+        workflow.replace(
+          '      - name: Check encrypted restore drill workflow invariants\n        run: npm run check:restore-drill-workflow\n\n',
+          '',
+        ),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/restore drill workflow invariants/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        {
+          ...packageJson,
+          scripts: {
+            ...packageJson.scripts,
+            'check:restore-drill-workflow': 'echo skipped',
+          },
+        },
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/checked-in verifier/)
+  })
+
   it('rejects removal of the environment permission required by Edge tests', () => {
     expect(() =>
       verifyCiWorkflow(

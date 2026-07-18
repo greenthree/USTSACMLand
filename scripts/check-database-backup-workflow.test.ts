@@ -26,6 +26,25 @@ describe('encrypted database backup workflow', () => {
     ).toThrow(/account-deletion recovery floor/)
   })
 
+  it('rejects removal of the aggregate restore manifest', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          '          node scripts/build-backup-restore-manifest.mjs',
+          '          echo skipped-restore-manifest',
+        ),
+      ),
+    ).toThrow(/aggregate restore manifest/)
+  })
+
+  it('requires the restore manifest to be covered by internal checksums', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('              restore-manifest.json \\\n', ''),
+      ),
+    ).toThrow(/internal checksum/)
+  })
+
   it('rejects plaintext artifact uploads', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(

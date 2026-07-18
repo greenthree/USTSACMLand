@@ -1,0 +1,419 @@
+name: Encrypted database restore drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_run_id:
+        description: Successful Encrypted database backup run ID from main
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: database-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+      BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate backup source
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BACKUP_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo '::error::backup_run_id must be a numeric Actions run ID.'
+            exit 1
+          fi
+          if (( ${#BACKUP_ENCRYPTION_PASSPHRASE} < 32 )); then
+            echo '::error::BACKUP_ENCRYPTION_PASSPHRASE must contain at least 32 characters.'
+            exit 1
+          fi
+          if ! date -u -d "$BACKUP_RECOVERY_NOT_BEFORE" +'%Y-%m-%dT%H:%M:%SZ' > /dev/null; then
+            echo '::error::BACKUP_RECOVERY_NOT_BEFORE is not a valid timestamp.'
+            exit 1
+          fi
+
+          run_json="$RUNNER_TEMP/backup-source-run.json"
+          workflow_json="$RUNNER_TEMP/backup-source-workflow.json"
+          artifacts_json="$RUNNER_TEMP/backup-source-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BACKUP_RUN_ID" > "$run_json"
+
+          jq -e --arg repository "$GITHUB_REPOSITORY" '
+            .name == "Encrypted database backup"
+            and .head_branch == "main"
+            and .head_repository.full_name == $repository
+            and .conclusion == "success"
+            and (.event == "schedule" or .event == "workflow_dispatch")
+          ' "$run_json" > /dev/null
+
+          workflow_id="$(jq -r '.workflow_id' "$run_json")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow_id" > "$workflow_json"
+          jq -e '.path == ".github/workflows/database-backup.yml" and .state == "active"' \
+            "$workflow_json" > /dev/null
+
+          run_attempt="$(jq -r '.run_attempt' "$run_json")"
+          source_sha="$(jq -r '.head_sha' "$run_json")"
+          artifact_name="ustsacmland-database-backup-$BACKUP_RUN_ID-$run_attempt"
+          [[ "$run_attempt" =~ ^[0-9]+$ ]]
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BACKUP_RUN_ID/artifacts" \
+            > "$artifacts_json"
+          jq -e --arg name "$artifact_name" '
+            [.artifacts[] | select(.name == $name and .expired == false)] | length == 1
+          ' "$artifacts_json" > /dev/null
+
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download encrypted backup
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ steps.source.outputs.artifact_name }}
+          path: ${{ runner.temp }}/encrypted-backup
+          run-id: ${{ inputs.backup_run_id }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+
+      - name: Decrypt and verify backup
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          set +x
+
+          artifact_dir="$RUNNER_TEMP/encrypted-backup"
+          encrypted="$artifact_dir/ustsacmland-database-backup.enc"
+          checksum="$artifact_dir/ustsacmland-database-backup.enc.sha256"
+          archive="$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
+          restore_dir="$RUNNER_TEMP/restored-backup"
+          listing="$RUNNER_TEMP/ustsacmland-restore-files.txt"
+
+          test -s "$encrypted"
+          test -s "$checksum"
+          test "$(find "$artifact_dir" -maxdepth 1 -type f | wc -l)" -eq 2
+          (
+            cd "$artifact_dir"
+            sha256sum -c ustsacmland-database-backup.enc.sha256
+          )
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
+            -in "$encrypted" \
+            -out "$archive" \
+            -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+
+          tar -tzf "$archive" | sort > "$listing"
+          diff -u <(printf '%s\n' \
+            './' \
+            './SHA256SUMS' \
+            './auth-data.sql' \
+            './data.sql' \
+            './metadata.txt' \
+            './migrations-data.sql' \
+            './migrations-schema.sql' \
+            './restore-manifest.json' \
+            './roles.sql' \
+            './schema.sql' | sort) "$listing"
+          if tar -tvzf "$archive" | awk '$1 !~ /^[-d]/ { invalid = 1 } END { exit invalid }'; then
+            true
+          else
+            echo '::error::Backup archive contains an unsupported entry type.'
+            exit 1
+          fi
+
+          mkdir -p "$restore_dir"
+          tar --extract --gzip --file "$archive" --directory "$restore_dir" \
+            --no-same-owner --no-same-permissions
+          (
+            cd "$restore_dir"
+            sha256sum -c SHA256SUMS
+          )
+
+          grep -Fxq "repository=$GITHUB_REPOSITORY" "$restore_dir/metadata.txt"
+          grep -Fxq "commit=$SOURCE_SHA" "$restore_dir/metadata.txt"
+          grep -Fxq "run_id=$BACKUP_RUN_ID" "$restore_dir/metadata.txt"
+          grep -Fxq 'supabase_cli=2.109.1' "$restore_dir/metadata.txt"
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg commit "$SOURCE_SHA" \
+            --arg run_id "$BACKUP_RUN_ID" '
+              .schemaVersion == 1
+              and .repository == $repository
+              and .commit == $commit
+              and .runId == $run_id
+              and .supabaseCli == "2.109.1"
+            ' "$restore_dir/restore-manifest.json" > /dev/null
+          node scripts/verify-backup-recovery-floor.mjs "$restore_dir/metadata.txt"
+          rm -f "$archive" "$listing"
+
+      - name: Start isolated local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv supabase/migrations "$RUNNER_TEMP/repository-migrations"
+          mkdir supabase/migrations
+          npx --yes supabase@2.109.1 start \
+            --exclude analytics,edge-runtime,functions,imgproxy,inbucket,realtime,storage,studio,vector
+
+      - name: Restore and validate isolated database
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          set +x
+          restore_started="$(date +%s)"
+          restore_dir="$RUNNER_TEMP/restored-backup"
+          status_env="$RUNNER_TEMP/isolated-supabase.env"
+          pre_restore="$RUNNER_TEMP/pre-restore.sql"
+          counts="$RUNNER_TEMP/restored-row-counts.json"
+          orphans="$RUNNER_TEMP/restored-orphan-counts.json"
+          observation="$RUNNER_TEMP/restore-observation.json"
+          mkdir -p artifacts
+
+          npx --yes supabase@2.109.1 status -o env > "$status_env"
+          set -a
+          source "$status_env"
+          set +a
+          : "${DB_URL:?Missing local DB_URL}"
+          : "${API_URL:?Missing local API_URL}"
+          : "${ANON_KEY:?Missing local ANON_KEY}"
+          : "${SERVICE_ROLE_KEY:?Missing local SERVICE_ROLE_KEY}"
+
+          if ! command -v psql > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client
+          fi
+
+          cat > "$pre_restore" <<'SQL'
+          do $$
+          declare
+            truncate_command text;
+          begin
+            select 'truncate table '
+              || string_agg(format('%I.%I', schemaname, tablename), ', ')
+              || ' restart identity cascade'
+            into truncate_command
+            from pg_catalog.pg_tables
+            where schemaname = 'auth';
+
+            if truncate_command is not null then
+              execute truncate_command;
+            end if;
+          end;
+          $$;
+          drop schema if exists supabase_migrations cascade;
+          SQL
+
+          psql "$DB_URL" \
+            --no-psqlrc \
+            --quiet \
+            --single-transaction \
+            --variable ON_ERROR_STOP=1 \
+            --file "$restore_dir/roles.sql" \
+            --file "$pre_restore" \
+            --file "$restore_dir/schema.sql" \
+            --command 'set session_replication_role = replica' \
+            --file "$restore_dir/data.sql" \
+            --file "$restore_dir/auth-data.sql" \
+            --file "$restore_dir/migrations-schema.sql" \
+            --file "$restore_dir/migrations-data.sql" \
+            --command 'set session_replication_role = origin'
+
+          psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 \
+            --command "select pg_catalog.json_build_object(
+              'profiles', (select pg_catalog.count(*) from public.profiles),
+              'platformAccounts', (select pg_catalog.count(*) from public.platform_accounts),
+              'platformStats', (select pg_catalog.count(*) from public.platform_stats),
+              'statSnapshots', (select pg_catalog.count(*) from public.stat_snapshots),
+              'syncRuns', (select pg_catalog.count(*) from public.sync_runs),
+              'authUsers', (select pg_catalog.count(*) from auth.users),
+              'migrations', (select pg_catalog.count(*) from supabase_migrations.schema_migrations)
+            )::text" > "$counts"
+
+          psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 \
+            --command "select pg_catalog.json_build_object(
+              'profilesWithoutAuth', (
+                select pg_catalog.count(*) from public.profiles p
+                left join auth.users u on u.id = p.id where u.id is null
+              ),
+              'accountsWithoutProfile', (
+                select pg_catalog.count(*) from public.platform_accounts a
+                left join public.profiles p on p.id = a.profile_id where p.id is null
+              ),
+              'statsWithoutProfile', (
+                select pg_catalog.count(*) from public.platform_stats s
+                left join public.profiles p on p.id = s.profile_id where p.id is null
+              ),
+              'statsWithoutAccount', (
+                select pg_catalog.count(*) from public.platform_stats s
+                left join public.platform_accounts a
+                  on a.profile_id = s.profile_id and a.platform = s.platform
+                where a.id is null
+              )
+            )::text" > "$orphans"
+
+          canary_email="restore-drill-$GITHUB_RUN_ID@example.invalid"
+          canary_password="$(openssl rand -base64 36 | tr -d '=+/\n' | cut -c1-32)"
+          jq -n \
+            --arg email "$canary_email" \
+            --arg password "$canary_password" \
+            '{email: $email, password: $password, email_confirm: true, user_metadata: {full_name: "Restore Drill Canary"}}' \
+            > "$RUNNER_TEMP/canary-create-request.json"
+          curl --fail --silent --show-error \
+            --request POST "$API_URL/auth/v1/admin/users" \
+            --header "apikey: $SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$RUNNER_TEMP/canary-create-request.json" \
+            --output "$RUNNER_TEMP/canary-create-response.json"
+          canary_id="$(jq -r '.id' "$RUNNER_TEMP/canary-create-response.json")"
+          [[ "$canary_id" =~ ^[0-9a-f-]{36}$ ]]
+
+          jq -n --arg email "$canary_email" --arg password "$canary_password" \
+            '{email: $email, password: $password}' > "$RUNNER_TEMP/canary-login-request.json"
+          curl --fail --silent --show-error \
+            --request POST "$API_URL/auth/v1/token?grant_type=password" \
+            --header "apikey: $ANON_KEY" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$RUNNER_TEMP/canary-login-request.json" \
+            --output "$RUNNER_TEMP/canary-login-response.json"
+          access_token="$(jq -r '.access_token' "$RUNNER_TEMP/canary-login-response.json")"
+          test -n "$access_token"
+          test "$access_token" != null
+
+          curl --fail --silent --show-error \
+            "$API_URL/rest/v1/profiles?select=id&id=eq.$canary_id" \
+            --header "apikey: $ANON_KEY" \
+            --header "Authorization: Bearer $access_token" \
+            --output "$RUNNER_TEMP/canary-own-profile.json"
+          test "$(jq 'length' "$RUNNER_TEMP/canary-own-profile.json")" -eq 1
+
+          curl --fail --silent --show-error \
+            "$API_URL/rest/v1/profiles?select=id&id=neq.$canary_id&limit=1" \
+            --header "apikey: $ANON_KEY" \
+            --header "Authorization: Bearer $access_token" \
+            --output "$RUNNER_TEMP/canary-other-profiles.json"
+          test "$(jq 'length' "$RUNNER_TEMP/canary-other-profiles.json")" -eq 0
+
+          anonymous_public_status="$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/anonymous-public.json" \
+            --write-out '%{http_code}' \
+            "$API_URL/rest/v1/public_members?select=id&limit=1" \
+            --header "apikey: $ANON_KEY")"
+          test "$anonymous_public_status" -eq 200
+          jq -e 'type == "array"' "$RUNNER_TEMP/anonymous-public.json" > /dev/null
+
+          anonymous_private_status="$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/anonymous-private.json" \
+            --write-out '%{http_code}' \
+            "$API_URL/rest/v1/profiles?select=id&limit=1" \
+            --header "apikey: $ANON_KEY")"
+          [[ "$anonymous_private_status" == 401 || "$anonymous_private_status" == 403 ]]
+
+          curl --fail --silent --show-error \
+            --request DELETE "$API_URL/auth/v1/admin/users/$canary_id" \
+            --header "apikey: $SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            --output "$RUNNER_TEMP/canary-delete-response.json"
+          test "$(psql "$DB_URL" --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 --variable canary_id="$canary_id" \
+            --command "select pg_catalog.count(*) from auth.users u
+              full join public.profiles p on p.id = u.id
+              where pg_catalog.coalesce(u.id, p.id) = :'canary_id'::uuid")" -eq 0
+
+          restore_finished="$(date +%s)"
+          completed_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          jq -n \
+            --arg sourceRunId "$BACKUP_RUN_ID" \
+            --arg sourceSha "$SOURCE_SHA" \
+            --arg sourceRepository "$GITHUB_REPOSITORY" \
+            --arg completedAt "$completed_at" \
+            --argjson durationSeconds "$((restore_finished - restore_started))" \
+            --slurpfile rowCounts "$counts" \
+            --slurpfile orphanCounts "$orphans" \
+            --argjson anonymousPublicStatus "$anonymous_public_status" \
+            --argjson anonymousPrivateStatus "$anonymous_private_status" \
+            '{
+              sourceRunId: $sourceRunId,
+              sourceSha: $sourceSha,
+              sourceRepository: $sourceRepository,
+              completedAt: $completedAt,
+              durationSeconds: $durationSeconds,
+              rowCounts: $rowCounts[0],
+              orphanCounts: $orphanCounts[0],
+              authSmoke: {
+                canaryCreated: true,
+                passwordLogin: true,
+                ownProfileReadable: true,
+                otherProfilesHidden: true,
+                canaryDeleted: true
+              },
+              restSmoke: {
+                anonymousPublicStatus: $anonymousPublicStatus,
+                anonymousPrivateStatus: $anonymousPrivateStatus
+              }
+            }' > "$observation"
+
+          node scripts/verify-database-restore-drill.mjs \
+            "$restore_dir/restore-manifest.json" \
+            "$observation" \
+            artifacts/database-restore-drill.json
+
+      - name: Stop isolated local Supabase
+        if: always()
+        run: npx --yes supabase@2.109.1 stop --no-backup
+
+      - name: Remove decrypted backup and temporary credentials
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf \
+            "$RUNNER_TEMP/encrypted-backup" \
+            "$RUNNER_TEMP/restored-backup" \
+            "$RUNNER_TEMP/repository-migrations"
+          rm -f \
+            "$RUNNER_TEMP/ustsacmland-database-backup.tar.gz" \
+            "$RUNNER_TEMP/ustsacmland-restore-files.txt" \
+            "$RUNNER_TEMP/isolated-supabase.env" \
+            "$RUNNER_TEMP/pre-restore.sql" \
+            "$RUNNER_TEMP/restore-observation.json" \
+            "$RUNNER_TEMP/restored-row-counts.json" \
+            "$RUNNER_TEMP/restored-orphan-counts.json" \
+            "$RUNNER_TEMP"/canary-*.json
+          test ! -e "$RUNNER_TEMP/restored-backup"
+          test ! -e "$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
+
+      - name: Upload sanitized restore report
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: database-restore-drill-${{ github.run_id }}
+          path: artifacts/database-restore-drill.json
+          if-no-files-found: error
+          retention-days: 14
