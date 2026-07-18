@@ -99,7 +99,7 @@ select ok(
 select ok(
   not pg_catalog.has_function_privilege(
     'service_role',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request_internal(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and not pg_catalog.has_function_privilege(
@@ -214,8 +214,8 @@ where id in (
 insert into private.webchat_member_access (
   user_id,
   access_enabled,
-  daily_request_limit,
-  daily_token_limit,
+  total_request_limit,
+  total_token_limit,
   updated_by
 )
 values (
@@ -324,8 +324,8 @@ select ok(
     select 1
     from default_admin_policy
     where not access_enabled
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
       and version = 0
       and updated_at is null
   ),
@@ -357,8 +357,8 @@ select ok(
     from default_admin_runtime
     where account_eligible
       and not access_enabled
-      and daily_request_limit = 30
-      and daily_token_limit = 100000
+      and total_request_limit = 30
+      and total_token_limit = 100000
       and version = 0
   ),
   'runtime recognizes an approved administrator account without granting implicit access'
@@ -397,8 +397,8 @@ select ok(
     select 1
     from administrator_self_update
     where access_enabled
-      and daily_request_limit = 4
-      and daily_token_limit = 1000
+      and total_request_limit = 4
+      and total_token_limit = 1000
       and version = 1
       and updated_at is not null
   ),
@@ -411,8 +411,8 @@ select ok(
     from private.webchat_member_access
     where user_id = '00000000-0000-0000-0000-000000002301'
       and access_enabled
-      and daily_request_limit = 4
-      and daily_token_limit = 1000
+      and total_request_limit = 4
+      and total_token_limit = 1000
       and version = 1
       and updated_by = '00000000-0000-0000-0000-000000002301'
   ),
@@ -449,8 +449,8 @@ select ok(
     from enabled_admin_runtime
     where account_eligible
       and access_enabled
-      and daily_request_limit = 4
-      and daily_token_limit = 1000
+      and total_request_limit = 4
+      and total_token_limit = 1000
       and version = 1
   ),
   'service runtime accepts an explicitly authorized approved administrator'
@@ -466,9 +466,9 @@ select ok(
     select 1
     from empty_admin_usage
     where access_enabled
-      and request_count = 0
+      and used_requests = 0
       and remaining_requests = 4
-      and settled_tokens = 0
+      and used_tokens = 0
       and reserved_tokens = 0
       and remaining_tokens = 1000
   ),
@@ -501,8 +501,8 @@ select ok(
     from administrator_claim
     where decision = 'acquired'
       and status = 'claimed'
-      and remaining_daily_requests = 3
-      and remaining_daily_tokens = 900
+      and remaining_total_requests = 3
+      and remaining_total_tokens = 900
   ),
   'an explicitly authorized approved administrator can acquire a paid request claim'
 );
@@ -516,9 +516,9 @@ select ok(
   exists (
     select 1
     from claimed_admin_usage
-    where request_count = 1
+    where used_requests = 1
       and remaining_requests = 3
-      and settled_tokens = 0
+      and used_tokens = 0
       and reserved_tokens = 100
       and remaining_tokens = 900
   ),
@@ -569,9 +569,9 @@ select ok(
   exists (
     select 1
     from settled_admin_usage
-    where request_count = 1
+    where used_requests = 1
       and remaining_requests = 3
-      and settled_tokens = 50
+      and used_tokens = 50
       and reserved_tokens = 0
       and remaining_tokens = 950
   ),
@@ -601,8 +601,8 @@ select ok(
     from suspended_admin_runtime
     where not account_eligible
       and access_enabled
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
   ),
   'runtime separates a suspended administrator account from its stored enabled policy'
 );
@@ -629,8 +629,8 @@ select ok(
     select 1
     from suspended_admin_usage
     where not access_enabled
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
   ),
   'a suspended administrator own-usage response reports effective access disabled'
 );
@@ -670,8 +670,8 @@ select ok(
     select 1
     from suspended_admin_policy
     where access_enabled
-      and daily_request_limit = 2
-      and daily_token_limit = 500
+      and total_request_limit = 2
+      and total_token_limit = 500
       and version = 1
   ),
   'an active administrator may inspect a suspended administrator stored policy'

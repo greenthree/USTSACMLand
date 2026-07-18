@@ -190,6 +190,24 @@ test('quota errors remain visible without an automatic retry', async ({ page, re
   expect((await (await request.get(`${mockBaseUrl}/debug`)).json()).requestCount).toBe(1)
 })
 
+test('cumulative member quota exhaustion does not promise a daily reset', async ({
+  page,
+  request,
+}) => {
+  await openAsMember(page)
+  const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
+  await composer.fill('触发累计额度耗尽')
+  await composer.press('Enter')
+
+  const alert = page.getByRole('alert')
+  await expect(alert).toContainText('AI 助手累计请求次数已用完')
+  await expect(alert).not.toContainText('建议等待')
+  await expect(alert).not.toContainText('重置')
+  await expect(alert.getByRole('button', { name: '重新发送' })).toHaveCount(0)
+  await page.waitForTimeout(300)
+  expect((await (await request.get(`${mockBaseUrl}/debug`)).json()).requestCount).toBe(1)
+})
+
 test('an expired session signs out locally before returning to login', async ({ page }) => {
   await openAsMember(page)
   const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })

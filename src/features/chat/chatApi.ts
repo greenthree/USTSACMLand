@@ -58,7 +58,7 @@ function publicErrorMessage(status: number, payload: WebChatErrorPayload | null)
   if (status === 403) return '当前账号不能使用 AI 学习助手。'
   if (status === 409) return '已有请求正在处理，请稍后再试。'
   if (status === 413) return '当前对话内容过长，请清空部分内容后重试。'
-  if (status === 429) return '今天或当前时段的使用额度已达到上限。'
+  if (status === 429) return '使用额度或当前时段已达到上限。'
   if (status === 503) return 'AI 学习助手尚未开放。'
   return 'AI 学习助手暂时不可用，请稍后重试。'
 }

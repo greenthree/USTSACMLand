@@ -6,8 +6,8 @@ export interface WebChatQuotaPolicy {
   promptVersion: string
   maxOutputTokens: number
   minuteRequestLimit: number
-  dailyRequestLimit: number
-  dailyTokenLimit: number
+  memberTotalRequestLimit: number
+  memberTotalTokenLimit: number
   leaseSeconds: number
 }
 
@@ -23,8 +23,8 @@ export type WebChatClaimDecision =
   | 'requests_disabled'
   | 'active_concurrent'
   | 'minute_limited'
-  | 'daily_request_limited'
-  | 'daily_token_limited'
+  | 'member_total_request_limited'
+  | 'member_total_token_limited'
   | 'global_daily_request_limited'
   | 'global_daily_token_limited'
   | 'duplicate_active'
@@ -35,8 +35,8 @@ export interface WebChatClaimResult {
   decision: WebChatClaimDecision
   status: string
   remainingMinuteRequests: number
-  remainingDailyRequests: number
-  remainingDailyTokens: number
+  remainingTotalRequests: number
+  remainingTotalTokens: number
   retryAfterSeconds: number | null
 }
 
@@ -69,8 +69,8 @@ const CLAIM_DECISIONS = new Set<WebChatClaimDecision>([
   'requests_disabled',
   'active_concurrent',
   'minute_limited',
-  'daily_request_limited',
-  'daily_token_limited',
+  'member_total_request_limited',
+  'member_total_token_limited',
   'global_daily_request_limited',
   'global_daily_token_limited',
   'duplicate_active',
@@ -143,11 +143,11 @@ export function parseWebChatClaimResult(value: unknown): WebChatClaimResult {
     decision: row.decision as WebChatClaimDecision,
     status: row.status,
     remainingMinuteRequests: nonnegativeInteger(row.remaining_minute_requests, 'minute allowance'),
-    remainingDailyRequests: nonnegativeInteger(
-      row.remaining_daily_requests,
-      'daily request allowance',
+    remainingTotalRequests: nonnegativeInteger(
+      row.remaining_total_requests,
+      'total request allowance',
     ),
-    remainingDailyTokens: nonnegativeInteger(row.remaining_daily_tokens, 'daily token allowance'),
+    remainingTotalTokens: nonnegativeInteger(row.remaining_total_tokens, 'total token allowance'),
     retryAfterSeconds: nullableNonnegativeInteger(row.retry_after_seconds, 'retry delay'),
   }
 }

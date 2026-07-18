@@ -94,8 +94,8 @@ set
 insert into private.webchat_member_access (
   user_id,
   access_enabled,
-  daily_request_limit,
-  daily_token_limit,
+  total_request_limit,
+  total_token_limit,
   version,
   updated_by
 )
@@ -316,10 +316,11 @@ select set_eq(
   $$,
   $$ values
     ('user_id'), ('full_name'), ('grade'), ('major'), ('role'), ('review_status'),
-    ('access_enabled'), ('daily_request_limit'), ('daily_token_limit'), ('usage_date'),
-    ('request_count'), ('settled_tokens'), ('reserved_tokens'), ('remaining_requests'),
-    ('remaining_tokens'), ('active_request_count'), ('last_request_at'), ('version'),
-    ('updated_at')
+    ('access_enabled'), ('total_request_limit'), ('total_token_limit'),
+    ('used_requests'), ('used_tokens'), ('reserved_tokens'), ('remaining_requests'),
+    ('remaining_tokens'), ('today_usage_date'), ('today_request_count'),
+    ('today_settled_tokens'), ('today_reserved_tokens'), ('active_request_count'),
+    ('last_request_at'), ('version'), ('updated_at')
   $$,
   'the pilot roster exposes only the documented content-free field set'
 );
@@ -343,8 +344,8 @@ select ok(
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002702'
       and not access_enabled
-      and daily_request_limit = 7
-      and daily_token_limit = 3000
+      and total_request_limit = 7
+      and total_token_limit = 3000
   ),
   'an explicitly configured disabled account remains visible for pilot review'
 );
@@ -352,7 +353,7 @@ select ok(
 select ok(
   not exists (
     select 1 from pilot_roster
-    where usage_date <> (
+    where today_usage_date <> (
       pg_catalog.statement_timestamp() at time zone 'Asia/Shanghai'
     )::date
   ),
@@ -363,11 +364,14 @@ select ok(
   exists (
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002701'
-      and request_count = 4
-      and settled_tokens = 1000
+      and used_requests = 4
+      and used_tokens = 1000
       and reserved_tokens = 0
       and remaining_requests = 6
       and remaining_tokens = 4000
+      and today_request_count = 4
+      and today_settled_tokens = 1000
+      and today_reserved_tokens = 0
       and active_request_count = 0
   ),
   'an expired claimed lease refunds its counted request and reservation'
@@ -377,11 +381,14 @@ select ok(
   exists (
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002702'
-      and request_count = 3
-      and settled_tokens = 800
+      and used_requests = 3
+      and used_tokens = 800
       and reserved_tokens = 0
       and remaining_requests = 4
       and remaining_tokens = 2200
+      and today_request_count = 3
+      and today_settled_tokens = 800
+      and today_reserved_tokens = 0
       and active_request_count = 0
   ),
   'an expired started lease retains its request and moves reservation to settled usage'
@@ -391,11 +398,14 @@ select ok(
   exists (
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002704'
-      and request_count = 1
-      and settled_tokens = 0
+      and used_requests = 1
+      and used_tokens = 0
       and reserved_tokens = 100
       and remaining_requests = 4
       and remaining_tokens = 1900
+      and today_request_count = 1
+      and today_settled_tokens = 0
+      and today_reserved_tokens = 100
       and active_request_count = 1
   ),
   'only an unexpired claimed or started lease counts as active'
@@ -452,9 +462,8 @@ select ok(
     from pilot_roster as roster
     cross join own_enabled_usage as own_usage
     where roster.user_id = '00000000-0000-0000-0000-000000002701'
-      and roster.usage_date = own_usage.usage_date
-      and roster.request_count = own_usage.request_count
-      and roster.settled_tokens = own_usage.settled_tokens
+      and roster.used_requests = own_usage.used_requests
+      and roster.used_tokens = own_usage.used_tokens
       and roster.reserved_tokens = own_usage.reserved_tokens
       and roster.remaining_requests = own_usage.remaining_requests
       and roster.remaining_tokens = own_usage.remaining_tokens
@@ -481,8 +490,8 @@ select ok(
     from pilot_roster as roster
     cross join own_disabled_usage as own_usage
     where roster.user_id = '00000000-0000-0000-0000-000000002702'
-      and roster.request_count = own_usage.request_count
-      and roster.settled_tokens = own_usage.settled_tokens
+      and roster.used_requests = own_usage.used_requests
+      and roster.used_tokens = own_usage.used_tokens
       and roster.reserved_tokens = own_usage.reserved_tokens
       and roster.remaining_requests = own_usage.remaining_requests
       and roster.remaining_tokens = own_usage.remaining_tokens

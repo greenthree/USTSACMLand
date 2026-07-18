@@ -5,7 +5,7 @@ create extension if not exists pgtap with schema extensions;
 -- Migration 202607170008 revokes these internal primitives from service_role.
 -- This transaction grants them back only to unit-test the lower-level quota
 -- state machine; rollback restores the production permission boundary.
-grant execute on function public.claim_webchat_request(
+grant execute on function public.claim_webchat_request_internal(
   uuid, text, text, uuid, integer, integer, bigint, integer, bigint, bigint, integer
 ) to service_role;
 grant execute on function public.mark_webchat_request_started(uuid, text, uuid)
@@ -105,7 +105,7 @@ select ok(
 select ok(
   not pg_catalog.has_function_privilege(
     'anon',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request_internal(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and not pg_catalog.has_function_privilege(
@@ -129,7 +129,7 @@ select ok(
 select ok(
   pg_catalog.has_function_privilege(
     'service_role',
-    'public.claim_webchat_request(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
+    'public.claim_webchat_request_internal(uuid,text,text,uuid,integer,integer,bigint,integer,bigint,bigint,integer)',
     'EXECUTE'
   )
     and pg_catalog.has_function_privilege(
@@ -157,7 +157,7 @@ select ok(
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
       and procedure.proname = any(array[
-        'claim_webchat_request',
+        'claim_webchat_request_internal',
         'mark_webchat_request_started',
         'finalize_webchat_request',
         'release_webchat_request'
@@ -174,7 +174,7 @@ select ok(
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'public'
       and procedure.proname = any(array[
-        'claim_webchat_request',
+        'claim_webchat_request_internal',
         'mark_webchat_request_started',
         'finalize_webchat_request',
         'release_webchat_request'
@@ -288,7 +288,7 @@ where id = '00000000-0000-0000-0000-000000001902';
 set local role service_role;
 select throws_ok(
   $$
-    select * from public.claim_webchat_request(
+    select * from public.claim_webchat_request_internal(
       '00000000-0000-0000-0000-000000001902',
       'suspended-request',
       repeat('a', 64),
@@ -311,7 +311,7 @@ reset role;
 set local role service_role;
 select throws_ok(
   $$
-    select * from public.claim_webchat_request(
+    select * from public.claim_webchat_request_internal(
       '00000000-0000-0000-0000-000000001901',
       'invalid-global-request-limit',
       repeat('a', 64),
@@ -332,7 +332,7 @@ select throws_ok(
 
 select throws_ok(
   $$
-    select * from public.claim_webchat_request(
+    select * from public.claim_webchat_request_internal(
       '00000000-0000-0000-0000-000000001901',
       'invalid-global-token-limit',
       repeat('a', 64),
@@ -364,7 +364,7 @@ select is(
 
 set local role service_role;
 create temporary table main_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'main-request',
   repeat('a', 64),
@@ -423,7 +423,7 @@ select ok(
 
 set local role service_role;
 create temporary table main_retry as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'main-request',
   repeat('a', 64),
@@ -437,7 +437,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table main_duplicate as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'main-request',
   repeat('a', 64),
@@ -451,7 +451,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table main_conflict as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'main-request',
   repeat('b', 64),
@@ -465,7 +465,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table main_concurrent as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'concurrent-request',
   repeat('c', 64),
@@ -727,7 +727,7 @@ select is(
 
 set local role service_role;
 create temporary table main_unknown_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001901',
   'main-unknown-request',
   repeat('e', 64),
@@ -803,7 +803,7 @@ select ok(
 
 set local role service_role;
 create temporary table release_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001903',
   'release-request',
   repeat('d', 64),
@@ -892,7 +892,7 @@ select public.release_webchat_request(
   'fetch_not_started'
 ) as value;
 create temporary table release_duplicate as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001903',
   'release-request',
   repeat('d', 64),
@@ -921,7 +921,7 @@ select is(
 
 set local role service_role;
 create temporary table minute_first as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001904',
   'minute-first',
   repeat('a', 64),
@@ -951,7 +951,7 @@ select * from public.finalize_webchat_request(
   30
 );
 create temporary table minute_second as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001904',
   'minute-second',
   repeat('b', 64),
@@ -990,7 +990,7 @@ select is(
 
 set local role service_role;
 create temporary table daily_request_first as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001905',
   'daily-request-first',
   repeat('a', 64),
@@ -1020,7 +1020,7 @@ select * from public.finalize_webchat_request(
   30
 );
 create temporary table daily_request_second as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001905',
   'daily-request-second',
   repeat('b', 64),
@@ -1059,7 +1059,7 @@ select is(
 
 set local role service_role;
 create temporary table daily_token_first as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001906',
   'daily-token-first',
   repeat('a', 64),
@@ -1089,7 +1089,7 @@ select * from public.finalize_webchat_request(
   80
 );
 create temporary table daily_token_second as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001906',
   'daily-token-second',
   repeat('b', 64),
@@ -1129,7 +1129,7 @@ select ok(
 
 set local role service_role;
 create temporary table stale_claim_first as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001907',
   'stale-claimed-first',
   repeat('a', 64),
@@ -1157,7 +1157,7 @@ where user_id = '00000000-0000-0000-0000-000000001907'
 
 set local role service_role;
 create temporary table stale_claim_same_id as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001907',
   'stale-claimed-first',
   repeat('a', 64),
@@ -1171,7 +1171,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table stale_claim_second as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001907',
   'stale-claimed-second',
   repeat('b', 64),
@@ -1226,7 +1226,7 @@ select ok(
 
 set local role service_role;
 create temporary table stale_started_first as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001908',
   'stale-started-first',
   repeat('a', 64),
@@ -1260,7 +1260,7 @@ where user_id = '00000000-0000-0000-0000-000000001908'
 
 set local role service_role;
 create temporary table stale_started_second as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001908',
   'stale-started-second',
   repeat('b', 64),
@@ -1368,7 +1368,7 @@ select ok(
 
 set local role service_role;
 create temporary table delete_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001909',
   'delete-request',
   repeat('a', 64),
@@ -1455,7 +1455,7 @@ grant select on global_baseline to service_role;
 
 set local role service_role;
 create temporary table global_request_blocked as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001910',
   'global-request-blocked',
   repeat('a', 64),
@@ -1469,7 +1469,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table global_token_blocked as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001910',
   'global-token-blocked',
   repeat('b', 64),
@@ -1498,7 +1498,7 @@ select is(
 
 set local role service_role;
 create temporary table global_first_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001910',
   'global-first-claim',
   repeat('c', 64),
@@ -1512,7 +1512,7 @@ select * from public.claim_webchat_request(
   180
 );
 create temporary table global_second_request_blocked as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001911',
   'global-second-request-blocked',
   repeat('d', 64),
@@ -1563,7 +1563,7 @@ select ok(
 
 set local role service_role;
 create temporary table global_unknown_claim as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001910',
   'global-unknown-claim',
   repeat('e', 64),
@@ -1593,7 +1593,7 @@ select * from public.finalize_webchat_request(
   null
 );
 create temporary table global_second_token_blocked as
-select * from public.claim_webchat_request(
+select * from public.claim_webchat_request_internal(
   '00000000-0000-0000-0000-000000001911',
   'global-second-token-blocked',
   repeat('f', 64),

@@ -110,15 +110,14 @@ function quotaError(result: WebChatClaimResult): ApiError {
       return new ApiError(409, 'generation_in_progress', '已有一条 AI 回复正在生成', retryAfter)
     case 'minute_limited':
       return new ApiError(429, 'chat_minute_limited', '发送过于频繁，请稍后再试', retryAfter)
-    case 'daily_request_limited':
+    case 'member_total_request_limited':
       return new ApiError(
         429,
-        'chat_daily_request_limited',
-        '今日 AI 助手请求次数已用完',
-        retryAfter,
+        'chat_total_request_limited',
+        'AI 助手累计请求次数已用完',
       )
-    case 'daily_token_limited':
-      return new ApiError(429, 'chat_daily_token_limited', '今日 AI 助手额度已用完', retryAfter)
+    case 'member_total_token_limited':
+      return new ApiError(429, 'chat_total_token_limited', 'AI 助手累计 Token 额度已用完')
     case 'global_daily_request_limited':
       return new ApiError(
         503,
@@ -246,11 +245,11 @@ export function createWebChatHandler(
         ...dependencies.quotaPolicy,
         model: runtimeConfig.model,
         systemPrompt,
-        dailyRequestLimit: memberAccess.dailyRequestLimit,
-        dailyTokenLimit: memberAccess.dailyTokenLimit,
+        memberTotalRequestLimit: memberAccess.totalRequestLimit,
+        memberTotalTokenLimit: memberAccess.totalTokenLimit,
       }
       const quota = await prepareWebChatQuota(body.messages, requestQuotaPolicy)
-      if (quota.reservedTokens > requestQuotaPolicy.dailyTokenLimit) {
+      if (quota.reservedTokens > requestQuotaPolicy.memberTotalTokenLimit) {
         throw new ApiError(413, 'chat_request_token_limit', '当前对话内容过长，请缩短后重新发送')
       }
 
@@ -270,11 +269,7 @@ export function createWebChatHandler(
             ? ['requests']
             : claim.decision === 'global_daily_token_limited'
               ? ['tokens']
-              : claim.decision === 'minute_limited' ||
-                  claim.decision === 'daily_request_limited' ||
-                  claim.decision === 'daily_token_limited'
-                ? ['requests', 'tokens']
-                : []
+              : []
         for (const budgetKind of budgetKinds) {
           try {
             const alert = await services.claimWebChatBudgetAlert({

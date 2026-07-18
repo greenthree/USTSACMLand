@@ -43,6 +43,7 @@ const requiredReleaseMigrations = [
   '202607170010_webchat_model_visibility.sql',
   '202607180001_daily_problem_learning.sql',
   '202607180002_webchat_pilot_observability.sql',
+  '202607180003_webchat_total_member_quotas.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -73,7 +74,10 @@ export function verifyDatabaseTypes(databaseTypes) {
     'commit_luogu_sync_result',
     'complete_sync_job_attempt',
     'read_sync_queue_scheduler_health',
-    'claim_webchat_request',
+    'claim_webchat_request_internal',
+    'claim_webchat_total_request',
+    'calculate_webchat_member_total_usage',
+    'reconcile_expired_webchat_member_requests',
     'mark_webchat_request_started',
     'finalize_webchat_request',
     'release_webchat_request',
@@ -107,6 +111,29 @@ export function verifyDatabaseTypes(databaseTypes) {
       new RegExp(`\\b${rpc}:\\s*\\{`),
       `Generated database types are missing RPC ${rpc}.`,
     )
+  }
+
+  for (const field of [
+    'requested_total_request_limit',
+    'requested_total_token_limit',
+    'remaining_total_requests',
+    'remaining_total_tokens',
+    'total_request_limit',
+    'total_token_limit',
+    'used_requests',
+    'used_tokens',
+  ]) {
+    requireMatch(
+      databaseTypes,
+      new RegExp(`\\b${field}:`),
+      `Generated database types are missing cumulative member quota field ${field}.`,
+    )
+  }
+  if (/\brequested_daily_(?:request|token)_limit:/.test(databaseTypes)) {
+    throw new Error('Generated database types still expose the removed daily member quota API.')
+  }
+  if (/\bclaim_webchat_request:\s*\{/.test(databaseTypes)) {
+    throw new Error('Generated database types still expose the retired WebChat core claim name.')
   }
 }
 

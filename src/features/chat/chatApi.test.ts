@@ -140,6 +140,38 @@ describe('WebChat browser transport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps exhausted cumulative member quota non-retryable without a reset delay', async () => {
+    const fetchMock: typeof fetch = vi.fn(async () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'chat_total_request_limited',
+              message: 'AI 助手累计请求次数已用完',
+            },
+            requestId: 'total-quota-request-1',
+          }),
+          { status: 429, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    )
+    const transport = createWebChatTransport({
+      apiUrl: 'https://example.supabase.co/functions/v1/webchat',
+      anonKey: 'public-anon-key',
+      getAccessToken: async () => 'token',
+      fetch: fetchMock,
+    })
+
+    await expect(send(transport)).rejects.toMatchObject({
+      status: 429,
+      code: 'chat_total_request_limited',
+      requestId: 'total-quota-request-1',
+      retryAfterSeconds: null,
+      retryable: false,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects missing sessions before making a network request', async () => {
     const fetchMock: typeof fetch = vi.fn(async () => streamResponse())
     const transport = createWebChatTransport({

@@ -192,6 +192,21 @@ const server = createServer(async (request, response) => {
     )
     return
   }
+  if (text.includes('触发累计额度耗尽')) {
+    json(
+      response,
+      429,
+      {
+        error: {
+          code: 'chat_total_request_limited',
+          message: 'AI 助手累计请求次数已用完',
+        },
+        requestId: requestId || 'mock-request',
+      },
+      responseHeaders,
+    )
+    return
+  }
   if (text.includes('触发登录失效')) {
     json(
       response,
