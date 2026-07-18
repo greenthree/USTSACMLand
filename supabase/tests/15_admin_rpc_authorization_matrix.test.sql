@@ -255,6 +255,10 @@ values
     'select * from public.admin_list_webchat_pilot_members()'
   ),
   (
+    'public.admin_read_webchat_cache_summary()'::regprocedure,
+    'select * from public.admin_read_webchat_cache_summary()'
+  ),
+  (
     'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)'::regprocedure,
     $$select * from public.admin_update_webchat_member_access(
       '00000000-0000-0000-0000-0000000001a1',
