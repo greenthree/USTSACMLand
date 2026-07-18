@@ -143,6 +143,14 @@ describe('encrypted database restore drill workflow', () => {
     ).toThrow(/Auth\/RLS/)
   })
 
+  it('requires a validated UUID when checking fenced-deletion cleanup', () => {
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace("= '$canary_id'::uuid", "= :'canary_id'::uuid"),
+      ),
+    ).toThrow(/canary UUID/)
+  })
+
   it('rejects plaintext or credential artifact uploads', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
