@@ -44,6 +44,8 @@ export interface WebChatUsage {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  cachedInputTokens: number | null
+  cacheWriteTokens: number | null
 }
 
 export interface WebChatBudgetAlertClaim {
@@ -207,13 +209,35 @@ export function parseWebChatBudgetAlertClaim(value: unknown): WebChatBudgetAlert
 export function parseWebChatUsage(event: Record<string, unknown>): WebChatUsage {
   const response = asRecord(event.response)
   const usage = asRecord(response.usage)
+  const inputTokenDetails =
+    usage.input_tokens_details === undefined || usage.input_tokens_details === null
+      ? null
+      : asRecord(usage.input_tokens_details)
   const inputTokens = nonnegativeInteger(usage.input_tokens, 'input token usage')
   const outputTokens = nonnegativeInteger(usage.output_tokens, 'output token usage')
   const totalTokens = nonnegativeInteger(usage.total_tokens, 'total token usage')
+  const cachedInputTokens =
+    inputTokenDetails?.cached_tokens === undefined || inputTokenDetails.cached_tokens === null
+      ? null
+      : nonnegativeInteger(inputTokenDetails.cached_tokens, 'cached input token usage')
+  const cacheWriteTokens =
+    inputTokenDetails?.cache_write_tokens === undefined ||
+    inputTokenDetails.cache_write_tokens === null
+      ? null
+      : nonnegativeInteger(inputTokenDetails.cache_write_tokens, 'cache write token usage')
   if (totalTokens !== inputTokens + outputTokens) {
     throw new Error('WebChat upstream returned inconsistent token usage')
   }
-  return { inputTokens, outputTokens, totalTokens }
+  if (cachedInputTokens !== null && cachedInputTokens > inputTokens) {
+    throw new Error('WebChat upstream returned inconsistent cached token usage')
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    cachedInputTokens,
+    cacheWriteTokens,
+  }
 }
 
 export function assertFingerprint(value: string): void {

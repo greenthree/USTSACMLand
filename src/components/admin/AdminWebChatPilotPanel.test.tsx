@@ -2,11 +2,15 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-const pilotPanelMocks = vi.hoisted(() => ({ fetchMembers: vi.fn() }))
+const pilotPanelMocks = vi.hoisted(() => ({
+  fetchMembers: vi.fn(),
+  fetchCacheSummary: vi.fn(),
+}))
 
 vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
   fetchAdminWebChatPilotMembers: pilotPanelMocks.fetchMembers,
+  fetchAdminWebChatCacheSummary: pilotPanelMocks.fetchCacheSummary,
 }))
 
 import { AdminWebChatPilotPanel } from './AdminWebChatPilotPanel'
@@ -63,7 +67,17 @@ function renderPanel() {
 }
 
 describe('AdminWebChatPilotPanel', () => {
-  beforeEach(() => pilotPanelMocks.fetchMembers.mockReset().mockResolvedValue(members))
+  beforeEach(() => {
+    pilotPanelMocks.fetchMembers.mockReset().mockResolvedValue(members)
+    pilotPanelMocks.fetchCacheSummary.mockReset().mockResolvedValue({
+      observedRequests: 12,
+      eligibleRequests: 10,
+      cacheHitRequests: 7,
+      eligibleInputTokens: 20_000,
+      cachedInputTokens: 12_000,
+      cacheWriteTokens: 8_000,
+    })
+  })
 
   it('summarizes configured pilot accounts and shows bounded per-member usage', async () => {
     renderPanel()
@@ -73,6 +87,9 @@ describe('AdminWebChatPilotPanel', () => {
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
     expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
     expect(within(summary).getByText('累计占用 Token').nextSibling).toHaveTextContent('15,000')
+    const cacheSummary = within(region).getByLabelText('输入缓存摘要')
+    expect(within(cacheSummary).getByText('命中请求').nextSibling).toHaveTextContent('7 / 10')
+    expect(within(cacheSummary).getByText('输入缓存率').nextSibling).toHaveTextContent('60.0%')
     expect(within(region).getByText('6 / 20')).toBeInTheDocument()
     expect(within(region).getByText(/已结算 12,000 · 预留 3,000 · 剩余 65,000/)).toBeInTheDocument()
     expect(within(region).getByText(/账号已停用/)).toBeInTheDocument()
@@ -94,6 +111,14 @@ describe('AdminWebChatPilotPanel', () => {
 
     expect(await screen.findByText('测试成员')).toBeInTheDocument()
     expect(pilotPanelMocks.fetchMembers).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps member observability usable when cache summary fails independently', async () => {
+    pilotPanelMocks.fetchCacheSummary.mockRejectedValue(new Error('缓存摘要暂时不可用'))
+    renderPanel()
+
+    expect(await screen.findByText('测试成员')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('缓存摘要暂时不可用')
   })
 
   it('explains how to create the initial 3–5 member pilot roster', async () => {

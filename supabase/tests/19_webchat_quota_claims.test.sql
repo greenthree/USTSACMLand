@@ -115,7 +115,7 @@ select ok(
     )
     and not pg_catalog.has_function_privilege(
       'authenticated',
-      'public.finalize_webchat_request(uuid,text,uuid,text,bigint,bigint,bigint)',
+      'public.finalize_webchat_request(uuid,text,uuid,text,bigint,bigint,bigint,bigint,bigint)',
       'EXECUTE'
     )
     and not pg_catalog.has_function_privilege(
@@ -139,7 +139,7 @@ select ok(
     )
     and pg_catalog.has_function_privilege(
       'service_role',
-      'public.finalize_webchat_request(uuid,text,uuid,text,bigint,bigint,bigint)',
+      'public.finalize_webchat_request(uuid,text,uuid,text,bigint,bigint,bigint,bigint,bigint)',
       'EXECUTE'
     )
     and pg_catalog.has_function_privilege(

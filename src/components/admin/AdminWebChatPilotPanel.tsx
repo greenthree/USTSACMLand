@@ -1,12 +1,15 @@
 import Activity from 'lucide-react/dist/esm/icons/activity'
 import Coins from 'lucide-react/dist/esm/icons/coins'
+import DatabaseZap from 'lucide-react/dist/esm/icons/database-zap'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Users from 'lucide-react/dist/esm/icons/users'
 import Zap from 'lucide-react/dist/esm/icons/zap'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  fetchAdminWebChatCacheSummary,
   fetchAdminWebChatPilotMembers,
+  type AdminWebChatCacheSummary,
   type AdminWebChatPilotMember,
 } from '../../lib/adminWebChatPilot'
 import { formatDateTime } from '../../lib/format'
@@ -23,6 +26,9 @@ export function AdminWebChatPilotPanel() {
   const [members, setMembers] = useState<AdminWebChatPilotMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cacheSummary, setCacheSummary] = useState<AdminWebChatCacheSummary | null>(null)
+  const [cacheLoading, setCacheLoading] = useState(true)
+  const [cacheError, setCacheError] = useState('')
 
   const loadMembers = useCallback(async () => {
     setLoading(true)
@@ -36,9 +42,29 @@ export function AdminWebChatPilotPanel() {
     }
   }, [])
 
+  const loadCacheSummary = useCallback(async () => {
+    setCacheLoading(true)
+    setCacheError('')
+    try {
+      setCacheSummary(await fetchAdminWebChatCacheSummary())
+    } catch (loadError) {
+      setCacheError(
+        loadError instanceof Error ? loadError.message : 'WebChat 输入缓存摘要读取失败。',
+      )
+    } finally {
+      setCacheLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadMembers()
-  }, [loadMembers])
+    void loadCacheSummary()
+  }, [loadCacheSummary, loadMembers])
+
+  const refreshAll = useCallback(() => {
+    void loadMembers()
+    void loadCacheSummary()
+  }, [loadCacheSummary, loadMembers])
 
   const summary = useMemo(
     () => ({
@@ -69,10 +95,14 @@ export function AdminWebChatPilotPanel() {
         <button
           className="secondary-button"
           type="button"
-          onClick={() => void loadMembers()}
-          disabled={loading}
+          onClick={refreshAll}
+          disabled={loading || cacheLoading}
         >
-          <RefreshCw className={loading ? 'is-spinning' : undefined} size={15} aria-hidden="true" />
+          <RefreshCw
+            className={loading || cacheLoading ? 'is-spinning' : undefined}
+            size={15}
+            aria-hidden="true"
+          />
           刷新用量
         </button>
       </header>
@@ -104,6 +134,55 @@ export function AdminWebChatPilotPanel() {
             <span>进行中请求</span>
             <strong>{number(summary.activeRequests)}</strong>
           </div>
+        </div>
+      ) : null}
+
+      {cacheSummary ? (
+        <div className="webchat-pilot-summary" aria-label="输入缓存摘要">
+          <div>
+            <DatabaseZap size={18} aria-hidden="true" />
+            <span>可观测请求</span>
+            <strong>{number(cacheSummary.observedRequests)}</strong>
+          </div>
+          <div>
+            <Activity size={18} aria-hidden="true" />
+            <span>达到缓存门槛</span>
+            <strong>{number(cacheSummary.eligibleRequests)}</strong>
+          </div>
+          <div>
+            <Zap size={18} aria-hidden="true" />
+            <span>命中请求</span>
+            <strong>
+              {number(cacheSummary.cacheHitRequests)} / {number(cacheSummary.eligibleRequests)}
+            </strong>
+          </div>
+          <div>
+            <Coins size={18} aria-hidden="true" />
+            <span>输入缓存率</span>
+            <strong>
+              {cacheSummary.eligibleInputTokens > 0
+                ? `${((cacheSummary.cachedInputTokens / cacheSummary.eligibleInputTokens) * 100).toFixed(1)}%`
+                : '0.0%'}
+            </strong>
+          </div>
+          <div>
+            <RefreshCw size={18} aria-hidden="true" />
+            <span>缓存写入 Token</span>
+            <strong>{number(cacheSummary.cacheWriteTokens)}</strong>
+          </div>
+        </div>
+      ) : null}
+
+      {cacheError ? (
+        <div className="webchat-pilot-error" role="alert">
+          <p>{cacheError}</p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void loadCacheSummary()}
+          >
+            重试缓存摘要
+          </button>
         </div>
       ) : null}
 

@@ -6,6 +6,7 @@ const webChatConfigMocks = vi.hoisted(() => ({
   fetchConfig: vi.fn(),
   updateConfig: vi.fn(),
   fetchPilotMembers: vi.fn(),
+  fetchCacheSummary: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
@@ -21,6 +22,7 @@ vi.mock('../../lib/adminWebChatConfig', async (importOriginal) => ({
 vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
   fetchAdminWebChatPilotMembers: webChatConfigMocks.fetchPilotMembers,
+  fetchAdminWebChatCacheSummary: webChatConfigMocks.fetchCacheSummary,
 }))
 
 import { AdminWebChatPage } from './AdminWebChatPage'
@@ -64,6 +66,14 @@ describe('AdminWebChatPage', () => {
       updatedAt: '2026-07-17T09:00:00Z',
     })
     webChatConfigMocks.fetchPilotMembers.mockReset().mockResolvedValue([])
+    webChatConfigMocks.fetchCacheSummary.mockReset().mockResolvedValue({
+      observedRequests: 0,
+      eligibleRequests: 0,
+      cacheHitRequests: 0,
+      eligibleInputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+    })
   })
 
   it('shows only redacted secret state, version, and update time', async () => {

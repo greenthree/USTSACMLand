@@ -175,6 +175,8 @@ const handler = createWebChatHandler({
           used_input_tokens: usage?.inputTokens ?? null,
           used_output_tokens: usage?.outputTokens ?? null,
           used_total_tokens: usage?.totalTokens ?? null,
+          observed_cached_input_tokens: usage?.cachedInputTokens ?? null,
+          observed_cache_write_tokens: usage?.cacheWriteTokens ?? null,
         })
         if (error) throw new Error(`Could not finalize WebChat quota: ${error.message}`)
         return parseWebChatTransition(data).transitioned

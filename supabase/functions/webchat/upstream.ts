@@ -92,6 +92,35 @@ export function promptCacheKey(model: string, promptVersion: string): Promise<st
   return safetyIdentifier(`usts-acm-land:webchat:${model}:${promptVersion}`)
 }
 
+export function supportsExplicitPromptCaching(model: string): boolean {
+  const match = /^gpt-(\d+)\.(\d+)(?:-|$)/i.exec(model.trim())
+  if (!match) return false
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  return major > 5 || (major === 5 && minor >= 6)
+}
+
+export function responsesInput(
+  model: string,
+  messages: WebChatMessage[],
+): Record<string, unknown>[] {
+  if (!supportsExplicitPromptCaching(model)) {
+    return messages.map(({ role, text }) => ({ role, content: text }))
+  }
+
+  return messages.map(({ role, text }) => ({
+    type: 'message',
+    role,
+    content: [
+      {
+        type: 'input_text',
+        text,
+        ...(role === 'user' ? { prompt_cache_breakpoint: { mode: 'explicit' } } : {}),
+      },
+    ],
+  }))
+}
+
 function upstreamError(response: Response): WebChatUpstreamError {
   if (response.status === 429) {
     return new WebChatUpstreamError(
@@ -118,6 +147,7 @@ export async function startWebChat(
   const fetcher = config.fetcher ?? fetch
   const safetyId = await safetyIdentifier(options.userId)
   const cacheKey = await promptCacheKey(config.model, config.promptVersion)
+  const explicitPromptCaching = supportsExplicitPromptCaching(config.model)
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -181,12 +211,10 @@ export async function startWebChat(
       body: JSON.stringify({
         model: config.model,
         instructions: config.systemPrompt,
-        input: options.messages.map(({ role, text }) => ({
-          role,
-          content: text,
-        })),
+        input: responsesInput(config.model, options.messages),
         max_output_tokens: config.maxOutputTokens,
         prompt_cache_key: cacheKey,
+        ...(explicitPromptCaching ? { prompt_cache_options: { mode: 'explicit' } } : {}),
         safety_identifier: safetyId,
         store: false,
         stream: true,

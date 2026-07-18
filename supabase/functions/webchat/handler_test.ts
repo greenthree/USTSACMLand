@@ -425,7 +425,13 @@ Deno.test(
             },
             async finalizeWebChatRequest(_userId, _requestId, _owner, outcome, usage) {
               strictEqual(outcome, 'completed')
-              deepStrictEqual(usage, { inputTokens: 10, outputTokens: 5, totalTokens: 15 })
+              deepStrictEqual(usage, {
+                inputTokens: 10,
+                outputTokens: 5,
+                totalTokens: 15,
+                cachedInputTokens: null,
+                cacheWriteTokens: null,
+              })
               events.push('finished')
               return true
             },
@@ -437,6 +443,8 @@ Deno.test(
               inputTokens: 10,
               outputTokens: 5,
               totalTokens: 15,
+              cachedInputTokens: null,
+              cacheWriteTokens: null,
             }),
             true,
           )

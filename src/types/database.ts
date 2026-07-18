@@ -1245,6 +1245,17 @@ export type Database = {
           version: number
         }[]
       }
+      admin_read_webchat_cache_summary: {
+        Args: never
+        Returns: {
+          cache_hit_requests: number
+          cache_write_tokens: number
+          cached_input_tokens: number
+          eligible_input_tokens: number
+          eligible_requests: number
+          observed_requests: number
+        }[]
+      }
       admin_set_daily_problem_comment_visibility: {
         Args: {
           expected_updated_at: string
@@ -1737,6 +1748,8 @@ export type Database = {
       }
       finalize_webchat_request: {
         Args: {
+          observed_cache_write_tokens?: number
+          observed_cached_input_tokens?: number
           request_outcome: string
           requested_owner_token: string
           requested_request_id: string
