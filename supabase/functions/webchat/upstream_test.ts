@@ -1,6 +1,11 @@
 // deno-lint-ignore-file require-await
 import { deepStrictEqual, match, strictEqual } from 'node:assert/strict'
-import { safetyIdentifier, startWebChat, type WebChatUpstreamConfig } from './upstream.ts'
+import {
+  promptCacheKey,
+  safetyIdentifier,
+  startWebChat,
+  type WebChatUpstreamConfig,
+} from './upstream.ts'
 
 const messages = [
   {
@@ -42,6 +47,15 @@ Deno.test('webchat hashes stable privacy-preserving safety identifiers', async (
   match(first, /^[a-f0-9]{64}$/)
 })
 
+Deno.test('webchat derives a stable model and prompt-version cache routing key', async () => {
+  const first = await promptCacheKey('gpt-5.6', 'usts-learning-assistant-v1')
+  const second = await promptCacheKey('gpt-5.6', 'usts-learning-assistant-v1')
+  const changed = await promptCacheKey('gpt-5.6', 'usts-learning-assistant-v2')
+  strictEqual(first, second)
+  match(first, /^[a-f0-9]{64}$/)
+  strictEqual(first === changed, false)
+})
+
 Deno.test('webchat sends only server-owned Responses API configuration', async () => {
   let requestUrl = ''
   let requestBody: Record<string, unknown> = {}
@@ -75,6 +89,7 @@ Deno.test('webchat sends only server-owned Responses API configuration', async (
   strictEqual(requestBody.max_output_tokens, 2048)
   strictEqual(requestBody.store, false)
   strictEqual(requestBody.stream, true)
+  match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
   match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
   strictEqual('tools' in requestBody, false)
   strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')

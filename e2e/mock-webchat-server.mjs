@@ -258,6 +258,10 @@ const server = createServer(async (request, response) => {
     )
     return
   }
+  if (text.includes('检查思考状态')) {
+    streamReply(request, response, ['思考状态结束。'], 500)
+    return
+  }
   if (text.includes('触发网关失败') || text.includes('触发网关超时')) {
     streamReply(request, response, ['上游连接已经恢复，可以继续提问。'], 20)
     return

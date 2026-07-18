@@ -8,6 +8,11 @@ on:
         required: true
         default: true
         type: boolean
+      include_cache_probe:
+        description: Send two identical 1024+ token requests and require cached input on the second
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -43,6 +48,7 @@ jobs:
           CHAT_RELAY_API_KEY: ${{ secrets.CHAT_RELAY_API_KEY }}
           CHAT_RELAY_MODEL: ${{ secrets.CHAT_RELAY_MODEL }}
           WEBCHAT_RELAY_ABORT_CHECK: ${{ inputs.include_abort }}
+          WEBCHAT_RELAY_CACHE_CHECK: ${{ inputs.include_cache_probe }}
           WEBCHAT_RELAY_REPORT_PATH: artifacts/webchat-relay-compatibility.json
         run: npm run check:webchat-relay
 

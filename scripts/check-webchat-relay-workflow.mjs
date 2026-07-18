@@ -50,6 +50,11 @@ export function verifyWebChatRelayWorkflow(workflow) {
   )
   requireMatch(
     workflow,
+    /WEBCHAT_RELAY_CACHE_CHECK:\s*\$\{\{ inputs\.include_cache_probe \}\}/,
+    'The manual workflow must expose the Prompt Caching compatibility toggle.',
+  )
+  requireMatch(
+    workflow,
     /WEBCHAT_RELAY_REPORT_PATH:\s*artifacts\/webchat-relay-compatibility\.json/,
     'The relay smoke must write its sanitized report to the reviewed artifact path.',
   )
@@ -83,14 +88,14 @@ export function verifyWebChatRelayWorkflow(workflow) {
     throw new Error('Compatibility artifact upload contains a forbidden path or secret name.')
   }
 
-  return { manualOnly: true, retentionDays: 14, abortCheck: true }
+  return { manualOnly: true, retentionDays: 14, abortCheck: true, cacheCheck: true }
 }
 
 async function main() {
   const workflow = await readFile(workflowUrl, 'utf8')
   const report = verifyWebChatRelayWorkflow(workflow)
   console.log(
-    `Verified WebChat relay workflow: manual-only, Abort=${report.abortCheck}, ${report.retentionDays}-day sanitized evidence.`,
+    `Verified WebChat relay workflow: manual-only, Abort=${report.abortCheck}, Prompt Caching=${report.cacheCheck}, ${report.retentionDays}-day sanitized evidence.`,
   )
 }
 

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 const DEFAULT_ABORT_SETTLE_MS = 2_000
+const CACHE_PROBE_REPETITIONS = 768
 const encoder = new TextEncoder()
 
 export class RelayCompatibilityError extends Error {
@@ -78,6 +79,21 @@ export function parseRelayUsage(value) {
   if (inputTokens === null || outputTokens === null || totalTokens === null) return null
   if (totalTokens < inputTokens + outputTokens) return null
   return { inputTokens, outputTokens, totalTokens }
+}
+
+export function parseRelayCacheUsage(value) {
+  const event = asRecord(value)
+  const response = asRecord(event?.response)
+  const usage = asRecord(response?.usage ?? event?.usage)
+  const totals = parseRelayUsage(value)
+  const details = asRecord(usage?.input_tokens_details)
+  const cachedInputTokens = finiteInteger(details?.cached_tokens)
+  if (!totals || cachedInputTokens === null) return null
+  return {
+    ...totals,
+    cachedInputTokens,
+    cacheWriteTokens: finiteInteger(details?.cache_write_tokens),
+  }
 }
 
 function extractVisibleText(value) {
@@ -163,6 +179,7 @@ function requestBody({ model, input, stream, maxOutputTokens }) {
       'This is an automated protocol compatibility check. Follow the user request concisely.',
     input,
     max_output_tokens: maxOutputTokens,
+    prompt_cache_key: createHash('sha256').update(`ustsacmland-relay-cache:${model}`).digest('hex'),
     safety_identifier: createHash('sha256').update('ustsacmland-relay-smoke').digest('hex'),
     store: false,
     stream,
@@ -391,6 +408,82 @@ async function checkStreaming(options) {
   }
 }
 
+function cacheProbeInput() {
+  const stablePrefix = Array.from(
+    { length: CACHE_PROBE_REPETITIONS },
+    () => 'cache probe validation',
+  ).join(' ')
+  return `${stablePrefix}\nReply only with OK.`
+}
+
+async function performCacheProbeRequest(options, input) {
+  const startedAt = performance.now()
+  const { response, timed } = await checkedFetch(
+    options.fetcher,
+    options.endpoint,
+    options.apiKey,
+    requestBody({
+      model: options.model,
+      input,
+      stream: false,
+      maxOutputTokens: 16,
+    }),
+    options.timeoutMs,
+  )
+
+  try {
+    assertSuccess(response)
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      throw new RelayCompatibilityError(
+        'cache_probe_invalid_content_type',
+        'Relay cache probe response is not JSON',
+      )
+    }
+    let payload
+    try {
+      payload = await response.json()
+    } catch {
+      throw new RelayCompatibilityError(
+        'cache_probe_invalid_json',
+        'Relay cache probe response contains invalid JSON',
+      )
+    }
+    const usage = parseRelayCacheUsage(payload)
+    if (!usage) {
+      throw new RelayCompatibilityError(
+        'cache_probe_missing_usage',
+        'Relay cache probe does not expose input_tokens_details.cached_tokens',
+      )
+    }
+    return { durationMs: elapsed(startedAt), usage }
+  } finally {
+    timed.clear()
+  }
+}
+
+async function checkPromptCaching(options) {
+  const input = cacheProbeInput()
+  const first = await performCacheProbeRequest(options, input)
+  if (first.usage.inputTokens < 1_024) {
+    throw new RelayCompatibilityError(
+      'cache_probe_too_short',
+      'Relay counted fewer than 1024 input tokens for the cache probe',
+    )
+  }
+  const second = await performCacheProbeRequest(options, input)
+  if (second.usage.cachedInputTokens < 1) {
+    throw new RelayCompatibilityError(
+      'cache_probe_miss',
+      'Relay returned zero cached input tokens for the repeated long-prefix request',
+    )
+  }
+  return {
+    first,
+    second,
+    reusedInputTokens: second.usage.cachedInputTokens,
+  }
+}
+
 async function waitForAbortSettlement(reader, settleMs) {
   const startedAt = performance.now()
   let timeout
@@ -575,7 +668,7 @@ export async function runRelayCompatibility(options) {
     10_000,
   )
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     checkedAt: new Date().toISOString(),
     status: 'running',
     relay: {
@@ -596,6 +689,7 @@ export async function runRelayCompatibility(options) {
       fetcher: options.fetcher ?? globalThis.fetch.bind(globalThis),
     }
     report.checks.nonStreaming = await checkNonStreaming(shared)
+    if (options.checkCache !== false) report.checks.promptCaching = await checkPromptCaching(shared)
     report.checks.streaming = await checkStreaming(shared)
     if (options.checkAbort !== false) report.checks.abort = await checkAbort(shared)
     report.status = 'passed'
@@ -624,10 +718,11 @@ async function main() {
       timeoutMs: process.env.WEBCHAT_RELAY_TIMEOUT_MS,
       abortSettleMs: process.env.WEBCHAT_RELAY_ABORT_SETTLE_MS,
       checkAbort: booleanEnv(process.env.WEBCHAT_RELAY_ABORT_CHECK, true),
+      checkCache: booleanEnv(process.env.WEBCHAT_RELAY_CACHE_CHECK, true),
       reportPath,
     })
     console.log(
-      `WebChat relay compatibility passed for ${report.relay.requestedModel}: non-stream, typed SSE, Usage${report.checks.abort ? ', and Abort' : ''}.`,
+      `WebChat relay compatibility passed for ${report.relay.requestedModel}: non-stream, typed SSE, Usage${report.checks.promptCaching ? ', Prompt Caching' : ''}${report.checks.abort ? ', and Abort' : ''}.`,
     )
   } catch (error) {
     const safe = publicError(error)

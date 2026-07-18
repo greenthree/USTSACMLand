@@ -45,6 +45,7 @@ const requiredReleaseMigrations = [
   '202607180002_webchat_pilot_observability.sql',
   '202607180003_webchat_total_member_quotas.sql',
   '202607180004_public_practice_increment_rankings.sql',
+  '202607180005_webchat_conversation_history.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -107,6 +108,16 @@ export function verifyDatabaseTypes(databaseTypes) {
     'admin_delete_daily_problem',
     'admin_set_daily_problem_comment_visibility',
     'get_public_practice_increments',
+    'create_own_webchat_conversation',
+    'list_own_webchat_conversations',
+    'get_own_webchat_conversation',
+    'rename_own_webchat_conversation',
+    'set_own_webchat_conversation_archived',
+    'delete_own_webchat_conversation',
+    'load_own_webchat_messages',
+    'upsert_own_webchat_message',
+    'delete_own_webchat_messages',
+    'purge_expired_webchat_conversations',
   ]) {
     requireMatch(
       databaseTypes,

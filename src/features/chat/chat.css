@@ -24,10 +24,19 @@
 }
 
 .assistant-intro,
-.assistant-quota,
-.assistant-workbench {
+.assistant-quota {
   width: min(1180px, 100%);
   margin: 0 auto;
+}
+
+.assistant-chat-layout {
+  width: min(1320px, 100%);
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  margin: 0 auto;
+  background: var(--assistant-sheet);
+  border: 1px solid var(--assistant-line-strong);
+  box-shadow: 0 22px 60px rgb(38 46 40 / 10%);
 }
 
 .assistant-quota {
@@ -258,8 +267,155 @@
 .assistant-workbench {
   overflow: hidden;
   background: var(--assistant-sheet);
-  border: 1px solid var(--assistant-line-strong);
-  box-shadow: 0 22px 60px rgb(38 46 40 / 10%);
+  border-left: 1px solid var(--assistant-line-strong);
+}
+
+.assistant-history {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: #f8f6ef;
+}
+
+.assistant-history > header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px 0 17px;
+  border-bottom: 1px solid var(--assistant-line);
+}
+
+.assistant-history > header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistant-history > header svg {
+  color: #5f6a62;
+}
+
+.assistant-history > header strong {
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.assistant-history > header button,
+.assistant-history-delete {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #5d685f;
+  background: transparent;
+  border: 1px solid var(--assistant-line);
+  border-radius: 3px;
+}
+
+.assistant-history > header button:hover,
+.assistant-history-delete:hover {
+  color: var(--assistant-ink);
+  background: var(--assistant-accent-soft);
+  border-color: #a9bd69;
+}
+
+.assistant-history-list {
+  min-height: 0;
+  max-height: min(720px, calc(100vh - 128px));
+  overflow-y: auto;
+  padding: 9px;
+  scrollbar-color: var(--assistant-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.assistant-history-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 4px;
+  align-items: center;
+  border-bottom: 1px solid #e3e5df;
+}
+
+.assistant-history-item[data-active='true'] {
+  background: var(--assistant-accent-soft);
+  box-shadow: inset 3px 0 0 #9bbc30;
+}
+
+.assistant-history-trigger {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 12px 7px 12px 11px;
+  color: var(--assistant-ink);
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.assistant-history-trigger > span {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-history-trigger time {
+  color: #7a837d;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9px;
+}
+
+.assistant-history-delete {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  opacity: 0;
+}
+
+.assistant-history-item:hover .assistant-history-delete,
+.assistant-history-item:focus-within .assistant-history-delete,
+.assistant-history-item[data-active='true'] .assistant-history-delete {
+  opacity: 1;
+}
+
+.assistant-history-empty {
+  margin: 0;
+  padding: 24px 12px;
+  color: var(--assistant-muted);
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.assistant-history-more {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 8px;
+  color: #5d685f;
+  background: transparent;
+  border: 1px solid var(--assistant-line);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.assistant-history-more:hover {
+  background: #fffef9;
+  border-color: var(--assistant-line-strong);
+}
+
+.assistant-history-privacy {
+  margin: 0;
+  padding: 13px 14px;
+  color: #7b847e;
+  border-top: 1px solid var(--assistant-line);
+  font-size: 9px;
+  line-height: 1.55;
 }
 
 .assistant-workbench-header {
@@ -476,6 +632,36 @@
 
 .assistant-message-user .assistant-message-label {
   color: #63704f;
+}
+
+.assistant-thinking {
+  min-height: 92px;
+}
+
+.assistant-thinking-copy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  color: #667168;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.assistant-thinking-copy i {
+  width: 5px;
+  height: 5px;
+  background: #7f9d28;
+  border-radius: 50%;
+  animation: assistant-thinking-dot 1.15s ease-in-out infinite;
+}
+
+.assistant-thinking-copy i:nth-of-type(2) {
+  animation-delay: 140ms;
+}
+
+.assistant-thinking-copy i:nth-of-type(3) {
+  animation-delay: 280ms;
 }
 
 .assistant-message-user p:not(.assistant-message-label),
@@ -733,6 +919,7 @@
 }
 
 .assistant-clear-button:focus-visible,
+.assistant-history button:focus-visible,
 .assistant-error button:focus-visible,
 .assistant-error a:focus-visible,
 .assistant-intro-notes a:focus-visible,
@@ -752,6 +939,19 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes assistant-thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
   }
 }
 
@@ -784,6 +984,48 @@
 
   .assistant-intro-notes article:last-child {
     border-right: 0;
+  }
+
+  .assistant-chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .assistant-workbench {
+    border-top: 1px solid var(--assistant-line-strong);
+    border-left: 0;
+  }
+
+  .assistant-history {
+    display: block;
+  }
+
+  .assistant-history-list {
+    display: flex;
+    gap: 8px;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 10px;
+  }
+
+  .assistant-history-item {
+    min-width: 210px;
+    border: 1px solid var(--assistant-line);
+    border-radius: 3px;
+  }
+
+  .assistant-history-empty {
+    width: 100%;
+    padding: 12px;
+  }
+
+  .assistant-history-more {
+    min-width: 100px;
+    margin: 0;
+  }
+
+  .assistant-history-privacy {
+    display: none;
   }
 
   .assistant-thread {
@@ -942,7 +1184,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .assistant-message,
-  .assistant-composer-actions button {
+  .assistant-composer-actions button,
+  .assistant-thinking-copy i {
     animation: none;
     transition: none;
   }

@@ -4,9 +4,12 @@ import {
   AuiIf,
   ComposerPrimitive,
   MessagePrimitive,
+  ThreadListItemPrimitive,
+  ThreadListPrimitive,
   ThreadPrimitive,
   useAui,
   useAuiState,
+  useRemoteThreadListRuntime,
 } from '@assistant-ui/react'
 import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown'
@@ -15,15 +18,22 @@ import ArrowDown from 'lucide-react/dist/esm/icons/arrow-down'
 import Check from 'lucide-react/dist/esm/icons/check'
 import CircleAlert from 'lucide-react/dist/esm/icons/circle-alert'
 import Copy from 'lucide-react/dist/esm/icons/copy'
+import History from 'lucide-react/dist/esm/icons/history'
+import Plus from 'lucide-react/dist/esm/icons/plus'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Send from 'lucide-react/dist/esm/icons/send'
 import Square from 'lucide-react/dist/esm/icons/square'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import type { ComponentProps } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/authContextValue'
 import { createBrowserWebChatTransport, normalizeWebChatError, WebChatApiError } from './chatApi'
+import {
+  createWebChatThreadListAdapter,
+  readActiveWebChatThreadId,
+  storeActiveWebChatThreadId,
+} from './webChatHistory'
 
 const defaultTransport = createBrowserWebChatTransport()
 
@@ -119,27 +129,56 @@ function EmptyConversationGate() {
   return messageCount === 0 ? <EmptyConversation /> : null
 }
 
-function ClearConversation({ onClear }: { onClear: () => void }) {
+function ThinkingIndicator() {
+  const visible = useAuiState((state) => {
+    if (!state.thread.isRunning) return false
+    const lastMessage = state.thread.messages.at(-1)
+    if (!lastMessage || lastMessage.role === 'user') return true
+    return !lastMessage.content.some((part) => part.type === 'text' && part.text.trim().length > 0)
+  })
+
+  if (!visible) return null
+
+  return (
+    <div className="assistant-message assistant-message-model assistant-thinking" role="status">
+      <div className="assistant-message-rail" aria-hidden="true">
+        <span>AI</span>
+      </div>
+      <div className="assistant-message-body">
+        <p className="assistant-message-label">学习助手</p>
+        <div className="assistant-thinking-copy">
+          <span>思考中</span>
+          <i aria-hidden="true" />
+          <i aria-hidden="true" />
+          <i aria-hidden="true" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeleteConversation({ onDelete }: { onDelete: () => void }) {
   const aui = useAui()
   const isRunning = useAuiState((state) => state.thread.isRunning)
   const isEmpty = useAuiState((state) => state.thread.messages.length === 0)
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId)
 
-  const handleClear = useCallback(() => {
+  const handleDelete = useCallback(() => {
     if (aui.thread().getState().isRunning) return
-    aui.thread().reset()
-    void aui.thread().composer().reset()
-    onClear()
-  }, [aui, onClear])
+    if (!window.confirm('确定删除当前对话吗？删除后无法恢复。')) return
+    aui.threadListItem().delete()
+    onDelete()
+  }, [aui, onDelete])
 
   return (
     <button
       className="assistant-clear-button"
       type="button"
-      disabled={isRunning || isEmpty}
-      onClick={handleClear}
+      disabled={isRunning || (isEmpty && !remoteId)}
+      onClick={handleDelete}
     >
       <Trash2 size={15} aria-hidden="true" />
-      清空对话
+      删除对话
     </button>
   )
 }
@@ -209,6 +248,7 @@ function ConversationThread() {
           <ThreadPrimitive.Messages>
             {({ message }) => (message.role === 'user' ? <UserMessage /> : <AssistantMessage />)}
           </ThreadPrimitive.Messages>
+          <ThinkingIndicator />
         </div>
         <ThreadPrimitive.ViewportFooter className="assistant-composer-dock">
           <ThreadPrimitive.ScrollToBottom asChild>
@@ -252,6 +292,95 @@ function ConversationThread() {
   )
 }
 
+const conversationDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+function ConversationListItem() {
+  const lastMessageAt = useAuiState((state) => state.threadListItem.lastMessageAt)
+  const title = useAuiState((state) => state.threadListItem.title ?? '新对话')
+
+  return (
+    <ThreadListItemPrimitive.Root className="assistant-history-item">
+      <ThreadListItemPrimitive.Trigger asChild>
+        <button className="assistant-history-trigger" type="button">
+          <span>
+            <ThreadListItemPrimitive.Title fallback="新对话" />
+          </span>
+          <time dateTime={lastMessageAt?.toISOString()}>
+            {lastMessageAt ? conversationDateFormatter.format(lastMessageAt) : '刚刚'}
+          </time>
+        </button>
+      </ThreadListItemPrimitive.Trigger>
+      <ThreadListItemPrimitive.Delete asChild>
+        <button
+          className="assistant-history-delete"
+          type="button"
+          aria-label={`删除对话：${title}`}
+          title="删除历史对话"
+          onClick={(event) => {
+            if (!window.confirm(`确定删除“${title}”吗？删除后无法恢复。`)) {
+              event.preventDefault()
+            }
+          }}
+        >
+          <Trash2 size={14} aria-hidden="true" />
+        </button>
+      </ThreadListItemPrimitive.Delete>
+    </ThreadListItemPrimitive.Root>
+  )
+}
+
+function EmptyHistoryNotice() {
+  const isEmpty = useAuiState((state) => state.threads.threadIds.length === 0)
+  return isEmpty ? (
+    <p className="assistant-history-empty">发送第一条消息后，会话会出现在这里。</p>
+  ) : null
+}
+
+function ConversationHistory() {
+  return (
+    <aside className="assistant-history" aria-label="历史对话">
+      <header>
+        <div>
+          <History size={17} aria-hidden="true" />
+          <strong>历史对话</strong>
+        </div>
+        <ThreadListPrimitive.New asChild>
+          <button type="button" aria-label="新建对话" title="新建对话">
+            <Plus size={16} aria-hidden="true" />
+          </button>
+        </ThreadListPrimitive.New>
+      </header>
+      <ThreadListPrimitive.Root className="assistant-history-list">
+        <EmptyHistoryNotice />
+        <ThreadListPrimitive.Items components={{ ThreadListItem: ConversationListItem }} />
+        <ThreadListPrimitive.LoadMore asChild>
+          <button className="assistant-history-more" type="button">
+            加载更多
+          </button>
+        </ThreadListPrimitive.LoadMore>
+      </ThreadListPrimitive.Root>
+      <p className="assistant-history-privacy">仅你本人可见 · 最长保留 180 天</p>
+    </aside>
+  )
+}
+
+function CurrentConversationHeading() {
+  const title = useAuiState((state) => state.threadListItem.title)
+  return (
+    <div>
+      <span className="assistant-status-dot" aria-hidden="true" />
+      <strong>{title || '新对话'}</strong>
+      <small>自动保存到你的私有历史</small>
+    </div>
+  )
+}
+
 function AssistantWorkspace({
   error,
   onClearError,
@@ -264,23 +393,22 @@ function AssistantWorkspace({
   onRefreshAccess?: () => void | Promise<void>
 }) {
   return (
-    <section className="assistant-workbench" aria-label="AI 对话工作台">
-      <header className="assistant-workbench-header">
-        <div>
-          <span className="assistant-status-dot" aria-hidden="true" />
-          <strong>当前对话</strong>
-          <small>不会保存到历史记录</small>
-        </div>
-        <ClearConversation onClear={onClearError} />
-      </header>
-      <ErrorNotice
-        error={error}
-        onDismiss={onClearError}
-        onReauthenticate={onReauthenticate}
-        onRefreshAccess={onRefreshAccess}
-      />
-      <ConversationThread />
-    </section>
+    <div className="assistant-chat-layout">
+      <ConversationHistory />
+      <section className="assistant-workbench" aria-label="AI 对话工作台">
+        <header className="assistant-workbench-header">
+          <CurrentConversationHeading />
+          <DeleteConversation onDelete={onClearError} />
+        </header>
+        <ErrorNotice
+          error={error}
+          onDismiss={onClearError}
+          onReauthenticate={onReauthenticate}
+          onRefreshAccess={onRefreshAccess}
+        />
+        <ConversationThread />
+      </section>
+    </div>
   )
 }
 
@@ -292,7 +420,7 @@ export function ChatRuntime({
   onUsageChanged?: () => void | Promise<void>
 }) {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const [error, setError] = useState<WebChatApiError | null>(null)
   const clearError = useCallback(() => setError(null), [])
   const reauthenticate = useCallback(async () => {
@@ -303,12 +431,22 @@ export function ChatRuntime({
     if (nextError instanceof DOMException && nextError.name === 'AbortError') return
     setError(normalizeWebChatError(nextError))
   }, [])
-  const runtime = useChatRuntime({
-    transport: transport ?? defaultTransport,
-    onError: handleError,
-    onFinish: ({ isError }) => {
-      if (!isError) clearError()
-      void onUsageChanged?.()
+  const userId = user?.id ?? 'anonymous'
+  const threadListAdapter = useMemo(() => createWebChatThreadListAdapter(userId), [userId])
+  const initialThreadId = useMemo(() => readActiveWebChatThreadId(userId), [userId])
+  const runtime = useRemoteThreadListRuntime({
+    adapter: threadListAdapter,
+    initialThreadId,
+    onThreadIdChange: (threadId) => storeActiveWebChatThreadId(userId, threadId),
+    runtimeHook: function WebChatThreadRuntime() {
+      return useChatRuntime({
+        transport: transport ?? defaultTransport,
+        onError: handleError,
+        onFinish: ({ isError }) => {
+          if (!isError) clearError()
+          void onUsageChanged?.()
+        },
+      })
     },
   })
 
