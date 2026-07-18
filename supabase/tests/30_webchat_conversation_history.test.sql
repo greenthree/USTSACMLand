@@ -145,6 +145,7 @@ select public.rename_own_webchat_conversation(
 create temporary table history_a_second as
 select * from public.create_own_webchat_conversation();
 
+reset role;
 select ok(
   exists (
     select 1
@@ -157,6 +158,7 @@ select ok(
   ),
   'message upserts update bounded conversation metadata and title'
 );
+set local role authenticated;
 
 select results_eq(
   $$
@@ -290,6 +292,7 @@ set local role authenticated;
 
 select public.delete_own_webchat_conversation((select id from history_a_first));
 
+reset role;
 select ok(
   not exists (
     select 1 from private.webchat_messages
@@ -297,8 +300,6 @@ select ok(
   ),
   'deleting an owned conversation cascades all stored messages'
 );
-
-reset role;
 select set_config('request.jwt.claim.sub', '', true);
 select set_config('request.jwt.claim.role', 'anon', true);
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
