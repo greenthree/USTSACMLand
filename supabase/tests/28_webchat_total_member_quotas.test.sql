@@ -223,7 +223,9 @@ select ok(
 );
 
 update private.webchat_relay_config
-set model = 'gpt-5.6-sol'
+set
+  base_url = 'https://relay.total-quota.example.test/v1',
+  model = 'gpt-5.6-sol'
 where singleton;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002801', true);

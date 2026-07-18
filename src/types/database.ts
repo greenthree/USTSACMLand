@@ -1,16 +1,10 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: '14.5'
   }
   graphql_public: {
     Tables: {
@@ -63,18 +57,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "admin_rate_limit_buckets_actor_id_fkey"
-            columns: ["actor_id"]
+            foreignKeyName: 'admin_rate_limit_buckets_actor_id_fkey'
+            columns: ['actor_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "admin_rate_limit_buckets_actor_id_fkey"
-            columns: ["actor_id"]
+            foreignKeyName: 'admin_rate_limit_buckets_actor_id_fkey'
+            columns: ['actor_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -86,7 +80,7 @@ export type Database = {
           expires_at: string | null
           id: number
           published_at: string | null
-          status: Database["public"]["Enums"]["announcement_status"]
+          status: Database['public']['Enums']['announcement_status']
           title: string
           updated_at: string
           updated_by: string | null
@@ -98,7 +92,7 @@ export type Database = {
           expires_at?: string | null
           id?: never
           published_at?: string | null
-          status?: Database["public"]["Enums"]["announcement_status"]
+          status?: Database['public']['Enums']['announcement_status']
           title: string
           updated_at?: string
           updated_by?: string | null
@@ -110,7 +104,7 @@ export type Database = {
           expires_at?: string | null
           id?: never
           published_at?: string | null
-          status?: Database["public"]["Enums"]["announcement_status"]
+          status?: Database['public']['Enums']['announcement_status']
           title?: string
           updated_at?: string
           updated_by?: string | null
@@ -189,25 +183,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "daily_problem_comments_author_id_fkey"
-            columns: ["author_id"]
+            foreignKeyName: 'daily_problem_comments_author_id_fkey'
+            columns: ['author_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "daily_problem_comments_author_id_fkey"
-            columns: ["author_id"]
+            foreignKeyName: 'daily_problem_comments_author_id_fkey'
+            columns: ['author_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "daily_problem_comments_problem_id_fkey"
-            columns: ["problem_id"]
+            foreignKeyName: 'daily_problem_comments_problem_id_fkey'
+            columns: ['problem_id']
             isOneToOne: false
-            referencedRelation: "daily_problems"
-            referencedColumns: ["id"]
+            referencedRelation: 'daily_problems'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -229,25 +223,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "daily_problem_completions_problem_id_fkey"
-            columns: ["problem_id"]
+            foreignKeyName: 'daily_problem_completions_problem_id_fkey'
+            columns: ['problem_id']
             isOneToOne: false
-            referencedRelation: "daily_problems"
-            referencedColumns: ["id"]
+            referencedRelation: 'daily_problems'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "daily_problem_completions_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'daily_problem_completions_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "daily_problem_completions_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'daily_problem_completions_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -264,7 +258,7 @@ export type Database = {
           published_at: string | null
           source_platform: string
           source_url: string
-          status: Database["public"]["Enums"]["daily_problem_status"]
+          status: Database['public']['Enums']['daily_problem_status']
           tags: string[]
           title: string
           training_note: string
@@ -284,7 +278,7 @@ export type Database = {
           published_at?: string | null
           source_platform: string
           source_url: string
-          status?: Database["public"]["Enums"]["daily_problem_status"]
+          status?: Database['public']['Enums']['daily_problem_status']
           tags?: string[]
           title: string
           training_note: string
@@ -304,7 +298,7 @@ export type Database = {
           published_at?: string | null
           source_platform?: string
           source_url?: string
-          status?: Database["public"]["Enums"]["daily_problem_status"]
+          status?: Database['public']['Enums']['daily_problem_status']
           tags?: string[]
           title?: string
           training_note?: string
@@ -350,11 +344,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "luogu_sync_states_platform_account_id_fkey"
-            columns: ["platform_account_id"]
+            foreignKeyName: 'luogu_sync_states_platform_account_id_fkey'
+            columns: ['platform_account_id']
             isOneToOne: true
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["id"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -364,13 +358,11 @@ export type Database = {
           external_id: string
           id: number
           normalized_external_id: string
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
-          status: Database["public"]["Enums"]["account_verification_status"]
+          status: Database['public']['Enums']['account_verification_status']
           updated_at: string
-          verification_error_code:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          verification_error_code: Database['public']['Enums']['sync_error_code'] | null
           verification_error_message: string | null
           verified_at: string | null
         }
@@ -379,13 +371,11 @@ export type Database = {
           external_id: string
           id?: never
           normalized_external_id: string
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
-          status?: Database["public"]["Enums"]["account_verification_status"]
+          status?: Database['public']['Enums']['account_verification_status']
           updated_at?: string
-          verification_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          verification_error_code?: Database['public']['Enums']['sync_error_code'] | null
           verification_error_message?: string | null
           verified_at?: string | null
         }
@@ -394,96 +384,94 @@ export type Database = {
           external_id?: string
           id?: never
           normalized_external_id?: string
-          platform?: Database["public"]["Enums"]["platform_name"]
+          platform?: Database['public']['Enums']['platform_name']
           profile_id?: string
-          status?: Database["public"]["Enums"]["account_verification_status"]
+          status?: Database['public']['Enums']['account_verification_status']
           updated_at?: string
-          verification_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          verification_error_code?: Database['public']['Enums']['sync_error_code'] | null
           verification_error_message?: string | null
           verified_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "platform_accounts_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'platform_accounts_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "platform_accounts_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'platform_accounts_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
       platform_stats: {
         Row: {
           current_rating: number | null
-          error_code: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code: Database['public']['Enums']['sync_error_code'] | null
           error_message: string | null
           fetched_at: string
           last_success_at: string | null
           max_rating: number | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           solved_count: number | null
           source_observed_at: string | null
           source_version: string | null
           stale_after: string | null
-          status: Database["public"]["Enums"]["stat_freshness_status"]
+          status: Database['public']['Enums']['stat_freshness_status']
           updated_at: string
         }
         Insert: {
           current_rating?: number | null
-          error_code?: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code?: Database['public']['Enums']['sync_error_code'] | null
           error_message?: string | null
           fetched_at?: string
           last_success_at?: string | null
           max_rating?: number | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           solved_count?: number | null
           source_observed_at?: string | null
           source_version?: string | null
           stale_after?: string | null
-          status?: Database["public"]["Enums"]["stat_freshness_status"]
+          status?: Database['public']['Enums']['stat_freshness_status']
           updated_at?: string
         }
         Update: {
           current_rating?: number | null
-          error_code?: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code?: Database['public']['Enums']['sync_error_code'] | null
           error_message?: string | null
           fetched_at?: string
           last_success_at?: string | null
           max_rating?: number | null
-          platform?: Database["public"]["Enums"]["platform_name"]
+          platform?: Database['public']['Enums']['platform_name']
           profile_id?: string
           solved_count?: number | null
           source_observed_at?: string | null
           source_version?: string | null
           stale_after?: string | null
-          status?: Database["public"]["Enums"]["stat_freshness_status"]
+          status?: Database['public']['Enums']['stat_freshness_status']
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "platform_stats_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'platform_stats_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: true
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
           {
-            foreignKeyName: "platform_stats_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'platform_stats_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: true
-            referencedRelation: "public_platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'public_platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
         ]
       }
@@ -500,8 +488,8 @@ export type Database = {
           qq: string | null
           review_note: string | null
           review_requested_at: string
-          review_status: Database["public"]["Enums"]["profile_review_status"]
-          role: Database["public"]["Enums"]["app_role"]
+          review_status: Database['public']['Enums']['profile_review_status']
+          role: Database['public']['Enums']['app_role']
           updated_at: string
         }
         Insert: {
@@ -516,8 +504,8 @@ export type Database = {
           qq?: string | null
           review_note?: string | null
           review_requested_at?: string
-          review_status?: Database["public"]["Enums"]["profile_review_status"]
-          role?: Database["public"]["Enums"]["app_role"]
+          review_status?: Database['public']['Enums']['profile_review_status']
+          role?: Database['public']['Enums']['app_role']
           updated_at?: string
         }
         Update: {
@@ -532,8 +520,8 @@ export type Database = {
           qq?: string | null
           review_note?: string | null
           review_requested_at?: string
-          review_status?: Database["public"]["Enums"]["profile_review_status"]
-          role?: Database["public"]["Enums"]["app_role"]
+          review_status?: Database['public']['Enums']['profile_review_status']
+          role?: Database['public']['Enums']['app_role']
           updated_at?: string
         }
         Relationships: []
@@ -543,59 +531,59 @@ export type Database = {
           current_rating: number | null
           id: number
           max_rating: number | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           recorded_at: string
           solved_count: number | null
           source_observed_at: string | null
-          status: Database["public"]["Enums"]["stat_freshness_status"]
+          status: Database['public']['Enums']['stat_freshness_status']
           sync_run_id: number
         }
         Insert: {
           current_rating?: number | null
           id?: never
           max_rating?: number | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           recorded_at?: string
           solved_count?: number | null
           source_observed_at?: string | null
-          status: Database["public"]["Enums"]["stat_freshness_status"]
+          status: Database['public']['Enums']['stat_freshness_status']
           sync_run_id: number
         }
         Update: {
           current_rating?: number | null
           id?: never
           max_rating?: number | null
-          platform?: Database["public"]["Enums"]["platform_name"]
+          platform?: Database['public']['Enums']['platform_name']
           profile_id?: string
           recorded_at?: string
           solved_count?: number | null
           source_observed_at?: string | null
-          status?: Database["public"]["Enums"]["stat_freshness_status"]
+          status?: Database['public']['Enums']['stat_freshness_status']
           sync_run_id?: number
         }
         Relationships: [
           {
-            foreignKeyName: "stat_snapshots_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'stat_snapshots_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: false
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
           {
-            foreignKeyName: "stat_snapshots_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'stat_snapshots_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: false
-            referencedRelation: "public_platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'public_platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
           {
-            foreignKeyName: "stat_snapshots_sync_run_id_fkey"
-            columns: ["sync_run_id"]
+            foreignKeyName: 'stat_snapshots_sync_run_id_fkey'
+            columns: ['sync_run_id']
             isOneToOne: false
-            referencedRelation: "sync_runs"
-            referencedColumns: ["id"]
+            referencedRelation: 'sync_runs'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -606,19 +594,19 @@ export type Database = {
           dedupe_key: string | null
           finished_at: string | null
           id: number
-          last_error_code: Database["public"]["Enums"]["sync_error_code"] | null
+          last_error_code: Database['public']['Enums']['sync_error_code'] | null
           last_error_message: string | null
           max_attempts: number
           payload: Json
-          platform: Database["public"]["Enums"]["platform_name"] | null
+          platform: Database['public']['Enums']['platform_name'] | null
           priority: number
           profile_id: string | null
           requested_by: string | null
           scheduled_for: string
-          scope: Database["public"]["Enums"]["sync_job_scope"]
+          scope: Database['public']['Enums']['sync_job_scope']
           started_at: string | null
-          status: Database["public"]["Enums"]["sync_job_status"]
-          trigger_type: Database["public"]["Enums"]["sync_trigger_type"]
+          status: Database['public']['Enums']['sync_job_status']
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
           updated_at: string
         }
         Insert: {
@@ -627,21 +615,19 @@ export type Database = {
           dedupe_key?: string | null
           finished_at?: string | null
           id?: never
-          last_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
           last_error_message?: string | null
           max_attempts?: number
           payload?: Json
-          platform?: Database["public"]["Enums"]["platform_name"] | null
+          platform?: Database['public']['Enums']['platform_name'] | null
           priority?: number
           profile_id?: string | null
           requested_by?: string | null
           scheduled_for?: string
-          scope: Database["public"]["Enums"]["sync_job_scope"]
+          scope: Database['public']['Enums']['sync_job_scope']
           started_at?: string | null
-          status?: Database["public"]["Enums"]["sync_job_status"]
-          trigger_type: Database["public"]["Enums"]["sync_trigger_type"]
+          status?: Database['public']['Enums']['sync_job_status']
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
           updated_at?: string
         }
         Update: {
@@ -650,37 +636,35 @@ export type Database = {
           dedupe_key?: string | null
           finished_at?: string | null
           id?: never
-          last_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
           last_error_message?: string | null
           max_attempts?: number
           payload?: Json
-          platform?: Database["public"]["Enums"]["platform_name"] | null
+          platform?: Database['public']['Enums']['platform_name'] | null
           priority?: number
           profile_id?: string | null
           requested_by?: string | null
           scheduled_for?: string
-          scope?: Database["public"]["Enums"]["sync_job_scope"]
+          scope?: Database['public']['Enums']['sync_job_scope']
           started_at?: string | null
-          status?: Database["public"]["Enums"]["sync_job_status"]
-          trigger_type?: Database["public"]["Enums"]["sync_trigger_type"]
+          status?: Database['public']['Enums']['sync_job_status']
+          trigger_type?: Database['public']['Enums']['sync_trigger_type']
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "sync_jobs_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'sync_jobs_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "sync_jobs_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'sync_jobs_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -688,82 +672,82 @@ export type Database = {
         Row: {
           attempt: number
           duration_ms: number | null
-          error_code: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code: Database['public']['Enums']['sync_error_code'] | null
           error_message: string | null
           finished_at: string | null
           http_status: number | null
           id: number
           job_id: number
           metrics: Json | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           platform_account_id: number | null
           profile_id: string
           source_version: string | null
           started_at: string
-          status: Database["public"]["Enums"]["sync_run_status"]
+          status: Database['public']['Enums']['sync_run_status']
         }
         Insert: {
           attempt?: number
           duration_ms?: number | null
-          error_code?: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code?: Database['public']['Enums']['sync_error_code'] | null
           error_message?: string | null
           finished_at?: string | null
           http_status?: number | null
           id?: never
           job_id: number
           metrics?: Json | null
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           platform_account_id?: number | null
           profile_id: string
           source_version?: string | null
           started_at?: string
-          status?: Database["public"]["Enums"]["sync_run_status"]
+          status?: Database['public']['Enums']['sync_run_status']
         }
         Update: {
           attempt?: number
           duration_ms?: number | null
-          error_code?: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code?: Database['public']['Enums']['sync_error_code'] | null
           error_message?: string | null
           finished_at?: string | null
           http_status?: number | null
           id?: never
           job_id?: number
           metrics?: Json | null
-          platform?: Database["public"]["Enums"]["platform_name"]
+          platform?: Database['public']['Enums']['platform_name']
           platform_account_id?: number | null
           profile_id?: string
           source_version?: string | null
           started_at?: string
-          status?: Database["public"]["Enums"]["sync_run_status"]
+          status?: Database['public']['Enums']['sync_run_status']
         }
         Relationships: [
           {
-            foreignKeyName: "sync_runs_job_id_fkey"
-            columns: ["job_id"]
+            foreignKeyName: 'sync_runs_job_id_fkey'
+            columns: ['job_id']
             isOneToOne: false
-            referencedRelation: "sync_jobs"
-            referencedColumns: ["id"]
+            referencedRelation: 'sync_jobs'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "sync_runs_platform_account_id_fkey"
-            columns: ["platform_account_id"]
+            foreignKeyName: 'sync_runs_platform_account_id_fkey'
+            columns: ['platform_account_id']
             isOneToOne: false
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["id"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "sync_runs_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'sync_runs_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "sync_runs_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'sync_runs_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -806,7 +790,7 @@ export type Database = {
           cache_key: boolean
           etag: string | null
           expires_at: string | null
-          last_error_code: Database["public"]["Enums"]["sync_error_code"] | null
+          last_error_code: Database['public']['Enums']['sync_error_code'] | null
           last_error_message: string | null
           last_modified: string | null
           refresh_lease_expires_at: string | null
@@ -821,9 +805,7 @@ export type Database = {
           cache_key?: boolean
           etag?: string | null
           expires_at?: string | null
-          last_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
           last_error_message?: string | null
           last_modified?: string | null
           refresh_lease_expires_at?: string | null
@@ -838,9 +820,7 @@ export type Database = {
           cache_key?: boolean
           etag?: string | null
           expires_at?: string | null
-          last_error_code?:
-            | Database["public"]["Enums"]["sync_error_code"]
-            | null
+          last_error_code?: Database['public']['Enums']['sync_error_code'] | null
           last_error_message?: string | null
           last_modified?: string | null
           refresh_lease_expires_at?: string | null
@@ -914,57 +894,57 @@ export type Database = {
       public_platform_accounts: {
         Row: {
           external_id: string | null
-          platform: Database["public"]["Enums"]["platform_name"] | null
+          platform: Database['public']['Enums']['platform_name'] | null
           profile_id: string | null
           verified_at: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "platform_accounts_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'platform_accounts_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "platform_accounts_profile_id_fkey"
-            columns: ["profile_id"]
+            foreignKeyName: 'platform_accounts_profile_id_fkey'
+            columns: ['profile_id']
             isOneToOne: false
-            referencedRelation: "public_members"
-            referencedColumns: ["id"]
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
           },
         ]
       }
       public_platform_stats: {
         Row: {
           current_rating: number | null
-          error_code: Database["public"]["Enums"]["sync_error_code"] | null
+          error_code: Database['public']['Enums']['sync_error_code'] | null
           fetched_at: string | null
           last_success_at: string | null
           max_rating: number | null
-          platform: Database["public"]["Enums"]["platform_name"] | null
+          platform: Database['public']['Enums']['platform_name'] | null
           profile_id: string | null
           solved_count: number | null
           source_observed_at: string | null
           source_version: string | null
           stale_after: string | null
-          status: Database["public"]["Enums"]["stat_freshness_status"] | null
+          status: Database['public']['Enums']['stat_freshness_status'] | null
           updated_at: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "platform_stats_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'platform_stats_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: true
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
           {
-            foreignKeyName: "platform_stats_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'platform_stats_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: true
-            referencedRelation: "public_platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'public_platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
         ]
       }
@@ -973,27 +953,27 @@ export type Database = {
           current_rating: number | null
           id: number | null
           max_rating: number | null
-          platform: Database["public"]["Enums"]["platform_name"] | null
+          platform: Database['public']['Enums']['platform_name'] | null
           profile_id: string | null
           recorded_at: string | null
           solved_count: number | null
           source_observed_at: string | null
-          status: Database["public"]["Enums"]["stat_freshness_status"] | null
+          status: Database['public']['Enums']['stat_freshness_status'] | null
         }
         Relationships: [
           {
-            foreignKeyName: "stat_snapshots_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'stat_snapshots_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: false
-            referencedRelation: "platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
           {
-            foreignKeyName: "stat_snapshots_account_fkey"
-            columns: ["profile_id", "platform"]
+            foreignKeyName: 'stat_snapshots_account_fkey'
+            columns: ['profile_id', 'platform']
             isOneToOne: false
-            referencedRelation: "public_platform_accounts"
-            referencedColumns: ["profile_id", "platform"]
+            referencedRelation: 'public_platform_accounts'
+            referencedColumns: ['profile_id', 'platform']
           },
         ]
       }
@@ -1027,7 +1007,7 @@ export type Database = {
         Args: { target_profile_id: string }
         Returns: {
           account_id: number
-          account_status: Database["public"]["Enums"]["account_verification_status"]
+          account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
           created_at: string
           current_rating: number
@@ -1040,14 +1020,14 @@ export type Database = {
           last_success_at: string
           major: string
           max_rating: number
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           qq: string
-          review_status: Database["public"]["Enums"]["profile_review_status"]
+          review_status: Database['public']['Enums']['profile_review_status']
           solved_count: number
           source_observed_at: string
           source_version: string
           stale_after: string
-          stat_status: Database["public"]["Enums"]["stat_freshness_status"]
+          stat_status: Database['public']['Enums']['stat_freshness_status']
           stat_updated_at: string
           suspension_note: string
           updated_at: string
@@ -1074,8 +1054,8 @@ export type Database = {
           failed_runs: number
           last_failure_at: string
           last_success_at: string
-          latest_error_code: Database["public"]["Enums"]["sync_error_code"]
-          platform: Database["public"]["Enums"]["platform_name"]
+          latest_error_code: Database['public']['Enums']['sync_error_code']
+          platform: Database['public']['Enums']['platform_name']
           succeeded_runs: number
           success_rate: number
           total_runs: number
@@ -1097,16 +1077,16 @@ export type Database = {
           attempt_count: number
           created_at: string
           job_id: number
-          last_error_code: Database["public"]["Enums"]["sync_error_code"]
+          last_error_code: Database['public']['Enums']['sync_error_code']
           max_attempts: number
           member_name: string
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           scheduled_for: string
-          scope: Database["public"]["Enums"]["sync_job_scope"]
+          scope: Database['public']['Enums']['sync_job_scope']
           started_at: string
-          status: Database["public"]["Enums"]["sync_job_status"]
-          trigger_type: Database["public"]["Enums"]["sync_trigger_type"]
+          status: Database['public']['Enums']['sync_job_status']
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
       admin_list_announcements: {
@@ -1119,7 +1099,7 @@ export type Database = {
           created_by_label: string
           expires_at: string
           published_at: string
-          status: Database["public"]["Enums"]["announcement_status"]
+          status: Database['public']['Enums']['announcement_status']
           title: string
           updated_at: string
           updated_by: string
@@ -1158,7 +1138,7 @@ export type Database = {
           published_at: string
           source_platform: string
           source_url: string
-          status: Database["public"]["Enums"]["daily_problem_status"]
+          status: Database['public']['Enums']['daily_problem_status']
           tags: string[]
           title: string
           training_note: string
@@ -1194,8 +1174,8 @@ export type Database = {
           major: string
           platform_count: number
           qq: string
-          review_status: Database["public"]["Enums"]["profile_review_status"]
-          role: Database["public"]["Enums"]["app_role"]
+          review_status: Database['public']['Enums']['profile_review_status']
+          role: Database['public']['Enums']['app_role']
           suspension_note: string
           updated_at: string
           verified_platform_count: number
@@ -1209,11 +1189,11 @@ export type Database = {
           full_name: string
           id: number
           major: string
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
-          status: Database["public"]["Enums"]["account_verification_status"]
+          status: Database['public']['Enums']['account_verification_status']
           updated_at: string
-          verification_error_code: Database["public"]["Enums"]["sync_error_code"]
+          verification_error_code: Database['public']['Enums']['sync_error_code']
           verification_error_message: string
           verified_at: string
         }[]
@@ -1222,20 +1202,20 @@ export type Database = {
         Args: { before_run_id?: number; row_limit?: number }
         Returns: {
           duration_ms: number
-          error_code: Database["public"]["Enums"]["sync_error_code"]
+          error_code: Database['public']['Enums']['sync_error_code']
           error_message: string
           finished_at: string
           job_id: number
-          job_status: Database["public"]["Enums"]["sync_job_status"]
+          job_status: Database['public']['Enums']['sync_job_status']
           member_name: string
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
           requested_by: string
           run_id: number
-          run_status: Database["public"]["Enums"]["sync_run_status"]
+          run_status: Database['public']['Enums']['sync_run_status']
           source_version: string
           started_at: string
-          trigger_type: Database["public"]["Enums"]["sync_trigger_type"]
+          trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
       admin_list_webchat_pilot_members: {
@@ -1250,8 +1230,8 @@ export type Database = {
           remaining_requests: number
           remaining_tokens: number
           reserved_tokens: number
-          review_status: Database["public"]["Enums"]["profile_review_status"]
-          role: Database["public"]["Enums"]["app_role"]
+          review_status: Database['public']['Enums']['profile_review_status']
+          role: Database['public']['Enums']['app_role']
           today_request_count: number
           today_reserved_tokens: number
           today_settled_tokens: number
@@ -1286,7 +1266,7 @@ export type Database = {
           manual_note: string
           manual_solved_count: number
           manual_source_observed_at: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: {
@@ -1302,7 +1282,7 @@ export type Database = {
           manual_note: string
           manual_solved_count: number
           manual_source_observed_at: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: {
@@ -1313,7 +1293,7 @@ export type Database = {
       admin_set_member_role: {
         Args: {
           expected_updated_at: string
-          next_role: Database["public"]["Enums"]["app_role"]
+          next_role: Database['public']['Enums']['app_role']
           reason: string
           target_profile_id: string
         }
@@ -1341,24 +1321,24 @@ export type Database = {
         Args: {
           error_message: string
           expected_updated_at: string
-          next_status: Database["public"]["Enums"]["account_verification_status"]
+          next_status: Database['public']['Enums']['account_verification_status']
           target_account_id: number
         }
-        Returns: Database["public"]["Enums"]["account_verification_status"]
+        Returns: Database['public']['Enums']['account_verification_status']
       }
       admin_set_platform_account_status_unlimited: {
         Args: {
           error_message: string
           expected_updated_at: string
-          next_status: Database["public"]["Enums"]["account_verification_status"]
+          next_status: Database['public']['Enums']['account_verification_status']
           target_account_id: number
         }
-        Returns: Database["public"]["Enums"]["account_verification_status"]
+        Returns: Database['public']['Enums']['account_verification_status']
       }
       admin_unbind_member_platform_account: {
         Args: {
           expected_updated_at: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: boolean
@@ -1366,7 +1346,7 @@ export type Database = {
       admin_unbind_member_platform_account_unlimited: {
         Args: {
           expected_updated_at: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: boolean
@@ -1440,7 +1420,7 @@ export type Database = {
           announcement_body: string
           announcement_expires_at: string
           announcement_published_at: string
-          announcement_status: Database["public"]["Enums"]["announcement_status"]
+          announcement_status: Database['public']['Enums']['announcement_status']
           announcement_title: string
           expected_updated_at: string
           target_announcement_id: number
@@ -1455,7 +1435,7 @@ export type Database = {
           announcement_body: string
           announcement_expires_at: string
           announcement_published_at: string
-          announcement_status: Database["public"]["Enums"]["announcement_status"]
+          announcement_status: Database['public']['Enums']['announcement_status']
           announcement_title: string
           expected_updated_at: string
           target_announcement_id: number
@@ -1477,7 +1457,7 @@ export type Database = {
           problem_tags: string[]
           problem_title: string
           problem_training_note: string
-          requested_status: Database["public"]["Enums"]["daily_problem_status"]
+          requested_status: Database['public']['Enums']['daily_problem_status']
           target_problem_id: number
         }
         Returns: {
@@ -1489,12 +1469,12 @@ export type Database = {
         Args: {
           expected_updated_at?: string
           new_external_id: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: {
           account_id: number
-          account_status: Database["public"]["Enums"]["account_verification_status"]
+          account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
         }[]
       }
@@ -1502,12 +1482,12 @@ export type Database = {
         Args: {
           expected_updated_at?: string
           new_external_id: string
-          target_platform: Database["public"]["Enums"]["platform_name"]
+          target_platform: Database['public']['Enums']['platform_name']
           target_profile_id: string
         }
         Returns: {
           account_id: number
-          account_status: Database["public"]["Enums"]["account_verification_status"]
+          account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
         }[]
       }
@@ -1551,7 +1531,7 @@ export type Database = {
           job_id: number
           max_attempts: number
           payload: Json
-          platform: Database["public"]["Enums"]["platform_name"]
+          platform: Database['public']['Enums']['platform_name']
           profile_id: string
         }[]
       }
@@ -1629,7 +1609,7 @@ export type Database = {
           run_finished_at: string
           run_metrics: Json
           stat_current_rating: number
-          stat_error_code: Database["public"]["Enums"]["sync_error_code"]
+          stat_error_code: Database['public']['Enums']['sync_error_code']
           stat_error_message: string
           stat_fetched_at: string
           stat_last_success_at: string
@@ -1638,7 +1618,7 @@ export type Database = {
           stat_source_observed_at: string
           stat_source_version: string
           stat_stale_after: string
-          stat_status: Database["public"]["Enums"]["stat_freshness_status"]
+          stat_status: Database['public']['Enums']['stat_freshness_status']
           state_boundary_record_id: string
           state_boundary_submit_time: number
           state_last_full_sync_at: string
@@ -1658,7 +1638,7 @@ export type Database = {
           run_finished_at: string
           run_metrics: Json
           stat_current_rating: number
-          stat_error_code: Database["public"]["Enums"]["sync_error_code"]
+          stat_error_code: Database['public']['Enums']['sync_error_code']
           stat_error_message: string
           stat_fetched_at: string
           stat_last_success_at: string
@@ -1667,7 +1647,7 @@ export type Database = {
           stat_source_observed_at: string
           stat_source_version: string
           stat_stale_after: string
-          stat_status: Database["public"]["Enums"]["stat_freshness_status"]
+          stat_status: Database['public']['Enums']['stat_freshness_status']
           sync_succeeded: boolean
           target_job_id: number
           target_platform_account_id: number
@@ -1690,13 +1670,13 @@ export type Database = {
         Args: {
           attempt_succeeded: boolean
           expected_attempt: number
-          failure_code?: Database["public"]["Enums"]["sync_error_code"]
+          failure_code?: Database['public']['Enums']['sync_error_code']
           failure_message?: string
           failure_retryable?: boolean
           target_job_id: number
         }
         Returns: {
-          job_status: Database["public"]["Enums"]["sync_job_status"]
+          job_status: Database['public']['Enums']['sync_job_status']
           retry_at: string
           transitioned: boolean
           transitioned_at: string
@@ -1732,7 +1712,7 @@ export type Database = {
       }
       fail_xcpc_elo_cache_refresh: {
         Args: {
-          failure_code: Database["public"]["Enums"]["sync_error_code"]
+          failure_code: Database['public']['Enums']['sync_error_code']
           failure_message: string
           requested_owner: string
           retry_after_seconds: number
@@ -1921,52 +1901,32 @@ export type Database = {
       }
     }
     Enums: {
-      account_verification_status:
-        | "pending"
-        | "verified"
-        | "invalid"
-        | "disabled"
-      announcement_status: "draft" | "published" | "archived"
-      app_role: "member" | "admin"
-      daily_problem_status: "draft" | "published" | "archived"
-      platform_name:
-        | "codeforces"
-        | "nowcoder"
-        | "atcoder"
-        | "xcpc_elo"
-        | "luogu"
-        | "qoj"
-      profile_review_status: "pending" | "approved" | "rejected" | "suspended"
-      stat_freshness_status: "fresh" | "stale" | "unavailable"
+      account_verification_status: 'pending' | 'verified' | 'invalid' | 'disabled'
+      announcement_status: 'draft' | 'published' | 'archived'
+      app_role: 'member' | 'admin'
+      daily_problem_status: 'draft' | 'published' | 'archived'
+      platform_name: 'codeforces' | 'nowcoder' | 'atcoder' | 'xcpc_elo' | 'luogu' | 'qoj'
+      profile_review_status: 'pending' | 'approved' | 'rejected' | 'suspended'
+      stat_freshness_status: 'fresh' | 'stale' | 'unavailable'
       sync_error_code:
-        | "not_found"
-        | "auth_required"
-        | "auth_expired"
-        | "rate_limited"
-        | "schema_changed"
-        | "timeout"
-        | "network_error"
-        | "invalid_response"
-        | "invalid_account"
-        | "external_worker_required"
-        | "not_configured"
-        | "source_unavailable"
-        | "upstream_error"
-        | "unknown"
-      sync_job_scope: "account" | "member" | "platform" | "all"
-      sync_job_status:
-        | "queued"
-        | "running"
-        | "succeeded"
-        | "failed"
-        | "cancelled"
-      sync_run_status: "running" | "succeeded" | "failed" | "skipped"
-      sync_trigger_type:
-        | "scheduled"
-        | "manual"
-        | "registration"
-        | "account_changed"
-        | "retry"
+        | 'not_found'
+        | 'auth_required'
+        | 'auth_expired'
+        | 'rate_limited'
+        | 'schema_changed'
+        | 'timeout'
+        | 'network_error'
+        | 'invalid_response'
+        | 'invalid_account'
+        | 'external_worker_required'
+        | 'not_configured'
+        | 'source_unavailable'
+        | 'upstream_error'
+        | 'unknown'
+      sync_job_scope: 'account' | 'member' | 'platform' | 'all'
+      sync_job_status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+      sync_run_status: 'running' | 'succeeded' | 'failed' | 'skipped'
+      sync_trigger_type: 'scheduled' | 'manual' | 'registration' | 'account_changed' | 'retry'
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1974,33 +1934,31 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, 'public'>]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    ? (DefaultSchema['Tables'] & DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -2009,23 +1967,22 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -2034,23 +1991,22 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -2059,36 +2015,34 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    keyof DefaultSchema['Enums'] | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
+    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    keyof DefaultSchema['CompositeTypes'] | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
+    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
@@ -2097,57 +2051,33 @@ export const Constants = {
   },
   public: {
     Enums: {
-      account_verification_status: [
-        "pending",
-        "verified",
-        "invalid",
-        "disabled",
-      ],
-      announcement_status: ["draft", "published", "archived"],
-      app_role: ["member", "admin"],
-      daily_problem_status: ["draft", "published", "archived"],
-      platform_name: [
-        "codeforces",
-        "nowcoder",
-        "atcoder",
-        "xcpc_elo",
-        "luogu",
-        "qoj",
-      ],
-      profile_review_status: ["pending", "approved", "rejected", "suspended"],
-      stat_freshness_status: ["fresh", "stale", "unavailable"],
+      account_verification_status: ['pending', 'verified', 'invalid', 'disabled'],
+      announcement_status: ['draft', 'published', 'archived'],
+      app_role: ['member', 'admin'],
+      daily_problem_status: ['draft', 'published', 'archived'],
+      platform_name: ['codeforces', 'nowcoder', 'atcoder', 'xcpc_elo', 'luogu', 'qoj'],
+      profile_review_status: ['pending', 'approved', 'rejected', 'suspended'],
+      stat_freshness_status: ['fresh', 'stale', 'unavailable'],
       sync_error_code: [
-        "not_found",
-        "auth_required",
-        "auth_expired",
-        "rate_limited",
-        "schema_changed",
-        "timeout",
-        "network_error",
-        "invalid_response",
-        "invalid_account",
-        "external_worker_required",
-        "not_configured",
-        "source_unavailable",
-        "upstream_error",
-        "unknown",
+        'not_found',
+        'auth_required',
+        'auth_expired',
+        'rate_limited',
+        'schema_changed',
+        'timeout',
+        'network_error',
+        'invalid_response',
+        'invalid_account',
+        'external_worker_required',
+        'not_configured',
+        'source_unavailable',
+        'upstream_error',
+        'unknown',
       ],
-      sync_job_scope: ["account", "member", "platform", "all"],
-      sync_job_status: [
-        "queued",
-        "running",
-        "succeeded",
-        "failed",
-        "cancelled",
-      ],
-      sync_run_status: ["running", "succeeded", "failed", "skipped"],
-      sync_trigger_type: [
-        "scheduled",
-        "manual",
-        "registration",
-        "account_changed",
-        "retry",
-      ],
+      sync_job_scope: ['account', 'member', 'platform', 'all'],
+      sync_job_status: ['queued', 'running', 'succeeded', 'failed', 'cancelled'],
+      sync_run_status: ['running', 'succeeded', 'failed', 'skipped'],
+      sync_trigger_type: ['scheduled', 'manual', 'registration', 'account_changed', 'retry'],
     },
   },
 } as const

@@ -347,12 +347,12 @@ select is(
   ),
   array[
     'access_enabled',
-    'total_request_limit',
-    'total_token_limit',
     'model',
     'remaining_requests',
     'remaining_tokens',
     'reserved_tokens',
+    'total_request_limit',
+    'total_token_limit',
     'used_requests',
     'used_tokens'
   ]::text[],

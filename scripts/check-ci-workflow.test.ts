@@ -259,9 +259,7 @@ describe('CI workflow', () => {
         workflow,
         packageJson,
         pgTapFiles,
-        migrationFiles.filter(
-          (name) => name !== '202607180003_webchat_total_member_quotas.sql',
-        ),
+        migrationFiles.filter((name) => name !== '202607180003_webchat_total_member_quotas.sql'),
         deployWorkflow,
         supabaseConfig,
       ),
@@ -343,9 +341,7 @@ describe('CI workflow', () => {
       ),
     ).toThrow(/requested_total_request_limit/)
     expect(() =>
-      verifyDatabaseTypes(
-        `${databaseTypes}\nrequested_daily_request_limit: number`,
-      ),
+      verifyDatabaseTypes(`${databaseTypes}\nrequested_daily_request_limit: number`),
     ).toThrow(/daily member quota API/)
   })
 })

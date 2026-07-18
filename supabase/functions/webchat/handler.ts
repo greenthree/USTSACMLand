@@ -111,11 +111,7 @@ function quotaError(result: WebChatClaimResult): ApiError {
     case 'minute_limited':
       return new ApiError(429, 'chat_minute_limited', '发送过于频繁，请稍后再试', retryAfter)
     case 'member_total_request_limited':
-      return new ApiError(
-        429,
-        'chat_total_request_limited',
-        'AI 助手累计请求次数已用完',
-      )
+      return new ApiError(429, 'chat_total_request_limited', 'AI 助手累计请求次数已用完')
     case 'member_total_token_limited':
       return new ApiError(429, 'chat_total_token_limited', 'AI 助手累计 Token 额度已用完')
     case 'global_daily_request_limited':
