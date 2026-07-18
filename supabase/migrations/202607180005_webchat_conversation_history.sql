@@ -333,7 +333,7 @@ returns table (
   parent_id text,
   format text,
   content jsonb,
-  position bigint
+  "position" bigint
 )
 language plpgsql
 stable
