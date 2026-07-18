@@ -15,6 +15,17 @@ describe('encrypted database backup workflow', () => {
     ).toThrow(/--schema auth/)
   })
 
+  it('keeps the general data dump disjoint from separate Auth and migration dumps', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace("            --exclude 'auth.*' \\\n", '')),
+    ).toThrow(/--exclude 'auth\.\*'/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace("            --exclude 'supabase_migrations.*' \\\n", ''),
+      ),
+    ).toThrow(/--exclude 'supabase_migrations\.\*'/)
+  })
+
   it('rejects removal of the external account-deletion recovery floor', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(

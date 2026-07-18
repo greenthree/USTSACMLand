@@ -84,6 +84,8 @@ jobs:
             --file "$backup_dir/data.sql" \
             --use-copy \
             --data-only \
+            --exclude 'auth.*' \
+            --exclude 'supabase_migrations.*' \
             --exclude 'storage.buckets_vectors' \
             --exclude 'storage.vector_indexes'
           npx --yes supabase@2.109.1 db dump \
