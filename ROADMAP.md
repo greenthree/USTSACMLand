@@ -36,6 +36,7 @@
 - [x] 实现 QOJ Firecrawl `/interact` 临时会话自动登录、结构校验、限流错误和完整登录健康检查脚本。
 - [x] 完成生产 QOJ 自动登录烟测并保存可复核证据：2026-07-16 通过已部署 `sync-member` 使用当前生产 QOJ/Firecrawl Secrets 受控触发一次真实同步，单次尝试成功、题数为 10，随后匿名公开视图确认相同来源版本、成功时间、题数和 `fresh` 状态；证据已脱敏保存于 `docs/evidence/qoj-production-smoke-2026-07-16.md`。
 - [ ] 配置 QOJ 登录失败告警和 Firecrawl 用量监控（终态失败脱敏 Webhook已实现；每周 QOJ 批次前 Firecrawl 额度检查、25% warning、10% critical、5 秒超时、禁止自动重试和脱敏 Payload 已实现。2026-07-15 CLI 实测为 409/1000、周期截止 2026-07-24，但生产 `SYNC_ALERT_WEBHOOK_URL/TOKEN` 仍缺失，待部署、投递烟测和确认 CLI 与生产 Key 属于同一团队）。
+- [ ] 允许管理员在后台配置、启停和轮换多个 Firecrawl API Key：密钥只进入 Supabase Vault，浏览器只能看到脱敏状态；支持逐 Key 健康度/额度观测和明确的选择策略，单 Key 故障不能泄漏密钥或绕过 QOJ 禁止自动重试边界，所有变更需实时管理员复核、原因、乐观锁、限流和审计。
 - [x] 为每个平台保存脱敏固定样本并编写契约测试。
 - [x] 编写架构决策记录：部署、认证、定时任务、秘密管理和 QOJ 备用方案。
 
@@ -233,6 +234,7 @@ M6 验收条件：
 - [ ] 接入大模型的 AI 聊天学习助手，用于知识问答、代码讲解和训练复盘，使用根目录下的 `WEBCHATROADMAP.md` 规划（安全 API、流式 `/assistant` 工作台、成员与全站原子配额、Vault 中转站配置、管理员逐账号授权/限额、脱敏预算告警、隐私说明、私有历史会话、真实 Responses 协议验收和生产输入缓存命中均已完成。2026-07-18 生产已对齐 51 个 migration，`webchat` v9、`webchat-cache-probe` v2 均为 ACTIVE；成员请求与 Token 额度为保留全部历史用量的累计总限额，全站预算仍按北京时间每日重置。管理员试运行观测面板只汇总显式配置账号的累计请求/Token、剩余总额度、活动请求和最近请求时间，不读取对话正文。PR #69 的 PostgreSQL 17 门禁通过 31 个 pgTAP 文件/779 项断言，生产缓存探针 run `29650242439` 的第二次相同长前缀请求真实命中 1792 个输入 Token；历史会话发布及缓存证据见 `docs/evidence/webchat-history-cache-production-release-2026-07-18.md` 与 `docs/evidence/webchat-input-cache-production-smoke-2026-07-18.md`。当前 7 个授权账号不自动等同于真实观察完成，剩余任务是由项目负责人确认正式试运行名单并完成连续观察）。
 - [x] 为 AI 学习助手增加刷新恢复、历史会话与首正文前“思考中”：私有会话表、own-history RPC、每账号/会话容量限制、180 天清理、注销级联、生产正文不进入 localStorage、五浏览器刷新/切换/删除门禁均已实现；第 50 个 migration、`webchat` v9 和 Pages run `29646490889` 已发布，正式资源包含历史列表、“思考中”和保留说明。证据见 `docs/evidence/webchat-history-cache-production-release-2026-07-18.md`。
 - [x] 验证并优化 WebChat 输入缓存：生产请求使用由模型与系统提示词版本派生且不含成员或正文的稳定 `prompt_cache_key`；service-role-only `webchat-cache-probe` 从 Supabase Vault 读取管理员已保存的 Base URL、模型和 Key，固定发送两次字节一致的 1024 Token 以上长前缀请求，不扣成员额度、不自动重试。第 51 个 migration 与 ACTIVE v2 函数已部署；手动 run `29650242439` 首次输入 2335 Token、缓存命中 0，第二次相同输入命中 1792 Token，证明当前中转站可以透传缓存键、复用前缀并回传真实 `cached_tokens`。31 个 pgTAP 文件/779 项断言及鉴权回归均通过，脱敏证据见 `docs/evidence/webchat-input-cache-production-smoke-2026-07-18.md`。
+- [ ] 排查并优化真实成员 WebChat 请求的输入缓存命中：不能以固定长前缀探针成功替代真实会话验收；逐项核对连续请求的系统提示词、模型、工具定义、消息顺序与序列化字节是否稳定，确认中转站实际支持并透传所需缓存参数和 Usage 明细，在不记录消息正文或密钥的前提下增加可观测性。退出条件为真实授权账号的连续多轮对话能够在中转站日志及脱敏服务端指标中观察到输入缓存命中，并有不增加越权、隐私泄露或错误复用风险的回归测试与生产证据。
 - [x] 在已授权账号的 `/assistant` 显示后端实际解析的当前模型，并将同一个经过白名单校验的模型名写入服务端系统提示词、额度指纹和上游请求；未授权或停用账号不能发现模型，任何账号都不能读取 Base URL、Key、全站预算或他人额度。迁移 `202607170010` 已部署，localhost 生产 RPC 刷新烟测显示 `gpt-5.6-sol` 且 console 无错误。
 - [x] 完成 AI 学习助手的本地多浏览器、移动端、宽屏、键盘、减少动画与 axe 门禁；Chromium 同时驱动 10 个独立页面和 10 路并行 HTTP 流，验证流式回复互不串扰且完成后无残留活动连接。PR #57 的 Actions run `29593307984` 已实际通过该专用 WebChat 浏览器矩阵；真实中转站的 3–5 人试运行与连续观察仍由总功能条目跟踪。
 - [x] 启用 GitHub Pages 的 AI 学习助手客户端入口：仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` 已进入 Pages 构建，Actions run `29594758865` attempt 2 的 build、deploy 和 `production-ranking-audit` 全部通过；生产浏览器验证未登录访问会跳转登录，已授权测试账号导航显示“AI 助手”并可读取 `gpt-5.6-sol`、本人额度和对话工作台。
@@ -241,7 +243,6 @@ M6 验收条件：
 - [ ] CF/AtCoder Rating 曲线与比赛明细。
 - [ ] 过题明细、题目难度分布和标签统计。
 - [ ] 训练目标、连续活跃天数和个人数据导出。
-- [ ] 经队内讨论后设计跨平台综合分，并公开版本化公式。
 
 ## 主要风险清单
 
