@@ -126,6 +126,11 @@ describe('encrypted database restore drill workflow', () => {
         workflow.replace('rest/v1/public_members?select=id&limit=1', 'rest/v1/health'),
       ),
     ).toThrow(/Auth\/RLS/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace('type == "array" and length == 0', 'type == "array"'),
+      ),
+    ).toThrow(/strictly empty RLS-filtered/)
   })
 
   it('rejects plaintext or credential artifact uploads', () => {

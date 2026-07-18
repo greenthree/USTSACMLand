@@ -80,8 +80,13 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
   if (observation?.restSmoke?.anonymousPublicStatus !== 200) {
     throw new Error('Anonymous public-view smoke check did not return HTTP 200.')
   }
-  if (![401, 403].includes(observation?.restSmoke?.anonymousPrivateStatus)) {
-    throw new Error('Anonymous private-table smoke check did not fail closed.')
+  const anonymousPrivateStatus = observation?.restSmoke?.anonymousPrivateStatus
+  const anonymousPrivateEmpty = observation?.restSmoke?.anonymousPrivateEmpty
+  if (
+    ![401, 403].includes(anonymousPrivateStatus) &&
+    !(anonymousPrivateStatus === 200 && anonymousPrivateEmpty === true)
+  ) {
+    throw new Error('Anonymous private-table smoke check did not deny or RLS-filter all rows.')
   }
 
   const durationSeconds = integer(observation?.durationSeconds, 'Restore duration')
@@ -107,7 +112,7 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
       ownProfileRls: true,
       otherProfilesHiddenByRls: true,
       anonymousPublicView: true,
-      anonymousPrivateTableDenied: true,
+      anonymousPrivateTableProtected: true,
       canaryCleanedUp: true,
     },
   }

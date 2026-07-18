@@ -105,7 +105,7 @@ rm -rf restored-backup ustsacmland-database-backup.tar.gz
 3. 工作流校验密文 SHA-256、AES-256/PBKDF2 解密、归档精确文件白名单、内部 `SHA256SUMS` 和当前 `BACKUP_RECOVERY_NOT_BEFORE`。
 4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；解密文件只复制进一次性数据库容器，由容器内 `supabase_admin` Unix-socket 管理入口把角色、应用 Schema、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。工作流不会让普通本地 `postgres` 提升为平台角色，也不持有远端数据库连接。
 5. 恢复后逐项比较 `profiles`、平台账号、当前统计、快照、同步运行、Auth 用户和 migration 历史 7 个行数；四类孤儿关系必须为 0。
-6. 工作流只在隔离环境创建随机临时账号，验证密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读且匿名私表被拒绝，然后删除临时账号。
+6. 工作流只在隔离环境创建随机临时账号，验证密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读，并要求匿名私表请求返回 `401/403` 或严格的 `200 []` RLS 空结果，然后删除临时账号。
 7. Runner 停止本地 Supabase，删除解密 SQL、归档、本地 Key、临时密码和响应；Artifact 只上传 14 天有效的脱敏聚合 JSON 报告。
 
 自动化演练证明逻辑备份可以在干净的 Supabase 平台基线上恢复，并覆盖 Auth 与 RLS 基本可用性；它不包含 Edge Functions、Function Secrets、Auth 回调、Storage 对象或第三方凭据。事故恢复或迁移到新远端项目时，仍须继续执行下列人工步骤并验证外部集成。

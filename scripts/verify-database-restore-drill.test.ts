@@ -42,6 +42,7 @@ const observation = {
   restSmoke: {
     anonymousPublicStatus: 200,
     anonymousPrivateStatus: 401,
+    anonymousPrivateEmpty: false,
   },
 }
 
@@ -64,7 +65,7 @@ describe('isolated database restore drill verification', () => {
         ownProfileRls: true,
         otherProfilesHiddenByRls: true,
         anonymousPublicView: true,
-        anonymousPrivateTableDenied: true,
+        anonymousPrivateTableProtected: true,
         canaryCleanedUp: true,
       },
     })
@@ -103,7 +104,17 @@ describe('isolated database restore drill verification', () => {
     ).toThrow(/canaryDeleted/)
   })
 
-  it('rejects public-view failure or private-table exposure', () => {
+  it('accepts an empty RLS-filtered private response and rejects exposure', () => {
+    expect(
+      verifyDatabaseRestoreDrill(manifest, {
+        ...observation,
+        restSmoke: {
+          anonymousPublicStatus: 200,
+          anonymousPrivateStatus: 200,
+          anonymousPrivateEmpty: true,
+        },
+      }).integrity.anonymousPrivateTableProtected,
+    ).toBe(true)
     expect(() =>
       verifyDatabaseRestoreDrill(manifest, {
         ...observation,
@@ -113,9 +124,13 @@ describe('isolated database restore drill verification', () => {
     expect(() =>
       verifyDatabaseRestoreDrill(manifest, {
         ...observation,
-        restSmoke: { ...observation.restSmoke, anonymousPrivateStatus: 200 },
+        restSmoke: {
+          ...observation.restSmoke,
+          anonymousPrivateStatus: 200,
+          anonymousPrivateEmpty: false,
+        },
       }),
-    ).toThrow(/fail closed/)
+    ).toThrow(/RLS-filter all rows/)
   })
 
   it('rejects source-run or commit substitution', () => {
