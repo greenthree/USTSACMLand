@@ -91,6 +91,8 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     '--file "$backup_dir/migrations-schema.sql"',
     '--file "$backup_dir/migrations-data.sql"',
     '--schema supabase_migrations',
+    "--exclude 'auth.*'",
+    "--exclude 'supabase_migrations.*'",
     "--exclude 'storage.buckets_vectors'",
     "--exclude 'storage.vector_indexes'",
   ]) {

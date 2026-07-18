@@ -30,7 +30,7 @@
 
 - `roles.sql`：自定义数据库角色。
 - `schema.sql`：应用 Schema、函数、RLS 和权限。
-- `data.sql`：应用业务数据。
+- `data.sql`：应用业务数据；明确排除另行导出的 `auth.*` 与 `supabase_migrations.*`，避免恢复时重复写入。
 - `auth-data.sql`：`auth` Schema 的用户、身份和密码哈希等数据。
 - `migrations-schema.sql`、`migrations-data.sql`：Supabase migration 历史。
 - `restore-manifest.json`：从三份 data-only dump 计算的 7 个关键表聚合行数，只用于恢复后完整性比对，不保存任何行内容。
