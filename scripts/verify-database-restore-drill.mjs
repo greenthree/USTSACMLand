@@ -68,10 +68,12 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
   }
 
   for (const [key, value] of Object.entries({
+    authHooksPresent: observation?.authSmoke?.authHooksPresent,
     canaryCreated: observation?.authSmoke?.canaryCreated,
     passwordLogin: observation?.authSmoke?.passwordLogin,
     ownProfileReadable: observation?.authSmoke?.ownProfileReadable,
     otherProfilesHidden: observation?.authSmoke?.otherProfilesHidden,
+    fencedCanaryDeleted: observation?.authSmoke?.fencedCanaryDeleted,
     canaryDeleted: observation?.authSmoke?.canaryDeleted,
   })) {
     if (value !== true) throw new Error(`Restore Auth smoke check failed: ${key}.`)
@@ -108,11 +110,13 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
     restoredRowCounts: rowCounts,
     integrity: {
       orphanCounts: Object.fromEntries(orphanKeys.map((key) => [key, 0])),
+      authUserApplicationTriggers: true,
       authPasswordLogin: true,
       ownProfileRls: true,
       otherProfilesHiddenByRls: true,
       anonymousPublicView: true,
       anonymousPrivateTableProtected: true,
+      fencedAccountDeletion: true,
       canaryCleanedUp: true,
     },
   }

@@ -33,10 +33,12 @@ const observation = {
     statsWithoutAccount: 0,
   },
   authSmoke: {
+    authHooksPresent: true,
     canaryCreated: true,
     passwordLogin: true,
     ownProfileReadable: true,
     otherProfilesHidden: true,
+    fencedCanaryDeleted: true,
     canaryDeleted: true,
   },
   restSmoke: {
@@ -61,11 +63,13 @@ describe('isolated database restore drill verification', () => {
       restoredRowCounts: manifest.rowCounts,
       integrity: {
         orphanCounts: observation.orphanCounts,
+        authUserApplicationTriggers: true,
         authPasswordLogin: true,
         ownProfileRls: true,
         otherProfilesHiddenByRls: true,
         anonymousPublicView: true,
         anonymousPrivateTableProtected: true,
+        fencedAccountDeletion: true,
         canaryCleanedUp: true,
       },
     })
@@ -93,9 +97,21 @@ describe('isolated database restore drill verification', () => {
     expect(() =>
       verifyDatabaseRestoreDrill(manifest, {
         ...observation,
+        authSmoke: { ...observation.authSmoke, authHooksPresent: false },
+      }),
+    ).toThrow(/authHooksPresent/)
+    expect(() =>
+      verifyDatabaseRestoreDrill(manifest, {
+        ...observation,
         authSmoke: { ...observation.authSmoke, passwordLogin: false },
       }),
     ).toThrow(/passwordLogin/)
+    expect(() =>
+      verifyDatabaseRestoreDrill(manifest, {
+        ...observation,
+        authSmoke: { ...observation.authSmoke, fencedCanaryDeleted: false },
+      }),
+    ).toThrow(/fencedCanaryDeleted/)
     expect(() =>
       verifyDatabaseRestoreDrill(manifest, {
         ...observation,

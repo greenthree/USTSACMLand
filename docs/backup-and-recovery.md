@@ -29,7 +29,8 @@
 `.github/workflows/database-backup.yml` 每天北京时间 00:30（UTC 16:30）运行，也允许管理员手动触发。每次生成：
 
 - `roles.sql`：自定义数据库角色。
-- `schema.sql`：应用 Schema、函数、RLS 和权限。
+- `schema.sql`：应用 Schema、函数、RLS 和权限；Supabase 管理的 `auth` Schema 不整体覆盖。
+- `auth-hooks.sql`：从同次生产 `auth` Schema dump 中只提取挂在 `auth.users` 上的三个本站触发器：注册 Profile 创建、注销前引用清理和恢复下限围栏。完整 `auth` Schema 临时 dump 在加密前删除，不进入 Artifact。
 - `data.sql`：只包含应用的 `public`、`private` 业务数据；`auth` 与 `supabase_migrations` 使用独立 dump，避免恢复时重复写入。
 - `auth-data.sql`：`auth` Schema 的用户、身份和密码哈希等数据。
 - `migrations-schema.sql`、`migrations-data.sql`：Supabase migration 历史。
@@ -103,9 +104,9 @@ rm -rf restored-backup ustsacmland-database-backup.tar.gz
 1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。旧 Artifact 没有 `restore-manifest.json` 时必须重新生成，不能跳过行数核对。
 2. 打开 Actions → `Encrypted database restore drill`，输入刚才的 run ID。恢复任务不会自动运行或自动重试。
 3. 工作流校验密文 SHA-256、AES-256/PBKDF2 解密、归档精确文件白名单、内部 `SHA256SUMS` 和当前 `BACKUP_RECOVERY_NOT_BEFORE`。
-4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；解密文件只复制进一次性数据库容器，由容器内 `supabase_admin` Unix-socket 管理入口把角色、应用 Schema、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。工作流不会让普通本地 `postgres` 提升为平台角色，也不持有远端数据库连接。
+4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；解密文件只复制进一次性数据库容器，由容器内 `supabase_admin` Unix-socket 管理入口把角色、应用 Schema、三个 `auth.users` 应用触发器、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。工作流不会让普通本地 `postgres` 提升为平台角色，也不持有远端数据库连接。
 5. 恢复后逐项比较 `profiles`、平台账号、当前统计、快照、同步运行、Auth 用户和 migration 历史 7 个行数；四类孤儿关系必须为 0。
-6. 工作流只在隔离环境创建随机临时账号，验证密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读，并要求匿名私表请求返回 `401/403` 或严格的 `200 []` RLS 空结果，然后删除临时账号。
+6. 工作流先确认三个允许名单内的 `auth.users` 触发器均已恢复，再在隔离环境创建随机临时账号，验证注册触发器自动创建本人 Profile、密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读，并要求匿名私表请求返回 `401/403` 或严格的 `200 []` RLS 空结果。临时账号必须通过恢复后的目标绑定租约和受控注销 RPC 删除，不能绕过注销围栏。
 7. Runner 停止本地 Supabase，删除解密 SQL、归档、本地 Key、临时密码和响应；Artifact 只上传 14 天有效的脱敏聚合 JSON 报告。
 
 自动化演练证明逻辑备份可以在干净的 Supabase 平台基线上恢复，并覆盖 Auth 与 RLS 基本可用性；它不包含 Edge Functions、Function Secrets、Auth 回调、Storage 对象或第三方凭据。事故恢复或迁移到新远端项目时，仍须继续执行下列人工步骤并验证外部集成。
@@ -123,6 +124,7 @@ psql \
   --variable ON_ERROR_STOP=1 \
   --file roles.sql \
   --file schema.sql \
+  --file auth-hooks.sql \
   --command 'SET session_replication_role = replica' \
   --file data.sql \
   --file auth-data.sql \
@@ -132,7 +134,7 @@ psql \
 7. 根据 Supabase 官方 migration history 指南，审查并恢复 `migrations-schema.sql`、`migrations-data.sql`；若目标已存在相同对象，不得盲目覆盖。
 8. 重新部署 Edge Functions，重新配置全部 Function Secrets、Auth 回调和 GitHub Actions Secrets。备份不包含这些 Secrets。
 9. 使用隔离账号验证登录、资料、RLS、公开榜单、后台和一次单平台同步。
-10. 使用密文内 `restore-manifest.json` 比较成员数、平台账号数、统计行数、快照数、同步运行数、Auth 用户数和 migration 数；任何差异都必须停止验收。
+10. 使用密文内 `restore-manifest.json` 比较成员数、平台账号数、统计行数、快照数、同步运行数、Auth 用户数和 migration 数，并确认 `auth-hooks.sql` 的三个触发器均存在；任何差异都必须停止验收。
 11. 删除隔离项目和本地明文文件，保留不含个人数据的演练日期、结果、耗时和问题清单。
 
 不同项目使用不同 JWT Secret 时，旧会话会失效，成员需要重新登录。这是默认且更安全的恢复策略；不要为了保留旧会话而随意复制生产 JWT Secret。

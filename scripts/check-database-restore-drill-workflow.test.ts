@@ -84,6 +84,11 @@ describe('encrypted database restore drill workflow', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(workflow.replace('--single-transaction', '')),
     ).toThrow(/atomically restore/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace('            --file "$container_restore/auth-hooks.sql" \\\n', ''),
+      ),
+    ).toThrow(/Auth hooks|atomically restore/)
   })
 
   it('requires the disposable container platform-admin restore boundary', () => {
@@ -131,6 +136,11 @@ describe('encrypted database restore drill workflow', () => {
         workflow.replace('type == "array" and length == 0', 'type == "array"'),
       ),
     ).toThrow(/strictly empty RLS-filtered/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace('rest/v1/rpc/delete_auth_user_with_recovery_lease', 'auth/v1/admin/users'),
+      ),
+    ).toThrow(/Auth\/RLS/)
   })
 
   it('rejects plaintext or credential artifact uploads', () => {

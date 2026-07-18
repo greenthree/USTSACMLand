@@ -99,6 +99,7 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   for (const file of [
     'roles.sql',
     'schema.sql',
+    'auth-hooks.sql',
     'data.sql',
     'auth-data.sql',
     'migrations-schema.sql',
@@ -129,8 +130,8 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   )
   requireMatch(
     workflow,
-    /db_container='supabase_db_usts-acm-land'[\s\S]*docker inspect "\$db_container"[\s\S]*docker cp "\$restore_dir\/\." "\$db_container:\$container_restore\/"[\s\S]*docker exec "\$db_container" psql[\s\S]*--username supabase_admin[\s\S]*--single-transaction[\s\S]*--file "\$container_restore\/roles\.sql"[\s\S]*--file "\$container_restore\/schema\.sql"[\s\S]*--file "\$container_restore\/data\.sql"[\s\S]*--file "\$container_restore\/auth-data\.sql"[\s\S]*--file "\$container_restore\/migrations-schema\.sql"[\s\S]*--file "\$container_restore\/migrations-data\.sql"/,
-    'Restore drill must atomically restore roles, schema, business data, Auth data, and migration history.',
+    /db_container='supabase_db_usts-acm-land'[\s\S]*docker inspect "\$db_container"[\s\S]*docker cp "\$restore_dir\/\." "\$db_container:\$container_restore\/"[\s\S]*docker exec "\$db_container" psql[\s\S]*--username supabase_admin[\s\S]*--single-transaction[\s\S]*--file "\$container_restore\/roles\.sql"[\s\S]*--file "\$container_restore\/schema\.sql"[\s\S]*--file "\$container_restore\/auth-hooks\.sql"[\s\S]*--file "\$container_restore\/data\.sql"[\s\S]*--file "\$container_restore\/auth-data\.sql"[\s\S]*--file "\$container_restore\/migrations-schema\.sql"[\s\S]*--file "\$container_restore\/migrations-data\.sql"/,
+    'Restore drill must atomically restore roles, schema, Auth hooks, business data, Auth data, and migration history.',
   )
   requireMatch(
     workflow,
@@ -146,6 +147,11 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   for (const fragment of [
     'auth/v1/admin/users',
     'auth/v1/token?grant_type=password',
+    'auth_users_0_require_fenced_deletion',
+    'auth_users_a_prepare_account_deletion',
+    'on_auth_user_created',
+    'rest/v1/rpc/acquire_account_deletion_recovery_lease',
+    'rest/v1/rpc/delete_auth_user_with_recovery_lease',
     'rest/v1/profiles?select=id&id=eq.$canary_id',
     'rest/v1/profiles?select=id&id=neq.$canary_id&limit=1',
     'rest/v1/public_members?select=id&limit=1',
@@ -160,6 +166,7 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   for (const phase of [
     'Restore transaction completed.',
     'Aggregate row-count and orphan queries completed.',
+    'Auth user application triggers restored.',
     'Isolated Auth canary created.',
     'Isolated Auth password login completed.',
     'Authenticated own-Profile RLS checks completed.',
