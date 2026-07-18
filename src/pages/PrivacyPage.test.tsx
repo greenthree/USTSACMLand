@@ -18,6 +18,7 @@ describe('PrivacyPage', () => {
     render(<PrivacyPage />)
 
     const publicSection = screen.getByRole('heading', { name: '公开范围' }).closest('section')
+    expect(publicSection).toHaveTextContent('时间范围刷题增量')
     expect(publicSection).toHaveTextContent('邮箱、QQ、密码、登录令牌')
     expect(publicSection).toHaveTextContent('不进入公开榜单')
   })

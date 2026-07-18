@@ -1735,6 +1735,19 @@ export type Database = {
           transitioned: boolean
         }[]
       }
+      get_public_practice_increments: {
+        Args: { range_end_date: string; range_start_date: string }
+        Returns: {
+          baseline_recorded_at: string
+          baseline_solved_count: number
+          coverage_status: string
+          end_recorded_at: string
+          end_solved_count: number
+          platform: Database['public']['Enums']['platform_name']
+          profile_id: string
+          solved_delta: number
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_trusted_profile_management_actor: {
         Args: { actor_auth_role: string; actor_session_user: unknown }

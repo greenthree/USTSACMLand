@@ -44,6 +44,7 @@ const requiredReleaseMigrations = [
   '202607180001_daily_problem_learning.sql',
   '202607180002_webchat_pilot_observability.sql',
   '202607180003_webchat_total_member_quotas.sql',
+  '202607180004_public_practice_increment_rankings.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -105,6 +106,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'admin_upsert_daily_problem',
     'admin_delete_daily_problem',
     'admin_set_daily_problem_comment_visibility',
+    'get_public_practice_increments',
   ]) {
     requireMatch(
       databaseTypes,
