@@ -25,6 +25,15 @@ export interface AdminWebChatPilotMember {
   updatedAt: string
 }
 
+export interface AdminWebChatCacheSummary {
+  observedRequests: number
+  eligibleRequests: number
+  cacheHitRequests: number
+  eligibleInputTokens: number
+  cachedInputTokens: number
+  cacheWriteTokens: number
+}
+
 interface AdminWebChatPilotMemberRow {
   user_id: string
   full_name: string | null
@@ -44,6 +53,15 @@ interface AdminWebChatPilotMemberRow {
   last_request_at: string | null
   version: number | string
   updated_at: string
+}
+
+interface AdminWebChatCacheSummaryRow {
+  observed_requests: number | string
+  eligible_requests: number | string
+  cache_hit_requests: number | string
+  eligible_input_tokens: number | string
+  cached_input_tokens: number | string
+  cache_write_tokens: number | string
 }
 
 const demoMembers: AdminWebChatPilotMember[] = [
@@ -68,6 +86,15 @@ const demoMembers: AdminWebChatPilotMember[] = [
     updatedAt: '2026-07-17T20:00:00+08:00',
   },
 ]
+
+const demoCacheSummary: AdminWebChatCacheSummary = {
+  observedRequests: 0,
+  eligibleRequests: 0,
+  cacheHitRequests: 0,
+  eligibleInputTokens: 0,
+  cachedInputTokens: 0,
+  cacheWriteTokens: 0,
+}
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -153,4 +180,36 @@ export async function fetchAdminWebChatPilotMembers(): Promise<AdminWebChatPilot
   const { data, error } = await supabase.rpc('admin_list_webchat_pilot_members')
   if (error) throw adminRpcError('试运行成员用量读取失败', error)
   return mapAdminWebChatPilotMembers(data)
+}
+
+export function mapAdminWebChatCacheSummary(value: unknown): AdminWebChatCacheSummary {
+  const row = Array.isArray(value) ? value[0] : value
+  if (!row || typeof row !== 'object' || Array.isArray(row)) {
+    throw new Error('WebChat 输入缓存摘要返回了无效数据。')
+  }
+  const data = row as AdminWebChatCacheSummaryRow
+  const summary = {
+    observedRequests: integer(data.observed_requests, '可观测缓存请求数'),
+    eligibleRequests: integer(data.eligible_requests, '达到缓存门槛的请求数'),
+    cacheHitRequests: integer(data.cache_hit_requests, '缓存命中请求数'),
+    eligibleInputTokens: integer(data.eligible_input_tokens, '可缓存输入 Token'),
+    cachedInputTokens: integer(data.cached_input_tokens, '已命中输入 Token'),
+    cacheWriteTokens: integer(data.cache_write_tokens, '缓存写入 Token'),
+  }
+  if (
+    summary.eligibleRequests > summary.observedRequests ||
+    summary.cacheHitRequests > summary.eligibleRequests ||
+    summary.cachedInputTokens > summary.eligibleInputTokens
+  ) {
+    throw new Error('WebChat 输入缓存摘要返回了不一致数据。')
+  }
+  return summary
+}
+
+export async function fetchAdminWebChatCacheSummary(): Promise<AdminWebChatCacheSummary> {
+  if (!supabase) return demoCacheSummary
+
+  const { data, error } = await supabase.rpc('admin_read_webchat_cache_summary')
+  if (error) throw adminRpcError('WebChat 输入缓存摘要读取失败', error)
+  return mapAdminWebChatCacheSummary(data)
 }

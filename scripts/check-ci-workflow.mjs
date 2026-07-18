@@ -97,6 +97,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'admin_get_webchat_member_access',
     'admin_update_webchat_member_access',
     'admin_list_webchat_pilot_members',
+    'admin_read_webchat_cache_summary',
     'read_webchat_member_runtime_access',
     'read_own_webchat_usage',
     'claim_authorized_webchat_request',

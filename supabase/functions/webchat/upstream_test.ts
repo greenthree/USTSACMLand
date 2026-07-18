@@ -2,8 +2,10 @@
 import { deepStrictEqual, match, strictEqual } from 'node:assert/strict'
 import {
   promptCacheKey,
+  responsesInput,
   safetyIdentifier,
   startWebChat,
+  supportsExplicitPromptCaching,
   type WebChatUpstreamConfig,
 } from './upstream.ts'
 
@@ -56,6 +58,54 @@ Deno.test('webchat derives a stable model and prompt-version cache routing key',
   strictEqual(first === changed, false)
 })
 
+Deno.test('webchat enables explicit prompt caching only for GPT-5.6 and later families', () => {
+  strictEqual(supportsExplicitPromptCaching('gpt-5.6'), true)
+  strictEqual(supportsExplicitPromptCaching('gpt-5.6-sol'), true)
+  strictEqual(supportsExplicitPromptCaching('gpt-6.0'), true)
+  strictEqual(supportsExplicitPromptCaching('gpt-5.5'), false)
+  strictEqual(supportsExplicitPromptCaching('openai/gpt-5.6'), false)
+  strictEqual(supportsExplicitPromptCaching('relay-custom-model'), false)
+})
+
+Deno.test('webchat preserves explicit breakpoints on every historical user turn', () => {
+  deepStrictEqual(
+    responsesInput('gpt-5.6', [
+      { id: 'user-1', role: 'user', text: '第一问' },
+      { id: 'assistant-1', role: 'assistant', text: '第一答' },
+      { id: 'user-2', role: 'user', text: '继续' },
+    ]),
+    [
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: '第一问',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+      },
+      {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'input_text', text: '第一答' }],
+      },
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: '继续',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+      },
+    ],
+  )
+})
+
 Deno.test('webchat sends only server-owned Responses API configuration', async () => {
   let requestUrl = ''
   let requestBody: Record<string, unknown> = {}
@@ -80,8 +130,15 @@ Deno.test('webchat sends only server-owned Responses API configuration', async (
   strictEqual(requestUrl, 'https://relay.example.test/v1/responses')
   deepStrictEqual(requestBody.input, [
     {
+      type: 'message',
       role: 'user',
-      content: '解释二分答案',
+      content: [
+        {
+          type: 'input_text',
+          text: '解释二分答案',
+          prompt_cache_breakpoint: { mode: 'explicit' },
+        },
+      ],
     },
   ])
   strictEqual(requestBody.model, 'gpt-5.6')
@@ -90,6 +147,7 @@ Deno.test('webchat sends only server-owned Responses API configuration', async (
   strictEqual(requestBody.store, false)
   strictEqual(requestBody.stream, true)
   match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
+  deepStrictEqual(requestBody.prompt_cache_options, { mode: 'explicit' })
   match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
   strictEqual('tools' in requestBody, false)
   strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
@@ -127,6 +185,8 @@ Deno.test(
               inputTokens: 37,
               outputTokens: 11,
               totalTokens: 48,
+              cachedInputTokens: null,
+              cacheWriteTokens: null,
             })
             events.push('finalize')
             return true
@@ -137,6 +197,28 @@ Deno.test(
 
     await response.text()
     deepStrictEqual(events, ['mark', 'fetch', 'finalize'])
+  },
+)
+
+Deno.test(
+  'webchat keeps legacy implicit request shape for older and custom relay models',
+  async () => {
+    for (const model of ['gpt-5.5', 'openai/gpt-5.6', 'relay-custom-model']) {
+      let requestBody: Record<string, unknown> = {}
+      const response = await startWebChat(
+        {
+          ...config(async (_input, init) => {
+            requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+            return sse([{ type: 'response.completed', response: { usage } }])
+          }),
+          model,
+        },
+        { messages, userId: 'user-1' },
+      )
+      await response.text()
+      deepStrictEqual(requestBody.input, [{ role: 'user', content: '解释二分答案' }])
+      strictEqual('prompt_cache_options' in requestBody, false)
+    }
   },
 )
 

@@ -2,7 +2,12 @@ const pilotMocks = vi.hoisted(() => ({ rpc: vi.fn() }))
 
 vi.mock('./supabase', () => ({ supabase: { rpc: pilotMocks.rpc } }))
 
-import { fetchAdminWebChatPilotMembers, mapAdminWebChatPilotMembers } from './adminWebChatPilot'
+import {
+  fetchAdminWebChatCacheSummary,
+  fetchAdminWebChatPilotMembers,
+  mapAdminWebChatCacheSummary,
+  mapAdminWebChatPilotMembers,
+} from './adminWebChatPilot'
 
 const pilotRow = {
   user_id: '00000000-0000-4000-8000-000000000101',
@@ -93,5 +98,42 @@ describe('administrator WebChat pilot observability adapter', () => {
     expect(() => mapAdminWebChatPilotMembers([{ ...pilotRow, active_request_count: 2 }])).toThrow(
       /不一致/,
     )
+  })
+
+  it('maps only aggregate real-request cache counters', async () => {
+    const row = {
+      observed_requests: '12',
+      eligible_requests: '10',
+      cache_hit_requests: '7',
+      eligible_input_tokens: '20000',
+      cached_input_tokens: '12000',
+      cache_write_tokens: '8000',
+    }
+    pilotMocks.rpc.mockResolvedValue({ data: [row], error: null })
+
+    await expect(fetchAdminWebChatCacheSummary()).resolves.toEqual({
+      observedRequests: 12,
+      eligibleRequests: 10,
+      cacheHitRequests: 7,
+      eligibleInputTokens: 20_000,
+      cachedInputTokens: 12_000,
+      cacheWriteTokens: 8_000,
+    })
+    expect(pilotMocks.rpc).toHaveBeenCalledWith('admin_read_webchat_cache_summary')
+  })
+
+  it('rejects inconsistent aggregate cache counters', () => {
+    expect(() =>
+      mapAdminWebChatCacheSummary([
+        {
+          observed_requests: 1,
+          eligible_requests: 1,
+          cache_hit_requests: 2,
+          eligible_input_tokens: 100,
+          cached_input_tokens: 101,
+          cache_write_tokens: 0,
+        },
+      ]),
+    ).toThrow(/不一致/)
   })
 })

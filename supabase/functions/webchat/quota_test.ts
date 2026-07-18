@@ -96,10 +96,35 @@ Deno.test('webchat quota parses fenced transition and trusted Responses usage', 
   deepStrictEqual(
     parseWebChatUsage({
       response: {
+        usage: {
+          input_tokens: 20,
+          output_tokens: 11,
+          total_tokens: 31,
+          input_tokens_details: { cached_tokens: 16, cache_write_tokens: 4 },
+        },
+      },
+    }),
+    {
+      inputTokens: 20,
+      outputTokens: 11,
+      totalTokens: 31,
+      cachedInputTokens: 16,
+      cacheWriteTokens: 4,
+    },
+  )
+  deepStrictEqual(
+    parseWebChatUsage({
+      response: {
         usage: { input_tokens: 20, output_tokens: 11, total_tokens: 31 },
       },
     }),
-    { inputTokens: 20, outputTokens: 11, totalTokens: 31 },
+    {
+      inputTokens: 20,
+      outputTokens: 11,
+      totalTokens: 31,
+      cachedInputTokens: null,
+      cacheWriteTokens: null,
+    },
   )
 })
 
@@ -163,6 +188,26 @@ Deno.test('webchat quota rejects missing or inconsistent trusted usage', () => {
   for (const event of [
     { response: {} },
     { response: { usage: { input_tokens: 20, output_tokens: 11, total_tokens: 30 } } },
+    {
+      response: {
+        usage: {
+          input_tokens: 20,
+          output_tokens: 11,
+          total_tokens: 31,
+          input_tokens_details: { cached_tokens: 21 },
+        },
+      },
+    },
+    {
+      response: {
+        usage: {
+          input_tokens: 20,
+          output_tokens: 11,
+          total_tokens: 31,
+          input_tokens_details: { cache_write_tokens: -1 },
+        },
+      },
+    },
   ]) {
     try {
       parseWebChatUsage(event)
