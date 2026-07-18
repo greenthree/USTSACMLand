@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 32,
-      assertionCount: 794,
-      releaseMigrationCount: 36,
+      fileCount: 33,
+      assertionCount: 845,
+      releaseMigrationCount: 38,
     })
   })
 
@@ -123,6 +123,16 @@ describe('CI workflow', () => {
     ).toThrow(/webchat-cache-probe Edge Function/)
     expect(() =>
       verifyCiWorkflow(
+        workflow.replace('          supabase/functions/firecrawl-config/index.ts\n', ''),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/firecrawl-config Edge Function/)
+    expect(() =>
+      verifyCiWorkflow(
         workflow,
         packageJson,
         pgTapFiles,
@@ -157,6 +167,19 @@ describe('CI workflow', () => {
         ),
       ),
     ).toThrow(/webchat-cache-probe Edge Function must enable JWT verification/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig.replace(
+          '[functions.firecrawl-config]\nverify_jwt = true',
+          '[functions.firecrawl-config]',
+        ),
+      ),
+    ).toThrow(/firecrawl-config Edge Function must enable JWT verification/)
   })
 
   it('rejects unrestricted or network-capable Edge unit tests', () => {

@@ -122,6 +122,7 @@ Deno.test('Firecrawl credit alerts contain only aggregate quota fields', async (
   let requestBody = ''
   const result = await deliverFirecrawlCreditAlert(
     {
+      keyId: '00000000-0000-4000-8000-000000000301',
       checkedAt: '2026-07-15T16:00:00.000Z',
       remainingCredits: 90,
       planCredits: 1000,
@@ -143,6 +144,7 @@ Deno.test('Firecrawl credit alerts contain only aggregate quota fields', async (
   deepStrictEqual(JSON.parse(requestBody), {
     version: 1,
     event: 'firecrawl_credit_low',
+    keyId: '00000000-0000-4000-8000-000000000301',
     checkedAt: '2026-07-15T16:00:00.000Z',
     remainingCredits: 90,
     planCredits: 1000,

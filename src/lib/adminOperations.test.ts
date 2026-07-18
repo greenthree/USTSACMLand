@@ -268,6 +268,35 @@ describe('admin operations mapping', () => {
       summary: '触发方式：手动；范围：全部成员；平台数：6',
     })
   })
+
+  it('summarizes Firecrawl rotation using only allowlisted metadata', () => {
+    const entry = mapAdminAuditEntry({
+      id: 11,
+      actor_id: 'admin-1',
+      actor_label: '管理员',
+      action: 'firecrawl_api_key_update',
+      target_table: 'firecrawl_api_keys',
+      target_id: '00000000-0000-4000-8000-000000000301',
+      target_label: '主额度池',
+      details: {
+        before_enabled: true,
+        after_enabled: false,
+        before_priority: 100,
+        after_priority: 90,
+        changed_fields: ['apiKey', 'enabled', 'priority'],
+        reason: '轮换生产密钥',
+      },
+      created_at: '2026-07-19T08:00:00Z',
+    })
+
+    expect(entry).toMatchObject({
+      action: '轮换 Firecrawl Key',
+      target: '主额度池',
+      summary: '状态：停用；优先级：90；已轮换密钥；原因：轮换生产密钥',
+    })
+    expect(entry.summary).not.toContain('fc-secret')
+    expect(entry.summary).not.toContain('Vault Secret ID')
+  })
 })
 
 describe('admin audit CSV', () => {

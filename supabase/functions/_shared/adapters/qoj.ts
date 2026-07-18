@@ -430,7 +430,7 @@ export function createFirecrawlQojProvider(
             false,
             401,
             undefined,
-            diagnostics,
+            { ...diagnostics, authTarget: 'firecrawl' },
           )
         }
         if (error instanceof HttpError && error.status === 403) {
@@ -440,7 +440,7 @@ export function createFirecrawlQojProvider(
             false,
             403,
             undefined,
-            diagnostics,
+            { ...diagnostics, authTarget: 'firecrawl' },
           )
         }
         if (error instanceof HttpError && error.status === 409) {
@@ -470,7 +470,9 @@ export function createFirecrawlQojProvider(
             error.retryable,
             error.status,
             error.responseBody,
-            diagnostics,
+            error.code === 'auth_expired' || error.code === 'auth_required'
+              ? { ...diagnostics, authTarget: 'qoj' }
+              : diagnostics,
           )
         }
         throw error

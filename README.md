@@ -16,7 +16,7 @@
 - 平台绑定在保存前校验 CF、AtCoder、QOJ 用户名和牛客、洛谷数字 UID；重复绑定仅提示账号已占用，不泄露其他成员身份。
 - 资料页专业联想直接读取根目录 `专业目录.txt`，支持目录匹配与目录外专业自由输入。
 - `/account` 登录守卫、`/admin` 管理员角色守卫、会话态导航和退出。
-- 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
+- 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页、Firecrawl 多 Key 凭据池和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
 - 8 张账号/榜单核心业务表、3 张每日题目学习表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、10 张 WebChat 私有配置/额度/账本/历史/探针表、枚举、约束、索引、触发器、公开视图、RLS 和审计策略。
 - `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
 - WebChat 安全 API、管理员配置、生产缓存探针与按账号授权的前端工作台：`webchat`、`webchat-config`、`webchat-cache-probe` 已部署为 ACTIVE，后台支持 Vault 密钥、全站预算和逐账号授权/额度；默认使用 Supabase 会话、账号状态与私有授权三重边界，仅接收有严格字节/消息上限的纯文本对话。已授权账号的 `/assistant` 显示后端实际解析的当前模型与本人额度，且该模型名会写入同次请求的服务端系统提示词和额度指纹；工作台支持流式输出、首正文前“思考中”、停止、重新生成、复制、Markdown/代码块、刷新恢复、新建/切换/删除私有历史会话，并在每次请求时动态读取最新会话、生成独立请求 ID。生产 `VITE_WEBCHAT_UI_ENABLED=true` 已向登录账号启用 Pages 路由和导航，服务端与数据库仍会逐请求复核账号授权；聊天依赖保持在独立懒加载路由块内。
@@ -79,6 +79,8 @@ flowchart LR
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
 QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，先以 `maxAge: 0` 创建全新 Firecrawl scrape 会话，再通过 `/interact` 登录并在同一浏览器中打开目标主页，最后主动结束会话；请求不使用持久 profile，也不读写 Firecrawl 页面缓存。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为 Firecrawl interact 作业请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
+
+Firecrawl API Key 可在后台“数据源健康”页管理。每个 Key 的明文只写入 Supabase Vault，浏览器仅接收名称、启用状态、优先级、健康度、剩余额度和时间；新增或轮换后的 Key 固定停用，必须由管理员执行一次无重试额度检查后才能启用，检查结果超过 60 分钟或额度为零时不能重新启用。运行时先排除认证失败、冷却中和零额度 Key，再按较小优先级选择，并在同优先级中选择最久未使用的 Key；QOJ 每个同步操作还会写入一次性数据库 claim，同一 operation ID 无法再次领取或切换到第二个 Key。牛客只有在直接请求命中允许回退的 WAF/可用性错误后才延迟领取 Key。数据库尚无 Key 记录时兼容旧 `FIRECRAWL_API_KEY` Function Secret；一旦建立数据库 Key 池，数据库即成为权威来源，即使全部停用也不会偷偷回退旧 Secret。
 
 XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后由一个持有租约的 Edge Function 下载，并只保存“苏州科技大学”选手的精简版本化记录；其他并发请求等待同一版本发布。上游支持 `304 Not Modified` 时只续期缓存。网络、限流、超大响应或结构变化会记录共享冷却并返回失败，旧榜单统计仍保留，但不会把旧缓存冒充为本次成功或刷新 `last_success_at`。历史最高 ELO 从真实比赛 `history` 计算，不采用官网字段中的人工初始 1500 分。
 
@@ -172,7 +174,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts supabase/functions/firecrawl-config/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -213,7 +215,7 @@ GitHub Actions Secrets：
 
 Supabase Function Secrets/配置：
 
-- `FIRECRAWL_API_KEY`（牛客 WAF 回退及 QOJ 自动登录，只能配置在 Supabase Secrets）
+- `FIRECRAWL_API_KEY`（数据库多 Key 池尚未建立时的兼容 Key；只允许配置在 Supabase Function Secrets）
 - `QOJ_SERVICE_USERNAME`（专用 QOJ 服务账号）
 - `QOJ_SERVICE_PASSWORD`（专用 QOJ 服务账号密码）
 - `LUOGU_COOKIE`（专用洛谷会话 Cookie）
@@ -274,6 +276,8 @@ npx --yes deno run \
 npm run check:supabase-preflight
 npx --yes supabase@2.109.1 db push --linked --include-all
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password \
+  --use-api --import-map supabase/functions/deno.json
+npx --yes supabase@2.109.1 functions deploy firecrawl-config \
   --use-api --import-map supabase/functions/deno.json
 # 可先在三层关闭态部署；正式启用前必须通过 WebChat 发布检查单。
 npx --yes supabase@2.109.1 functions deploy webchat webchat-config webchat-cache-probe \

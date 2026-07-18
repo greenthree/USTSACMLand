@@ -5,7 +5,13 @@ import {
 } from './alerts.ts'
 
 export type RuntimeErrorSurface =
-  'sync-member' | 'sync-stats' | 'delete-account' | 'change-password' | 'webchat' | 'webchat-config'
+  | 'sync-member'
+  | 'sync-stats'
+  | 'delete-account'
+  | 'change-password'
+  | 'webchat'
+  | 'webchat-config'
+  | 'firecrawl-config'
 
 export type RuntimeErrorCategory =
   'abort' | 'type_error' | 'unexpected_error' | 'non_error_throwable'

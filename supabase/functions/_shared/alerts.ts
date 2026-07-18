@@ -13,6 +13,7 @@ export interface SyncFailureAlert {
 }
 
 export interface FirecrawlCreditAlert {
+  keyId: string
   checkedAt: string
   remainingCredits: number
   planCredits: number
@@ -186,6 +187,7 @@ export async function notifyFirecrawlCreditAlert(alert: FirecrawlCreditAlert): P
       console.warn(
         JSON.stringify({
           event: 'firecrawl_credit_alert_delivery_failed',
+          keyId: alert.keyId,
           severity: alert.severity,
           status: result.status,
         }),
@@ -195,6 +197,7 @@ export async function notifyFirecrawlCreditAlert(alert: FirecrawlCreditAlert): P
     console.warn(
       JSON.stringify({
         event: 'firecrawl_credit_alert_delivery_failed',
+        keyId: alert.keyId,
         severity: alert.severity,
         status: null,
       }),

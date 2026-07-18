@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
+import { AdminFirecrawlKeysPanel } from '../../components/admin/AdminFirecrawlKeysPanel'
 import { mockAdminSourceHealth } from '../../data/mock'
 import { fetchAdminSourceHealth } from '../../lib/adminOperations'
 import { formatDateTime, formatDuration } from '../../lib/format'
@@ -140,6 +141,8 @@ export function AdminSourceHealthPage() {
           </button>
         </div>
       </section>
+
+      <AdminFirecrawlKeysPanel />
 
       {errorMessage ? (
         <p className="form-error admin-notice" role="status">

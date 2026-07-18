@@ -13,3 +13,10 @@ export function maxAttemptsForPlatforms(platforms: readonly PlatformId[]): numbe
   if (platforms.length !== 1 || platforms[0] === 'qoj') return 1
   return 3
 }
+
+export function mayAutomaticallyRetryPlatformFailure(
+  platform: PlatformId,
+  retryable: boolean,
+): boolean {
+  return platform !== 'qoj' && retryable
+}

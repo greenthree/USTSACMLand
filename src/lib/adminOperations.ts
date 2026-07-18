@@ -395,6 +395,26 @@ function syncAuditSummary(details: Record<string, unknown>): string {
   return parts.join('；') || '已请求同步任务'
 }
 
+function firecrawlAuditSummary(details: Record<string, unknown>): string {
+  const reason = stringValue(details.reason)
+  const beforeEnabled = details.before_enabled
+  const afterEnabled = details.after_enabled
+  const beforePriority = nullableNumber(details.before_priority)
+  const afterPriority = nullableNumber(details.after_priority)
+  const changedFields = stringArray(details.changed_fields)
+  const parts = [
+    beforeEnabled !== afterEnabled && typeof afterEnabled === 'boolean'
+      ? afterEnabled
+        ? '状态：启用'
+        : '状态：停用'
+      : null,
+    beforePriority !== afterPriority && afterPriority !== null ? `优先级：${afterPriority}` : null,
+    changedFields.includes('apiKey') ? '已轮换密钥' : null,
+    reason ? `原因：${reason}` : null,
+  ].filter((part): part is string => Boolean(part))
+  return parts.join('；') || 'Firecrawl Key 配置已更新'
+}
+
 function auditAction(row: AdminAuditRow, details: Record<string, unknown>): string {
   if (row.target_table === 'profiles') {
     const fieldsChanged = stringArray(details.profile_fields).length > 0
@@ -454,6 +474,16 @@ function auditAction(row: AdminAuditRow, details: Record<string, unknown>): stri
     return '管理题目讨论'
   }
 
+  if (row.target_table === 'firecrawl_api_keys') {
+    if (row.action === 'firecrawl_api_key_create') return '新增 Firecrawl Key'
+    if (row.action === 'firecrawl_api_key_delete') return '删除 Firecrawl Key'
+    if (stringArray(details.changed_fields).includes('apiKey')) return '轮换 Firecrawl Key'
+    if (details.before_enabled !== details.after_enabled) {
+      return details.after_enabled === true ? '启用 Firecrawl Key' : '停用 Firecrawl Key'
+    }
+    return '更新 Firecrawl Key'
+  }
+
   const actionLabels: Record<string, string> = {
     insert: '新增记录',
     update: '更新记录',
@@ -484,7 +514,9 @@ export function mapAdminAuditEntry(row: AdminAuditRow): AuditEntry {
         ? accountAuditSummary(details)
         : row.target_table === 'sync_jobs'
           ? syncAuditSummary(details)
-          : `${auditAction(row, details)}。`
+          : row.target_table === 'firecrawl_api_keys'
+            ? firecrawlAuditSummary(details)
+            : `${auditAction(row, details)}。`
 
   return {
     id: numberValue(row.id),

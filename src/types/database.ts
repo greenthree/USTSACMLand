@@ -1148,6 +1148,30 @@ export type Database = {
           version: number
         }[]
       }
+      admin_list_firecrawl_api_keys: {
+        Args: { actor_id: string }
+        Returns: {
+          billing_period_end: string | null
+          consecutive_failures: number
+          cooldown_until: string | null
+          created_at: string
+          credits_remaining: number | null
+          credits_total: number | null
+          enabled: boolean
+          health_status: string
+          id: string
+          key_configured: boolean
+          label: string
+          last_checked_at: string | null
+          last_error_code: string | null
+          last_failure_at: string | null
+          last_selected_at: string | null
+          last_success_at: string | null
+          priority: number
+          updated_at: string
+          version: number
+        }[]
+      }
       admin_list_member_activity: {
         Args: { row_limit?: number; target_profile_id: string }
         Returns: {
@@ -1403,6 +1427,15 @@ export type Database = {
           version: number
         }[]
       }
+      admin_delete_firecrawl_api_key: {
+        Args: {
+          actor_id: string
+          expected_version: number
+          reason: string
+          target_key_id: string
+        }
+        Returns: string
+      }
       admin_update_webchat_relay_config: {
         Args: {
           actor_id: string
@@ -1439,6 +1472,39 @@ export type Database = {
         Returns: {
           announcement_id: number
           announcement_updated_at: string
+        }[]
+      }
+      admin_upsert_firecrawl_api_key: {
+        Args: {
+          actor_id: string
+          expected_version: number | null
+          reason: string
+          replacement_api_key: string | null
+          requested_enabled: boolean
+          requested_label: string
+          requested_priority: number
+          target_key_id: string | null
+        }
+        Returns: {
+          billing_period_end: string | null
+          consecutive_failures: number
+          cooldown_until: string | null
+          created_at: string
+          credits_remaining: number | null
+          credits_total: number | null
+          enabled: boolean
+          health_status: string
+          id: string
+          key_configured: boolean
+          label: string
+          last_checked_at: string | null
+          last_error_code: string | null
+          last_failure_at: string | null
+          last_selected_at: string | null
+          last_success_at: string | null
+          priority: number
+          updated_at: string
+          version: number
         }[]
       }
       admin_upsert_announcement_unlimited: {
@@ -1873,6 +1939,18 @@ export type Database = {
         }[]
       }
       read_sync_queue_scheduler_health: { Args: never; Returns: Json }
+      list_firecrawl_runtime_keys: {
+        Args: never
+        Returns: {
+          api_key: string | null
+          key_id: string | null
+          pool_configured: boolean
+        }[]
+      }
+      read_firecrawl_runtime_key: {
+        Args: { target_key_id: string }
+        Returns: { api_key: string; key_id: string }[]
+      }
       read_webchat_global_budget_usage: {
         Args: never
         Returns: {
@@ -1921,6 +1999,19 @@ export type Database = {
         }[]
       }
       read_xcpc_elo_cache: { Args: never; Returns: Json }
+      record_firecrawl_key_observation: {
+        Args: {
+          observed_billing_period_end?: string | null
+          observed_credits_remaining?: number | null
+          observed_credits_total?: number | null
+          observed_error_code?: string | null
+          observed_severity?: string | null
+          observed_success: boolean
+          requested_purpose: string
+          target_key_id: string
+        }
+        Returns: undefined
+      }
       reconcile_expired_webchat_member_requests: {
         Args: { checked_at: string; requested_user_id: string }
         Returns: undefined
@@ -1937,6 +2028,14 @@ export type Database = {
           requested_user_id: string
         }
         Returns: boolean
+      }
+      select_firecrawl_runtime_key: {
+        Args: { requested_operation_id?: string | null; requested_purpose: string }
+        Returns: {
+          api_key: string | null
+          key_id: string | null
+          pool_configured: boolean
+        }[]
       }
       release_webchat_cache_probe: {
         Args: {

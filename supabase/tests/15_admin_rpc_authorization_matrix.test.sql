@@ -302,6 +302,15 @@ values
   ),
   (
     'public.admin_update_webchat_relay_config(uuid,text,text,text,bigint,text,boolean,integer,bigint)'::regprocedure
+  ),
+  (
+    'public.admin_list_firecrawl_api_keys(uuid)'::regprocedure
+  ),
+  (
+    'public.admin_upsert_firecrawl_api_key(uuid,uuid,text,text,boolean,integer,bigint,text)'::regprocedure
+  ),
+  (
+    'public.admin_delete_firecrawl_api_key(uuid,uuid,bigint,text)'::regprocedure
   );
 
 create temporary table admin_rpc_matrix_results (

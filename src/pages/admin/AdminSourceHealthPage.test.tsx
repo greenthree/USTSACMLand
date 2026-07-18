@@ -15,6 +15,10 @@ vi.mock('../../lib/adminOperations', () => ({
   fetchAdminSourceHealth: healthMocks.fetchHealth,
 }))
 
+vi.mock('../../components/admin/AdminFirecrawlKeysPanel', () => ({
+  AdminFirecrawlKeysPanel: () => <section aria-label="Firecrawl Key 管理" />,
+}))
+
 import { AdminSourceHealthPage } from './AdminSourceHealthPage'
 
 function renderPage() {

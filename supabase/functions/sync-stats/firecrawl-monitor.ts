@@ -8,6 +8,9 @@ export function shouldCheckFirecrawlCredits(
     serviceRole &&
     scope !== 'queue' &&
     cursor === undefined &&
-    (scope === 'all' || scope === 'member' || requestedPlatforms?.includes('qoj') === true)
+    (scope === 'all' ||
+      scope === 'member' ||
+      requestedPlatforms?.includes('qoj') === true ||
+      requestedPlatforms?.includes('nowcoder') === true)
   )
 }
