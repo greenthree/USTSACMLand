@@ -102,7 +102,7 @@ Deno.test(
     strictEqual(firstBody.prompt_cache_key, secondBody.prompt_cache_key)
     strictEqual(firstBody.stream, false)
     strictEqual(firstBody.store, false)
-    strictEqual('prompt_cache_options' in firstBody, false)
+    deepStrictEqual(firstBody.prompt_cache_options, { mode: 'explicit' })
     const firstInput = firstBody.input as Array<Record<string, unknown>>
     const secondInput = secondBody.input as Array<Record<string, unknown>>
     deepStrictEqual(secondInput[0], firstInput[0])
