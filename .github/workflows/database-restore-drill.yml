@@ -208,6 +208,7 @@ jobs:
           fi
 
           cat > "$pre_restore" <<'SQL'
+          set local role supabase_auth_admin;
           do $$
           declare
             truncate_command text;
@@ -224,6 +225,7 @@ jobs:
             end if;
           end;
           $$;
+          reset role;
           drop schema if exists supabase_migrations cascade;
           SQL
 
@@ -237,7 +239,9 @@ jobs:
             --file "$restore_dir/schema.sql" \
             --command 'set session_replication_role = replica' \
             --file "$restore_dir/data.sql" \
+            --command 'set local role supabase_auth_admin' \
             --file "$restore_dir/auth-data.sql" \
+            --command 'reset role' \
             --file "$restore_dir/migrations-schema.sql" \
             --file "$restore_dir/migrations-data.sql" \
             --command 'set session_replication_role = origin'

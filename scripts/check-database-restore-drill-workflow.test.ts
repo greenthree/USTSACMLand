@@ -83,6 +83,24 @@ describe('encrypted database restore drill workflow', () => {
     ).toThrow(/atomically restore/)
   })
 
+  it('requires least-role Auth cleanup and import boundaries', () => {
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace('          set local role supabase_auth_admin;\n', ''),
+      ),
+    ).toThrow(/least platform role/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace("            --command 'set local role supabase_auth_admin' \\\n", ''),
+      ),
+    ).toThrow(/Auth owner role/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace("            --command 'reset role' \\\n", ''),
+      ),
+    ).toThrow(/Auth owner role/)
+  })
+
   it('rejects missing Auth login or RLS smoke checks', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(

@@ -103,7 +103,7 @@ rm -rf restored-backup ustsacmland-database-backup.tar.gz
 1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。旧 Artifact 没有 `restore-manifest.json` 时必须重新生成，不能跳过行数核对。
 2. 打开 Actions → `Encrypted database restore drill`，输入刚才的 run ID。恢复任务不会自动运行或自动重试。
 3. 工作流校验密文 SHA-256、AES-256/PBKDF2 解密、归档精确文件白名单、内部 `SHA256SUMS` 和当前 `BACKUP_RECOVERY_NOT_BEFORE`。
-4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；角色、应用 Schema、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。
+4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；角色、应用 Schema、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。清理和写入 `auth` 平台表时只在事务内临时切换为 `supabase_auth_admin`，完成后立即恢复调用角色。
 5. 恢复后逐项比较 `profiles`、平台账号、当前统计、快照、同步运行、Auth 用户和 migration 历史 7 个行数；四类孤儿关系必须为 0。
 6. 工作流只在隔离环境创建随机临时账号，验证密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读且匿名私表被拒绝，然后删除临时账号。
 7. Runner 停止本地 Supabase，删除解密 SQL、归档、本地 Key、临时密码和响应；Artifact 只上传 14 天有效的脱敏聚合 JSON 报告。
