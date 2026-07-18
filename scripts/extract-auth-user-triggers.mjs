@@ -16,7 +16,8 @@ function unquoteIdentifier(identifier) {
 
 export function extractAuthUserTriggers(source) {
   const statements = new Map()
-  const triggerPattern = /^\s*CREATE\s+TRIGGER\s+("(?:[^"]|"")+"|[^\s]+)\s+[\s\S]*?;\s*$/gim
+  const triggerPattern =
+    /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+("(?:[^"]|"")+"|[^\s]+)\s+[\s\S]*?;\s*$/gim
 
   for (const match of source.matchAll(triggerPattern)) {
     const name = unquoteIdentifier(match[1])

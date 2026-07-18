@@ -30,7 +30,11 @@ describe('Auth user trigger extraction', () => {
 
   it('accepts quoted Auth identifiers', () => {
     expect(
-      extractAuthUserTriggers(authSchema.replaceAll('auth.users', '"auth"."users"')),
+      extractAuthUserTriggers(
+        authSchema
+          .replaceAll('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER')
+          .replaceAll('auth.users', '"auth"."users"'),
+      ),
     ).toContain('"auth"."users"')
   })
 
