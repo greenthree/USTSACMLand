@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 49 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。每日一题、完成记录、成员讨论和刷题增量榜已上线；当前分支定义 50 个 migration、30 个 pgTAP 文件和 738 项断言，其中新增的 WebChat 私有历史会话 migration 尚待本轮发布。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手，本轮增加刷新恢复、历史会话、“思考中”和稳定提示词缓存路由键，仍待完成正式试运行连续观察。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、六个 Edge Function 和 50 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 30 个 pgTAP 文件和 738 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。真实缓存命中探针仍待配置三个 GitHub Actions 中转站 Secret 后执行，正式试运行连续观察也仍未结束。2026-07-17 已再次完成生产加密逻辑备份、GitHub 端解密自检与下载后的本地独立校验，Artifact 保留 14 天。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步告警 Webhook 与隔离恢复演练也尚未完成。
 
 ## 已实现
 
@@ -265,7 +265,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-18 共有 49 个 production migration，当前分支新增的第 50 个私有历史会话 migration 尚待发布。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 均已部署为 ACTIVE；截至 2026-07-18 共有 50 个 production migration，`webchat` 为 v9。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
