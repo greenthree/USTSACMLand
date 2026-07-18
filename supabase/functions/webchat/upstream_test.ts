@@ -110,7 +110,7 @@ Deno.test('webchat preserves explicit breakpoints on every historical user turn'
 })
 
 Deno.test(
-  'webchat uses implicit caching plus server-owned explicit historical breakpoints',
+  'webchat uses the relay-compatible explicit cache policy and historical breakpoints',
   async () => {
     let requestUrl = ''
     let requestBody: Record<string, unknown> = {}
@@ -152,7 +152,7 @@ Deno.test(
     strictEqual(requestBody.store, false)
     strictEqual(requestBody.stream, true)
     match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
-    strictEqual('prompt_cache_options' in requestBody, false)
+    deepStrictEqual(requestBody.prompt_cache_options, { mode: 'explicit' })
     match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
     strictEqual('tools' in requestBody, false)
     strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
