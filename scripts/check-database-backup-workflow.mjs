@@ -49,6 +49,16 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     /recovery_not_before=\$BACKUP_RECOVERY_NOT_BEFORE/,
     'Backup metadata must capture the external account-deletion recovery floor.',
   )
+  requireMatch(
+    workflow,
+    /node scripts\/build-backup-restore-manifest\.mjs[\s\S]*"\$backup_dir\/data\.sql"[\s\S]*"\$backup_dir\/auth-data\.sql"[\s\S]*"\$backup_dir\/migrations-data\.sql"[\s\S]*"\$backup_dir\/metadata\.txt"[\s\S]*"\$backup_dir\/restore-manifest\.json"/,
+    'Backup workflow must build an encrypted aggregate restore manifest from all data dumps.',
+  )
+  requireMatch(
+    workflow,
+    /metadata\.txt \\\r?\n\s+restore-manifest\.json \\\r?\n\s+> SHA256SUMS/,
+    'The aggregate restore manifest must be covered by the internal checksum file.',
+  )
 
   const dumpCount = workflow.match(/npx --yes supabase@2\.109\.1 db dump/g)?.length ?? 0
   if (dumpCount !== 6) {
@@ -110,6 +120,11 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     workflow,
     /test ! -e "\$backup_dir"[\s\S]*test ! -e "\$archive"[\s\S]*test ! -e "\$verification_archive"/,
     'Plaintext backup files must be removed and verified absent before upload.',
+  )
+  requireMatch(
+    workflow,
+    /grep -Fxq '\.\/restore-manifest\.json' "\$RUNNER_TEMP\/ustsacmland-backup-files\.txt"/,
+    'Backup verification must require the encrypted aggregate restore manifest.',
   )
 
   const uploadStart = workflow.indexOf('- name: Upload encrypted backup')

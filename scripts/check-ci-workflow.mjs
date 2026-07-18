@@ -227,6 +227,18 @@ export function verifyCiWorkflow(
   deployWorkflow = '',
   supabaseConfig = '',
 ) {
+  requireMatch(
+    workflow,
+    /- name: Check encrypted restore drill workflow invariants\s+run: npm run check:restore-drill-workflow/,
+    'CI must enforce the encrypted restore drill workflow invariants.',
+  )
+  if (
+    packageJson.scripts?.['check:restore-drill-workflow'] !==
+    'node scripts/check-database-restore-drill-workflow.mjs'
+  ) {
+    throw new Error('The restore drill workflow checker must use the checked-in verifier.')
+  }
+
   const denoCheckStep = extractStep(workflow, 'Check Edge Functions')
   for (const entrypoint of [
     'sync-member',

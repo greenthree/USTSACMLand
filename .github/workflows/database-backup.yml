@@ -121,6 +121,13 @@ jobs:
             "recovery_not_before=$BACKUP_RECOVERY_NOT_BEFORE" \
             'supabase_cli=2.109.1' \
             > "$backup_dir/metadata.txt"
+          node scripts/build-backup-restore-manifest.mjs \
+            "$backup_dir/data.sql" \
+            "$backup_dir/auth-data.sql" \
+            "$backup_dir/migrations-data.sql" \
+            "$backup_dir/metadata.txt" \
+            "$backup_dir/restore-manifest.json"
+          test -s "$backup_dir/restore-manifest.json"
           (
             cd "$backup_dir"
             sha256sum \
@@ -131,6 +138,7 @@ jobs:
               migrations-schema.sql \
               migrations-data.sql \
               metadata.txt \
+              restore-manifest.json \
               > SHA256SUMS
           )
 
@@ -152,6 +160,8 @@ jobs:
           grep -Fxq './auth-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './migrations-schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './migrations-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './metadata.txt' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './restore-manifest.json' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './SHA256SUMS' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
 
           cleanup_plaintext

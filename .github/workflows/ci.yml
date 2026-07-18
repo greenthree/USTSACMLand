@@ -46,6 +46,9 @@ jobs:
       - name: Check encrypted backup workflow invariants
         run: npm run check:backup-workflow
 
+      - name: Check encrypted restore drill workflow invariants
+        run: npm run check:restore-drill-workflow
+
       - name: Check WebChat relay workflow invariants
         run: npm run check:webchat-relay-workflow
 

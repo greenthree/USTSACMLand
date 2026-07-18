@@ -33,7 +33,8 @@
 - `data.sql`：应用业务数据。
 - `auth-data.sql`：`auth` Schema 的用户、身份和密码哈希等数据。
 - `migrations-schema.sql`、`migrations-data.sql`：Supabase migration 历史。
-- `metadata.txt`、`SHA256SUMS`：生成时间、提交版本和明文文件校验值。
+- `restore-manifest.json`：从三份 data-only dump 计算的 7 个关键表聚合行数，只用于恢复后完整性比对，不保存任何行内容。
+- `metadata.txt`、`SHA256SUMS`：生成时间、提交版本和全部明文文件校验值。
 
 上述文件先打包，再使用 AES-256-CBC、PBKDF2-SHA256 和 600000 次迭代加密。工作流会立即解密一次并检查归档内容，然后删除 SQL 和临时明文归档。GitHub Artifact 只接收：
 
@@ -41,6 +42,8 @@
 - `ustsacmland-database-backup.enc.sha256`
 
 密文保留 14 天且不再次压缩。按每日任务计算，仓库备份的目标 RPO 为 24 小时；RTO 只有在首次恢复演练后才能确认，演练前不得宣传确定的恢复时长。
+
+`.github/workflows/database-restore-drill.yml` 提供手动隔离恢复演练。管理员输入一个来自 `main` 的成功 `Encrypted database backup` run ID；工作流会同时核对来源仓库、工作流路径、分支、结论、run attempt、Artifact 名称和过期状态，不能把其他工作流或 PR 产物冒充为生产备份。该工作流没有 Supabase Access Token、项目引用或远端数据库连接，只把备份恢复到 GitHub Runner 中一次性的本地 Supabase/PostgreSQL 17，完成后无状态销毁。
 
 永久注销采用外部恢复下限。`delete-account` 的目标绑定数据库租约覆盖“取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 GitHub fine-grained PAT 更新并回读确认 `BACKUP_RECOVERY_NOT_BEFORE` → 续期并停止外部阶段心跳 → 调用最终删除 RPC”的完整临界区；变量只含 UTC 时间，不含成员身份。最终 RPC 对租约单例行和目标 Profile 加锁，重新验证 owner、target、有效期、角色与活动同步后，在同一数据库事务删除 `auth.users` 并消费租约，Auth/Profile 级联与审计匿名化只会整体提交或回滚。租约冲突、取得或删除前续期失败、写入或回读确认失败时不得删除 Auth 用户，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409` 并保留账号及业务数据。恢复时间再额外增加一小时安全余量，避免运行环境时钟偏差让下限落到实际删除时间之前。
 
@@ -95,6 +98,18 @@ rm -rf restored-backup ustsacmland-database-backup.tar.gz
 
 恢复只能面向新建的隔离 Supabase 测试项目。除非负责人明确批准事故恢复，禁止把演练导入生产项目。
 
+首次和季度例行演练优先使用仓库的手动 `Encrypted database restore drill` 工作流：
+
+1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。旧 Artifact 没有 `restore-manifest.json` 时必须重新生成，不能跳过行数核对。
+2. 打开 Actions → `Encrypted database restore drill`，输入刚才的 run ID。恢复任务不会自动运行或自动重试。
+3. 工作流校验密文 SHA-256、AES-256/PBKDF2 解密、归档精确文件白名单、内部 `SHA256SUMS` 和当前 `BACKUP_RECOVERY_NOT_BEFORE`。
+4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；角色、应用 Schema、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。
+5. 恢复后逐项比较 `profiles`、平台账号、当前统计、快照、同步运行、Auth 用户和 migration 历史 7 个行数；四类孤儿关系必须为 0。
+6. 工作流只在隔离环境创建随机临时账号，验证密码登录、本人 Profile 可读、其他 Profile 被 RLS 隐藏、匿名公开视图可读且匿名私表被拒绝，然后删除临时账号。
+7. Runner 停止本地 Supabase，删除解密 SQL、归档、本地 Key、临时密码和响应；Artifact 只上传 14 天有效的脱敏聚合 JSON 报告。
+
+自动化演练证明逻辑备份可以在干净的 Supabase 平台基线上恢复，并覆盖 Auth 与 RLS 基本可用性；它不包含 Edge Functions、Function Secrets、Auth 回调、Storage 对象或第三方凭据。事故恢复或迁移到新远端项目时，仍须继续执行下列人工步骤并验证外部集成。
+
 1. 下载最近一次成功 Artifact，完成密文和内部文件校验。
 2. 新建隔离 Supabase 项目，记录其 Session pooler URI 为 `RESTORE_DB_URL`。
 3. 核对目标项目没有需要保留的数据，并暂停对目标项目的外部访问。
@@ -117,7 +132,7 @@ psql \
 7. 根据 Supabase 官方 migration history 指南，审查并恢复 `migrations-schema.sql`、`migrations-data.sql`；若目标已存在相同对象，不得盲目覆盖。
 8. 重新部署 Edge Functions，重新配置全部 Function Secrets、Auth 回调和 GitHub Actions Secrets。备份不包含这些 Secrets。
 9. 使用隔离账号验证登录、资料、RLS、公开榜单、后台和一次单平台同步。
-10. 比较成员数、平台账号数、统计行数和最近成功同步时间，并记录差异。
+10. 使用密文内 `restore-manifest.json` 比较成员数、平台账号数、统计行数、快照数、同步运行数、Auth 用户数和 migration 数；任何差异都必须停止验收。
 11. 删除隔离项目和本地明文文件，保留不含个人数据的演练日期、结果、耗时和问题清单。
 
 不同项目使用不同 JWT Secret 时，旧会话会失效，成员需要重新登录。这是默认且更安全的恢复策略；不要为了保留旧会话而随意复制生产 JWT Secret。
