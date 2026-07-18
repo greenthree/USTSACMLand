@@ -34,7 +34,7 @@ test('administrator can update the redacted WebChat configuration without persis
 
   await expect(page.getByText('WebChat 中转站配置已保存。')).toBeVisible()
   await expect(apiKey).toHaveValue('')
-  await expect(page.getByText('v2')).toBeVisible()
+  await expect(page.getByText('v2', { exact: true })).toBeVisible()
   await expect(page.getByText('允许', { exact: true })).toBeVisible()
 
   const storedValues = await page.evaluate(() => [
@@ -42,5 +42,22 @@ test('administrator can update the redacted WebChat configuration without persis
     ...Object.values(window.sessionStorage),
   ])
   expect(storedValues.join('\n')).not.toContain(replacementSecret)
+  expect(runtimeErrors).toEqual([])
+})
+
+test('administrator can inspect the pilot roster and open its member policy', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page)
+
+  await page.goto('/admin/webchat')
+
+  const pilot = page.getByRole('region', { name: '试运行成员' })
+  await expect(pilot).toBeVisible()
+  await expect(pilot.getByLabel('试运行摘要')).toContainText('已配置账号')
+  await expect(pilot.getByRole('heading', { name: '试运行成员' })).toBeVisible()
+  await expect(pilot.getByText('8 / 30')).toBeVisible()
+  await expect(pilot.getByText(/已结算 18,420 · 预留 4,000 · 剩余 77,580/)).toBeVisible()
+
+  await pilot.getByRole('link', { name: '查看详情' }).click()
+  await expect(page).toHaveURL(/\/admin\/members\/00000000-0000-4000-8000-000000000101$/)
   expect(runtimeErrors).toEqual([])
 })

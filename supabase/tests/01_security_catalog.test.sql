@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(33);
 
 select is(
   (
@@ -414,6 +414,19 @@ select ok(
       'anon', 'public.admin_list_daily_problems(integer,bigint)', 'EXECUTE'
     ),
   'anonymous access is limited to the sanitized daily problem feed'
+);
+
+select ok(
+  pg_catalog.has_function_privilege(
+    'authenticated', 'public.admin_list_webchat_pilot_members()', 'EXECUTE'
+  )
+    and not pg_catalog.has_function_privilege(
+      'anon', 'public.admin_list_webchat_pilot_members()', 'EXECUTE'
+    )
+    and not pg_catalog.has_function_privilege(
+      'service_role', 'public.admin_list_webchat_pilot_members()', 'EXECUTE'
+    ),
+  'the WebChat pilot roster is reachable only through the authenticated administrator boundary'
 );
 
 select * from finish();

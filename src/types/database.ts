@@ -1193,6 +1193,30 @@ export type Database = {
           trigger_type: Database['public']['Enums']['sync_trigger_type']
         }[]
       }
+      admin_list_webchat_pilot_members: {
+        Args: never
+        Returns: {
+          access_enabled: boolean
+          active_request_count: number
+          daily_request_limit: number
+          daily_token_limit: number
+          full_name: string
+          grade: string
+          last_request_at: string
+          major: string
+          remaining_requests: number
+          remaining_tokens: number
+          request_count: number
+          reserved_tokens: number
+          review_status: Database['public']['Enums']['profile_review_status']
+          role: Database['public']['Enums']['app_role']
+          settled_tokens: number
+          updated_at: string
+          usage_date: string
+          user_id: string
+          version: number
+        }[]
+      }
       admin_set_daily_problem_comment_visibility: {
         Args: {
           expected_updated_at: string

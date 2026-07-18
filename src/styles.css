@@ -2791,6 +2791,140 @@ fieldset.form-section {
   max-width: 920px;
 }
 
+.webchat-pilot-section {
+  margin-bottom: 30px;
+}
+
+.webchat-pilot-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.webchat-pilot-heading h2 {
+  margin-bottom: 5px;
+  font-size: 19px;
+}
+
+.webchat-pilot-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.webchat-pilot-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 14px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.webchat-pilot-summary > div {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 3px 9px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.webchat-pilot-summary > div:last-child {
+  border-right: 0;
+}
+
+.webchat-pilot-summary svg {
+  grid-row: 1 / span 2;
+  color: var(--green);
+}
+
+.webchat-pilot-summary span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.webchat-pilot-summary strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.webchat-pilot-error {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  color: var(--danger);
+  background: #fff8f7;
+  border: 1px solid #efd4cf;
+  border-radius: 8px;
+}
+
+.webchat-pilot-error p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.webchat-pilot-table-wrap {
+  position: relative;
+}
+
+.webchat-pilot-table {
+  min-width: 1120px;
+}
+
+.webchat-pilot-table th,
+.webchat-pilot-table td {
+  vertical-align: middle;
+}
+
+.webchat-pilot-table td {
+  min-width: 0;
+}
+
+.webchat-pilot-table td > strong,
+.webchat-pilot-table td > span,
+.webchat-pilot-table td > small {
+  display: block;
+}
+
+.webchat-pilot-table td > small {
+  margin-top: 3px;
+  color: var(--faint);
+  line-height: 1.45;
+}
+
+.webchat-pilot-table td:nth-child(1) {
+  min-width: 120px;
+}
+
+.webchat-pilot-table td:nth-child(2) {
+  min-width: 150px;
+}
+
+.webchat-pilot-table td:nth-child(4) {
+  min-width: 120px;
+}
+
+.webchat-pilot-table td:nth-child(5) {
+  min-width: 230px;
+}
+
+.webchat-pilot-table .status {
+  display: inline-flex;
+}
+
 .webchat-daily-usage {
   margin: 0 0 26px;
   padding: 22px 0;
@@ -5926,14 +6060,16 @@ fieldset.form-section {
   .admin-metric-strip,
   .source-health-grid,
   .health-summary-strip,
-  .webchat-config-summary {
+  .webchat-config-summary,
+  .webchat-pilot-summary {
     grid-template-columns: 1fr;
   }
 
   .admin-metric-strip > div,
   .source-health-grid > div,
   .health-summary-strip > div,
-  .webchat-config-summary > div {
+  .webchat-config-summary > div,
+  .webchat-pilot-summary > div {
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
@@ -5941,8 +6077,19 @@ fieldset.form-section {
   .admin-metric-strip > div:last-child,
   .source-health-grid > div:last-child,
   .health-summary-strip > div:last-child,
-  .webchat-config-summary > div:last-child {
+  .webchat-config-summary > div:last-child,
+  .webchat-pilot-summary > div:last-child {
     border-bottom: 0;
+  }
+
+  .webchat-pilot-heading,
+  .webchat-pilot-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .webchat-pilot-table {
+    min-width: 0;
   }
 
   .webchat-daily-usage-heading {
