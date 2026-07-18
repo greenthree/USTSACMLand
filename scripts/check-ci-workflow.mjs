@@ -42,6 +42,7 @@ const requiredReleaseMigrations = [
   '202607170009_webchat_admin_access.sql',
   '202607170010_webchat_model_visibility.sql',
   '202607180001_daily_problem_learning.sql',
+  '202607180002_webchat_pilot_observability.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -83,6 +84,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'claim_webchat_budget_alert',
     'admin_get_webchat_member_access',
     'admin_update_webchat_member_access',
+    'admin_list_webchat_pilot_members',
     'read_webchat_member_runtime_access',
     'read_own_webchat_usage',
     'claim_authorized_webchat_request',
@@ -148,7 +150,7 @@ export function inspectPgTapSuite(files) {
 
     const assertionCalls = [
       ...file.content.matchAll(
-        /\bselect\s+(?:extensions\.)?(?:cmp_ok|col_type_is|has_table|is|isnt|lives_ok|matches|ok|results_eq|set_eq|throws_like|throws_ok|unlike)\s*\(/gi,
+        /\bselect\s+(?:extensions\.)?(?:cmp_ok|col_type_is|has_function|has_table|is|isnt|lives_ok|matches|ok|results_eq|set_eq|throws_like|throws_ok|unlike)\s*\(/gi,
       ),
     ].length
     if (assertionCalls !== planned) {

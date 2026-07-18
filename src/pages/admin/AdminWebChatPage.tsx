@@ -8,6 +8,7 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
+import { AdminWebChatPilotPanel } from '../../components/admin/AdminWebChatPilotPanel'
 import {
   AdminWebChatConfigError,
   fetchAdminWebChatConfig,
@@ -298,6 +299,8 @@ export function AdminWebChatPage() {
           {notice}
         </p>
       ) : null}
+
+      <AdminWebChatPilotPanel />
 
       {loading ? <LoadingState label="正在读取 WebChat 配置" /> : null}
 

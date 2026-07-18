@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 const webChatConfigMocks = vi.hoisted(() => ({
   fetchConfig: vi.fn(),
   updateConfig: vi.fn(),
+  fetchPilotMembers: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
@@ -15,6 +16,11 @@ vi.mock('../../lib/adminWebChatConfig', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatConfig')>()),
   fetchAdminWebChatConfig: webChatConfigMocks.fetchConfig,
   updateAdminWebChatConfig: webChatConfigMocks.updateConfig,
+}))
+
+vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
+  fetchAdminWebChatPilotMembers: webChatConfigMocks.fetchPilotMembers,
 }))
 
 import { AdminWebChatPage } from './AdminWebChatPage'
@@ -57,6 +63,7 @@ describe('AdminWebChatPage', () => {
       version: 8,
       updatedAt: '2026-07-17T09:00:00Z',
     })
+    webChatConfigMocks.fetchPilotMembers.mockReset().mockResolvedValue([])
   })
 
   it('shows only redacted secret state, version, and update time', async () => {
@@ -253,5 +260,48 @@ describe('AdminWebChatPage', () => {
 
     await waitFor(() => expect(webChatConfigMocks.fetchConfig).toHaveBeenCalledTimes(2))
     expect(await screen.findByLabelText(/替换 API Key/)).toHaveValue('')
+  })
+
+  it('keeps relay configuration usable when pilot observability fails independently', async () => {
+    webChatConfigMocks.fetchPilotMembers.mockRejectedValue(new Error('成员观测服务暂时不可用'))
+    renderPage()
+
+    expect(await screen.findByText('v7')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /中转站 Base URL/ })).toHaveValue(configured.baseUrl)
+    expect(await screen.findByRole('alert')).toHaveTextContent('成员观测服务暂时不可用')
+    expect(screen.getByRole('button', { name: '保存配置' })).toBeInTheDocument()
+  })
+
+  it('keeps pilot observability available when relay configuration fails independently', async () => {
+    webChatConfigMocks.fetchConfig.mockRejectedValue(new Error('中转站配置服务暂时不可用'))
+    webChatConfigMocks.fetchPilotMembers.mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000101',
+        name: '试运行成员',
+        grade: '24级',
+        major: '计算机科学与技术',
+        role: 'member',
+        accountStatus: 'approved',
+        accessEnabled: true,
+        dailyRequestLimit: 30,
+        dailyTokenLimit: 100_000,
+        usageDate: '2026-07-18',
+        requestCount: 8,
+        settledTokens: 18_420,
+        reservedTokens: 4_000,
+        remainingRequests: 22,
+        remainingTokens: 77_580,
+        activeRequestCount: 1,
+        lastRequestAt: '2026-07-18T08:30:00+08:00',
+        version: 2,
+        updatedAt: '2026-07-17T20:00:00+08:00',
+      },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('WebChat 配置暂不可用')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: '试运行成员' })).toBeInTheDocument()
+    expect(screen.getByText('8 / 30')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
   })
 })
