@@ -53,7 +53,7 @@ where id in (
 create temporary table firecrawl_fixture (
   fixture_name text primary key,
   key_id uuid not null,
-  secret_id uuid not null
+  secret_id uuid
 ) on commit drop;
 
 grant select on firecrawl_fixture to authenticated;
@@ -177,9 +177,14 @@ with created as (
   )
 )
 insert into firecrawl_fixture (fixture_name, key_id, secret_id)
-select 'primary', created.id, config.vault_secret_id
-from created
-join private.firecrawl_api_keys as config on config.id = created.id;
+select 'primary', created.id, null
+from created;
+
+update firecrawl_fixture as fixture
+set secret_id = config.vault_secret_id
+from private.firecrawl_api_keys as config
+where fixture.fixture_name = 'primary'
+  and config.id = fixture.key_id;
 
 select is(
   (select count(*)::integer from private.firecrawl_api_keys),
@@ -301,9 +306,14 @@ with created as (
   )
 )
 insert into firecrawl_fixture (fixture_name, key_id, secret_id)
-select 'priority', created.id, config.vault_secret_id
-from created
-join private.firecrawl_api_keys as config on config.id = created.id;
+select 'priority', created.id, null
+from created;
+
+update firecrawl_fixture as fixture
+set secret_id = config.vault_secret_id
+from private.firecrawl_api_keys as config
+where fixture.fixture_name = 'priority'
+  and config.id = fixture.key_id;
 
 select is(
   (select count(*)::integer from private.firecrawl_api_keys),
@@ -334,9 +344,14 @@ with created as (
   )
 )
 insert into firecrawl_fixture (fixture_name, key_id, secret_id)
-select 'exhausted', created.id, config.vault_secret_id
-from created
-join private.firecrawl_api_keys as config on config.id = created.id;
+select 'exhausted', created.id, null
+from created;
+
+update firecrawl_fixture as fixture
+set secret_id = config.vault_secret_id
+from private.firecrawl_api_keys as config
+where fixture.fixture_name = 'exhausted'
+  and config.id = fixture.key_id;
 
 select public.record_firecrawl_key_observation(
   (select key_id from firecrawl_fixture where fixture_name = 'exhausted'),
