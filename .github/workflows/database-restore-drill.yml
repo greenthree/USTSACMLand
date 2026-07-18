@@ -129,6 +129,7 @@ jobs:
             './' \
             './SHA256SUMS' \
             './auth-data.sql' \
+            './auth-hooks.sql' \
             './data.sql' \
             './metadata.txt' \
             './migrations-data.sql' \
@@ -239,6 +240,7 @@ jobs:
             --file "$container_restore/roles.sql" \
             --file "$container_restore/pre-restore.sql" \
             --file "$container_restore/schema.sql" \
+            --file "$container_restore/auth-hooks.sql" \
             --command 'set session_replication_role = replica' \
             --file "$container_restore/data.sql" \
             --file "$container_restore/auth-data.sql" \
@@ -284,6 +286,28 @@ jobs:
               )
             )::text" > "$orphans"
           echo '::notice::Aggregate row-count and orphan queries completed.'
+
+          auth_hook_count="$(docker exec "$db_container" psql \
+            --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 \
+            --command "select pg_catalog.count(*)
+              from pg_catalog.pg_trigger trg
+              join pg_catalog.pg_class relation on relation.oid = trg.tgrelid
+              join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace
+              where namespace.nspname = 'auth'
+                and relation.relname = 'users'
+                and not trg.tgisinternal
+                and trg.tgname in (
+                  'auth_users_0_require_fenced_deletion',
+                  'auth_users_a_prepare_account_deletion',
+                  'on_auth_user_created'
+                )")"
+          if [[ "$auth_hook_count" -ne 3 ]]; then
+            echo '::error::Restored Auth user application triggers are incomplete.'
+            exit 1
+          fi
+          echo '::notice::Auth user application triggers restored.'
 
           canary_email="restore-drill-$GITHUB_RUN_ID@example.invalid"
           canary_password="$(openssl rand -base64 36 | tr -d '=+/\n' | cut -c1-32)"
@@ -372,11 +396,35 @@ jobs:
           fi
           echo '::notice::Anonymous REST boundary checks completed.'
 
+          deletion_owner_token="$(cat /proc/sys/kernel/random/uuid)"
+          jq -n \
+            --arg owner "$deletion_owner_token" \
+            --arg target "$canary_id" \
+            '{p_owner_token: $owner, p_target_user_id: $target}' \
+            > "$RUNNER_TEMP/canary-lease-request.json"
           curl --fail --silent --show-error \
-            --request DELETE "$API_URL/auth/v1/admin/users/$canary_id" \
+            --request POST "$API_URL/rest/v1/rpc/acquire_account_deletion_recovery_lease" \
             --header "apikey: $SERVICE_ROLE_KEY" \
             --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$RUNNER_TEMP/canary-lease-request.json" \
+            --output "$RUNNER_TEMP/canary-lease-response.json"
+          jq -e '. == true' "$RUNNER_TEMP/canary-lease-response.json" > /dev/null
+
+          jq -n \
+            --arg owner "$deletion_owner_token" \
+            --arg target "$canary_id" \
+            '{p_owner_token: $owner, p_user_id: $target}' \
+            > "$RUNNER_TEMP/canary-delete-request.json"
+          curl --fail --silent --show-error \
+            --request POST "$API_URL/rest/v1/rpc/delete_auth_user_with_recovery_lease" \
+            --header "apikey: $SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+            --header 'Content-Type: application/json' \
+            --data-binary "@$RUNNER_TEMP/canary-delete-request.json" \
             --output "$RUNNER_TEMP/canary-delete-response.json"
+          jq -e '.leaseOwned == true and .deleted == true' \
+            "$RUNNER_TEMP/canary-delete-response.json" > /dev/null
           canary_remaining="$(docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 --variable canary_id="$canary_id" \
@@ -411,10 +459,12 @@ jobs:
               rowCounts: $rowCounts[0],
               orphanCounts: $orphanCounts[0],
               authSmoke: {
+                authHooksPresent: true,
                 canaryCreated: true,
                 passwordLogin: true,
                 ownProfileReadable: true,
                 otherProfilesHidden: true,
+                fencedCanaryDeleted: true,
                 canaryDeleted: true
               },
               restSmoke: {

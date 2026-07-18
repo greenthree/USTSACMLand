@@ -57,10 +57,11 @@ jobs:
           archive="$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
           encrypted="$RUNNER_TEMP/ustsacmland-database-backup.enc"
           verification_archive="$RUNNER_TEMP/ustsacmland-database-backup.verify.tar.gz"
+          auth_schema_dump="$RUNNER_TEMP/ustsacmland-auth-schema.sql"
 
           cleanup_plaintext() {
             rm -rf "$backup_dir"
-            rm -f "$archive" "$verification_archive"
+            rm -f "$archive" "$verification_archive" "$auth_schema_dump"
           }
           trap cleanup_plaintext EXIT
 
@@ -79,6 +80,14 @@ jobs:
           npx --yes supabase@2.109.1 db dump \
             --linked \
             --file "$backup_dir/schema.sql"
+          npx --yes supabase@2.109.1 db dump \
+            --linked \
+            --file "$auth_schema_dump" \
+            --schema auth
+          node scripts/extract-auth-user-triggers.mjs \
+            "$auth_schema_dump" \
+            "$backup_dir/auth-hooks.sql"
+          rm -f "$auth_schema_dump"
           npx --yes supabase@2.109.1 db dump \
             --linked \
             --file "$backup_dir/data.sql" \
@@ -105,6 +114,7 @@ jobs:
           for file in \
             roles.sql \
             schema.sql \
+            auth-hooks.sql \
             data.sql \
             auth-data.sql \
             migrations-schema.sql \
@@ -132,6 +142,7 @@ jobs:
             sha256sum \
               roles.sql \
               schema.sql \
+              auth-hooks.sql \
               data.sql \
               auth-data.sql \
               migrations-schema.sql \
@@ -155,6 +166,7 @@ jobs:
           tar -tzf "$verification_archive" > "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './roles.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          grep -Fxq './auth-hooks.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './auth-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
           grep -Fxq './migrations-schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
@@ -167,6 +179,7 @@ jobs:
           test ! -e "$backup_dir"
           test ! -e "$archive"
           test ! -e "$verification_archive"
+          test ! -e "$auth_schema_dump"
           (
             cd "$RUNNER_TEMP"
             sha256sum ustsacmland-database-backup.enc \

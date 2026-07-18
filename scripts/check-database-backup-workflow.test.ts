@@ -6,13 +6,18 @@ const workflow = readFileSync(resolve('.github/workflows/database-backup.yml'), 
 
 describe('encrypted database backup workflow', () => {
   it('accepts the checked-in workflow and reports its recovery coverage', () => {
-    expect(verifyDatabaseBackupWorkflow(workflow)).toEqual({ dumpCount: 6, retentionDays: 14 })
+    expect(verifyDatabaseBackupWorkflow(workflow)).toEqual({ dumpCount: 7, retentionDays: 14 })
   })
 
   it('rejects removal of authenticated-user data from the backup', () => {
     expect(() =>
-      verifyDatabaseBackupWorkflow(workflow.replace('--schema auth', '--schema public')),
-    ).toThrow(/--schema auth/)
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          '--file "$backup_dir/auth-data.sql" \\\n            --use-copy \\\n            --data-only \\\n            --schema auth',
+          '--file "$backup_dir/auth-data.sql" \\\n            --use-copy \\\n            --data-only \\\n            --schema public',
+        ),
+      ),
+    ).toThrow(/Authenticated-user data/)
   })
 
   it('keeps the general data dump disjoint from separate Auth and migration dumps', () => {
@@ -92,7 +97,18 @@ describe('encrypted database backup workflow', () => {
   it('rejects unpinned Supabase CLI versions', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(workflow.replaceAll('supabase@2.109.1', 'supabase@latest')),
-    ).toThrow(/six pinned Supabase CLI dumps/)
+    ).toThrow(/seven pinned Supabase CLI dumps/)
+  })
+
+  it('requires allow-listed Auth user triggers without archiving the full Auth schema dump', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('node scripts/extract-auth-user-triggers.mjs', 'echo skipped-auth-hooks'),
+      ),
+    ).toThrow(/Auth user triggers|auth-hooks|required dump coverage/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('rm -f "$auth_schema_dump"', ':')),
+    ).toThrow(/remove the full Auth schema dump/)
   })
 
   it('rejects a long-lived database URL in place of linked credentials', () => {

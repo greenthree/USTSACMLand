@@ -61,9 +61,9 @@ export function verifyDatabaseBackupWorkflow(workflow) {
   )
 
   const dumpCount = workflow.match(/npx --yes supabase@2\.109\.1 db dump/g)?.length ?? 0
-  if (dumpCount !== 6) {
+  if (dumpCount !== 7) {
     throw new Error(
-      `Backup workflow must contain six pinned Supabase CLI dumps; found ${dumpCount}.`,
+      `Backup workflow must contain seven pinned Supabase CLI dumps; found ${dumpCount}.`,
     )
   }
   requireMatch(
@@ -72,9 +72,9 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     'Backup workflow must link the pinned CLI to the intended project.',
   )
   const linkedDumpCount = workflow.match(/db dump \\\r?\n\s+--linked/g)?.length ?? 0
-  if (linkedDumpCount !== 6) {
+  if (linkedDumpCount !== 7) {
     throw new Error(
-      `All six dumps must use short-lived linked credentials; found ${linkedDumpCount}.`,
+      `All seven dumps must use short-lived linked credentials; found ${linkedDumpCount}.`,
     )
   }
   if (/--db-url|SUPABASE_DB_URL/.test(workflow)) {
@@ -85,6 +85,9 @@ export function verifyDatabaseBackupWorkflow(workflow) {
   for (const requiredFragment of [
     '--role-only',
     '--file "$backup_dir/schema.sql"',
+    '--file "$auth_schema_dump"',
+    'node scripts/extract-auth-user-triggers.mjs',
+    '"$backup_dir/auth-hooks.sql"',
     '--file "$backup_dir/data.sql"',
     '--file "$backup_dir/auth-data.sql"',
     '--schema auth',
@@ -101,6 +104,21 @@ export function verifyDatabaseBackupWorkflow(workflow) {
     workflow,
     /--file "\$backup_dir\/data\.sql" \\\r?\n\s+--use-copy \\\r?\n\s+--data-only \\\r?\n\s+--schema public,private(?:\r?\n|$)/,
     'The general data dump must be restricted to the application public and private schemas.',
+  )
+  requireMatch(
+    workflow,
+    /--file "\$backup_dir\/auth-data\.sql" \\\r?\n\s+--use-copy \\\r?\n\s+--data-only \\\r?\n\s+--schema auth(?:\r?\n|$)/,
+    'Authenticated-user data must be exported separately from the Auth schema.',
+  )
+  requireMatch(
+    workflow,
+    /--file "\$auth_schema_dump" \\\r?\n\s+--schema auth[\s\S]*extract-auth-user-triggers\.mjs[\s\S]*"\$backup_dir\/auth-hooks\.sql"[\s\S]*rm -f "\$auth_schema_dump"/,
+    'The backup must extract the allow-listed Auth user triggers and remove the full Auth schema dump.',
+  )
+  requireMatch(
+    workflow,
+    /schema\.sql \\\r?\n\s+auth-hooks\.sql \\\r?\n[\s\S]*> SHA256SUMS/,
+    'The extracted Auth user trigger file must be covered by internal checksums.',
   )
 
   requireMatch(
@@ -122,13 +140,18 @@ export function verifyDatabaseBackupWorkflow(workflow) {
   }
   requireMatch(
     workflow,
-    /test ! -e "\$backup_dir"[\s\S]*test ! -e "\$archive"[\s\S]*test ! -e "\$verification_archive"/,
+    /test ! -e "\$backup_dir"[\s\S]*test ! -e "\$archive"[\s\S]*test ! -e "\$verification_archive"[\s\S]*test ! -e "\$auth_schema_dump"/,
     'Plaintext backup files must be removed and verified absent before upload.',
   )
   requireMatch(
     workflow,
     /grep -Fxq '\.\/restore-manifest\.json' "\$RUNNER_TEMP\/ustsacmland-backup-files\.txt"/,
     'Backup verification must require the encrypted aggregate restore manifest.',
+  )
+  requireMatch(
+    workflow,
+    /grep -Fxq '\.\/auth-hooks\.sql' "\$RUNNER_TEMP\/ustsacmland-backup-files\.txt"/,
+    'Backup verification must require the extracted Auth user trigger file.',
   )
 
   const uploadStart = workflow.indexOf('- name: Upload encrypted backup')
