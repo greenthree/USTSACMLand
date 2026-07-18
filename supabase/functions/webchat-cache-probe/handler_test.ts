@@ -34,6 +34,7 @@ const claim: CacheProbeClaimResult = {
 }
 const result: CacheProbeResult = {
   model: 'gpt-5.6',
+  transport: 'streaming',
   first: {
     durationMs: 120,
     usage: {
@@ -243,6 +244,7 @@ Deno.test('cache probe executes and settles in claim-read-start-run-finalize ord
       async run(config) {
         events.push(`run:${config.model}`)
         strictEqual(config.apiKey, 'relay-secret-key')
+        strictEqual(config.stream, true)
         return result
       },
       async finalize(_probeId, _ownerToken, outcome, knownResult) {

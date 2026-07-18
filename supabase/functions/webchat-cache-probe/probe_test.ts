@@ -26,6 +26,33 @@ function jsonResponse(cachedTokens: number, cacheWriteTokens: number | null = nu
   )
 }
 
+function streamResponse(
+  cachedTokens: number,
+  cacheWriteTokens: number | null = null,
+  lineEnding = '\n',
+): Response {
+  const events = [
+    { type: 'response.created', response: { id: 'response-1' } },
+    { type: 'response.output_text.delta', delta: 'OK' },
+    {
+      type: 'response.completed',
+      response: {
+        usage: {
+          input_tokens: 1_600,
+          output_tokens: 1,
+          total_tokens: 1_601,
+          input_tokens_details: {
+            cached_tokens: cachedTokens,
+            ...(cacheWriteTokens === null ? {} : { cache_write_tokens: cacheWriteTokens }),
+          },
+        },
+      },
+    },
+  ]
+  const body = `${events.map((event) => `data: ${JSON.stringify(event)}`).join(`${lineEnding}${lineEnding}`)}${lineEnding}${lineEnding}data: [DONE]${lineEnding}${lineEnding}`
+  return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+}
+
 Deno.test(
   'cache probe derives a conservative two-request reservation from encoded bytes',
   async () => {
@@ -36,12 +63,13 @@ Deno.test(
   },
 )
 
-function config(fetcher: typeof fetch): CacheProbeRuntimeConfig {
+function config(fetcher: typeof fetch, stream = true): CacheProbeRuntimeConfig {
   return {
     baseUrl: 'https://relay.example.test/v1/',
     apiKey: 'server-only-cache-probe-key',
     model: 'gpt-5.6',
     timeoutMs: 5_000,
+    stream,
     fetcher,
   }
 }
@@ -78,7 +106,7 @@ Deno.test('cache probe parses Responses cached-token usage without requiring cac
 })
 
 Deno.test(
-  'cache probe sends an incremental plain conversation with one reusable implicit prefix',
+  'cache probe sends a streaming incremental plain conversation with one reusable implicit prefix',
   async () => {
     const requests: Array<{ url: string; body: string; headers: Headers }> = []
     const fetcher: typeof fetch = async (input, init) => {
@@ -87,7 +115,7 @@ Deno.test(
         body: String(init?.body),
         headers: new Headers(init?.headers),
       })
-      return requests.length === 1 ? jsonResponse(0, 1_536) : jsonResponse(1_536, 0)
+      return requests.length === 1 ? streamResponse(0, 1_536) : streamResponse(1_536, 0, '\r\n')
     }
 
     const result = await runCacheProbe(config(fetcher))
@@ -100,8 +128,9 @@ Deno.test(
     const secondBody = JSON.parse(requests[1]?.body ?? '{}') as Record<string, unknown>
     match(String(firstBody.prompt_cache_key), /^[a-f0-9]{64}$/)
     strictEqual(firstBody.prompt_cache_key, secondBody.prompt_cache_key)
-    strictEqual(firstBody.stream, false)
+    strictEqual(firstBody.stream, true)
     strictEqual(firstBody.store, false)
+    strictEqual(requests[0]?.headers.get('accept'), 'text/event-stream')
     strictEqual('prompt_cache_options' in firstBody, false)
     const firstInput = firstBody.input as Array<Record<string, unknown>>
     const secondInput = secondBody.input as Array<Record<string, unknown>>
@@ -111,6 +140,7 @@ Deno.test(
     match(JSON.stringify(firstInput), /cache probe validation.*Reply only with OK\./s)
     strictEqual(JSON.stringify(firstInput).includes('prompt_cache_breakpoint'), false)
     strictEqual(result.reusedInputTokens, 1_536)
+    strictEqual(result.transport, 'streaming')
     deepStrictEqual(result.aggregateUsage, {
       inputTokens: 3_200,
       outputTokens: 2,
@@ -125,9 +155,24 @@ Deno.test(
   },
 )
 
+Deno.test('cache probe retains a non-streaming control mode for isolated comparisons', async () => {
+  const bodies: Array<Record<string, unknown>> = []
+  const result = await runCacheProbe(
+    config(async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+      return bodies.length === 1 ? jsonResponse(0, 1_536) : jsonResponse(1_536, 0)
+    }, false),
+  )
+
+  strictEqual(bodies.length, 2)
+  strictEqual(bodies[0]?.stream, false)
+  strictEqual(result.transport, 'non_streaming')
+  strictEqual(result.reusedInputTokens, 1_536)
+})
+
 Deno.test('cache probe exposes known usage when the second eligible request misses', async () => {
   await rejects(
-    () => runCacheProbe(config(async () => jsonResponse(0, 1_536))),
+    () => runCacheProbe(config(async () => streamResponse(0, 1_536))),
     (error: unknown) => {
       strictEqual(error instanceof CacheProbeError, true)
       const probeError = error as CacheProbeError
@@ -146,13 +191,46 @@ Deno.test('cache probe fails closed when cached-token usage is absent', async ()
         config(
           async () =>
             new Response(
-              JSON.stringify({
-                usage: { input_tokens: 1_600, output_tokens: 1, total_tokens: 1_601 },
-              }),
-              { headers: { 'content-type': 'application/json' } },
+              `data: ${JSON.stringify({
+                type: 'response.completed',
+                response: {
+                  usage: { input_tokens: 1_600, output_tokens: 1, total_tokens: 1_601 },
+                },
+              })}\n\n`,
+              { headers: { 'content-type': 'text/event-stream' } },
             ),
         ),
       ),
     (error: unknown) => error instanceof CacheProbeError && error.code === 'cache_usage_missing',
+  )
+})
+
+Deno.test('streaming cache probe rejects incomplete and oversized event streams', async () => {
+  await rejects(
+    () =>
+      runCacheProbe(
+        config(
+          async () =>
+            new Response('data: {"type":"response.incomplete"}\n\n', {
+              headers: { 'content-type': 'text/event-stream' },
+            }),
+        ),
+      ),
+    (error: unknown) =>
+      error instanceof CacheProbeError && error.code === 'upstream_protocol_error',
+  )
+
+  await rejects(
+    () =>
+      runCacheProbe(
+        config(
+          async () =>
+            new Response(`data: ${'x'.repeat(262_145)}\n\n`, {
+              headers: { 'content-type': 'text/event-stream' },
+            }),
+        ),
+      ),
+    (error: unknown) =>
+      error instanceof CacheProbeError && error.code === 'upstream_protocol_error',
   )
 })

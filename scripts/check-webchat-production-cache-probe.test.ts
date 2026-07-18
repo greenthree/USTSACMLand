@@ -12,6 +12,7 @@ const serviceRoleKey = 'service-role-production-test-key'
 function probe(cachedTokens = 1_536) {
   return {
     model: 'gpt-5.6',
+    transport: 'streaming',
     first: {
       durationMs: 120,
       usage: {
@@ -84,6 +85,7 @@ describe('production WebChat cache probe', () => {
       expect(requestedHeaders.get('authorization')).toBe(`Bearer ${serviceRoleKey}`)
       expect(requestedHeaders.get('apikey')).toBe(serviceRoleKey)
       expect(report.probe.reusedInputTokens).toBe(1_536)
+      expect(report.probe.transport).toBe('streaming')
       const artifact = await readFile(reportPath, 'utf8')
       expect(artifact).not.toContain(serviceRoleKey)
       expect(artifact).not.toContain(projectRef)
