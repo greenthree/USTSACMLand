@@ -5,8 +5,10 @@ vi.mock('./supabase', () => ({ supabase: { rpc: pilotMocks.rpc } }))
 import {
   fetchAdminWebChatCacheSummary,
   fetchAdminWebChatPilotMembers,
+  fetchAdminWebChatPilotObservation,
   mapAdminWebChatCacheSummary,
   mapAdminWebChatPilotMembers,
+  mapAdminWebChatPilotObservation,
 } from './adminWebChatPilot'
 
 const pilotRow = {
@@ -28,6 +30,24 @@ const pilotRow = {
   last_request_at: '2026-07-18T08:00:00Z',
   version: 2,
   updated_at: '2026-07-17T12:00:00Z',
+}
+
+const observationRow = {
+  checked_at: '2026-07-19T09:30:00Z',
+  cohort_started_at: '2026-07-12T08:30:00Z',
+  observation_hours: '169',
+  enabled_members: '4',
+  active_members: '4',
+  observed_requests: '12',
+  successful_requests: '10',
+  incomplete_requests: '2',
+  failed_requests: '0',
+  unknown_usage_requests: '0',
+  active_generation_count: '0',
+  cache_eligible_requests: '8',
+  cache_hit_requests: '6',
+  last_request_at: '2026-07-19T09:20:00Z',
+  observation_status: 'ready_for_review',
 }
 
 describe('administrator WebChat pilot observability adapter', () => {
@@ -135,5 +155,51 @@ describe('administrator WebChat pilot observability adapter', () => {
         },
       ]),
     ).toThrow(/不一致/)
+  })
+
+  it('maps the content-free continuous pilot observation summary', async () => {
+    pilotMocks.rpc.mockResolvedValue({ data: [observationRow], error: null })
+
+    await expect(fetchAdminWebChatPilotObservation()).resolves.toEqual({
+      checkedAt: observationRow.checked_at,
+      cohortStartedAt: observationRow.cohort_started_at,
+      observationHours: 169,
+      enabledMembers: 4,
+      activeMembers: 4,
+      observedRequests: 12,
+      successfulRequests: 10,
+      incompleteRequests: 2,
+      failedRequests: 0,
+      unknownUsageRequests: 0,
+      activeGenerationCount: 0,
+      cacheEligibleRequests: 8,
+      cacheHitRequests: 6,
+      lastRequestAt: observationRow.last_request_at,
+      status: 'ready_for_review',
+    })
+    expect(pilotMocks.rpc).toHaveBeenCalledWith('admin_read_webchat_pilot_observation')
+  })
+
+  it('rejects inconsistent or unknown pilot observation states', () => {
+    expect(() =>
+      mapAdminWebChatPilotObservation([
+        { ...observationRow, observation_status: 'automatically_approved' },
+      ]),
+    ).toThrow(/无效状态/)
+    expect(() =>
+      mapAdminWebChatPilotObservation([
+        { ...observationRow, active_members: 5, enabled_members: 4 },
+      ]),
+    ).toThrow(/不一致/)
+    expect(() =>
+      mapAdminWebChatPilotObservation([
+        { ...observationRow, observed_requests: 0, unknown_usage_requests: 1 },
+      ]),
+    ).toThrow(/不一致/)
+    expect(() =>
+      mapAdminWebChatPilotObservation([
+        { ...observationRow, failed_requests: 0, unknown_usage_requests: 1 },
+      ]),
+    ).not.toThrow()
   })
 })

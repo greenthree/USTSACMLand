@@ -1280,6 +1280,26 @@ export type Database = {
           observed_requests: number
         }[]
       }
+      admin_read_webchat_pilot_observation: {
+        Args: never
+        Returns: {
+          active_generation_count: number
+          active_members: number
+          cache_eligible_requests: number
+          cache_hit_requests: number
+          checked_at: string
+          cohort_started_at: string | null
+          enabled_members: number
+          failed_requests: number
+          incomplete_requests: number
+          last_request_at: string | null
+          observation_hours: number
+          observation_status: string
+          observed_requests: number
+          successful_requests: number
+          unknown_usage_requests: number
+        }[]
+      }
       admin_set_daily_problem_comment_visibility: {
         Args: {
           expected_updated_at: string

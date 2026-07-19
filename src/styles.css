@@ -3047,6 +3047,29 @@ fieldset.form-section {
   font-size: 18px;
 }
 
+.webchat-pilot-observation {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.webchat-pilot-observation > div:nth-child(3n) {
+  border-right: 0;
+}
+
+.webchat-pilot-observation-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.webchat-pilot-observation-note .status {
+  margin-right: 4px;
+}
+
 .webchat-pilot-error {
   min-height: 72px;
   display: flex;

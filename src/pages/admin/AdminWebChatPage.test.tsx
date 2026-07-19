@@ -7,6 +7,7 @@ const webChatConfigMocks = vi.hoisted(() => ({
   updateConfig: vi.fn(),
   fetchPilotMembers: vi.fn(),
   fetchCacheSummary: vi.fn(),
+  fetchObservation: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
@@ -23,6 +24,7 @@ vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
   fetchAdminWebChatPilotMembers: webChatConfigMocks.fetchPilotMembers,
   fetchAdminWebChatCacheSummary: webChatConfigMocks.fetchCacheSummary,
+  fetchAdminWebChatPilotObservation: webChatConfigMocks.fetchObservation,
 }))
 
 import { AdminWebChatPage } from './AdminWebChatPage'
@@ -73,6 +75,23 @@ describe('AdminWebChatPage', () => {
       eligibleInputTokens: 0,
       cachedInputTokens: 0,
       cacheWriteTokens: 0,
+    })
+    webChatConfigMocks.fetchObservation.mockReset().mockResolvedValue({
+      checkedAt: '2026-07-19T09:30:00Z',
+      cohortStartedAt: null,
+      observationHours: 0,
+      enabledMembers: 0,
+      activeMembers: 0,
+      observedRequests: 0,
+      successfulRequests: 0,
+      incompleteRequests: 0,
+      failedRequests: 0,
+      unknownUsageRequests: 0,
+      activeGenerationCount: 0,
+      cacheEligibleRequests: 0,
+      cacheHitRequests: 0,
+      lastRequestAt: null,
+      status: 'cohort_size_invalid',
     })
   })
 
