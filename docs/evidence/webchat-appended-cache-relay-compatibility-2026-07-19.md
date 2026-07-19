@@ -36,6 +36,6 @@ PR [#87](https://github.com/greenthree/USTSACMLand/pull/87) 合并后，生产 `
 
 两次试验的共同变量是 typed 消息内的 `prompt_cache_breakpoint`，请求级 mode 不同但均失败。当前生产中转站不兼容这一请求形状；不能再把失败解释为只缺少 `prompt_cache_options.mode=explicit`。
 
-成员请求与探针使用普通 Responses `role/content` 历史消息，不发送不兼容的 `prompt_cache_breakpoint`。请求仍携带稳定 `prompt_cache_key`，第二轮保留第一轮的字节稳定消息前缀。后续流式对照发现请求级 `prompt_cache_options.mode=implicit` 与 `ttl=30m` 能让独立探针缓存键命中，但不能在验证生产缓存键对应渠道前直接推广到成员请求。
+成员请求与探针使用普通 Responses `role/content` 历史消息，不发送不兼容的 `prompt_cache_breakpoint`。请求仍携带稳定 `prompt_cache_key`，第二轮保留第一轮的字节稳定消息前缀。后续流式对照发现请求级 `prompt_cache_options.mode=implicit` 与 `ttl=30m` 能让缓存命中；生产键探针 run [`29667755656`](https://github.com/greenthree/USTSACMLand/actions/runs/29667755656) 进一步确认第一轮输入 2,335 Token、第二轮输入 2,356 Token并命中 1,792 Token。
 
-生产追加式探针已经命中，但它仍不能替代真实成员路径验收。最终 ROADMAP 条目需要真实授权成员在同一会话中发送超过 1024 Token 的长首轮并追加下一轮，在中转站日志和站内脱敏指标至少一次观察到 `cached_tokens > 0` 后才能勾选。
+`webchat` v18 随后只为直接 GPT-5.6+ 模型 ID 启用该请求级策略，并把字段纳入额度指纹和保守预留。真实授权成员的第一次新策略请求输入 7,423 Token、命中 0；同一会话第二次追加请求输入 7,451 Token、命中 6,912 Token。站内私有账本和中转站 Usage 一致，最终 ROADMAP 退出条件已满足。

@@ -52,6 +52,14 @@ Deno.test('webchat quota fingerprint includes server-owned model and prompt vers
   strictEqual(first.fingerprint === changedPrompt.fingerprint, false)
 })
 
+Deno.test('webchat quota reserves the declared cache policy bytes for GPT-5.6+', async () => {
+  const messages = [{ id: 'one', role: 'user' as const, text: 'hello' }]
+  const declared = await prepareWebChatQuota(messages, policy)
+  const legacy = await prepareWebChatQuota(messages, { ...policy, model: 'gpt-5.5' })
+
+  strictEqual(declared.reservedTokens > legacy.reservedTokens, true)
+})
+
 Deno.test('webchat quota parses only known database decisions', () => {
   deepStrictEqual(
     parseWebChatClaimResult([

@@ -1,4 +1,4 @@
-import type { WebChatMessage } from './upstream.ts'
+import { promptCacheOptions, type WebChatMessage } from './upstream.ts'
 
 export interface WebChatQuotaPolicy {
   model: string
@@ -99,12 +99,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function billableInput(messages: WebChatMessage[], policy: WebChatQuotaPolicy): string {
+  const cacheOptions = promptCacheOptions(policy.model)
   return JSON.stringify({
     model: policy.model,
     instructions: policy.systemPrompt,
     promptVersion: policy.promptVersion,
     input: messages.map(({ role, text }) => ({ role, content: text })),
     maxOutputTokens: policy.maxOutputTokens,
+    ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
     store: false,
   })
 }

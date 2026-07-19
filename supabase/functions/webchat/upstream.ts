@@ -31,6 +31,11 @@ export interface WebChatUpstreamConfig {
   fetcher?: typeof fetch
 }
 
+export interface PromptCacheOptions {
+  mode: 'implicit'
+  ttl: '30m'
+}
+
 export class WebChatUpstreamError extends Error {
   constructor(
     readonly status: number,
@@ -92,6 +97,17 @@ export function promptCacheKey(model: string, promptVersion: string): Promise<st
   return safetyIdentifier(`usts-acm-land:webchat:${model}:${promptVersion}`)
 }
 
+export function promptCacheOptions(model: string): PromptCacheOptions | null {
+  const match = model
+    .trim()
+    .toLowerCase()
+    .match(/^gpt-(\d+)\.(\d+)(?:-|$)/)
+  if (!match) return null
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  return major > 5 || (major === 5 && minor >= 6) ? { mode: 'implicit', ttl: '30m' } : null
+}
+
 export function responsesInput(messages: WebChatMessage[]): Record<string, unknown>[] {
   return messages.map(({ role, text }) => ({ role, content: text }))
 }
@@ -122,6 +138,7 @@ export async function startWebChat(
   const fetcher = config.fetcher ?? fetch
   const safetyId = await safetyIdentifier(options.userId)
   const cacheKey = await promptCacheKey(config.model, config.promptVersion)
+  const cacheOptions = promptCacheOptions(config.model)
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -188,6 +205,7 @@ export async function startWebChat(
         input: responsesInput(options.messages),
         max_output_tokens: config.maxOutputTokens,
         prompt_cache_key: cacheKey,
+        ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
         safety_identifier: safetyId,
         store: false,
         stream: true,
