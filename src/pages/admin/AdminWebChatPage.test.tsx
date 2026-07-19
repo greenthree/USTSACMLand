@@ -312,6 +312,7 @@ describe('AdminWebChatPage', () => {
         role: 'member',
         accountStatus: 'approved',
         accessEnabled: true,
+        pilotObservationEnabled: true,
         totalRequestLimit: 30,
         totalTokenLimit: 100_000,
         requestCount: 8,
@@ -328,7 +329,9 @@ describe('AdminWebChatPage', () => {
     renderPage()
 
     expect(await screen.findByText('WebChat 配置暂不可用')).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: '试运行成员' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('region', { name: 'AI 助手账号与正式试运行' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('8 / 30')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
   })

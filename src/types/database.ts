@@ -1071,6 +1071,17 @@ export type Database = {
           version: number
         }[]
       }
+      admin_get_webchat_member_policy: {
+        Args: { target_profile_id: string }
+        Returns: {
+          access_enabled: boolean
+          pilot_observation_enabled: boolean
+          total_request_limit: number
+          total_token_limit: number
+          updated_at: string
+          version: number
+        }[]
+      }
       admin_list_active_sync_jobs: {
         Args: { before_job_id?: number; row_limit?: number }
         Returns: {
@@ -1251,6 +1262,7 @@ export type Database = {
           grade: string
           last_request_at: string
           major: string
+          pilot_observation_enabled: boolean
           remaining_requests: number
           remaining_tokens: number
           reserved_tokens: number
@@ -1441,6 +1453,25 @@ export type Database = {
         }
         Returns: {
           access_enabled: boolean
+          total_request_limit: number
+          total_token_limit: number
+          updated_at: string
+          version: number
+        }[]
+      }
+      admin_update_webchat_member_policy: {
+        Args: {
+          expected_version: number
+          reason: string
+          requested_access_enabled: boolean
+          requested_pilot_observation_enabled: boolean
+          requested_total_request_limit: number
+          requested_total_token_limit: number
+          target_profile_id: string
+        }
+        Returns: {
+          access_enabled: boolean
+          pilot_observation_enabled: boolean
           total_request_limit: number
           total_token_limit: number
           updated_at: string

@@ -26,6 +26,7 @@ const members = [
     role: 'member' as const,
     accountStatus: 'approved' as const,
     accessEnabled: true,
+    pilotObservationEnabled: true,
     totalRequestLimit: 20,
     totalTokenLimit: 80_000,
     requestCount: 6,
@@ -46,6 +47,7 @@ const members = [
     role: 'admin' as const,
     accountStatus: 'suspended' as const,
     accessEnabled: false,
+    pilotObservationEnabled: false,
     totalRequestLimit: 10,
     totalTokenLimit: 20_000,
     requestCount: 0,
@@ -101,7 +103,7 @@ describe('AdminWebChatPilotPanel', () => {
   it('summarizes configured pilot accounts and shows bounded per-member usage', async () => {
     renderPanel()
 
-    const region = await screen.findByRole('region', { name: '试运行成员' })
+    const region = await screen.findByRole('region', { name: 'AI 助手账号与正式试运行' })
     const summary = await within(region).findByLabelText('试运行摘要')
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
     expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
@@ -120,6 +122,8 @@ describe('AdminWebChatPilotPanel', () => {
     expect(within(region).getByText('6 / 20')).toBeInTheDocument()
     expect(within(region).getByText(/已结算 12,000 · 预留 3,000 · 剩余 65,000/)).toBeInTheDocument()
     expect(within(region).getByText(/账号已停用/)).toBeInTheDocument()
+    expect(within(region).getByText('正式观察')).toBeInTheDocument()
+    expect(within(region).getByText('未纳入观察')).toBeInTheDocument()
     expect(within(region).getAllByRole('link', { name: '查看详情' })[0]).toHaveAttribute(
       'href',
       `/admin/members/${members[0].id}`,
@@ -160,7 +164,7 @@ describe('AdminWebChatPilotPanel', () => {
     pilotPanelMocks.fetchMembers.mockResolvedValue([])
     renderPanel()
 
-    expect(await screen.findByText('尚未配置试运行成员')).toBeInTheDocument()
-    expect(screen.getByText(/3–5 名成员/)).toBeInTheDocument()
+    expect(await screen.findByText('尚未配置 AI 助手账号')).toBeInTheDocument()
+    expect(screen.getByText(/选择 3–5 人/)).toBeInTheDocument()
   })
 })

@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 
 export interface WebChatMemberAccess {
   enabled: boolean
+  pilotObservationEnabled: boolean
   totalRequestLimit: number
   totalTokenLimit: number
   version: number
@@ -28,6 +29,7 @@ export interface WebChatMemberUsage {
 export interface UpdateWebChatMemberAccessInput {
   memberId: string
   enabled: boolean
+  pilotObservationEnabled: boolean
   totalRequestLimit: number
   totalTokenLimit: number
   expectedVersion: number
@@ -36,6 +38,7 @@ export interface UpdateWebChatMemberAccessInput {
 
 interface WebChatMemberAccessRow {
   access_enabled: unknown
+  pilot_observation_enabled: unknown
   total_request_limit: unknown
   total_token_limit: unknown
   version: unknown
@@ -63,6 +66,7 @@ export class WebChatMemberAccessConflictError extends Error {
 
 const demoAccess: WebChatMemberAccess = {
   enabled: true,
+  pilotObservationEnabled: true,
   totalRequestLimit: 300,
   totalTokenLimit: 1_000_000,
   version: 1,
@@ -101,12 +105,17 @@ function timestamp(value: unknown, label: string, nullable = false): string | nu
 
 export function mapWebChatMemberAccess(value: unknown): WebChatMemberAccess {
   const row = singleRow(value, '成员 AI 助手配置') as unknown as WebChatMemberAccessRow
-  if (typeof row.access_enabled !== 'boolean') {
+  if (
+    typeof row.access_enabled !== 'boolean' ||
+    typeof row.pilot_observation_enabled !== 'boolean' ||
+    (row.pilot_observation_enabled && !row.access_enabled)
+  ) {
     throw new Error('成员 AI 助手配置返回了无效数据。')
   }
 
   return {
     enabled: row.access_enabled,
+    pilotObservationEnabled: row.pilot_observation_enabled,
     totalRequestLimit: integer(row.total_request_limit, '成员累计请求总上限', 1),
     totalTokenLimit: integer(row.total_token_limit, '成员累计 Token 总上限', 100),
     version: integer(row.version, '成员 AI 助手配置版本'),
@@ -157,7 +166,7 @@ export async function fetchAdminWebChatMemberAccess(
 ): Promise<WebChatMemberAccess> {
   if (!supabase) return { ...demoAccess }
 
-  const { data, error } = await supabase.rpc('admin_get_webchat_member_access', {
+  const { data, error } = await supabase.rpc('admin_get_webchat_member_policy', {
     target_profile_id: memberId,
   })
   if (error) throw adminRpcError('成员 AI 助手配置读取失败', error)
@@ -170,6 +179,7 @@ export async function updateAdminWebChatMemberAccess(
   if (!supabase) {
     return {
       enabled: input.enabled,
+      pilotObservationEnabled: input.pilotObservationEnabled,
       totalRequestLimit: input.totalRequestLimit,
       totalTokenLimit: input.totalTokenLimit,
       version: input.expectedVersion + 1,
@@ -177,9 +187,10 @@ export async function updateAdminWebChatMemberAccess(
     }
   }
 
-  const { data, error } = await supabase.rpc('admin_update_webchat_member_access', {
+  const { data, error } = await supabase.rpc('admin_update_webchat_member_policy', {
     target_profile_id: input.memberId,
     requested_access_enabled: input.enabled,
+    requested_pilot_observation_enabled: input.pilotObservationEnabled,
     requested_total_request_limit: input.totalRequestLimit,
     requested_total_token_limit: input.totalTokenLimit,
     expected_version: input.expectedVersion,

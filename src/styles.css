@@ -3139,6 +3139,13 @@ fieldset.form-section {
   display: inline-flex;
 }
 
+.webchat-pilot-status-stack {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .webchat-daily-usage {
   margin: 0 0 26px;
   padding: 22px 0;
