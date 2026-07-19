@@ -29,7 +29,7 @@ begin
       'lastSignInAt', account.last_sign_in_at,
       'createdAt', account.created_at,
       'updatedAt', account.updated_at,
-      'userMetadata', pg_catalog.coalesce(account.raw_user_meta_data, '{}'::jsonb)
+      'userMetadata', coalesce(account.raw_user_meta_data, '{}'::jsonb)
     ),
     'profile', pg_catalog.jsonb_build_object(
       'fullName', profile.full_name,
@@ -46,7 +46,7 @@ begin
       'updatedAt', profile.updated_at
     ),
     'platformAccounts', (
-      select pg_catalog.coalesce(
+      select coalesce(
         pg_catalog.jsonb_agg(
           pg_catalog.jsonb_build_object(
             'platform', platform_account.platform,
@@ -65,7 +65,7 @@ begin
       where platform_account.profile_id = actor_id
     ),
     'platformStats', (
-      select pg_catalog.coalesce(
+      select coalesce(
         pg_catalog.jsonb_agg(
           pg_catalog.jsonb_build_object(
             'platform', stat.platform,
@@ -89,7 +89,7 @@ begin
       where stat.profile_id = actor_id
     ),
     'statSnapshots', (
-      select pg_catalog.coalesce(
+      select coalesce(
         pg_catalog.jsonb_agg(
           pg_catalog.jsonb_build_object(
             'id', snapshot.id,
@@ -109,7 +109,7 @@ begin
       where snapshot.profile_id = actor_id
     ),
     'syncHistory', (
-      select pg_catalog.coalesce(
+      select coalesce(
         pg_catalog.jsonb_agg(
           pg_catalog.jsonb_build_object(
             'id', job.id,
@@ -127,7 +127,7 @@ begin
             'createdAt', job.created_at,
             'updatedAt', job.updated_at,
             'runs', (
-              select pg_catalog.coalesce(
+              select coalesce(
                 pg_catalog.jsonb_agg(
                   pg_catalog.jsonb_build_object(
                     'id', run.id,
@@ -158,7 +158,7 @@ begin
     ),
     'dailyProblem', pg_catalog.jsonb_build_object(
       'completions', (
-        select pg_catalog.coalesce(
+        select coalesce(
           pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'problemId', problem.id,
@@ -179,7 +179,7 @@ begin
         where completion.profile_id = actor_id
       ),
       'comments', (
-        select pg_catalog.coalesce(
+        select coalesce(
           pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'id', comment.id,
@@ -214,7 +214,7 @@ begin
         where access.user_id = actor_id
       ),
       'dailyUsage', (
-        select pg_catalog.coalesce(
+        select coalesce(
           pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'usageDate', usage.usage_date,
@@ -233,7 +233,7 @@ begin
         where usage.user_id = actor_id
       ),
       'requests', (
-        select pg_catalog.coalesce(
+        select coalesce(
           pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'requestId', request.request_id,
@@ -260,7 +260,7 @@ begin
         where request.user_id = actor_id
       ),
       'conversations', (
-        select pg_catalog.coalesce(
+        select coalesce(
           pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'id', conversation.id,
@@ -273,7 +273,7 @@ begin
               'updatedAt', conversation.updated_at,
               'lastMessageAt', conversation.last_message_at,
               'messages', (
-                select pg_catalog.coalesce(
+                select coalesce(
                   pg_catalog.jsonb_agg(
                     pg_catalog.jsonb_build_object(
                       'id', message.id,
