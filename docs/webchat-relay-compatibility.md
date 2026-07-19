@@ -122,6 +122,6 @@ WEBCHAT_RELAY_REPORT_PATH=artifacts/webchat-relay-compatibility.json
 
 - 真实中转站的非流式、Responses typed SSE、Usage、Abort、模型标识和系统提示词均已完成受控生产验收。
 - 中转站 Base URL、模型和全站预算由私有数据库配置保存，Key 位于 Supabase Vault；浏览器与配置读取接口均不能读取明文 Key。
-- `webchat` v18、`webchat-cache-probe` v10、`CHAT_ENABLED=true` 与数据库请求开关已对显式授权账号启用；真实成员追加请求已命中 6,912 个缓存输入 Token。
+- `webchat` v18、`webchat-cache-probe` v11、`CHAT_ENABLED=true` 与数据库请求开关已对显式授权账号启用；真实成员追加请求曾命中 6,912 个缓存输入 Token，后续中转站渠道差异诊断见 `docs/evidence/webchat-cache-route-diagnostics-2026-07-19.md`。
 - GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` 已随 Pages run `29594758865` attempt 2 发布；未登录直达 `/assistant` 仍进入登录页，只有登录且经后台授权的账号能获得模型调用。
 - 仍需扩展到 3–5 名正式试运行成员并完成连续观察；出现协议、额度、隐私或稳定性问题时按上文顺序关闭三层开关。

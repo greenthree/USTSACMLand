@@ -268,7 +268,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-19 共有 53 个 production migration，`sync-member` 为 v41，`sync-stats` 为 v29，`firecrawl-config` 为 v1，`webchat` 为 v18，`webchat-cache-probe` 为 v10。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-19 共有 55 个 production migration，`sync-member` 为 v41，`sync-stats` 为 v29，`firecrawl-config` 为 v1，`webchat` 为 v18，`webchat-cache-probe` 为 v11。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
