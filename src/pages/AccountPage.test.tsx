@@ -14,11 +14,23 @@ const accountMocks = vi.hoisted(() => ({
   profileUpdateEq: vi.fn(),
 }))
 
+const personalExportMocks = vi.hoisted(() => ({
+  buildDemo: vi.fn(),
+  download: vi.fn(),
+  fetch: vi.fn(),
+}))
+
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: accountMocks.from,
     functions: { invoke: accountMocks.invoke },
   },
+}))
+
+vi.mock('../lib/personalDataExport', () => ({
+  buildDemoPersonalDataExport: personalExportMocks.buildDemo,
+  downloadPersonalDataExport: personalExportMocks.download,
+  fetchOwnPersonalDataExport: personalExportMocks.fetch,
 }))
 
 import { AccountPage } from './AccountPage'
@@ -77,6 +89,9 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     accountMocks.profileSingle.mockReset()
     accountMocks.profileUpdate.mockReset()
     accountMocks.profileUpdateEq.mockReset()
+    personalExportMocks.buildDemo.mockReset()
+    personalExportMocks.download.mockReset()
+    personalExportMocks.fetch.mockReset()
 
     accountMocks.profileSingle.mockResolvedValue({
       data: {
@@ -93,6 +108,10 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     accountMocks.accountsUpsert.mockResolvedValue({ error: null })
     accountMocks.accountsDeleteIn.mockResolvedValue({ error: null })
     accountMocks.invoke.mockResolvedValue({ error: null })
+    personalExportMocks.fetch.mockResolvedValue({ schemaVersion: 1 })
+    personalExportMocks.download.mockReturnValue(
+      'usts-acm-land-personal-data_2026-07-19_05-06-07-890Z.json',
+    )
 
     accountMocks.from.mockImplementation((table: string) => {
       if (table === 'profiles') {
@@ -380,5 +399,31 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     expect(await screen.findByText(/管理员账号不能自助注销/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '注销账号' })).not.toBeInTheDocument()
+  })
+
+  it('downloads the authenticated member own-data export', async () => {
+    const user = userEvent.setup()
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.click(screen.getByRole('button', { name: '导出我的数据' }))
+
+    await waitFor(() => expect(personalExportMocks.fetch).toHaveBeenCalledTimes(1))
+    expect(personalExportMocks.download).toHaveBeenCalledWith({ schemaVersion: 1 })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '数据已导出为 usts-acm-land-personal-data_2026-07-19_05-06-07-890Z.json。',
+    )
+  })
+
+  it('shows a bounded export error without starting a download', async () => {
+    const user = userEvent.setup()
+    personalExportMocks.fetch.mockRejectedValueOnce(new Error('个人数据导出失败，请稍后重试。'))
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.click(screen.getByRole('button', { name: '导出我的数据' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('个人数据导出失败，请稍后重试。')
+    expect(personalExportMocks.download).not.toHaveBeenCalled()
   })
 })

@@ -24,4 +24,15 @@ describe('PrivacyPage', () => {
     expect(publicSection).toHaveTextContent('邮箱、QQ、密码、登录令牌')
     expect(publicSection).toHaveTextContent('不进入公开榜单')
   })
+
+  it('documents the target-free personal data export boundary', () => {
+    render(<PrivacyPage />)
+
+    const section = screen.getByRole('heading', { name: '导出个人数据' }).closest('section')
+    expect(section).toHaveTextContent('版本化 JSON')
+    expect(section).toHaveTextContent('本人私有的 AI 会话、消息、授权限额和聚合用量')
+    expect(section).toHaveTextContent('不接受目标成员 ID')
+    expect(section).toHaveTextContent('管理员使用该入口时同样只能导出自己')
+    expect(section).toHaveTextContent('本站不会另存一份导出副本')
+  })
 })

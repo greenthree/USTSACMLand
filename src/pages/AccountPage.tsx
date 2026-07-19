@@ -2,6 +2,7 @@ import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Save from 'lucide-react/dist/esm/icons/save'
 import KeyRound from 'lucide-react/dist/esm/icons/key-round'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
+import Download from 'lucide-react/dist/esm/icons/download'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
@@ -25,6 +26,11 @@ import {
   validatePlatformAccounts,
 } from '../lib/platformAccounts'
 import { gradeOptions, majorSuggestions, normalizeGrade } from '../lib/profileFields'
+import {
+  buildDemoPersonalDataExport,
+  downloadPersonalDataExport,
+  fetchOwnPersonalDataExport,
+} from '../lib/personalDataExport'
 import { supabase } from '../lib/supabase'
 import { platforms, type AccountVerificationStatus, type Platform } from '../types/domain'
 
@@ -189,6 +195,9 @@ export function AccountPage() {
   const [deletionConfirmed, setDeletionConfirmed] = useState(false)
   const [deletionNotice, setDeletionNotice] = useState('')
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const [exportingData, setExportingData] = useState(false)
+  const [exportNotice, setExportNotice] = useState('')
+  const [exportNoticeKind, setExportNoticeKind] = useState<'success' | 'error'>('success')
   const [draftReady, setDraftReady] = useState(false)
   const baselineValuesRef = useRef<AccountFormValues | null>(null)
 
@@ -537,6 +546,35 @@ export function AccountPage() {
     }
   }
 
+  async function handleDataExport() {
+    if (!userId || !user) return
+
+    setExportingData(true)
+    setExportNotice('')
+    try {
+      const exportedData = isDemo
+        ? buildDemoPersonalDataExport({
+            userId,
+            email: user.email,
+            fullName: name,
+            qq,
+            grade,
+            major,
+            role: user.role,
+            accounts,
+          })
+        : await fetchOwnPersonalDataExport()
+      const filename = downloadPersonalDataExport(exportedData)
+      setExportNoticeKind('success')
+      setExportNotice(`数据已导出为 ${filename}。`)
+    } catch (error) {
+      setExportNoticeKind('error')
+      setExportNotice(error instanceof Error ? error.message : '个人数据导出失败，请稍后重试。')
+    } finally {
+      setExportingData(false)
+    }
+  }
+
   return (
     <div className="page account-page">
       <section className="page-heading account-heading">
@@ -753,6 +791,43 @@ export function AccountPage() {
           </button>
         </div>
       </form>
+
+      <section className="account-form account-data-export" aria-labelledby="data-export-title">
+        <div className="form-section">
+          <div className="section-title-row">
+            <div>
+              <h2 id="data-export-title">导出个人数据</h2>
+              <p>
+                下载版本化 JSON
+                文件，包含已保存的账号资料、平台绑定与统计、同步记录、每日一题记录，以及本人私有的
+                AI 对话和用量。
+              </p>
+            </div>
+          </div>
+          <p className="account-data-export-note">
+            文件不会包含密码、登录令牌、服务密钥、管理员身份信息或其他成员数据。
+          </p>
+          {exportNotice ? (
+            <p
+              className={`form-${exportNoticeKind} account-export-notice`}
+              role={exportNoticeKind === 'error' ? 'alert' : 'status'}
+            >
+              {exportNotice}
+            </p>
+          ) : null}
+          <div className="form-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={exportingData || loadingProfile || !userId}
+              onClick={() => void handleDataExport()}
+            >
+              <Download size={17} aria-hidden="true" />
+              {exportingData ? '正在整理数据' : '导出我的数据'}
+            </button>
+          </div>
+        </div>
+      </section>
 
       <form className="account-form account-security-form" onSubmit={handlePasswordChange}>
         <fieldset className="form-section" disabled={changingPassword}>

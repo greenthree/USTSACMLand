@@ -49,6 +49,7 @@ const requiredReleaseMigrations = [
   '202607180006_webchat_cache_probe_accounting.sql',
   '202607190001_webchat_real_request_cache_accounting.sql',
   '202607190002_firecrawl_multi_key_admin.sql',
+  '202607190005_personal_data_export.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -136,6 +137,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'list_firecrawl_runtime_keys',
     'read_firecrawl_runtime_key',
     'record_firecrawl_key_observation',
+    'export_own_data',
   ]) {
     requireMatch(
       databaseTypes,

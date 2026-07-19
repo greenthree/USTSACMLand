@@ -1854,6 +1854,7 @@ export type Database = {
         Args: { expected_updated_at: string; target_comment_id: number }
         Returns: boolean
       }
+      export_own_data: { Args: never; Returns: Json }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']

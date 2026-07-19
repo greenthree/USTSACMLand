@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 interface AxeViolationSummary {
   id: string
@@ -41,6 +41,18 @@ for (const route of [
     assertNoViolations(route, results.violations)
   })
 }
+
+test('/account passes the authenticated member axe gate', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
+  })
+  await page.goto('/account')
+  await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
+  await page.locator('main#main-content').waitFor({ state: 'visible' })
+  await page.waitForLoadState('networkidle')
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  assertNoViolations('/account', results.violations)
+})
 
 for (const route of [
   '/admin/accounts',
