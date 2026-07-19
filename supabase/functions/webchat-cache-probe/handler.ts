@@ -40,7 +40,8 @@ export interface CacheProbeHandlerDependencies {
   serviceRoleKey: string
   leaseSeconds: number
   timeoutMs: number
-  reservationTokens(model: string): Promise<number>
+  promptVersion: string
+  reservationTokens(model: string, promptVersion: string): Promise<number>
   createServices(): CacheProbeServices
 }
 
@@ -169,7 +170,10 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
         )
       }
 
-      const reservedTokens = await dependencies.reservationTokens(runtimeConfig.model)
+      const reservedTokens = await dependencies.reservationTokens(
+        runtimeConfig.model,
+        dependencies.promptVersion,
+      )
       const probeId = crypto.randomUUID()
       const ownerToken = crypto.randomUUID()
       const claim = await services.claim({
@@ -191,7 +195,10 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
           baseUrl: runtimeConfig.baseUrl,
           apiKey: runtimeConfig.apiKey,
           model: runtimeConfig.model,
+          promptVersion: dependencies.promptVersion,
           timeoutMs: dependencies.timeoutMs,
+          stream: true,
+          cachePolicy: 'declared_implicit',
         })
         if (result.aggregateUsage.totalTokens > reservedTokens) {
           throw new CacheProbeError(

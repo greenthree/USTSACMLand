@@ -2,6 +2,7 @@
 import { deepStrictEqual, match, strictEqual } from 'node:assert/strict'
 import {
   promptCacheKey,
+  promptCacheOptions,
   responsesInput,
   safetyIdentifier,
   startWebChat,
@@ -57,6 +58,17 @@ Deno.test('webchat derives a stable model and prompt-version cache routing key',
   strictEqual(first === changed, false)
 })
 
+Deno.test(
+  'webchat declares request-level implicit caching only for direct GPT-5.6+ model IDs',
+  () => {
+    deepStrictEqual(promptCacheOptions('gpt-5.6-sol'), { mode: 'implicit', ttl: '30m' })
+    deepStrictEqual(promptCacheOptions('gpt-5.10'), { mode: 'implicit', ttl: '30m' })
+    strictEqual(promptCacheOptions('gpt-5.5'), null)
+    strictEqual(promptCacheOptions('openai/gpt-5.6'), null)
+    strictEqual(promptCacheOptions('relay-custom-model'), null)
+  },
+)
+
 Deno.test('webchat preserves a byte-stable plain-message prefix across turns', () => {
   deepStrictEqual(
     responsesInput([
@@ -103,7 +115,7 @@ Deno.test(
     strictEqual(requestBody.store, false)
     strictEqual(requestBody.stream, true)
     match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
-    strictEqual('prompt_cache_options' in requestBody, false)
+    deepStrictEqual(requestBody.prompt_cache_options, { mode: 'implicit', ttl: '30m' })
     match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
     strictEqual('tools' in requestBody, false)
     strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
