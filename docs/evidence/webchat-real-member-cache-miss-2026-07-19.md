@@ -33,11 +33,13 @@
 
 OpenAI 官方文档说明，超过 1,024 Token 的 Responses 请求可使用 Prompt Caching，`stream: true` 只改变响应交付方式，不会关闭 `prompt_cache_key` 或 `prompt_cache_options`。GPT-5.6 默认使用隐式缓存断点，也允许显式声明请求级 `prompt_cache_options.mode = "implicit"`。因此下一次生产实验会保持流式请求不变，只增加请求级隐式模式和 `30m` TTL；真实成员请求在探针成功前不改动。
 
-若当前中转站基于 New API，公开 issue [#3389](https://github.com/QuantumNous/new-api/issues/3389) 和 [#6167](https://github.com/QuantumNous/new-api/issues/6167) 提供了相近现象：维护者建议检查请求头/请求体透传和渠道粘性，另有受控实验显示“自定义渠道 + 透传”可以避免中间层改写破坏上游缓存。本站尚未据此假定具体中转站实现，只有在显式隐式策略仍失败时才转向中转站后台配置。
+对已配置 Base URL 的公开 `/api/status` 和前端静态资源做了不含地址与凭据的只读识别：当前中转站属于 New API 系定制构建，站点标识为 `XCPCAI`，公开版本为无法映射到 New API 官方仓库提交的短哈希。其前端资源包含“渠道粘性”“透传请求体”和 `codex cli trace` 模板入口，说明后台具备相关配置能力；仅凭公开资源无法确认这些开关当前是否已启用，也不能确认一次实验中的两轮是否被固定到同一上游渠道。
+
+New API 公开 issue [#3389](https://github.com/QuantumNous/new-api/issues/3389)、[#6129](https://github.com/QuantumNous/new-api/issues/6129) 和 [#6167](https://github.com/QuantumNous/new-api/issues/6167) 提供了相近现象：维护者建议检查请求头/请求体透传和渠道粘性；另有受控实验显示“自定义渠道 + 透传”可以避免中间层改写破坏上游缓存，Azure 部分区域也曾出现 GPT-5.6 缓存不可用。因此当前证据证明“流式 run 未命中”，但在取得中转站渠道 ID 或确认粘性配置前，不能把根因进一步武断限定为 `stream` 字段本身。
 
 ## 下一轮排查顺序
 
 1. 运行“流式 + 请求级 `prompt_cache_options.mode = implicit` + `ttl = 30m`”的单次两请求探针，不自动重试。
 2. 如果显式声明隐式模式能够命中，将相同请求级选项加入真实 WebChat 并做回归与成员验收。
-3. 如果仍为 HTTP 400 或缓存 0，保持网站流式体验，转向中转站渠道类型、请求体透传模板、请求头透传和渠道粘性配置，不改成非流式伪流。
+3. 如果仍为 HTTP 400 或缓存 0，保持网站流式体验，在中转站后台确认渠道粘性已启用、`codex cli trace` 以 `prompt_cache_key` 为键、同一键不跨不兼容上游，并为目标渠道开启请求体透传；必要时改用稳定支持 GPT-5.6 流式缓存的渠道，不改成非流式伪流。
 4. 修复后重新执行一次真实授权成员的长首轮与追加第二轮；只有中转站日志和站内脱敏指标都出现 `cached_tokens > 0`，才勾选 ROADMAP 的真实成员缓存任务。
