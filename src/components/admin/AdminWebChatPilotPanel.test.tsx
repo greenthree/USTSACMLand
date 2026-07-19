@@ -102,14 +102,14 @@ describe('AdminWebChatPilotPanel', () => {
     renderPanel()
 
     const region = await screen.findByRole('region', { name: '试运行成员' })
-    const summary = within(region).getByLabelText('试运行摘要')
+    const summary = await within(region).findByLabelText('试运行摘要')
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
     expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
     expect(within(summary).getByText('累计占用 Token').nextSibling).toHaveTextContent('15,000')
-    const cacheSummary = within(region).getByLabelText('输入缓存摘要')
+    const cacheSummary = await within(region).findByLabelText('输入缓存摘要')
     expect(within(cacheSummary).getByText('命中请求').nextSibling).toHaveTextContent('7 / 10')
     expect(within(cacheSummary).getByText('输入缓存率').nextSibling).toHaveTextContent('60.0%')
-    const observationSummary = within(region).getByLabelText('连续观察摘要')
+    const observationSummary = await within(region).findByLabelText('连续观察摘要')
     expect(within(observationSummary).getByText('正式名单').nextSibling).toHaveTextContent(
       '4 / 建议 3–5',
     )

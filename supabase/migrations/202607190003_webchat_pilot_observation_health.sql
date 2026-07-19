@@ -101,7 +101,7 @@ begin
       cohort_summary.cohort_started_at,
       greatest(
         pg_catalog.floor(
-          pg_catalog.extract(epoch from (clock.checked_at - cohort_summary.cohort_started_at))
+          extract(epoch from (clock.checked_at - cohort_summary.cohort_started_at))
             / 3600
         ),
         0
