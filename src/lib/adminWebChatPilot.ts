@@ -12,6 +12,7 @@ export interface AdminWebChatPilotMember {
   role: WebChatPilotRole
   accountStatus: WebChatPilotAccountStatus
   accessEnabled: boolean
+  pilotObservationEnabled: boolean
   totalRequestLimit: number
   totalTokenLimit: number
   requestCount: number
@@ -68,6 +69,7 @@ interface AdminWebChatPilotMemberRow {
   role: string
   review_status: string
   access_enabled: boolean
+  pilot_observation_enabled: boolean
   total_request_limit: number | string
   total_token_limit: number | string
   used_requests: number | string
@@ -110,13 +112,14 @@ interface AdminWebChatPilotObservationRow {
 
 const demoMembers: AdminWebChatPilotMember[] = [
   {
-    id: '00000000-0000-4000-8000-000000000101',
+    id: 'member-1',
     name: '试运行成员',
     grade: '24级',
     major: '计算机科学与技术',
     role: 'member',
     accountStatus: 'approved',
     accessEnabled: true,
+    pilotObservationEnabled: true,
     totalRequestLimit: 300,
     totalTokenLimit: 1_000_000,
     requestCount: 8,
@@ -180,6 +183,8 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
   if (
     !uuidPattern.test(row.user_id) ||
     typeof row.access_enabled !== 'boolean' ||
+    typeof row.pilot_observation_enabled !== 'boolean' ||
+    (row.pilot_observation_enabled && !row.access_enabled) ||
     !['member', 'admin'].includes(row.role) ||
     !['approved', 'suspended'].includes(row.review_status)
   ) {
@@ -215,6 +220,7 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
     role: row.role as WebChatPilotRole,
     accountStatus: row.review_status as WebChatPilotAccountStatus,
     accessEnabled: row.access_enabled,
+    pilotObservationEnabled: row.pilot_observation_enabled,
     totalRequestLimit,
     totalTokenLimit,
     requestCount,

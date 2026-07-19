@@ -94,6 +94,7 @@ set
 insert into private.webchat_member_access (
   user_id,
   access_enabled,
+  pilot_observation_enabled,
   total_request_limit,
   total_token_limit,
   version,
@@ -102,22 +103,22 @@ insert into private.webchat_member_access (
 values
   (
     '00000000-0000-0000-0000-000000002701',
-    true, 10, 5000, 2,
+    true, true, 10, 5000, 2,
     '00000000-0000-0000-0000-000000002704'
   ),
   (
     '00000000-0000-0000-0000-000000002702',
-    false, 7, 3000, 3,
+    false, false, 7, 3000, 3,
     '00000000-0000-0000-0000-000000002704'
   ),
   (
     '00000000-0000-0000-0000-000000002704',
-    true, 5, 2000, 4,
+    true, true, 5, 2000, 4,
     '00000000-0000-0000-0000-000000002704'
   ),
   (
     '00000000-0000-0000-0000-000000002705',
-    true, 4, 1500, 5,
+    true, true, 4, 1500, 5,
     '00000000-0000-0000-0000-000000002704'
   );
 
@@ -316,7 +317,8 @@ select set_eq(
   $$,
   $$ values
     ('user_id'), ('full_name'), ('grade'), ('major'), ('role'), ('review_status'),
-    ('access_enabled'), ('total_request_limit'), ('total_token_limit'),
+    ('access_enabled'), ('pilot_observation_enabled'),
+    ('total_request_limit'), ('total_token_limit'),
     ('used_requests'), ('used_tokens'), ('reserved_tokens'), ('remaining_requests'),
     ('remaining_tokens'), ('today_usage_date'), ('today_request_count'),
     ('today_settled_tokens'), ('today_reserved_tokens'), ('active_request_count'),
@@ -344,6 +346,7 @@ select ok(
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002702'
       and not access_enabled
+      and not pilot_observation_enabled
       and total_request_limit = 7
       and total_token_limit = 3000
   ),
@@ -432,6 +435,7 @@ select ok(
       and role = 'admin'
       and review_status = 'suspended'
       and access_enabled
+      and pilot_observation_enabled
   ),
   'the roster preserves configured suspended-account state for administrator cleanup'
 );

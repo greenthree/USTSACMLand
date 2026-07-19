@@ -97,7 +97,9 @@ export function verifyDatabaseTypes(databaseTypes) {
     'release_webchat_cache_probe',
     'purge_webchat_cache_probe_runs',
     'admin_get_webchat_member_access',
+    'admin_get_webchat_member_policy',
     'admin_update_webchat_member_access',
+    'admin_update_webchat_member_policy',
     'admin_list_webchat_pilot_members',
     'admin_read_webchat_cache_summary',
     'read_webchat_member_runtime_access',
@@ -151,6 +153,8 @@ export function verifyDatabaseTypes(databaseTypes) {
     'total_token_limit',
     'used_requests',
     'used_tokens',
+    'pilot_observation_enabled',
+    'requested_pilot_observation_enabled',
   ]) {
     requireMatch(
       databaseTypes,

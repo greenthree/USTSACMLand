@@ -123,8 +123,8 @@ export function AdminWebChatPilotPanel() {
     >
       <header className="webchat-pilot-heading">
         <div>
-          <h2 id="webchat-pilot-title">试运行成员</h2>
-          <p>仅汇总已显式配置 AI 权限账号的累计额度与活动状态，不读取对话内容。</p>
+          <h2 id="webchat-pilot-title">AI 助手账号与正式试运行</h2>
+          <p>AI 使用权限与 3–5 人正式观察名单相互独立；这里只显示额度和脱敏活动状态。</p>
         </div>
         <button
           className="secondary-button"
@@ -301,15 +301,15 @@ export function AdminWebChatPilotPanel() {
 
       {!loading && !error && members.length === 0 ? (
         <EmptyState
-          title="尚未配置试运行成员"
-          description="请先进入成员详情，为 3–5 名成员显式开启 AI 助手权限并设置额度。"
+          title="尚未配置 AI 助手账号"
+          description="请先进入成员详情开放 AI 助手权限，再从获权账号中选择 3–5 人纳入正式观察。"
         />
       ) : null}
 
       {members.length > 0 ? (
         <div className="compact-table-wrap admin-table-wrap webchat-pilot-table-wrap">
           <table className="compact-table admin-members-table webchat-pilot-table">
-            <caption className="sr-only">WebChat 试运行成员累计用量</caption>
+            <caption className="sr-only">WebChat 已配置账号累计用量与正式试运行状态</caption>
             <thead>
               <tr>
                 <th scope="col">成员</th>
@@ -334,11 +334,18 @@ export function AdminWebChatPilotPanel() {
                     <small>{member.major ?? '未填写专业'}</small>
                   </td>
                   <td data-label="权限与状态">
-                    <span
-                      className={`status ${member.accessEnabled ? 'status-fresh' : 'status-missing'}`}
-                    >
-                      {member.accessEnabled ? '已授权' : '已关闭'}
-                    </span>
+                    <div className="webchat-pilot-status-stack">
+                      <span
+                        className={`status ${member.accessEnabled ? 'status-fresh' : 'status-missing'}`}
+                      >
+                        {member.accessEnabled ? '已授权' : '已关闭'}
+                      </span>
+                      <span
+                        className={`status ${member.pilotObservationEnabled ? 'status-stale' : 'status-missing'}`}
+                      >
+                        {member.pilotObservationEnabled ? '正式观察' : '未纳入观察'}
+                      </span>
+                    </div>
                     <small>
                       {member.accountStatus === 'approved' ? '账号正常' : '账号已停用'} · v
                       {member.version}

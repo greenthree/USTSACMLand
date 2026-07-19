@@ -128,36 +128,34 @@ where id in (
 );
 
 insert into private.webchat_member_access (
-  user_id, access_enabled, total_request_limit, total_token_limit, version, updated_by
+  user_id, access_enabled, pilot_observation_enabled,
+  total_request_limit, total_token_limit, version, updated_by
 )
 values
   (
-    '00000000-0000-0000-0000-000000003401', true, 100, 100000, 1,
+    '00000000-0000-0000-0000-000000003401', true, true, 100, 100000, 1,
     '00000000-0000-0000-0000-000000003406'
   ),
   (
-    '00000000-0000-0000-0000-000000003402', true, 100, 100000, 1,
+    '00000000-0000-0000-0000-000000003402', true, true, 100, 100000, 1,
     '00000000-0000-0000-0000-000000003406'
   ),
   (
-    '00000000-0000-0000-0000-000000003403', false, 100, 100000, 1,
+    '00000000-0000-0000-0000-000000003403', true, false, 100, 100000, 1,
     '00000000-0000-0000-0000-000000003406'
   ),
   (
-    '00000000-0000-0000-0000-000000003404', false, 100, 100000, 1,
+    '00000000-0000-0000-0000-000000003404', true, false, 100, 100000, 1,
     '00000000-0000-0000-0000-000000003406'
   ),
   (
-    '00000000-0000-0000-0000-000000003405', false, 100, 100000, 1,
+    '00000000-0000-0000-0000-000000003405', false, false, 100, 100000, 1,
     '00000000-0000-0000-0000-000000003406'
   );
 
-update private.webchat_member_access
-set updated_at = pg_catalog.statement_timestamp() - interval '8 days'
-where user_id in (
-  '00000000-0000-0000-0000-000000003401',
-  '00000000-0000-0000-0000-000000003402'
-);
+update private.webchat_pilot_observation_state
+set roster_changed_at = pg_catalog.statement_timestamp() - interval '8 days'
+where singleton;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003406', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -184,13 +182,15 @@ select ok(
 );
 
 update private.webchat_member_access
-set
-  access_enabled = true,
-  updated_at = pg_catalog.statement_timestamp() - interval '8 days'
+set pilot_observation_enabled = true
 where user_id in (
   '00000000-0000-0000-0000-000000003403',
   '00000000-0000-0000-0000-000000003404'
 );
+
+update private.webchat_pilot_observation_state
+set roster_changed_at = pg_catalog.statement_timestamp() - interval '8 days'
+where singleton;
 
 insert into private.webchat_requests (
   user_id, request_id, request_fingerprint, owner_token, status, quota_date,
@@ -266,13 +266,11 @@ select is(
 select is(
   (select cohort_started_at from ready_observation),
   (
-    select max(access.updated_at)
-    from private.webchat_member_access as access
-    join public.profiles as profile on profile.id = access.user_id
-    where access.access_enabled
-      and profile.review_status = 'approved'::public.profile_review_status
+    select state.roster_changed_at
+    from private.webchat_pilot_observation_state as state
+    where state.singleton
   ),
-  'the observation clock starts at the latest enabled cohort access change'
+  'the observation clock uses the dedicated formal-roster state'
 );
 
 select ok(
@@ -357,7 +355,7 @@ select ok(
 delete from private.webchat_requests where request_id = 'pilot-health-active';
 
 update private.webchat_member_access
-set updated_at = pg_catalog.statement_timestamp() - interval '2 hours'
+set total_request_limit = total_request_limit + 1
 where user_id = '00000000-0000-0000-0000-000000003404';
 
 set local role authenticated;
@@ -368,7 +366,7 @@ reset role;
 select ok(
   exists (
     select 1 from restarted_observation
-    where observation_hours between 1 and 2
+    where observation_hours = 0
       and active_members = 0
       and observed_requests = 0
       and observation_status = 'awaiting_member_activity'

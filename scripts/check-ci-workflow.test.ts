@@ -29,8 +29,8 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 34,
-      assertionCount: 861,
+      fileCount: 35,
+      assertionCount: 882,
       releaseMigrationCount: 38,
     })
   })
@@ -450,9 +450,25 @@ describe('CI workflow', () => {
     ).toThrow(/read_daily_problem_feed/)
     expect(() =>
       verifyDatabaseTypes(
-        databaseTypes.replace('requested_total_request_limit:', 'removed_total_request_limit:'),
+        databaseTypes.replaceAll('requested_total_request_limit:', 'removed_total_request_limit:'),
       ),
     ).toThrow(/requested_total_request_limit/)
+    expect(() =>
+      verifyDatabaseTypes(
+        databaseTypes.replace(
+          'admin_update_webchat_member_policy:',
+          'removed_update_webchat_member_policy:',
+        ),
+      ),
+    ).toThrow(/admin_update_webchat_member_policy/)
+    expect(() =>
+      verifyDatabaseTypes(
+        databaseTypes.replaceAll(
+          'requested_pilot_observation_enabled:',
+          'removed_pilot_observation_enabled:',
+        ),
+      ),
+    ).toThrow(/requested_pilot_observation_enabled/)
     expect(() =>
       verifyDatabaseTypes(`${databaseTypes}\nrequested_daily_request_limit: number`),
     ).toThrow(/daily member quota API/)
