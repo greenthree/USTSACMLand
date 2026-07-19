@@ -17,10 +17,32 @@ export function verifyWebChatCacheProbeWorkflow(workflow) {
   if (/^\s{2}(?:push|pull_request|schedule|workflow_run):\s*$/m.test(workflow)) {
     throw new Error('Production cache probe must not run automatically or for pull requests.')
   }
+  for (const [name, first, second] of [
+    ['transport', 'streaming', 'non_streaming'],
+    ['cache_policy', 'declared_implicit', 'default_implicit'],
+  ]) {
+    requireMatch(
+      workflow,
+      new RegExp(
+        `${name}:\\s*[\\s\\S]*?type:\\s*choice[\\s\\S]*?options:\\s*\\r?\\n\\s*-\\s*${first}\\s*\\r?\\n\\s*-\\s*${second}`,
+      ),
+      `Production cache probe must bound the ${name} comparison input.`,
+    )
+  }
   requireMatch(
     workflow,
     /^permissions:\s*\r?\n\s{2}contents:\s*read\s*$/m,
     'Production cache probe must keep read-only repository permissions.',
+  )
+  requireMatch(
+    workflow,
+    /WEBCHAT_CACHE_PROBE_TRANSPORT:\s*\$\{\{ inputs\.transport \}\}/,
+    'Production cache probe must pass the reviewed transport choice through the environment.',
+  )
+  requireMatch(
+    workflow,
+    /WEBCHAT_CACHE_PROBE_POLICY:\s*\$\{\{ inputs\.cache_policy \}\}/,
+    'Production cache probe must pass the reviewed cache-policy choice through the environment.',
   )
   requireMatch(
     workflow,
@@ -90,7 +112,7 @@ export function verifyWebChatCacheProbeWorkflow(workflow) {
     throw new Error('Cache probe artifact upload contains a forbidden path or secret name.')
   }
 
-  return { manualOnly: true, vaultOnly: true, retentionDays: 14 }
+  return { manualOnly: true, vaultOnly: true, comparisonModes: true, retentionDays: 14 }
 }
 
 async function main() {

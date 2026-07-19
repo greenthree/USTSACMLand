@@ -2,6 +2,23 @@ name: WebChat production cache probe
 
 on:
   workflow_dispatch:
+    inputs:
+      transport:
+        description: Response transport to compare
+        required: true
+        default: streaming
+        type: choice
+        options:
+          - streaming
+          - non_streaming
+      cache_policy:
+        description: Prompt cache policy to compare
+        required: true
+        default: declared_implicit
+        type: choice
+        options:
+          - declared_implicit
+          - default_implicit
 
 permissions:
   contents: read
@@ -31,6 +48,8 @@ jobs:
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WEBCHAT_CACHE_PROBE_TRANSPORT: ${{ inputs.transport }}
+          WEBCHAT_CACHE_PROBE_POLICY: ${{ inputs.cache_policy }}
           WEBCHAT_CACHE_PROBE_REPORT_PATH: artifacts/webchat-production-cache-probe.json
         run: node scripts/check-webchat-production-cache-probe.mjs
 

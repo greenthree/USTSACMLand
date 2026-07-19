@@ -14,8 +14,20 @@ function probe(cachedTokens = 1_536) {
     model: 'gpt-5.6',
     transport: 'streaming',
     cachePolicy: 'declared_implicit',
+    promptCacheKeyPrefix: '0000000000000000',
+    sharedPrefixFingerprint: 'a'.repeat(64),
+    diagnosis: cachedTokens > 0 ? 'cache_hit' : 'cache_write_without_read',
     first: {
       durationMs: 120,
+      clientRequestId: 'webchat-cache-probe:test-run:1',
+      requestFingerprint: 'b'.repeat(64),
+      response: {
+        responseId: 'response-1',
+        observedModel: 'gpt-5.6',
+        serviceTier: 'default',
+        systemFingerprint: 'system-1',
+        upstreamRequestId: 'upstream-1',
+      },
       usage: {
         inputTokens: 1_600,
         outputTokens: 1,
@@ -26,6 +38,15 @@ function probe(cachedTokens = 1_536) {
     },
     second: {
       durationMs: 80,
+      clientRequestId: 'webchat-cache-probe:test-run:2',
+      requestFingerprint: 'c'.repeat(64),
+      response: {
+        responseId: 'response-2',
+        observedModel: 'gpt-5.6',
+        serviceTier: 'default',
+        systemFingerprint: 'system-2',
+        upstreamRequestId: 'upstream-2',
+      },
       usage: {
         inputTokens: 1_600,
         outputTokens: 1,
@@ -73,7 +94,10 @@ describe('production WebChat cache probe', () => {
           requestedUrl = String(input)
           requestedHeaders = new Headers(init?.headers)
           expect(init?.method).toBe('POST')
-          expect(init?.body).toBeUndefined()
+          expect(JSON.parse(String(init?.body))).toEqual({
+            transport: 'streaming',
+            cachePolicy: 'declared_implicit',
+          })
           return new Response(JSON.stringify(successPayload()), {
             headers: { 'content-type': 'application/json' },
           })
@@ -85,9 +109,13 @@ describe('production WebChat cache probe', () => {
       )
       expect(requestedHeaders.get('authorization')).toBe(`Bearer ${serviceRoleKey}`)
       expect(requestedHeaders.get('apikey')).toBe(serviceRoleKey)
+      expect(requestedHeaders.get('content-type')).toBe('application/json')
       expect(report.probe.reusedInputTokens).toBe(1_536)
       expect(report.probe.transport).toBe('streaming')
       expect(report.probe.cachePolicy).toBe('declared_implicit')
+      expect(report.probe.diagnosis).toBe('cache_hit')
+      expect(report.probe.first.clientRequestId).toBe('webchat-cache-probe:test-run:1')
+      expect(report.probe.second.response.upstreamRequestId).toBe('upstream-2')
       const artifact = await readFile(reportPath, 'utf8')
       expect(artifact).not.toContain(serviceRoleKey)
       expect(artifact).not.toContain(projectRef)
@@ -135,6 +163,22 @@ describe('production WebChat cache probe', () => {
         },
       }),
     ).rejects.toMatchObject({ code: 'missing_configuration' })
+    expect(calls).toBe(0)
+  })
+
+  it('rejects unsupported manual comparison options before any network call', async () => {
+    let calls = 0
+    await expect(
+      runProductionCacheProbe({
+        projectRef,
+        serviceRoleKey,
+        transport: 'automatic',
+        fetcher: async () => {
+          calls += 1
+          return new Response('{}')
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_configuration' })
     expect(calls).toBe(0)
   })
 })

@@ -9,8 +9,22 @@ describe('WebChat production cache probe workflow', () => {
     expect(verifyWebChatCacheProbeWorkflow(workflow)).toEqual({
       manualOnly: true,
       vaultOnly: true,
+      comparisonModes: true,
       retentionDays: 14,
     })
+  })
+
+  it('rejects unbounded or silently remapped diagnostic choices', () => {
+    expect(() =>
+      verifyWebChatCacheProbeWorkflow(
+        workflow.replace('          - non_streaming', '          - automatic'),
+      ),
+    ).toThrow(/transport comparison input/)
+    expect(() =>
+      verifyWebChatCacheProbeWorkflow(
+        workflow.replace('${{ inputs.cache_policy }}', '${{ inputs.transport }}'),
+      ),
+    ).toThrow(/cache-policy choice/)
   })
 
   it('rejects automatic execution and duplicated relay secrets', () => {
