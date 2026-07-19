@@ -36,8 +36,20 @@ const result: CacheProbeResult = {
   model: 'gpt-5.6',
   transport: 'streaming',
   cachePolicy: 'declared_implicit',
+  promptCacheKeyPrefix: '0000000000000000',
+  sharedPrefixFingerprint: 'a'.repeat(64),
+  diagnosis: 'cache_hit',
   first: {
     durationMs: 120,
+    clientRequestId: 'webchat-cache-probe:test-run:1',
+    requestFingerprint: 'b'.repeat(64),
+    response: {
+      responseId: 'response-1',
+      observedModel: 'gpt-5.6',
+      serviceTier: 'default',
+      systemFingerprint: 'system-1',
+      upstreamRequestId: 'upstream-1',
+    },
     usage: {
       inputTokens: 1_600,
       outputTokens: 1,
@@ -48,6 +60,15 @@ const result: CacheProbeResult = {
   },
   second: {
     durationMs: 80,
+    clientRequestId: 'webchat-cache-probe:test-run:2',
+    requestFingerprint: 'c'.repeat(64),
+    response: {
+      responseId: 'response-2',
+      observedModel: 'gpt-5.6',
+      serviceTier: 'default',
+      systemFingerprint: 'system-2',
+      upstreamRequestId: 'upstream-2',
+    },
     usage: {
       inputTokens: 1_600,
       outputTokens: 1,
@@ -105,10 +126,15 @@ function handler(currentServices: CacheProbeServices) {
   })
 }
 
-function request(headers: HeadersInit = {}): Request {
+function request(headers: HeadersInit = {}, body?: Record<string, unknown>): Request {
   return new Request('https://project.supabase.co/functions/v1/webchat-cache-probe', {
     method: 'POST',
-    headers: { authorization: `Bearer ${serviceRoleKey}`, ...headers },
+    headers: {
+      authorization: `Bearer ${serviceRoleKey}`,
+      ...(body ? { 'content-type': 'application/json' } : {}),
+      ...headers,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   })
 }
 
@@ -153,6 +179,25 @@ Deno.test(
     strictEqual((await response.json()).error.code, 'browser_origin_rejected')
   },
 )
+
+Deno.test('cache probe accepts only bounded manual comparison options', async () => {
+  const observed: string[] = []
+  const response = await handler(
+    services({
+      async run(config) {
+        observed.push(`${config.stream}:${config.cachePolicy}`)
+        return { ...result, transport: 'non_streaming', cachePolicy: 'default_implicit' }
+      },
+    }),
+  )(request({}, { transport: 'non_streaming', cachePolicy: 'default_implicit' }))
+
+  strictEqual(response.status, 200)
+  deepStrictEqual(observed, ['false:default_implicit'])
+
+  const invalid = await handler(services())(request({}, { transport: 'automatic' }))
+  strictEqual(invalid.status, 400)
+  strictEqual((await invalid.json()).error.code, 'invalid_probe_options')
+})
 
 Deno.test(
   'cache probe endpoint surfaces cooldown without starting an upstream request',
@@ -300,6 +345,7 @@ Deno.test('cache miss settles known usage and returns sanitized evidence', async
       async run() {
         throw new CacheProbeError('cache_probe_miss', 'No cached tokens', 502, {
           ...result,
+          diagnosis: 'cache_write_without_read',
           reusedInputTokens: 0,
           second: {
             ...result.second,

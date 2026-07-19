@@ -47,6 +47,29 @@ function timeout(value) {
   return parsed
 }
 
+function probeTransport(value) {
+  const normalized = value === undefined || value === null || value === '' ? 'streaming' : value
+  if (normalized !== 'streaming' && normalized !== 'non_streaming') {
+    throw new ProductionCacheProbeError(
+      'invalid_configuration',
+      'WEBCHAT_CACHE_PROBE_TRANSPORT must be streaming or non_streaming',
+    )
+  }
+  return normalized
+}
+
+function probeCachePolicy(value) {
+  const normalized =
+    value === undefined || value === null || value === '' ? 'declared_implicit' : value
+  if (normalized !== 'declared_implicit' && normalized !== 'default_implicit') {
+    throw new ProductionCacheProbeError(
+      'invalid_configuration',
+      'WEBCHAT_CACHE_PROBE_POLICY must be declared_implicit or default_implicit',
+    )
+  }
+  return normalized
+}
+
 function asRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null
 }
@@ -63,6 +86,38 @@ function timestamp(value, name) {
     throw new ProductionCacheProbeError('invalid_response', `Probe returned invalid ${name}`)
   }
   return value
+}
+
+function fingerprint(value, name, length = 64) {
+  if (typeof value !== 'string' || !new RegExp(`^[a-f0-9]{${length}}$`).test(value)) {
+    throw new ProductionCacheProbeError('invalid_response', `Probe returned invalid ${name}`)
+  }
+  return value
+}
+
+function identifier(value, name) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) {
+    throw new ProductionCacheProbeError('invalid_response', `Probe returned invalid ${name}`)
+  }
+  return value
+}
+
+function nullableIdentifier(value, name) {
+  return value === null ? null : identifier(value, name)
+}
+
+function responseMetadata(value) {
+  const candidate = asRecord(value)
+  if (!candidate) {
+    throw new ProductionCacheProbeError('invalid_response', 'Probe response metadata is missing')
+  }
+  return {
+    responseId: nullableIdentifier(candidate.responseId, 'response ID'),
+    observedModel: nullableIdentifier(candidate.observedModel, 'observed model'),
+    serviceTier: nullableIdentifier(candidate.serviceTier, 'service tier'),
+    systemFingerprint: nullableIdentifier(candidate.systemFingerprint, 'system fingerprint'),
+    upstreamRequestId: nullableIdentifier(candidate.upstreamRequestId, 'upstream request ID'),
+  }
 }
 
 function usage(value) {
@@ -89,6 +144,9 @@ function observation(value) {
   return {
     durationMs: integer(candidate.durationMs, 'duration'),
     usage: usage(candidate.usage),
+    clientRequestId: identifier(candidate.clientRequestId, 'client request ID'),
+    requestFingerprint: fingerprint(candidate.requestFingerprint, 'request fingerprint'),
+    response: responseMetadata(candidate.response),
   }
 }
 
@@ -110,6 +168,24 @@ function sanitizeProbe(value) {
         ? candidate.cachePolicy
         : (() => {
             throw new ProductionCacheProbeError('invalid_response', 'Probe cache policy is missing')
+          })(),
+    promptCacheKeyPrefix: fingerprint(
+      candidate.promptCacheKeyPrefix,
+      'prompt cache key prefix',
+      16,
+    ),
+    sharedPrefixFingerprint: fingerprint(
+      candidate.sharedPrefixFingerprint,
+      'shared prefix fingerprint',
+    ),
+    diagnosis:
+      candidate.diagnosis === 'cache_hit' ||
+      candidate.diagnosis === 'cache_write_without_read' ||
+      candidate.diagnosis === 'cache_write_telemetry_unavailable' ||
+      candidate.diagnosis === 'no_cache_write_or_read'
+        ? candidate.diagnosis
+        : (() => {
+            throw new ProductionCacheProbeError('invalid_response', 'Probe diagnosis is missing')
           })(),
     first: observation(candidate.first),
     second: observation(candidate.second),
@@ -174,6 +250,15 @@ function sanitizeFailure(payload, status) {
   }
 }
 
+function assertProbeMode(probe, transport, cachePolicy) {
+  if (probe.transport !== transport || probe.cachePolicy !== cachePolicy) {
+    throw new ProductionCacheProbeError(
+      'invalid_response',
+      'Production cache probe returned a different comparison mode',
+    )
+  }
+}
+
 async function writeReport(path, report) {
   if (!path) return
   const absolute = resolve(path)
@@ -187,6 +272,8 @@ async function writeReport(path, report) {
 export async function runProductionCacheProbe(options) {
   const ref = projectRef(options.projectRef)
   const serviceRoleKey = required(options.serviceRoleKey, 'SUPABASE_SERVICE_ROLE_KEY')
+  const transport = probeTransport(options.transport)
+  const cachePolicy = probeCachePolicy(options.cachePolicy)
   const fetcher = options.fetcher ?? fetch
   const controller = new AbortController()
   const timeoutId = setTimeout(
@@ -204,7 +291,9 @@ export async function runProductionCacheProbe(options) {
           accept: 'application/json',
           apikey: serviceRoleKey,
           authorization: `Bearer ${serviceRoleKey}`,
+          'content-type': 'application/json',
         },
+        body: JSON.stringify({ transport, cachePolicy }),
         redirect: 'error',
         signal: controller.signal,
       })
@@ -230,6 +319,7 @@ export async function runProductionCacheProbe(options) {
 
     if (!response.ok) {
       report = sanitizeFailure(payload, response.status)
+      if (report.probe) assertProbeMode(report.probe, transport, cachePolicy)
       throw new ProductionCacheProbeError(
         report.error.code,
         report.error.message,
@@ -239,6 +329,7 @@ export async function runProductionCacheProbe(options) {
     }
 
     report = sanitizeSuccess(payload)
+    assertProbeMode(report.probe, transport, cachePolicy)
     await writeReport(options.reportPath, report)
     return report
   } catch (error) {
@@ -264,6 +355,8 @@ async function main() {
     projectRef: process.env.SUPABASE_PROJECT_REF,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     timeoutMs: process.env.WEBCHAT_CACHE_PROBE_CLIENT_TIMEOUT_MS,
+    transport: process.env.WEBCHAT_CACHE_PROBE_TRANSPORT,
+    cachePolicy: process.env.WEBCHAT_CACHE_PROBE_POLICY,
     reportPath:
       process.env.WEBCHAT_CACHE_PROBE_REPORT_PATH?.trim() ||
       'artifacts/webchat-production-cache-probe.json',

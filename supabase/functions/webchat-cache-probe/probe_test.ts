@@ -11,10 +11,17 @@ import { promptCacheKey } from '../webchat/upstream.ts'
 
 const PRODUCTION_PROMPT_VERSION = 'usts-learning-assistant-v2'
 
-function jsonResponse(cachedTokens: number, cacheWriteTokens: number | null = null): Response {
+function jsonResponse(
+  cachedTokens: number,
+  cacheWriteTokens: number | null = null,
+  responseNumber = 1,
+): Response {
   return new Response(
     JSON.stringify({
+      id: `response-json-${responseNumber}`,
       model: 'gpt-5.6',
+      service_tier: 'default',
+      system_fingerprint: `system-json-${responseNumber}`,
       usage: {
         input_tokens: 1_600,
         output_tokens: 1,
@@ -25,7 +32,12 @@ function jsonResponse(cachedTokens: number, cacheWriteTokens: number | null = nu
         },
       },
     }),
-    { headers: { 'content-type': 'application/json' } },
+    {
+      headers: {
+        'content-type': 'application/json',
+        'x-request-id': `upstream-json-${responseNumber}`,
+      },
+    },
   )
 }
 
@@ -33,6 +45,7 @@ function streamResponse(
   cachedTokens: number,
   cacheWriteTokens: number | null = null,
   lineEnding = '\n',
+  responseNumber = 1,
 ): Response {
   const events = [
     { type: 'response.created', response: { id: 'response-1' } },
@@ -40,6 +53,10 @@ function streamResponse(
     {
       type: 'response.completed',
       response: {
+        id: `response-stream-${responseNumber}`,
+        model: 'gpt-5.6',
+        service_tier: 'default',
+        system_fingerprint: `system-stream-${responseNumber}`,
         usage: {
           input_tokens: 1_600,
           output_tokens: 1,
@@ -53,7 +70,12 @@ function streamResponse(
     },
   ]
   const body = `${events.map((event) => `data: ${JSON.stringify(event)}`).join(`${lineEnding}${lineEnding}`)}${lineEnding}${lineEnding}data: [DONE]${lineEnding}${lineEnding}`
-  return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+  return new Response(body, {
+    headers: {
+      'content-type': 'text/event-stream',
+      'x-request-id': `upstream-stream-${responseNumber}`,
+    },
+  })
 }
 
 Deno.test(
@@ -124,7 +146,9 @@ Deno.test(
         body: String(init?.body),
         headers: new Headers(init?.headers),
       })
-      return requests.length === 1 ? streamResponse(0, 1_536) : streamResponse(1_536, 0, '\r\n')
+      return requests.length === 1
+        ? streamResponse(0, 1_536, '\n', 1)
+        : streamResponse(1_536, 0, '\r\n', 2)
     }
 
     const result = await runCacheProbe(config(fetcher))
@@ -133,6 +157,8 @@ Deno.test(
     strictEqual(requests[0]?.url, 'https://relay.example.test/v1/responses')
     strictEqual(requests[0]?.body === requests[1]?.body, false)
     strictEqual(requests[0]?.headers.get('authorization'), 'Bearer server-only-cache-probe-key')
+    match(String(requests[0]?.headers.get('x-request-id')), /^webchat-cache-probe:[a-f0-9-]+:1$/)
+    match(String(requests[1]?.headers.get('x-request-id')), /^webchat-cache-probe:[a-f0-9-]+:2$/)
     const firstBody = JSON.parse(requests[0]?.body ?? '{}') as Record<string, unknown>
     const secondBody = JSON.parse(requests[1]?.body ?? '{}') as Record<string, unknown>
     match(String(firstBody.prompt_cache_key), /^[a-f0-9]{64}$/)
@@ -155,6 +181,26 @@ Deno.test(
     strictEqual(result.reusedInputTokens, 1_536)
     strictEqual(result.transport, 'streaming')
     strictEqual(result.cachePolicy, 'declared_implicit')
+    strictEqual(result.diagnosis, 'cache_hit')
+    match(result.promptCacheKeyPrefix, /^[a-f0-9]{16}$/)
+    match(result.sharedPrefixFingerprint, /^[a-f0-9]{64}$/)
+    match(result.first.requestFingerprint, /^[a-f0-9]{64}$/)
+    match(result.second.requestFingerprint, /^[a-f0-9]{64}$/)
+    strictEqual(result.first.requestFingerprint === result.second.requestFingerprint, false)
+    deepStrictEqual(result.first.response, {
+      responseId: 'response-stream-1',
+      observedModel: 'gpt-5.6',
+      serviceTier: 'default',
+      systemFingerprint: 'system-stream-1',
+      upstreamRequestId: 'upstream-stream-1',
+    })
+    deepStrictEqual(result.second.response, {
+      responseId: 'response-stream-2',
+      observedModel: 'gpt-5.6',
+      serviceTier: 'default',
+      systemFingerprint: 'system-stream-2',
+      upstreamRequestId: 'upstream-stream-2',
+    })
     deepStrictEqual(result.aggregateUsage, {
       inputTokens: 3_200,
       outputTokens: 2,
@@ -166,6 +212,8 @@ Deno.test(
     strictEqual(report.includes('server-only-cache-probe-key'), false)
     strictEqual(report.includes('relay.example.test'), false)
     strictEqual(report.includes('Reply only with OK'), false)
+    strictEqual(report.includes('cache probe validation'), false)
+    strictEqual(report.includes(await promptCacheKey('gpt-5.6', PRODUCTION_PROMPT_VERSION)), false)
   },
 )
 
@@ -175,7 +223,7 @@ Deno.test('cache probe retains a non-streaming control mode for isolated compari
     config(
       async (_input, init) => {
         bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-        return bodies.length === 1 ? jsonResponse(0, 1_536) : jsonResponse(1_536, 0)
+        return bodies.length === 1 ? jsonResponse(0, 1_536, 1) : jsonResponse(1_536, 0, 2)
       },
       false,
       'default_implicit',
@@ -188,6 +236,7 @@ Deno.test('cache probe retains a non-streaming control mode for isolated compari
   strictEqual(result.transport, 'non_streaming')
   strictEqual(result.cachePolicy, 'default_implicit')
   strictEqual(result.reusedInputTokens, 1_536)
+  strictEqual(result.first.response.upstreamRequestId, 'upstream-json-1')
 })
 
 Deno.test('cache probe exposes known usage when the second eligible request misses', async () => {
@@ -199,10 +248,47 @@ Deno.test('cache probe exposes known usage when the second eligible request miss
       strictEqual(probeError.code, 'cache_probe_miss')
       strictEqual(probeError.knownResult?.aggregateUsage.totalTokens, 3_202)
       strictEqual(probeError.knownResult?.reusedInputTokens, 0)
+      strictEqual(probeError.knownResult?.diagnosis, 'cache_write_without_read')
       return true
     },
   )
 })
+
+Deno.test(
+  'cache probe distinguishes an upstream that reports neither cache writes nor reads',
+  async () => {
+    await rejects(
+      () => runCacheProbe(config(async () => streamResponse(0, 0))),
+      (error: unknown) => {
+        strictEqual(error instanceof CacheProbeError, true)
+        const result = (error as CacheProbeError).knownResult
+        strictEqual(result?.diagnosis, 'no_cache_write_or_read')
+        strictEqual(result?.first.usage.cacheWriteTokens, 0)
+        strictEqual(result?.second.usage.cachedInputTokens, 0)
+        match(result?.first.clientRequestId ?? '', /^webchat-cache-probe:[a-f0-9-]+:1$/)
+        return true
+      },
+    )
+  },
+)
+
+Deno.test(
+  'cache probe fails closed if an upstream identifier echoes relay credentials',
+  async () => {
+    await rejects(
+      () =>
+        runCacheProbe(
+          config(async () => {
+            const response = streamResponse(1_536, 0)
+            response.headers.set('x-request-id', 'server-only-cache-probe-key')
+            return response
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof CacheProbeError && error.code === 'diagnostic_sanitization_failed',
+    )
+  },
+)
 
 Deno.test('cache probe fails closed when cached-token usage is absent', async () => {
   await rejects(

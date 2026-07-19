@@ -1,6 +1,11 @@
 import type { WebChatRelayRuntimeConfig } from '../webchat/runtime-config.ts'
 import { gatewayVerifiedJwtRole } from '../_shared/jwt.ts'
-import { CacheProbeError, type CacheProbeResult, type CacheProbeRuntimeConfig } from './probe.ts'
+import {
+  CacheProbeError,
+  type CacheProbePolicy,
+  type CacheProbeResult,
+  type CacheProbeRuntimeConfig,
+} from './probe.ts'
 
 export interface CacheProbeClaimResult {
   decision: string
@@ -41,7 +46,12 @@ export interface CacheProbeHandlerDependencies {
   leaseSeconds: number
   timeoutMs: number
   promptVersion: string
-  reservationTokens(model: string, promptVersion: string): Promise<number>
+  reservationTokens(
+    model: string,
+    promptVersion: string,
+    stream: boolean,
+    cachePolicy: CacheProbePolicy,
+  ): Promise<number>
   createServices(): CacheProbeServices
 }
 
@@ -58,6 +68,41 @@ class ApiError extends Error {
 }
 
 const encoder = new TextEncoder()
+
+interface CacheProbeRequestOptions {
+  stream: boolean
+  cachePolicy: CacheProbePolicy
+}
+
+async function requestOptions(request: Request): Promise<CacheProbeRequestOptions> {
+  const text = await request.text()
+  if (!text) return { stream: true, cachePolicy: 'declared_implicit' }
+  if (encoder.encode(text).byteLength > 1_024) {
+    throw new ApiError(413, 'invalid_probe_options', 'Cache probe options are too large')
+  }
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch {
+    throw new ApiError(400, 'invalid_probe_options', 'Cache probe options must be valid JSON')
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ApiError(400, 'invalid_probe_options', 'Cache probe options are invalid')
+  }
+  const candidate = value as Record<string, unknown>
+  if (Object.keys(candidate).some((key) => !['transport', 'cachePolicy'].includes(key))) {
+    throw new ApiError(400, 'invalid_probe_options', 'Cache probe options contain unknown fields')
+  }
+  const transport = candidate.transport ?? 'streaming'
+  const cachePolicy = candidate.cachePolicy ?? 'declared_implicit'
+  if (transport !== 'streaming' && transport !== 'non_streaming') {
+    throw new ApiError(400, 'invalid_probe_options', 'Cache probe transport is invalid')
+  }
+  if (cachePolicy !== 'declared_implicit' && cachePolicy !== 'default_implicit') {
+    throw new ApiError(400, 'invalid_probe_options', 'Cache probe policy is invalid')
+  }
+  return { stream: transport === 'streaming', cachePolicy }
+}
 
 function equalSecret(left: string, right: string): boolean {
   const leftBytes = encoder.encode(left)
@@ -145,6 +190,7 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
         })
       }
       authorize(request, dependencies.serviceRoleKey)
+      const options = await requestOptions(request)
 
       const services = dependencies.createServices()
       let runtimeConfig: WebChatRelayRuntimeConfig
@@ -173,6 +219,8 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
       const reservedTokens = await dependencies.reservationTokens(
         runtimeConfig.model,
         dependencies.promptVersion,
+        options.stream,
+        options.cachePolicy,
       )
       const probeId = crypto.randomUUID()
       const ownerToken = crypto.randomUUID()
@@ -197,8 +245,8 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
           model: runtimeConfig.model,
           promptVersion: dependencies.promptVersion,
           timeoutMs: dependencies.timeoutMs,
-          stream: true,
-          cachePolicy: 'declared_implicit',
+          stream: options.stream,
+          cachePolicy: options.cachePolicy,
         })
         if (result.aggregateUsage.totalTokens > reservedTokens) {
           throw new CacheProbeError(
