@@ -193,6 +193,7 @@ export function createCacheProbeHandler(dependencies: CacheProbeHandlerDependenc
           model: runtimeConfig.model,
           timeoutMs: dependencies.timeoutMs,
           stream: true,
+          cachePolicy: 'declared_implicit',
         })
         if (result.aggregateUsage.totalTokens > reservedTokens) {
           throw new CacheProbeError(

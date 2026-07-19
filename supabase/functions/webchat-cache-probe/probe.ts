@@ -17,8 +17,11 @@ export interface CacheProbeRuntimeConfig {
   model: string
   timeoutMs: number
   stream?: boolean
+  cachePolicy?: CacheProbePolicy
   fetcher?: typeof fetch
 }
+
+export type CacheProbePolicy = 'default_implicit' | 'declared_implicit'
 
 export interface CacheProbeUsage {
   inputTokens: number
@@ -36,6 +39,7 @@ export interface CacheProbeObservation {
 export interface CacheProbeResult {
   model: string
   transport: 'streaming' | 'non_streaming'
+  cachePolicy: CacheProbePolicy
   first: CacheProbeObservation
   second: CacheProbeObservation
   aggregateUsage: CacheProbeUsage
@@ -138,6 +142,7 @@ async function requestBody(
   model: string,
   includeFollowUp: boolean,
   stream: boolean,
+  cachePolicy: CacheProbePolicy,
 ): Promise<Record<string, unknown>> {
   return {
     model,
@@ -146,15 +151,22 @@ async function requestBody(
     input: responsesInput(probeMessages(includeFollowUp)),
     max_output_tokens: CACHE_PROBE_MAX_OUTPUT_TOKENS,
     prompt_cache_key: await promptCacheKey(model, CACHE_PROBE_VERSION),
+    ...(cachePolicy === 'declared_implicit'
+      ? { prompt_cache_options: { mode: 'implicit', ttl: '30m' } }
+      : {}),
     store: false,
     stream,
   }
 }
 
-export async function cacheProbeReservationTokens(model: string, stream = true): Promise<number> {
+export async function cacheProbeReservationTokens(
+  model: string,
+  stream = true,
+  cachePolicy: CacheProbePolicy = 'declared_implicit',
+): Promise<number> {
   const bodies = await Promise.all([
-    requestBody(model, false, stream),
-    requestBody(model, true, stream),
+    requestBody(model, false, stream, cachePolicy),
+    requestBody(model, true, stream, cachePolicy),
   ])
   const encodedBytes = bodies.reduce(
     (total, body) => total + encoder.encode(JSON.stringify(body)).byteLength,
@@ -356,9 +368,10 @@ export async function runCacheProbe(config: CacheProbeRuntimeConfig): Promise<Ca
   const endpoint = responsesEndpoint(config.baseUrl)
   const fetcher = config.fetcher ?? fetch
   const stream = config.stream ?? true
+  const cachePolicy = config.cachePolicy ?? 'declared_implicit'
   const [firstBody, secondBody] = await Promise.all([
-    requestBody(config.model, false, stream),
-    requestBody(config.model, true, stream),
+    requestBody(config.model, false, stream, cachePolicy),
+    requestBody(config.model, true, stream, cachePolicy),
   ])
   const first = await performRequest(fetcher, endpoint, config.apiKey, firstBody, config.timeoutMs)
   const second = await performRequest(
@@ -371,6 +384,7 @@ export async function runCacheProbe(config: CacheProbeRuntimeConfig): Promise<Ca
   const result: CacheProbeResult = {
     model: config.model,
     transport: stream ? 'streaming' : 'non_streaming',
+    cachePolicy,
     first,
     second,
     aggregateUsage: aggregateUsage(first.usage, second.usage),

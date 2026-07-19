@@ -105,6 +105,12 @@ function sanitizeProbe(value) {
         : (() => {
             throw new ProductionCacheProbeError('invalid_response', 'Probe transport is missing')
           })(),
+    cachePolicy:
+      candidate.cachePolicy === 'default_implicit' || candidate.cachePolicy === 'declared_implicit'
+        ? candidate.cachePolicy
+        : (() => {
+            throw new ProductionCacheProbeError('invalid_response', 'Probe cache policy is missing')
+          })(),
     first: observation(candidate.first),
     second: observation(candidate.second),
     aggregateUsage: usage(candidate.aggregateUsage),
@@ -263,7 +269,7 @@ async function main() {
       'artifacts/webchat-production-cache-probe.json',
   })
   console.log(
-    `Verified ${report.probe.transport} production prompt caching for ${report.probe.model}: ${report.probe.reusedInputTokens} cached input tokens on request two.`,
+    `Verified ${report.probe.transport} ${report.probe.cachePolicy} production prompt caching for ${report.probe.model}: ${report.probe.reusedInputTokens} cached input tokens on request two.`,
   )
 }
 

@@ -63,13 +63,18 @@ Deno.test(
   },
 )
 
-function config(fetcher: typeof fetch, stream = true): CacheProbeRuntimeConfig {
+function config(
+  fetcher: typeof fetch,
+  stream = true,
+  cachePolicy: CacheProbeRuntimeConfig['cachePolicy'] = 'declared_implicit',
+): CacheProbeRuntimeConfig {
   return {
     baseUrl: 'https://relay.example.test/v1/',
     apiKey: 'server-only-cache-probe-key',
     model: 'gpt-5.6',
     timeoutMs: 5_000,
     stream,
+    cachePolicy,
     fetcher,
   }
 }
@@ -131,7 +136,7 @@ Deno.test(
     strictEqual(firstBody.stream, true)
     strictEqual(firstBody.store, false)
     strictEqual(requests[0]?.headers.get('accept'), 'text/event-stream')
-    strictEqual('prompt_cache_options' in firstBody, false)
+    deepStrictEqual(firstBody.prompt_cache_options, { mode: 'implicit', ttl: '30m' })
     const firstInput = firstBody.input as Array<Record<string, unknown>>
     const secondInput = secondBody.input as Array<Record<string, unknown>>
     deepStrictEqual(secondInput[0], firstInput[0])
@@ -141,6 +146,7 @@ Deno.test(
     strictEqual(JSON.stringify(firstInput).includes('prompt_cache_breakpoint'), false)
     strictEqual(result.reusedInputTokens, 1_536)
     strictEqual(result.transport, 'streaming')
+    strictEqual(result.cachePolicy, 'declared_implicit')
     deepStrictEqual(result.aggregateUsage, {
       inputTokens: 3_200,
       outputTokens: 2,
@@ -158,15 +164,21 @@ Deno.test(
 Deno.test('cache probe retains a non-streaming control mode for isolated comparisons', async () => {
   const bodies: Array<Record<string, unknown>> = []
   const result = await runCacheProbe(
-    config(async (_input, init) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-      return bodies.length === 1 ? jsonResponse(0, 1_536) : jsonResponse(1_536, 0)
-    }, false),
+    config(
+      async (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
+        return bodies.length === 1 ? jsonResponse(0, 1_536) : jsonResponse(1_536, 0)
+      },
+      false,
+      'default_implicit',
+    ),
   )
 
   strictEqual(bodies.length, 2)
   strictEqual(bodies[0]?.stream, false)
+  strictEqual('prompt_cache_options' in (bodies[0] ?? {}), false)
   strictEqual(result.transport, 'non_streaming')
+  strictEqual(result.cachePolicy, 'default_implicit')
   strictEqual(result.reusedInputTokens, 1_536)
 })
 
