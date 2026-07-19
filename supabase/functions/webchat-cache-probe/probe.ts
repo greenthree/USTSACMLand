@@ -6,7 +6,6 @@ import {
 } from '../webchat/upstream.ts'
 
 const CACHE_PROBE_REPETITIONS = 768
-const CACHE_PROBE_VERSION = 'cache-probe-v1'
 const CACHE_PROBE_MAX_OUTPUT_TOKENS = 16
 const CACHE_PROBE_MAX_SSE_BYTES = 262_144
 const encoder = new TextEncoder()
@@ -15,6 +14,7 @@ export interface CacheProbeRuntimeConfig {
   baseUrl: string
   apiKey: string
   model: string
+  promptVersion: string
   timeoutMs: number
   stream?: boolean
   cachePolicy?: CacheProbePolicy
@@ -140,6 +140,7 @@ function probeMessages(includeFollowUp: boolean): WebChatMessage[] {
 
 async function requestBody(
   model: string,
+  promptVersion: string,
   includeFollowUp: boolean,
   stream: boolean,
   cachePolicy: CacheProbePolicy,
@@ -150,7 +151,9 @@ async function requestBody(
       'This is an automated prompt-cache verification request. Follow the final instruction exactly.',
     input: responsesInput(probeMessages(includeFollowUp)),
     max_output_tokens: CACHE_PROBE_MAX_OUTPUT_TOKENS,
-    prompt_cache_key: await promptCacheKey(model, CACHE_PROBE_VERSION),
+    // Use the same routing key as real member traffic. The probe prompt stays
+    // synthetic, so it cannot reuse or expose member conversation content.
+    prompt_cache_key: await promptCacheKey(model, promptVersion),
     ...(cachePolicy === 'declared_implicit'
       ? { prompt_cache_options: { mode: 'implicit', ttl: '30m' } }
       : {}),
@@ -161,12 +164,13 @@ async function requestBody(
 
 export async function cacheProbeReservationTokens(
   model: string,
+  promptVersion: string,
   stream = true,
   cachePolicy: CacheProbePolicy = 'declared_implicit',
 ): Promise<number> {
   const bodies = await Promise.all([
-    requestBody(model, false, stream, cachePolicy),
-    requestBody(model, true, stream, cachePolicy),
+    requestBody(model, promptVersion, false, stream, cachePolicy),
+    requestBody(model, promptVersion, true, stream, cachePolicy),
   ])
   const encodedBytes = bodies.reduce(
     (total, body) => total + encoder.encode(JSON.stringify(body)).byteLength,
@@ -370,8 +374,8 @@ export async function runCacheProbe(config: CacheProbeRuntimeConfig): Promise<Ca
   const stream = config.stream ?? true
   const cachePolicy = config.cachePolicy ?? 'declared_implicit'
   const [firstBody, secondBody] = await Promise.all([
-    requestBody(config.model, false, stream, cachePolicy),
-    requestBody(config.model, true, stream, cachePolicy),
+    requestBody(config.model, config.promptVersion, false, stream, cachePolicy),
+    requestBody(config.model, config.promptVersion, true, stream, cachePolicy),
   ])
   const first = await performRequest(fetcher, endpoint, config.apiKey, firstBody, config.timeoutMs)
   const second = await performRequest(

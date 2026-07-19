@@ -66,6 +66,8 @@ const result: CacheProbeResult = {
   reusedInputTokens: 1_536,
 }
 
+const PRODUCTION_PROMPT_VERSION = 'usts-learning-assistant-v2'
+
 function services(overrides: Partial<CacheProbeServices> = {}): CacheProbeServices {
   return {
     async claim() {
@@ -95,6 +97,7 @@ function handler(currentServices: CacheProbeServices) {
     serviceRoleKey,
     leaseSeconds: 300,
     timeoutMs: 120_000,
+    promptVersion: PRODUCTION_PROMPT_VERSION,
     async reservationTokens() {
       return 40_000
     },
@@ -247,6 +250,7 @@ Deno.test('cache probe executes and settles in claim-read-start-run-finalize ord
         strictEqual(config.apiKey, 'relay-secret-key')
         strictEqual(config.stream, true)
         strictEqual(config.cachePolicy, 'declared_implicit')
+        strictEqual(config.promptVersion, PRODUCTION_PROMPT_VERSION)
         return result
       },
       async finalize(_probeId, _ownerToken, outcome, knownResult) {

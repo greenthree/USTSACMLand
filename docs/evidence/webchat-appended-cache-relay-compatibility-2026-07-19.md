@@ -36,6 +36,6 @@ PR [#87](https://github.com/greenthree/USTSACMLand/pull/87) 合并后，生产 `
 
 两次试验的共同变量是 typed 消息内的 `prompt_cache_breakpoint`，请求级 mode 不同但均失败。当前生产中转站不兼容这一请求形状；不能再把失败解释为只缺少 `prompt_cache_options.mode=explicit`。
 
-成员请求与探针使用普通 Responses `role/content` 历史消息，不发送 `prompt_cache_breakpoint` 或 `prompt_cache_options`。请求仍携带由模型和系统提示词版本派生的稳定 `prompt_cache_key`，第二轮保留第一轮的字节稳定消息前缀，由默认隐式缓存复用。
+成员请求与探针使用普通 Responses `role/content` 历史消息，不发送不兼容的 `prompt_cache_breakpoint`。请求仍携带稳定 `prompt_cache_key`，第二轮保留第一轮的字节稳定消息前缀。后续流式对照发现请求级 `prompt_cache_options.mode=implicit` 与 `ttl=30m` 能让独立探针缓存键命中，但不能在验证生产缓存键对应渠道前直接推广到成员请求。
 
 生产追加式探针已经命中，但它仍不能替代真实成员路径验收。最终 ROADMAP 条目需要真实授权成员在同一会话中发送超过 1024 Token 的长首轮并追加下一轮，在中转站日志和站内脱敏指标至少一次观察到 `cached_tokens > 0` 后才能勾选。

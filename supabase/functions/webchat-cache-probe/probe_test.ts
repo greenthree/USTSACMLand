@@ -7,6 +7,9 @@ import {
   runCacheProbe,
   type CacheProbeRuntimeConfig,
 } from './probe.ts'
+import { promptCacheKey } from '../webchat/upstream.ts'
+
+const PRODUCTION_PROMPT_VERSION = 'usts-learning-assistant-v2'
 
 function jsonResponse(cachedTokens: number, cacheWriteTokens: number | null = null): Response {
   return new Response(
@@ -56,7 +59,7 @@ function streamResponse(
 Deno.test(
   'cache probe derives a conservative two-request reservation from encoded bytes',
   async () => {
-    const reservation = await cacheProbeReservationTokens('gpt-5.6')
+    const reservation = await cacheProbeReservationTokens('gpt-5.6', PRODUCTION_PROMPT_VERSION)
     strictEqual(Number.isSafeInteger(reservation), true)
     strictEqual(reservation > 3_202, true)
     strictEqual(reservation <= 1_000_000, true)
@@ -72,6 +75,7 @@ function config(
     baseUrl: 'https://relay.example.test/v1/',
     apiKey: 'server-only-cache-probe-key',
     model: 'gpt-5.6',
+    promptVersion: PRODUCTION_PROMPT_VERSION,
     timeoutMs: 5_000,
     stream,
     cachePolicy,
@@ -132,6 +136,10 @@ Deno.test(
     const firstBody = JSON.parse(requests[0]?.body ?? '{}') as Record<string, unknown>
     const secondBody = JSON.parse(requests[1]?.body ?? '{}') as Record<string, unknown>
     match(String(firstBody.prompt_cache_key), /^[a-f0-9]{64}$/)
+    strictEqual(
+      firstBody.prompt_cache_key,
+      await promptCacheKey('gpt-5.6', PRODUCTION_PROMPT_VERSION),
+    )
     strictEqual(firstBody.prompt_cache_key, secondBody.prompt_cache_key)
     strictEqual(firstBody.stream, true)
     strictEqual(firstBody.store, false)
