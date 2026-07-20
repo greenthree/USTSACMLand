@@ -524,7 +524,7 @@ select ok(
     where action = 'webchat_member_access_update'
       and target_table = 'webchat_member_access'
       and target_id = '00000000-0000-0000-0000-000000002202'
-      and before_data = '{"accessEnabled":false,"pilotObservationEnabled":false,"totalRequestLimit":30,"totalTokenLimit":100000,"version":0}'::jsonb
+      and before_data = '{"accessEnabled":false,"totalRequestLimit":30,"totalTokenLimit":100000,"version":0}'::jsonb
   ),
   'the first audit snapshot records the effective deny-by-default state'
 );
@@ -535,7 +535,7 @@ select ok(
     from public.audit_logs
     where action = 'webchat_member_access_update'
       and target_id = '00000000-0000-0000-0000-000000002202'
-      and after_data = '{"accessEnabled":true,"pilotObservationEnabled":false,"totalRequestLimit":2,"totalTokenLimit":500,"version":1}'::jsonb
+      and after_data = '{"accessEnabled":true,"totalRequestLimit":2,"totalTokenLimit":500,"version":1}'::jsonb
   ),
   'the audit records the exact post-update access and limit state'
 );

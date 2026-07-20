@@ -5,14 +5,12 @@ import { MemoryRouter } from 'react-router-dom'
 const pilotPanelMocks = vi.hoisted(() => ({
   fetchMembers: vi.fn(),
   fetchCacheSummary: vi.fn(),
-  fetchObservation: vi.fn(),
 }))
 
 vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
   fetchAdminWebChatPilotMembers: pilotPanelMocks.fetchMembers,
   fetchAdminWebChatCacheSummary: pilotPanelMocks.fetchCacheSummary,
-  fetchAdminWebChatPilotObservation: pilotPanelMocks.fetchObservation,
 }))
 
 import { AdminWebChatPilotPanel } from './AdminWebChatPilotPanel'
@@ -26,7 +24,6 @@ const members = [
     role: 'member' as const,
     accountStatus: 'approved' as const,
     accessEnabled: true,
-    pilotObservationEnabled: true,
     totalRequestLimit: 20,
     totalTokenLimit: 80_000,
     requestCount: 6,
@@ -47,7 +44,6 @@ const members = [
     role: 'admin' as const,
     accountStatus: 'suspended' as const,
     accessEnabled: false,
-    pilotObservationEnabled: false,
     totalRequestLimit: 10,
     totalTokenLimit: 20_000,
     requestCount: 0,
@@ -81,49 +77,22 @@ describe('AdminWebChatPilotPanel', () => {
       cachedInputTokens: 12_000,
       cacheWriteTokens: 8_000,
     })
-    pilotPanelMocks.fetchObservation.mockReset().mockResolvedValue({
-      checkedAt: '2026-07-19T09:30:00Z',
-      cohortStartedAt: '2026-07-12T08:30:00Z',
-      observationHours: 169,
-      enabledMembers: 4,
-      activeMembers: 4,
-      observedRequests: 12,
-      successfulRequests: 10,
-      incompleteRequests: 2,
-      failedRequests: 0,
-      unknownUsageRequests: 0,
-      activeGenerationCount: 0,
-      cacheEligibleRequests: 8,
-      cacheHitRequests: 6,
-      lastRequestAt: '2026-07-19T09:20:00Z',
-      status: 'ready_for_review',
-    })
   })
 
-  it('summarizes configured pilot accounts and shows bounded per-member usage', async () => {
+  it('summarizes configured accounts and shows bounded per-member usage', async () => {
     renderPanel()
 
-    const region = await screen.findByRole('region', { name: 'AI 助手账号与正式试运行' })
-    const summary = await within(region).findByLabelText('试运行摘要')
+    const region = await screen.findByRole('region', { name: 'AI 助手账号与用量' })
+    const summary = await within(region).findByLabelText('AI 助手账号摘要')
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
     expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
     expect(within(summary).getByText('累计占用 Token').nextSibling).toHaveTextContent('15,000')
     const cacheSummary = await within(region).findByLabelText('输入缓存摘要')
     expect(within(cacheSummary).getByText('命中请求').nextSibling).toHaveTextContent('7 / 10')
     expect(within(cacheSummary).getByText('输入缓存率').nextSibling).toHaveTextContent('60.0%')
-    const observationSummary = await within(region).findByLabelText('连续观察摘要')
-    expect(within(observationSummary).getByText('正式名单').nextSibling).toHaveTextContent(
-      '4 / 建议 3–5',
-    )
-    expect(within(observationSummary).getByText('连续观察').nextSibling).toHaveTextContent(
-      '168 / 168 小时',
-    )
-    expect(within(region).getByText('可进入人工复核')).toBeInTheDocument()
     expect(within(region).getByText('6 / 20')).toBeInTheDocument()
     expect(within(region).getByText(/已结算 12,000 · 预留 3,000 · 剩余 65,000/)).toBeInTheDocument()
     expect(within(region).getByText(/账号已停用/)).toBeInTheDocument()
-    expect(within(region).getByText('正式观察')).toBeInTheDocument()
-    expect(within(region).getByText('未纳入观察')).toBeInTheDocument()
     expect(within(region).getAllByRole('link', { name: '查看详情' })[0]).toHaveAttribute(
       'href',
       `/admin/members/${members[0].id}`,
@@ -133,12 +102,12 @@ describe('AdminWebChatPilotPanel', () => {
   it('keeps a local error with an independent retry action', async () => {
     const user = userEvent.setup()
     pilotPanelMocks.fetchMembers
-      .mockRejectedValueOnce(new Error('试运行观测暂时不可用'))
+      .mockRejectedValueOnce(new Error('账号用量暂时不可用'))
       .mockResolvedValueOnce(members)
     renderPanel()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('试运行观测暂时不可用')
-    await user.click(screen.getByRole('button', { name: '重试观测数据' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('账号用量暂时不可用')
+    await user.click(screen.getByRole('button', { name: '重试账号用量' }))
 
     expect(await screen.findByText('测试成员')).toBeInTheDocument()
     expect(pilotPanelMocks.fetchMembers).toHaveBeenCalledTimes(2)
@@ -152,19 +121,11 @@ describe('AdminWebChatPilotPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('缓存摘要暂时不可用')
   })
 
-  it('keeps the roster usable when continuous observation fails independently', async () => {
-    pilotPanelMocks.fetchObservation.mockRejectedValue(new Error('连续观察暂时不可用'))
-    renderPanel()
-
-    expect(await screen.findByText('测试成员')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('连续观察暂时不可用')
-  })
-
-  it('explains how to create the initial 3–5 member pilot roster', async () => {
+  it('explains how to configure the first AI assistant account', async () => {
     pilotPanelMocks.fetchMembers.mockResolvedValue([])
     renderPanel()
 
     expect(await screen.findByText('尚未配置 AI 助手账号')).toBeInTheDocument()
-    expect(screen.getByText(/选择 3–5 人/)).toBeInTheDocument()
+    expect(screen.getByText(/开放 AI 助手权限并设置累计额度/)).toBeInTheDocument()
   })
 })

@@ -12,7 +12,6 @@ export interface AdminWebChatPilotMember {
   role: WebChatPilotRole
   accountStatus: WebChatPilotAccountStatus
   accessEnabled: boolean
-  pilotObservationEnabled: boolean
   totalRequestLimit: number
   totalTokenLimit: number
   requestCount: number
@@ -35,32 +34,6 @@ export interface AdminWebChatCacheSummary {
   cacheWriteTokens: number
 }
 
-export type WebChatPilotObservationStatus =
-  | 'cohort_size_invalid'
-  | 'active_requests'
-  | 'needs_review'
-  | 'awaiting_member_activity'
-  | 'observing'
-  | 'ready_for_review'
-
-export interface AdminWebChatPilotObservation {
-  checkedAt: string
-  cohortStartedAt: string | null
-  observationHours: number
-  enabledMembers: number
-  activeMembers: number
-  observedRequests: number
-  successfulRequests: number
-  incompleteRequests: number
-  failedRequests: number
-  unknownUsageRequests: number
-  activeGenerationCount: number
-  cacheEligibleRequests: number
-  cacheHitRequests: number
-  lastRequestAt: string | null
-  status: WebChatPilotObservationStatus
-}
-
 interface AdminWebChatPilotMemberRow {
   user_id: string
   full_name: string | null
@@ -69,7 +42,6 @@ interface AdminWebChatPilotMemberRow {
   role: string
   review_status: string
   access_enabled: boolean
-  pilot_observation_enabled: boolean
   total_request_limit: number | string
   total_token_limit: number | string
   used_requests: number | string
@@ -92,34 +64,15 @@ interface AdminWebChatCacheSummaryRow {
   cache_write_tokens: number | string
 }
 
-interface AdminWebChatPilotObservationRow {
-  checked_at: string
-  cohort_started_at: string | null
-  observation_hours: number | string
-  enabled_members: number | string
-  active_members: number | string
-  observed_requests: number | string
-  successful_requests: number | string
-  incomplete_requests: number | string
-  failed_requests: number | string
-  unknown_usage_requests: number | string
-  active_generation_count: number | string
-  cache_eligible_requests: number | string
-  cache_hit_requests: number | string
-  last_request_at: string | null
-  observation_status: string
-}
-
 const demoMembers: AdminWebChatPilotMember[] = [
   {
     id: 'member-1',
-    name: '试运行成员',
+    name: '示例成员',
     grade: '24级',
     major: '计算机科学与技术',
     role: 'member',
     accountStatus: 'approved',
     accessEnabled: true,
-    pilotObservationEnabled: true,
     totalRequestLimit: 300,
     totalTokenLimit: 1_000_000,
     requestCount: 8,
@@ -143,30 +96,12 @@ const demoCacheSummary: AdminWebChatCacheSummary = {
   cacheWriteTokens: 0,
 }
 
-const demoObservation: AdminWebChatPilotObservation = {
-  checkedAt: '2026-07-19T09:30:00+08:00',
-  cohortStartedAt: '2026-07-18T09:30:00+08:00',
-  observationHours: 24,
-  enabledMembers: 1,
-  activeMembers: 1,
-  observedRequests: 8,
-  successfulRequests: 8,
-  incompleteRequests: 0,
-  failedRequests: 0,
-  unknownUsageRequests: 0,
-  activeGenerationCount: 0,
-  cacheEligibleRequests: 2,
-  cacheHitRequests: 1,
-  lastRequestAt: '2026-07-19T09:20:00+08:00',
-  status: 'cohort_size_invalid',
-}
-
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function integer(value: number | string, label: string): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
-    throw new Error(`试运行成员列表返回了无效的${label}。`)
+    throw new Error(`AI 助手账号列表返回了无效的${label}。`)
   }
   return parsed
 }
@@ -174,7 +109,7 @@ function integer(value: number | string, label: string): number {
 function timestamp(value: string | null, label: string): string | null {
   if (value === null) return null
   if (!value || Number.isNaN(Date.parse(value))) {
-    throw new Error(`试运行成员列表返回了无效的${label}。`)
+    throw new Error(`AI 助手账号列表返回了无效的${label}。`)
   }
   return value
 }
@@ -183,12 +118,10 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
   if (
     !uuidPattern.test(row.user_id) ||
     typeof row.access_enabled !== 'boolean' ||
-    typeof row.pilot_observation_enabled !== 'boolean' ||
-    (row.pilot_observation_enabled && !row.access_enabled) ||
     !['member', 'admin'].includes(row.role) ||
     !['approved', 'suspended'].includes(row.review_status)
   ) {
-    throw new Error('试运行成员列表返回了无效数据。')
+    throw new Error('AI 助手账号列表返回了无效数据。')
   }
 
   const totalRequestLimit = integer(row.total_request_limit, '累计请求总上限')
@@ -209,7 +142,7 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
     remainingRequests !== Math.max(totalRequestLimit - requestCount, 0) ||
     remainingTokens !== Math.max(totalTokenLimit - settledTokens - reservedTokens, 0)
   ) {
-    throw new Error('试运行成员列表返回了不一致的额度数据。')
+    throw new Error('AI 助手账号列表返回了不一致的额度数据。')
   }
 
   return {
@@ -220,7 +153,6 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
     role: row.role as WebChatPilotRole,
     accountStatus: row.review_status as WebChatPilotAccountStatus,
     accessEnabled: row.access_enabled,
-    pilotObservationEnabled: row.pilot_observation_enabled,
     totalRequestLimit,
     totalTokenLimit,
     requestCount,
@@ -237,7 +169,7 @@ function mapPilotMember(row: AdminWebChatPilotMemberRow): AdminWebChatPilotMembe
 
 export function mapAdminWebChatPilotMembers(value: unknown): AdminWebChatPilotMember[] {
   if (!Array.isArray(value)) {
-    throw new Error('试运行成员列表返回了无效数据。')
+    throw new Error('AI 助手账号列表返回了无效数据。')
   }
   return (value as AdminWebChatPilotMemberRow[]).map(mapPilotMember)
 }
@@ -246,7 +178,7 @@ export async function fetchAdminWebChatPilotMembers(): Promise<AdminWebChatPilot
   if (!supabase) return demoMembers
 
   const { data, error } = await supabase.rpc('admin_list_webchat_pilot_members')
-  if (error) throw adminRpcError('试运行成员用量读取失败', error)
+  if (error) throw adminRpcError('AI 助手账号用量读取失败', error)
   return mapAdminWebChatPilotMembers(data)
 }
 
@@ -280,64 +212,4 @@ export async function fetchAdminWebChatCacheSummary(): Promise<AdminWebChatCache
   const { data, error } = await supabase.rpc('admin_read_webchat_cache_summary')
   if (error) throw adminRpcError('WebChat 输入缓存摘要读取失败', error)
   return mapAdminWebChatCacheSummary(data)
-}
-
-const observationStatuses = new Set<WebChatPilotObservationStatus>([
-  'cohort_size_invalid',
-  'active_requests',
-  'needs_review',
-  'awaiting_member_activity',
-  'observing',
-  'ready_for_review',
-])
-
-export function mapAdminWebChatPilotObservation(value: unknown): AdminWebChatPilotObservation {
-  const row = Array.isArray(value) ? value[0] : value
-  if (!row || typeof row !== 'object' || Array.isArray(row)) {
-    throw new Error('WebChat 试运行观察摘要返回了无效数据。')
-  }
-  const data = row as AdminWebChatPilotObservationRow
-  if (!observationStatuses.has(data.observation_status as WebChatPilotObservationStatus)) {
-    throw new Error('WebChat 试运行观察摘要返回了无效状态。')
-  }
-
-  const observation = {
-    checkedAt: timestamp(data.checked_at, '观察检查时间') as string,
-    cohortStartedAt: timestamp(data.cohort_started_at, '观察开始时间'),
-    observationHours: integer(data.observation_hours, '连续观察小时数'),
-    enabledMembers: integer(data.enabled_members, '正式试运行成员数'),
-    activeMembers: integer(data.active_members, '已有活动成员数'),
-    observedRequests: integer(data.observed_requests, '观察请求数'),
-    successfulRequests: integer(data.successful_requests, '成功请求数'),
-    incompleteRequests: integer(data.incomplete_requests, '不完整请求数'),
-    failedRequests: integer(data.failed_requests, '失败请求数'),
-    unknownUsageRequests: integer(data.unknown_usage_requests, '未知用量请求数'),
-    activeGenerationCount: integer(data.active_generation_count, '进行中生成数'),
-    cacheEligibleRequests: integer(data.cache_eligible_requests, '缓存达标请求数'),
-    cacheHitRequests: integer(data.cache_hit_requests, '缓存命中请求数'),
-    lastRequestAt: timestamp(data.last_request_at, '最近观察请求时间'),
-    status: data.observation_status as WebChatPilotObservationStatus,
-  }
-
-  if (
-    observation.activeMembers > observation.enabledMembers ||
-    observation.successfulRequests + observation.incompleteRequests + observation.failedRequests !==
-      observation.observedRequests ||
-    observation.unknownUsageRequests > observation.observedRequests ||
-    observation.cacheHitRequests > observation.cacheEligibleRequests ||
-    (observation.enabledMembers > 0 && observation.cohortStartedAt === null) ||
-    (observation.lastRequestAt !== null && observation.cohortStartedAt === null)
-  ) {
-    throw new Error('WebChat 试运行观察摘要返回了不一致数据。')
-  }
-
-  return observation
-}
-
-export async function fetchAdminWebChatPilotObservation(): Promise<AdminWebChatPilotObservation> {
-  if (!supabase) return demoObservation
-
-  const { data, error } = await supabase.rpc('admin_read_webchat_pilot_observation')
-  if (error) throw adminRpcError('WebChat 试运行观察摘要读取失败', error)
-  return mapAdminWebChatPilotObservation(data)
 }

@@ -8,7 +8,6 @@ import Plus from 'lucide-react/dist/esm/icons/plus'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Save from 'lucide-react/dist/esm/icons/save'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
-import Users from 'lucide-react/dist/esm/icons/users'
 import X from 'lucide-react/dist/esm/icons/x'
 import {
   type FormEvent,
@@ -170,7 +169,6 @@ export function AdminMemberDetailPage() {
   const [webChatAccessSaving, setWebChatAccessSaving] = useState(false)
   const [webChatAccessError, setWebChatAccessError] = useState('')
   const [webChatEnabled, setWebChatEnabled] = useState(false)
-  const [webChatPilotObservationEnabled, setWebChatPilotObservationEnabled] = useState(false)
   const [webChatTotalRequestLimit, setWebChatTotalRequestLimit] = useState('30')
   const [webChatTotalTokenLimit, setWebChatTotalTokenLimit] = useState('100000')
   const [webChatReason, setWebChatReason] = useState('')
@@ -206,7 +204,6 @@ export function AdminMemberDetailPage() {
   const applyWebChatAccess = useCallback((access: WebChatMemberAccess) => {
     setWebChatAccess(access)
     setWebChatEnabled(access.enabled)
-    setWebChatPilotObservationEnabled(access.pilotObservationEnabled)
     setWebChatTotalRequestLimit(String(access.totalRequestLimit))
     setWebChatTotalTokenLimit(String(access.totalTokenLimit))
     setWebChatReason('')
@@ -258,10 +255,6 @@ export function AdminMemberDetailPage() {
       setWebChatAccessError('已停用账号不能开启 AI 助手；请先恢复账号。')
       return
     }
-    if (webChatPilotObservationEnabled && !webChatEnabled) {
-      setWebChatAccessError('正式试运行成员必须同时拥有 AI 助手权限。')
-      return
-    }
     if (reason.length < 3 || reason.length > 500) {
       setWebChatAccessError('请填写 3 到 500 字的修改原因。')
       return
@@ -273,7 +266,6 @@ export function AdminMemberDetailPage() {
       const nextAccess = await updateAdminWebChatMemberAccess({
         memberId: member.id,
         enabled: webChatEnabled,
-        pilotObservationEnabled: webChatPilotObservationEnabled,
         totalRequestLimit,
         totalTokenLimit,
         expectedVersion: webChatAccess.version,
@@ -281,7 +273,7 @@ export function AdminMemberDetailPage() {
       })
       applyWebChatAccess(nextAccess)
       setNoticeKind('success')
-      setNotice('成员 AI 助手权限、正式试运行名单与额度已保存。')
+      setNotice('成员 AI 助手权限与额度已保存。')
     } catch (error) {
       if (error instanceof WebChatMemberAccessConflictError) {
         await loadWebChatAccess(false)
@@ -602,7 +594,6 @@ export function AdminMemberDetailPage() {
   const webChatAccessChanged = Boolean(
     webChatAccess &&
     (webChatEnabled !== webChatAccess.enabled ||
-      webChatPilotObservationEnabled !== webChatAccess.pilotObservationEnabled ||
       parsedWebChatRequestLimit !== webChatAccess.totalRequestLimit ||
       parsedWebChatTokenLimit !== webChatAccess.totalTokenLimit),
   )
@@ -667,7 +658,7 @@ export function AdminMemberDetailPage() {
             <div className="section-title-row">
               <div>
                 <h2>AI 助手访问</h2>
-                <p>分别管理 AI 使用权限、正式试运行观察名单和累计额度。</p>
+                <p>管理 AI 使用权限和累计额度。</p>
               </div>
               <button
                 className="secondary-button"
@@ -695,9 +686,7 @@ export function AdminMemberDetailPage() {
                     checked={webChatEnabled}
                     disabled={webChatAccessSaving || member.status !== 'active'}
                     onChange={(event) => {
-                      const enabled = event.target.checked
-                      setWebChatEnabled(enabled)
-                      if (!enabled) setWebChatPilotObservationEnabled(false)
+                      setWebChatEnabled(event.target.checked)
                     }}
                   />
                   <MessageSquareLock size={20} aria-hidden="true" />
@@ -707,21 +696,6 @@ export function AdminMemberDetailPage() {
                       {member.status === 'active'
                         ? '关闭后新请求立即拒绝；正在生成的请求仍会完成结算。'
                         : '账号已停用，AI 助手访问始终关闭。'}
-                    </small>
-                  </span>
-                </label>
-                <label className="admin-member-webchat-toggle">
-                  <input
-                    type="checkbox"
-                    checked={webChatPilotObservationEnabled}
-                    disabled={webChatAccessSaving || member.status !== 'active' || !webChatEnabled}
-                    onChange={(event) => setWebChatPilotObservationEnabled(event.target.checked)}
-                  />
-                  <Users size={20} aria-hidden="true" />
-                  <span>
-                    <strong>纳入正式试运行观察</strong>
-                    <small>
-                      从全部获权账号中独立选择 3–5 人；名单或成员额度变化会重新开始 168 小时观察。
                     </small>
                   </span>
                 </label>
@@ -764,7 +738,7 @@ export function AdminMemberDetailPage() {
                     disabled={webChatAccessSaving}
                     onChange={(event) => setWebChatReason(event.target.value)}
                   />
-                  <small>权限、正式名单和额度调整都会进入管理员审计记录。</small>
+                  <small>权限和额度调整都会进入管理员审计记录。</small>
                 </label>
                 {webChatAccessError ? (
                   <p className="form-error admin-member-webchat-error" role="status">

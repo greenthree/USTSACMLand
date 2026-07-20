@@ -1071,17 +1071,6 @@ export type Database = {
           version: number
         }[]
       }
-      admin_get_webchat_member_policy: {
-        Args: { target_profile_id: string }
-        Returns: {
-          access_enabled: boolean
-          pilot_observation_enabled: boolean
-          total_request_limit: number
-          total_token_limit: number
-          updated_at: string
-          version: number
-        }[]
-      }
       admin_list_active_sync_jobs: {
         Args: { before_job_id?: number; row_limit?: number }
         Returns: {
@@ -1292,26 +1281,6 @@ export type Database = {
           observed_requests: number
         }[]
       }
-      admin_read_webchat_pilot_observation: {
-        Args: never
-        Returns: {
-          active_generation_count: number
-          active_members: number
-          cache_eligible_requests: number
-          cache_hit_requests: number
-          checked_at: string
-          cohort_started_at: string | null
-          enabled_members: number
-          failed_requests: number
-          incomplete_requests: number
-          last_request_at: string | null
-          observation_hours: number
-          observation_status: string
-          observed_requests: number
-          successful_requests: number
-          unknown_usage_requests: number
-        }[]
-      }
       admin_set_daily_problem_comment_visibility: {
         Args: {
           expected_updated_at: string
@@ -1453,25 +1422,6 @@ export type Database = {
         }
         Returns: {
           access_enabled: boolean
-          total_request_limit: number
-          total_token_limit: number
-          updated_at: string
-          version: number
-        }[]
-      }
-      admin_update_webchat_member_policy: {
-        Args: {
-          expected_version: number
-          reason: string
-          requested_access_enabled: boolean
-          requested_pilot_observation_enabled: boolean
-          requested_total_request_limit: number
-          requested_total_token_limit: number
-          target_profile_id: string
-        }
-        Returns: {
-          access_enabled: boolean
-          pilot_observation_enabled: boolean
           total_request_limit: number
           total_token_limit: number
           updated_at: string

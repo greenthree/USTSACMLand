@@ -65,7 +65,6 @@ describe('AdminMemberDetailPage', () => {
     memberDetailMocks.triggerSync.mockResolvedValue(undefined)
     memberDetailMocks.fetchWebChatAccess.mockResolvedValue({
       enabled: false,
-      pilotObservationEnabled: false,
       totalRequestLimit: 10,
       totalTokenLimit: 40_000,
       version: 1,
@@ -73,7 +72,6 @@ describe('AdminMemberDetailPage', () => {
     })
     memberDetailMocks.updateWebChatAccess.mockResolvedValue({
       enabled: true,
-      pilotObservationEnabled: true,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       version: 2,
@@ -119,38 +117,32 @@ describe('AdminMemberDetailPage', () => {
     await screen.findByRole('heading', { name: '沈亦安' })
 
     const enabled = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
-    const pilot = screen.getByRole('checkbox', { name: /纳入正式试运行观察/ })
     const requestLimit = screen.getByRole('spinbutton', { name: /累计请求总上限/ })
     const tokenLimit = screen.getByRole('spinbutton', { name: /累计 Token 总上限/ })
     await user.click(enabled)
-    await user.click(pilot)
     await user.clear(requestLimit)
     await user.type(requestLimit, '12')
     await user.clear(tokenLimit)
     await user.type(tokenLimit, '50000')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '开放首批试运行')
+    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '开放成员权限')
     await user.click(screen.getByRole('button', { name: '保存 AI 助手配置' }))
 
     expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
       memberId: 'member-1',
       enabled: true,
-      pilotObservationEnabled: true,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       expectedVersion: 1,
-      reason: '开放首批试运行',
+      reason: '开放成员权限',
     })
-    expect(
-      await screen.findByText('成员 AI 助手权限、正式试运行名单与额度已保存。'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('成员 AI 助手权限与额度已保存。')).toBeInTheDocument()
     expect(screen.getByText('配置版本 v2')).toBeInTheDocument()
   })
 
-  it('removes formal observation when AI access is disabled', async () => {
+  it('lets an administrator disable AI access without changing cumulative limits', async () => {
     const user = userEvent.setup()
     memberDetailMocks.fetchWebChatAccess.mockResolvedValue({
       enabled: true,
-      pilotObservationEnabled: true,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       version: 4,
@@ -158,7 +150,6 @@ describe('AdminMemberDetailPage', () => {
     })
     memberDetailMocks.updateWebChatAccess.mockResolvedValue({
       enabled: false,
-      pilotObservationEnabled: false,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       version: 5,
@@ -168,24 +159,19 @@ describe('AdminMemberDetailPage', () => {
     await screen.findByRole('heading', { name: '沈亦安' })
 
     const access = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
-    const pilot = screen.getByRole('checkbox', { name: /纳入正式试运行观察/ })
     expect(access).toBeChecked()
-    expect(pilot).toBeChecked()
 
     await user.click(access)
-    expect(pilot).not.toBeChecked()
-    expect(pilot).toBeDisabled()
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '结束该账号试运行')
+    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '关闭该账号权限')
     await user.click(screen.getByRole('button', { name: '保存 AI 助手配置' }))
 
     expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
       memberId: 'member-1',
       enabled: false,
-      pilotObservationEnabled: false,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       expectedVersion: 4,
-      reason: '结束该账号试运行',
+      reason: '关闭该账号权限',
     })
   })
 

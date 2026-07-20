@@ -426,7 +426,7 @@ select ok(
     and not pg_catalog.has_function_privilege(
       'service_role', 'public.admin_list_webchat_pilot_members()', 'EXECUTE'
     ),
-  'the WebChat pilot roster is reachable only through the authenticated administrator boundary'
+  'the legacy-named WebChat account list is reachable only through the authenticated administrator boundary'
 );
 
 select * from finish();

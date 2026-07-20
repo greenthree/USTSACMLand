@@ -30,7 +30,7 @@ describe('CI workflow', () => {
       ),
     ).toEqual({
       fileCount: 37,
-      assertionCount: 900,
+      assertionCount: 873,
       releaseMigrationCount: 41,
     })
   })
@@ -506,21 +506,13 @@ describe('CI workflow', () => {
       ),
     ).toThrow(/requested_total_request_limit/)
     expect(() =>
-      verifyDatabaseTypes(
-        databaseTypes.replace(
-          'admin_update_webchat_member_policy:',
-          'removed_update_webchat_member_policy:',
-        ),
-      ),
-    ).toThrow(/admin_update_webchat_member_policy/)
+      verifyDatabaseTypes(`${databaseTypes}\nadmin_update_webchat_member_policy: { Args: never }`),
+    ).toThrow(/pilot policy API/)
     expect(() =>
       verifyDatabaseTypes(
-        databaseTypes.replaceAll(
-          'requested_pilot_observation_enabled:',
-          'removed_pilot_observation_enabled:',
-        ),
+        `${databaseTypes}\nadmin_read_webchat_pilot_observation: { Args: never }`,
       ),
-    ).toThrow(/requested_pilot_observation_enabled/)
+    ).toThrow(/observation API/)
     expect(() =>
       verifyDatabaseTypes(`${databaseTypes}\nrequested_daily_request_limit: number`),
     ).toThrow(/daily member quota API/)

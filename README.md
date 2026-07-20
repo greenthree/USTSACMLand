@@ -290,7 +290,7 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 
 1. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
 2. 使用已录入的注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-3. 完成 AI 助手 3–5 人、168 小时观察，以及真实队员小范围试运行和人工可访问性验收。
+3. 完成 AI 助手真实队员生产验证和人工可访问性验收。
 4. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
 5. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`；发布后为 GitHub Pages 接入 Cloudflare 自定义域名、DNS/CDN 和 TLS。
 

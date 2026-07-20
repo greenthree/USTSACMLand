@@ -7,7 +7,6 @@ const webChatConfigMocks = vi.hoisted(() => ({
   updateConfig: vi.fn(),
   fetchPilotMembers: vi.fn(),
   fetchCacheSummary: vi.fn(),
-  fetchObservation: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({
@@ -24,7 +23,6 @@ vi.mock('../../lib/adminWebChatPilot', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/adminWebChatPilot')>()),
   fetchAdminWebChatPilotMembers: webChatConfigMocks.fetchPilotMembers,
   fetchAdminWebChatCacheSummary: webChatConfigMocks.fetchCacheSummary,
-  fetchAdminWebChatPilotObservation: webChatConfigMocks.fetchObservation,
 }))
 
 import { AdminWebChatPage } from './AdminWebChatPage'
@@ -75,23 +73,6 @@ describe('AdminWebChatPage', () => {
       eligibleInputTokens: 0,
       cachedInputTokens: 0,
       cacheWriteTokens: 0,
-    })
-    webChatConfigMocks.fetchObservation.mockReset().mockResolvedValue({
-      checkedAt: '2026-07-19T09:30:00Z',
-      cohortStartedAt: null,
-      observationHours: 0,
-      enabledMembers: 0,
-      activeMembers: 0,
-      observedRequests: 0,
-      successfulRequests: 0,
-      incompleteRequests: 0,
-      failedRequests: 0,
-      unknownUsageRequests: 0,
-      activeGenerationCount: 0,
-      cacheEligibleRequests: 0,
-      cacheHitRequests: 0,
-      lastRequestAt: null,
-      status: 'cohort_size_invalid',
     })
   })
 
@@ -291,28 +272,27 @@ describe('AdminWebChatPage', () => {
     expect(await screen.findByLabelText(/替换 API Key/)).toHaveValue('')
   })
 
-  it('keeps relay configuration usable when pilot observability fails independently', async () => {
-    webChatConfigMocks.fetchPilotMembers.mockRejectedValue(new Error('成员观测服务暂时不可用'))
+  it('keeps relay configuration usable when account usage fails independently', async () => {
+    webChatConfigMocks.fetchPilotMembers.mockRejectedValue(new Error('成员用量服务暂时不可用'))
     renderPage()
 
     expect(await screen.findByText('v7')).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /中转站 Base URL/ })).toHaveValue(configured.baseUrl)
-    expect(await screen.findByRole('alert')).toHaveTextContent('成员观测服务暂时不可用')
+    expect(await screen.findByRole('alert')).toHaveTextContent('成员用量服务暂时不可用')
     expect(screen.getByRole('button', { name: '保存配置' })).toBeInTheDocument()
   })
 
-  it('keeps pilot observability available when relay configuration fails independently', async () => {
+  it('keeps account usage available when relay configuration fails independently', async () => {
     webChatConfigMocks.fetchConfig.mockRejectedValue(new Error('中转站配置服务暂时不可用'))
     webChatConfigMocks.fetchPilotMembers.mockResolvedValue([
       {
         id: '00000000-0000-4000-8000-000000000101',
-        name: '试运行成员',
+        name: '测试成员',
         grade: '24级',
         major: '计算机科学与技术',
         role: 'member',
         accountStatus: 'approved',
         accessEnabled: true,
-        pilotObservationEnabled: true,
         totalRequestLimit: 30,
         totalTokenLimit: 100_000,
         requestCount: 8,
@@ -329,9 +309,7 @@ describe('AdminWebChatPage', () => {
     renderPage()
 
     expect(await screen.findByText('WebChat 配置暂不可用')).toBeInTheDocument()
-    expect(
-      await screen.findByRole('region', { name: 'AI 助手账号与正式试运行' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'AI 助手账号与用量' })).toBeInTheDocument()
     expect(screen.getByText('8 / 30')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
   })

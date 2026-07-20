@@ -13,7 +13,6 @@ import {
 
 const accessRow = {
   access_enabled: true,
-  pilot_observation_enabled: true,
   total_request_limit: 12,
   total_token_limit: 50_000,
   version: 3,
@@ -38,7 +37,6 @@ describe('WebChat member access adapters', () => {
   it('maps a private administrator configuration without adding profile data', () => {
     expect(mapWebChatMemberAccess([accessRow])).toEqual({
       enabled: true,
-      pilotObservationEnabled: true,
       totalRequestLimit: 12,
       totalTokenLimit: 50_000,
       version: 3,
@@ -56,25 +54,23 @@ describe('WebChat member access adapters', () => {
       updateAdminWebChatMemberAccess({
         memberId: 'member-1',
         enabled: true,
-        pilotObservationEnabled: true,
         totalRequestLimit: 12,
         totalTokenLimit: 50_000,
         expectedVersion: 3,
-        reason: '  开放首批试运行  ',
+        reason: '  开放成员权限  ',
       }),
     ).resolves.toMatchObject({ version: 4 })
 
-    expect(accessMocks.rpc).toHaveBeenNthCalledWith(1, 'admin_get_webchat_member_policy', {
+    expect(accessMocks.rpc).toHaveBeenNthCalledWith(1, 'admin_get_webchat_member_access', {
       target_profile_id: 'member-1',
     })
-    expect(accessMocks.rpc).toHaveBeenNthCalledWith(2, 'admin_update_webchat_member_policy', {
+    expect(accessMocks.rpc).toHaveBeenNthCalledWith(2, 'admin_update_webchat_member_access', {
       target_profile_id: 'member-1',
       requested_access_enabled: true,
-      requested_pilot_observation_enabled: true,
       requested_total_request_limit: 12,
       requested_total_token_limit: 50_000,
       expected_version: 3,
-      reason: '开放首批试运行',
+      reason: '开放成员权限',
     })
   })
 
@@ -88,11 +84,10 @@ describe('WebChat member access adapters', () => {
       updateAdminWebChatMemberAccess({
         memberId: 'member-1',
         enabled: false,
-        pilotObservationEnabled: false,
         totalRequestLimit: 10,
         totalTokenLimit: 40_000,
         expectedVersion: 2,
-        reason: '调整试运行额度',
+        reason: '调整成员额度',
       }),
     ).rejects.toBeInstanceOf(WebChatMemberAccessConflictError)
   })
@@ -113,11 +108,9 @@ describe('WebChat member access adapters', () => {
     expect(() => mapWebChatMemberAccess([{ ...accessRow, total_request_limit: 0 }])).toThrow(
       /无效数据/,
     )
-    expect(() =>
-      mapWebChatMemberAccess([
-        { ...accessRow, access_enabled: false, pilot_observation_enabled: true },
-      ]),
-    ).toThrow(/无效数据/)
+    expect(() => mapWebChatMemberAccess([{ ...accessRow, access_enabled: 'yes' }])).toThrow(
+      /无效数据/,
+    )
     expect(() => mapWebChatMemberUsage([{ ...usageRow, remaining_tokens: 40_000 }])).toThrow(
       /不一致/,
     )

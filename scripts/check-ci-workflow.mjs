@@ -100,9 +100,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'release_webchat_cache_probe',
     'purge_webchat_cache_probe_runs',
     'admin_get_webchat_member_access',
-    'admin_get_webchat_member_policy',
     'admin_update_webchat_member_access',
-    'admin_update_webchat_member_policy',
     'admin_list_webchat_pilot_members',
     'admin_read_webchat_cache_summary',
     'read_webchat_member_runtime_access',
@@ -157,8 +155,6 @@ export function verifyDatabaseTypes(databaseTypes) {
     'total_token_limit',
     'used_requests',
     'used_tokens',
-    'pilot_observation_enabled',
-    'requested_pilot_observation_enabled',
   ]) {
     requireMatch(
       databaseTypes,
@@ -168,6 +164,12 @@ export function verifyDatabaseTypes(databaseTypes) {
   }
   if (/\brequested_daily_(?:request|token)_limit:/.test(databaseTypes)) {
     throw new Error('Generated database types still expose the removed daily member quota API.')
+  }
+  if (/\badmin_(?:get|update)_webchat_member_policy:\s*\{/.test(databaseTypes)) {
+    throw new Error('Generated database types still expose the retired WebChat pilot policy API.')
+  }
+  if (/\badmin_read_webchat_pilot_observation:\s*\{/.test(databaseTypes)) {
+    throw new Error('Generated database types still expose the retired WebChat observation API.')
   }
   if (/\bclaim_webchat_request:\s*\{/.test(databaseTypes)) {
     throw new Error('Generated database types still expose the retired WebChat core claim name.')

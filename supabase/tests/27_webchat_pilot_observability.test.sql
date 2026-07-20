@@ -103,7 +103,7 @@ insert into private.webchat_member_access (
 values
   (
     '00000000-0000-0000-0000-000000002701',
-    true, true, 10, 5000, 2,
+    true, false, 10, 5000, 2,
     '00000000-0000-0000-0000-000000002704'
   ),
   (
@@ -113,12 +113,12 @@ values
   ),
   (
     '00000000-0000-0000-0000-000000002704',
-    true, true, 5, 2000, 4,
+    true, false, 5, 2000, 4,
     '00000000-0000-0000-0000-000000002704'
   ),
   (
     '00000000-0000-0000-0000-000000002705',
-    true, true, 4, 1500, 5,
+    true, false, 4, 1500, 5,
     '00000000-0000-0000-0000-000000002704'
   );
 
@@ -435,7 +435,7 @@ select ok(
       and role = 'admin'
       and review_status = 'suspended'
       and access_enabled
-      and pilot_observation_enabled
+      and not pilot_observation_enabled
   ),
   'the roster preserves configured suspended-account state for administrator cleanup'
 );
