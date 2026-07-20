@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
+import { collectRuntimeErrors } from './helpers'
 
 const demoSessionKey = 'usts-acm-land-demo-session:v1'
 const appBaseUrl = 'http://127.0.0.1:4175'
@@ -90,14 +91,18 @@ test('the active conversation survives refresh and remains available in history'
 test('the workbench shows thinking until the first visible reply text arrives', async ({
   page,
 }) => {
+  const runtimeErrors = collectRuntimeErrors(page)
   await openAsMember(page)
   const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
   await composer.fill('检查思考状态')
   await composer.press('Enter')
 
   await expect(page.getByText('思考中', { exact: true })).toBeVisible()
+  await expect(page.locator('.assistant-message-model')).toHaveCount(1)
+  await expect(page.getByText('学习助手', { exact: true })).toHaveCount(1)
   await expect(page.getByText('思考状态结束。')).toBeVisible()
   await expect(page.getByText('思考中', { exact: true })).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
 })
 
 test('stop generation aborts the in-flight upstream stream', async ({ page, request }) => {

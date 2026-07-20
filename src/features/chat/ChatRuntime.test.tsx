@@ -84,6 +84,8 @@ describe('AI learning assistant workspace', () => {
     await user.click(screen.getByRole('button', { name: '发送问题' }))
 
     expect(await screen.findByText('思考中')).toBeInTheDocument()
+    expect(document.querySelectorAll('.assistant-message-model')).toHaveLength(1)
+    expect(screen.getAllByText('学习助手')).toHaveLength(1)
     expect(await screen.findByRole('button', { name: '停止生成' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除对话' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: '停止生成' }))

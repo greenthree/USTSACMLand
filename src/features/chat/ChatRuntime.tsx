@@ -58,6 +58,26 @@ function AssistantText() {
   )
 }
 
+function AssistantThinking() {
+  const visible = useAuiState(
+    (state) =>
+      state.thread.isRunning &&
+      state.message.isLast &&
+      !state.message.content.some((part) => part.type === 'text' && part.text.trim().length > 0),
+  )
+
+  if (!visible) return null
+
+  return (
+    <div className="assistant-thinking-copy" role="status">
+      <span>思考中</span>
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+      <i aria-hidden="true" />
+    </div>
+  )
+}
+
 function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="assistant-message assistant-message-model">
@@ -66,6 +86,7 @@ function AssistantMessage() {
       </div>
       <div className="assistant-message-body">
         <p className="assistant-message-label">学习助手</p>
+        <AssistantThinking />
         <MessagePrimitive.Parts components={{ Text: AssistantText }} />
         <ActionBarPrimitive.Root
           className="assistant-message-actions"
@@ -127,34 +148,6 @@ function EmptyConversation() {
 function EmptyConversationGate() {
   const messageCount = useAuiState((state) => state.thread.messages.length)
   return messageCount === 0 ? <EmptyConversation /> : null
-}
-
-function ThinkingIndicator() {
-  const visible = useAuiState((state) => {
-    if (!state.thread.isRunning) return false
-    const lastMessage = state.thread.messages.at(-1)
-    if (!lastMessage || lastMessage.role === 'user') return true
-    return !lastMessage.content.some((part) => part.type === 'text' && part.text.trim().length > 0)
-  })
-
-  if (!visible) return null
-
-  return (
-    <div className="assistant-message assistant-message-model assistant-thinking" role="status">
-      <div className="assistant-message-rail" aria-hidden="true">
-        <span>AI</span>
-      </div>
-      <div className="assistant-message-body">
-        <p className="assistant-message-label">学习助手</p>
-        <div className="assistant-thinking-copy">
-          <span>思考中</span>
-          <i aria-hidden="true" />
-          <i aria-hidden="true" />
-          <i aria-hidden="true" />
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function DeleteConversation({ onDelete }: { onDelete: () => void }) {
@@ -248,7 +241,6 @@ function ConversationThread() {
           <ThreadPrimitive.Messages>
             {({ message }) => (message.role === 'user' ? <UserMessage /> : <AssistantMessage />)}
           </ThreadPrimitive.Messages>
-          <ThinkingIndicator />
         </div>
         <ThreadPrimitive.ViewportFooter className="assistant-composer-dock">
           <ThreadPrimitive.ScrollToBottom asChild>
