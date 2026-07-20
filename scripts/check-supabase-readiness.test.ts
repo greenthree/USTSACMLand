@@ -329,14 +329,11 @@ describe('Supabase production readiness checker', () => {
   it('reports every missing application Function Secret by name only', () => {
     const state = createReadyState()
     state.functionSecrets = state.functionSecrets.filter(
-      (name) => !['SYNC_ALERT_WEBHOOK_URL', 'DELETION_RECOVERY_GITHUB_TOKEN'].includes(name),
+      (name) => name !== 'DELETION_RECOVERY_GITHUB_TOKEN',
     )
 
     expect(evaluateSupabaseReadiness(state).errors).toEqual(
-      expect.arrayContaining([
-        'Supabase Function Secret 未配置：SYNC_ALERT_WEBHOOK_URL。',
-        'Supabase Function Secret 未配置：DELETION_RECOVERY_GITHUB_TOKEN。',
-      ]),
+      expect.arrayContaining(['Supabase Function Secret 未配置：DELETION_RECOVERY_GITHUB_TOKEN。']),
     )
   })
 

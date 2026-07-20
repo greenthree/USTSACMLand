@@ -63,13 +63,12 @@
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
 - [ ] QOJ 可恢复同步失败最多进入一次持久队列重试；每个 attempt 的临时 Firecrawl 会话都最终关闭，凭据/结构错误不重试。
-- [ ] 同步失败 Webhook 只发送脱敏任务信息，投递失败不会改变主任务结果。
 - [ ] 已确认日更、周更和到期队列 cron 使用 UTC 表达正确的北京时间计划。
 
 ## 5. 凭据与外部服务
 
 - [ ] 浏览器构建只含 `VITE_SUPABASE_URL` 和公开 anon key，不含 service role 或第三方凭据。
-- [ ] 洛谷 Cookie/CSRF、QOJ 服务账号、Firecrawl key 和告警 Token 均来自可独立轮换的生产 Secret。
+- [ ] 洛谷 Cookie/CSRF、QOJ 服务账号和 Firecrawl key 均来自可独立轮换的生产 Secret。
 - [ ] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
 - [ ] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。
 - [ ] `ALLOWED_ORIGIN` 只包含实际 Origin，不包含路径或通配敏感域。
@@ -79,7 +78,7 @@
 - [ ] 如本次启用或更换 WebChat 中转站：手动 `WebChat relay compatibility` 工作流已通过非流式、Responses typed SSE、Usage 和 Abort 四项；下载的 14 天 Artifact 不含 Prompt、回复、请求 ID、Key 或明文主机，`CHAT_ENABLED` 在完成函数边界和额度复核前仍为 `false`。
 - [x] `npm run test:e2e:webchat` 已通过五浏览器矩阵；10 个独立页面回复不串流、10 路同时 HTTP 流全部完成、键盘停止触发 Abort、减少动画和移动端 axe 门禁均无回归。PR #57 与合并后的 main CI 均已实际通过。
 - [ ] `/admin/webchat` 已由当前有效管理员写入同一组 Base URL、模型与 Key，并设置全站北京时间每日请求/Token 预算；Key 仅存在 Supabase Vault，配置读取和审计只显示脱敏状态，首次配置、留空保留、轮换、预算更新、数据库暂停和版本冲突均已烟测。
-- [ ] `/admin/webchat` 当日请求数、已结算/预留 Token、剩余额度与北京时间重置时间和数据库聚合账本一致；请求/Token 首次阻断各只投递一次脱敏 `webchat_budget_exhausted`，投递失败不改变 `503` 且不重试。
+- [ ] `/admin/webchat` 当日请求数、已结算/预留 Token、剩余额度与北京时间重置时间和数据库聚合账本一致；请求/Token 阻断返回 `503` 且不重试，后台状态准确。
 - [ ] 在账号详情中只为本次 3–5 名试运行账号开启 AI 助手并逐人设置累计请求/Token 总限额；历史用量计入总限额且不会每日清零；无授权行、关闭授权、停用账号或角色不是成员/管理员均返回结构化 `403`，撤权或降额在数据库原子 claim 前立即生效。
 - [x] 已授权账号 `/assistant` 显示的当前模型、北京时间当日请求、已结算/预留 Token、剩余额度与服务端配置及私有账本一致；该模型进入同次请求的服务端系统提示词与额度指纹，账号无法读取他人额度、全站预算、中转站地址或 Key。2026-07-17/18 的 localhost 与 Pages 生产验证均通过。
 - [x] WebChat 启用顺序为 `CHAT_ENABLED=true` → 后台打开数据库请求开关 → GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` → 触发下一次 Pages 构建；Pages run `29594758865` attempt 2 已通过配置校验、构建、部署与生产榜单审计。关闭时先关闭数据库请求开关，必要时同时恢复另外两层为 `false`。
@@ -112,6 +111,6 @@
 
 - [ ] 复核人明确给出发布决定后，才创建带注释的 `v1.0.0`（或对应版本）标签。
 - [ ] 标签指向已通过全部门禁并实际部署的提交，不在失败构建上移动或复用标签。
-- [ ] Pages、认证、后台、同步队列、告警和数据库指标在发布后观察窗口内正常。
+- [ ] Pages、认证、后台、同步队列、同步失败状态和数据库指标在发布后观察窗口内正常。
 - [ ] 若出现故障，已按 [生产运维手册](./operations-runbook.md) 执行 Git revert、函数兼容回滚或数据库前向修复。
 - [ ] 发布记录包含验证证据、最终部署 ID、遗留风险和下一位维护者。
