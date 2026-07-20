@@ -166,9 +166,9 @@ describe('RankingsPage', () => {
     await user.clear(startInput)
     await user.type(startInput, today)
     await user.clear(endInput)
-    await user.type(endInput, week.startDate)
+    await user.type(endInput, '2000-01-01')
     await user.click(screen.getByRole('button', { name: '应用范围' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('开始日期不能晚于结束日期。')
+    expect(await screen.findByRole('alert')).toHaveTextContent('开始日期不能晚于结束日期。')
 
     await user.clear(endInput)
     await user.type(endInput, today)
