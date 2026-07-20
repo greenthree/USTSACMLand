@@ -51,6 +51,7 @@ const requiredReleaseMigrations = [
   '202607190002_firecrawl_multi_key_admin.sql',
   '202607190005_personal_data_export.sql',
   '202607200001_sync_single_retry.sql',
+  '202607200002_clear_public_schema_lint.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -318,6 +319,11 @@ export function verifyCiWorkflow(
     'Local Supabase and empty-database CI must use PostgreSQL 17 to match production.',
   )
   requireMatch(workflow, /run:\s+npm run test:db/, 'Database CI must execute the pgTAP suite.')
+  requireMatch(
+    workflow,
+    /- name: Lint database schema[\s\S]*?supabase@2\.109\.1 db lint --local[\s\S]*?--schema public --level warning --fail-on warning/,
+    'Database CI must reject public schema lint warnings with the pinned Supabase CLI.',
+  )
   requireMatch(
     workflow,
     /- name: Stop local Supabase\s+if: always\(\)\s+run: npx --yes supabase@2\.109\.1 stop --no-backup/,

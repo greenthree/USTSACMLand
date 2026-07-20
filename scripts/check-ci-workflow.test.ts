@@ -29,10 +29,26 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 36,
-      assertionCount: 898,
-      releaseMigrationCount: 40,
+      fileCount: 37,
+      assertionCount: 900,
+      releaseMigrationCount: 41,
     })
+  })
+
+  it('requires warning-level public schema lint in database CI', () => {
+    expect(() =>
+      verifyCiWorkflow(
+        workflow.replace(
+          '      - name: Lint database schema\n        run: >-\n          npx --yes supabase@2.109.1 db lint --local\n          --schema public --level warning --fail-on warning\n\n',
+          '',
+        ),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/reject public schema lint warnings/)
   })
 
   it('requires the encrypted restore drill workflow checker', () => {
@@ -399,6 +415,17 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/202607200001_sync_single_retry/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607200002_clear_public_schema_lint.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607200002_clear_public_schema_lint/)
 
     expect(() =>
       verifyCiWorkflow(

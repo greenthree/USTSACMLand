@@ -119,6 +119,11 @@ jobs:
       - name: Test database security
         run: npm run test:db
 
+      - name: Lint database schema
+        run: >-
+          npx --yes supabase@2.109.1 db lint --local
+          --schema public --level warning --fail-on warning
+
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.109.1 stop --no-backup

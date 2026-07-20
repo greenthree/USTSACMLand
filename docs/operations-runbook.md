@@ -57,6 +57,7 @@
    ```
 
 4. `CI / verify`、`CI / database-security` 和 `Secret scan / gitleaks` 必须通过；不得因为本机缺少 Docker 而跳过数据库门禁后直接部署。
+   `database-security` 还必须以 warning 级别 lint `public` schema，并把任何 warning 视为失败。
 5. 记录当前可用版本：Git 提交、Pages 部署 ID、Supabase migration 列表和 Edge Function 版本时间。
 
 ## 3. 标准部署顺序
