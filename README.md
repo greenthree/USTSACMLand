@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 56 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 37 个 pgTAP 文件和 900 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列单次 2 分钟退避、stale-worker fencing、数据库五分钟队列调度和计划同步分页均有生产烟测证据。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 58 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 37 个 pgTAP 文件和 900 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。注销恢复下限 GitHub Token 已录入，仍需完成成功注销和失败边界生产演练。
 
 ## 已实现
 
@@ -267,7 +267,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-20 共有 56 个 production migration，`sync-member` 为 v41，`sync-stats` 为 v29，`firecrawl-config` 为 v1，`webchat` 为 v18，`webchat-cache-probe` 为 v11。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-20 共有 58 个 production migration，`sync-member` 为 v43，`sync-stats` 为 v31，`firecrawl-config` 为 v2，`webchat` 为 v19，`webchat-cache-probe` 为 v12。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
@@ -288,12 +288,11 @@ Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/in
 
 ## 当前限制与下一步
 
-1. 部署并生产验收所有平台同步失败后最多自动重试一次；该规则包含 QOJ，但不适用于 WebChat 或其他付费 AI 请求。
-2. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
-3. 配置注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-4. 完成 AI 助手 3–5 人、168 小时观察，以及真实队员小范围试运行和人工可访问性验收。
-5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
-6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`；发布后为 GitHub Pages 接入 Cloudflare 自定义域名、DNS/CDN 和 TLS。
+1. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
+2. 使用已录入的注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
+3. 完成 AI 助手 3–5 人、168 小时观察，以及真实队员小范围试运行和人工可访问性验收。
+4. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
+5. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`；发布后为 GitHub Pages 接入 Cloudflare 自定义域名、DNS/CDN 和 TLS。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 
