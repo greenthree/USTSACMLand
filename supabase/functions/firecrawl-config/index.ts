@@ -15,6 +15,7 @@ import {
 } from './handler.ts'
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  'https://ustsacm.fun',
   'https://greenthree.github.io',
   'http://localhost:5173',
   'http://127.0.0.1:5173',

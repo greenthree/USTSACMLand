@@ -228,13 +228,13 @@ Supabase Function Secrets/配置：
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
 - 可选 XCPC 缓存调优：`XCPC_ELO_CACHE_TTL_SECONDS`、`XCPC_ELO_CACHE_LEASE_SECONDS`、`XCPC_ELO_CACHE_RETRY_SECONDS`、`XCPC_ELO_CACHE_WAIT_MS`、`XCPC_ELO_CACHE_POLL_MS`、`XCPC_ELO_MAX_SOURCE_BYTES`、`XCPC_ELO_MIN_SOURCE_PLAYERS`
 
-`service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://greenthree.github.io`；Origin 不包含 `/USTSACMLand/` 路径。
+`service_role`、第三方服务凭据和其他敏感信息不得使用 `VITE_*` 前缀，也不得进入 Git 历史。`ALLOWED_ORIGIN` 支持逗号分隔的 Origin 白名单，例如 `http://localhost:5173,http://127.0.0.1:5173,https://ustsacm.fun`；Origin 不包含路径。
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
 WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和预算阻断标记。额度账本不保存消息正文；成员和全站额度按完整 `total_tokens` 结算，不因缓存折扣改变产品额度。生产缓存探针固定计入全站 2 次请求，不占成员额度，30 分钟冷却且无自动重试；会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
 
-AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。为支持刷新恢复和历史会话，本站私有数据库最多为每个账号保存 100 个会话，单会话最多 120 条消息/1 MiB，最后活动超过 180 天自动清理；成员可自行删除，注销时随 Profile 级联删除。历史接口只绑定当前登录账号，额度账本仍不保存正文。中转站和上游模型的留存、训练、删除与跨境政策必须由维护者持续核对。站内披露见 [`/privacy`](https://greenthree.github.io/USTSACMLand/privacy)，工程边界见[WebChat 私有历史会话](./docs/webchat-conversation-history.md)。
+AI 学习助手会把成员提交的问题、当前会话的可见上下文和固定系统指令转发给管理员配置的中转站及其上游模型。为支持刷新恢复和历史会话，本站私有数据库最多为每个账号保存 100 个会话，单会话最多 120 条消息/1 MiB，最后活动超过 180 天自动清理；成员可自行删除，注销时随 Profile 级联删除。历史接口只绑定当前登录账号，额度账本仍不保存正文。中转站和上游模型的留存、训练、删除与跨境政策必须由维护者持续核对。站内披露见 [`/privacy`](https://ustsacm.fun/privacy)，工程边界见[WebChat 私有历史会话](./docs/webchat-conversation-history.md)。
 
 `npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只证明本地协议与客户端隔离，不能替代真实中转站费用、Usage 和 Abort 验收。
 
@@ -284,7 +284,7 @@ npx --yes supabase@2.109.1 functions deploy webchat webchat-config webchat-cache
 npm run check:supabase-readiness
 ```
 
-Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/index.html` 为 `dist/404.html`。`.github/workflows/deploy-pages.yml` 仅在 `main` 的完整 CI 成功后运行，并检出通过 CI 的精确提交再构建、发布 Pages；数据库安全任务失败不会覆盖线上版本。Pages 会校验并注入仓库变量 `VITE_WEBCHAT_UI_ENABLED`，未配置时固定为 `false`；生产 WebChat API 地址由 `VITE_SUPABASE_URL` 推导为同项目 `/functions/v1/webchat`，不允许把登录 Token 发往任意覆盖域名。正式地址约定为 `https://greenthree.github.io/USTSACMLand/`；Supabase Auth 回调配置保留 localhost 并加入正式路径，`ALLOWED_ORIGIN` 则使用不含路径的 `https://greenthree.github.io`。
+Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index.html` 为 `dist/404.html`。`.github/workflows/deploy-pages.yml` 仅在 `main` 的完整 CI 成功后运行，并检出通过 CI 的精确提交再构建、发布 Pages；数据库安全任务失败不会覆盖线上版本。Pages 会校验并注入仓库变量 `VITE_WEBCHAT_UI_ENABLED`，未配置时固定为 `false`；生产 WebChat API 地址由 `VITE_SUPABASE_URL` 推导为同项目 `/functions/v1/webchat`，不允许把登录 Token 发往任意覆盖域名。正式地址为 `https://ustsacm.fun/`；Supabase Auth 回调配置保留 localhost 和旧 Pages 地址作为过渡回调，并加入正式域名，`ALLOWED_ORIGIN` 使用不含路径的 `https://ustsacm.fun`。域名、缓存、证书和回滚操作见[自定义域名运行手册](./docs/custom-domain-cloudflare.md)。
 
 ## 当前限制与下一步
 

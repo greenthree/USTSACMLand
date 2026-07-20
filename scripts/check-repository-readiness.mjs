@@ -25,6 +25,7 @@ export const requiredActionVariables = ['BACKUP_RECOVERY_NOT_BEFORE']
 // GitHub's ruleset API stores the check-run names, not the UI's
 // "workflow / job" labels.
 const requiredChecks = ['verify', 'database-security', 'gitleaks']
+const productionDomain = 'ustsacm.fun'
 const scheduledWorkflowMaxAgeHours = new Map([
   // The twice-daily GitHub platform batches have a two-hour execution grace.
   // The five-minute retry queue is monitored separately in Supabase.
@@ -173,6 +174,11 @@ export function evaluateRepositoryReadiness(state) {
     errors.push('GitHub Pages 必须由 Actions workflow 部署。')
   if (!state.pages.httpsEnforced) errors.push('GitHub Pages 未强制 HTTPS。')
   if (!state.pages.htmlUrl) warnings.push('GitHub Pages 未返回公开站点地址。')
+  if (state.pages.cname !== productionDomain) {
+    errors.push(
+      `GitHub Pages 自定义域名必须为 ${productionDomain}，当前为 ${state.pages.cname || '未配置'}。`,
+    )
+  }
 
   return {
     errors,
@@ -312,6 +318,7 @@ export function collectRepositoryReadinessState(repositoryName) {
       buildType: pages.build_type,
       httpsEnforced: pages.https_enforced,
       htmlUrl: pages.html_url,
+      cname: pages.cname,
     },
   }
 }

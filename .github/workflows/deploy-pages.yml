@@ -131,6 +131,6 @@ jobs:
       - name: Recompute public production rankings
         run: npm run test:e2e:production
         env:
-          PRODUCTION_E2E_BASE_URL: ${{ needs.deploy.outputs.page_url }}
+          PRODUCTION_E2E_BASE_URL: https://ustsacm.fun/
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}

@@ -80,7 +80,8 @@ function createReadyState() {
     pages: {
       buildType: 'workflow',
       httpsEnforced: true,
-      htmlUrl: 'https://greenthree.github.io/USTSACMLand/',
+      htmlUrl: 'https://ustsacm.fun/',
+      cname: 'ustsacm.fun',
     },
   }
 }
@@ -147,12 +148,14 @@ describe('repository readiness checker', () => {
     state.securityAndAnalysis.dependabotSecurityUpdates = 'disabled'
     state.privateVulnerabilityReporting = false
     state.pages.httpsEnforced = false
+    state.pages.cname = null
 
     expect(evaluateRepositoryReadiness(state).errors).toEqual(
       expect.arrayContaining([
         'Dependabot security updates 未启用。',
         'Private vulnerability reporting 未启用。',
         'GitHub Pages 未强制 HTTPS。',
+        'GitHub Pages 自定义域名必须为 ustsacm.fun，当前为 未配置。',
       ]),
     )
   })

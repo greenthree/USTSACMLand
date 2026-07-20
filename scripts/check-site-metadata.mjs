@@ -7,12 +7,12 @@ const html = await readFile(join(distDirectory, 'index.html'), 'utf8')
 const requiredMetadata = [
   '<title>USTS ACM Land | 苏州科技大学 ACM 集训队官网</title>',
   'name="description"',
-  'rel="canonical" href="https://greenthree.github.io/USTSACMLand/"',
+  'rel="canonical" href="https://ustsacm.fun/"',
   'property="og:title"',
   'property="og:description"',
   'property="og:image"',
   'name="twitter:card" content="summary"',
-  'href="/USTSACMLand/favicon-192.png"',
+  'href="/favicon-192.png"',
 ]
 
 for (const metadata of requiredMetadata) {
