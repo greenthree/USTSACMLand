@@ -39,7 +39,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ## 2. 当前生产基线
 
 - [x] GitHub Pages 已发布 React SPA，支持子路径资源、深链刷新和生产榜单审计。
-- [x] Supabase Auth、Postgres、RLS、八个 Edge Function 和 56 个 migration 已部署，远端无 pending migration。
+- [x] Supabase Auth、Postgres、RLS、八个 Edge Function 和 58 个 migration 已部署，远端无 pending migration。
 - [x] 邮箱注册、密码登录、真实邮箱找回密码、修改密码和会话恢复流程可用。
 - [x] 成员资料、年级、专业联想、QQ、六个平台绑定和 XCPC ELO 姓名自动匹配已上线。
 - [x] Rating 榜、刷题榜、周榜、月榜和自定义时间范围增量榜已上线。
@@ -55,7 +55,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 ### P0：同步可靠性
 
-- [ ] 所有平台同步在首次失败后最多自动重试一次。
+- [x] 所有平台同步在首次失败后最多自动重试一次。生产证据见 `docs/evidence/sync-single-retry-production-2026-07-20.md`。
   - 覆盖 Codeforces、牛客、AtCoder、XCPC ELO、洛谷和 QOJ；该需求取代原先“QOJ 禁止自动重试”的同步策略。
   - 每个平台一次逻辑同步最多执行两个队列 attempt（首次 + 一次重试），不能形成无限重试或多层任务重试；适配器内部的分页和有界 HTTP 恢复仍由各数据源契约控制。
   - 只重试可恢复错误，例如网络失败、超时、临时限流和临时上游不可用。
