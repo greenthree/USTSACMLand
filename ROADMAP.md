@@ -203,7 +203,7 @@ M5 验收条件：
 
 目标：让项目可以长期维护，而不只是一次性演示。
 
-- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-19 最新部署核对确认项目已对齐 55 个 migration、0 pending，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe`、`firecrawl-config` 八个函数均为 ACTIVE；需要 Deno 依赖的函数统一使用仓库 import map 部署。WebChat 服务端与数据库请求开关已对显式授权账号开放，管理员试运行观测 RPC、连续观察健康摘要 RPC、独立正式名单策略与生产缓存探针已部署。生产 Pages 客户端入口已启用，未登录仍跳转登录，登录且获授权账号可进入工作台。部署证据见 `docs/evidence/webchat-closed-production-deployment-2026-07-17.md`、`docs/evidence/webchat-model-visibility-production-2026-07-17.md`、`docs/evidence/webchat-pages-entry-production-2026-07-18.md`、`docs/evidence/webchat-pilot-observability-production-2026-07-18.md`、`docs/evidence/webchat-input-cache-production-smoke-2026-07-18.md` 与 `docs/evidence/webchat-pilot-roster-production-deployment-2026-07-19.md`）。
+- [x] 配置生产 Supabase，并使数据库 migration、Edge Functions 与当前目标版本一致（2026-07-20 最新部署核对确认项目已对齐 56 个 migration、0 pending，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe`、`firecrawl-config` 八个函数均为 ACTIVE；需要 Deno 依赖的函数统一使用仓库 import map 部署。WebChat 服务端与数据库请求开关已对显式授权账号开放，管理员试运行观测 RPC、连续观察健康摘要 RPC、独立正式名单策略与生产缓存探针已部署。生产 Pages 客户端入口已启用，未登录仍跳转登录，登录且获授权账号可进入工作台；登录成员个人数据导出 RPC 与账号页入口也已发布并通过真实成员烟测。部署证据见 `docs/evidence/webchat-closed-production-deployment-2026-07-17.md`、`docs/evidence/webchat-model-visibility-production-2026-07-17.md`、`docs/evidence/webchat-pages-entry-production-2026-07-18.md`、`docs/evidence/webchat-pilot-observability-production-2026-07-18.md`、`docs/evidence/webchat-input-cache-production-smoke-2026-07-18.md`、`docs/evidence/webchat-pilot-roster-production-deployment-2026-07-19.md` 与 `docs/evidence/personal-data-export-production-2026-07-20.md`）。
 - [x] 配置正式 Pages 地址、Supabase Auth 回调和 GitHub Actions 环境变量。
 - [x] 配置 GitHub Actions 构建、测试、Pages 部署和定时触发工作流代码；Pages 仅在 `main` 的完整 CI 成功后以该次 `head_sha` 发布，不与数据库安全任务并行抢跑。
 - [x] 在生产 Secrets 和真实仓库中验证首版及当前已启用的生产工作流（2026-07-16 严格仓库就绪检查退出码为 0：CI、Pages、同步、Secret scan、Dependabot 与加密数据库备份均有当前 main 的成功真实运行；六个必需 Actions Secret、恢复下限变量、main ruleset、原生安全功能和 30 天 Actions 保留均已确认。首次备份 run `29509805851` 使用短期数据库凭据完成六部分导出、AES-256 加密、GitHub 端解密自检、14 天 Artifact 上传及下载后的本地独立校验，证据见 `docs/evidence/first-encrypted-database-backup-2026-07-16.md`；尚未运行的 WebChat 真实中转站手动工作流继续由对应功能条目跟踪）。
@@ -245,7 +245,10 @@ M6 验收条件：
 - [x] 完成 AI 学习助手隐私披露：说明消息会转发给管理员配置的中转站及上游模型，并披露私有额度账本与历史会话的容量、保留、本人删除、注销级联和管理员默认不可读边界；相关页面已随 Pages run `29646490889` 发布。真实中转站的留存、训练、删除与跨境政策仍作为持续验收项。
 - [ ] CF/AtCoder Rating 曲线与比赛明细。
 - [ ] 过题明细、题目难度分布和标签统计。
-- [ ] 训练目标、连续活跃天数和个人数据导出（个人数据导出已实现：账号页可下载版本化 JSON；数据库 `export_own_data()` 不接受目标成员 ID，只绑定 `auth.uid()`，显式覆盖本人 Auth/Profile、平台绑定、当前统计、历史快照、安全裁剪后的同步记录、每日一题完成/讨论、WebChat 授权限额/聚合账本/本人会话正文；管理员调用时仍只能导出自己，密码、登录令牌、服务密钥、请求指纹、租约 Token、管理员标识和他人数据不进入文件。前端单元、构建、Lint、演示下载和 axe 门禁已加入；待 PostgreSQL 17 空库 CI、生产 migration、真实成员下载烟测后确认该子项，训练目标与连续活跃天数仍未实现）。
+- [ ] 训练目标、连续活跃天数和个人数据导出
+  - [ ] 训练目标。
+  - [ ] 连续活跃天数。
+  - [x] 个人数据导出：账号页可下载版本化 JSON；数据库 `export_own_data()` 不接受目标成员 ID，只绑定 `auth.uid()`，显式覆盖本人 Auth/Profile、平台绑定、当前统计、历史快照、安全裁剪后的同步记录、每日一题完成/讨论、WebChat 授权限额/聚合账本/本人会话正文；管理员调用时仍只能导出自己，密码、登录令牌、服务密钥、请求指纹、租约 Token、管理员标识和他人数据不进入文件。PR #93 三项检查全部通过，PostgreSQL 17 空库完成 36 个 pgTAP 文件、898 项断言；2026-07-20 生产已部署第 56 个 migration、0 pending，Pages 发布与真实成员下载/结构/归属/敏感字段烟测通过。证据见 `docs/evidence/personal-data-export-production-2026-07-20.md`。
 
 ## 主要风险清单
 
