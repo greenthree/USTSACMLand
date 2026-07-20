@@ -251,12 +251,6 @@ values
     )$$
   ),
   (
-    'public.admin_get_webchat_member_policy(uuid)'::regprocedure,
-    $$select * from public.admin_get_webchat_member_policy(
-      '00000000-0000-0000-0000-0000000001a1'
-    )$$
-  ),
-  (
     'public.admin_list_webchat_pilot_members()'::regprocedure,
     'select * from public.admin_list_webchat_pilot_members()'
   ),
@@ -265,25 +259,9 @@ values
     'select * from public.admin_read_webchat_cache_summary()'
   ),
   (
-    'public.admin_read_webchat_pilot_observation()'::regprocedure,
-    'select * from public.admin_read_webchat_pilot_observation()'
-  ),
-  (
     'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)'::regprocedure,
     $$select * from public.admin_update_webchat_member_access(
       '00000000-0000-0000-0000-0000000001a1',
-      false,
-      30,
-      100000,
-      0,
-      'authorization fixture'
-    )$$
-  ),
-  (
-    'public.admin_update_webchat_member_policy(uuid,boolean,boolean,integer,bigint,bigint,text)'::regprocedure,
-    $$select * from public.admin_update_webchat_member_policy(
-      '00000000-0000-0000-0000-0000000001a1',
-      false,
       false,
       30,
       100000,

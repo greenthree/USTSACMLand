@@ -50,17 +50,15 @@ test('administrator can inspect the pilot roster and open its member policy', as
 
   await page.goto('/admin/webchat')
 
-  const pilot = page.getByRole('region', { name: 'AI 助手账号与正式试运行' })
+  const pilot = page.getByRole('region', { name: 'AI 助手账号与用量' })
   await expect(pilot).toBeVisible()
-  await expect(pilot.getByLabel('试运行摘要')).toContainText('已配置账号')
-  await expect(pilot.getByRole('heading', { name: 'AI 助手账号与正式试运行' })).toBeVisible()
-  await expect(pilot.getByText('正式观察', { exact: true })).toBeVisible()
+  await expect(pilot.getByLabel('AI 助手账号摘要')).toContainText('已配置账号')
+  await expect(pilot.getByRole('heading', { name: 'AI 助手账号与用量' })).toBeVisible()
   await expect(pilot.getByText('8 / 300')).toBeVisible()
   await expect(pilot.getByText(/已结算 18,420 · 预留 4,000 · 剩余 977,580/)).toBeVisible()
 
   await pilot.getByRole('link', { name: '查看详情' }).click()
   await expect(page).toHaveURL(/\/admin\/members\/member-1$/)
   await expect(page.getByRole('checkbox', { name: /允许使用 AI 学习助手/ })).toBeChecked()
-  await expect(page.getByRole('checkbox', { name: /纳入正式试运行观察/ })).toBeChecked()
   expect(runtimeErrors).toEqual([])
 })

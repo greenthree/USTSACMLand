@@ -134,11 +134,11 @@ select ok(
 select ok(
   pg_catalog.strpos(
     pg_catalog.pg_get_functiondef(
-      'public.admin_update_webchat_member_policy(uuid,boolean,boolean,integer,bigint,bigint,text)'::regprocedure
+      'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)'::regprocedure
     ),
     'order by administrator.id'
   ) > 0,
-  'administrator self-authorization retains deterministic live-role locking'
+  'administrator access updates retain deterministic live-role locking'
 );
 
 insert into auth.users (

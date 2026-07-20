@@ -208,7 +208,7 @@ insert into private.webchat_member_access (
 )
 values
   ('00000000-0000-0000-0000-000000003601', true, 20, 200000, false),
-  ('00000000-0000-0000-0000-000000003602', true, 30, 300000, true);
+  ('00000000-0000-0000-0000-000000003602', true, 30, 300000, false);
 
 insert into private.webchat_daily_usage (
   user_id, usage_date, request_count, input_tokens, output_tokens,

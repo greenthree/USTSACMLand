@@ -9,11 +9,8 @@ import { Link } from 'react-router-dom'
 import {
   fetchAdminWebChatCacheSummary,
   fetchAdminWebChatPilotMembers,
-  fetchAdminWebChatPilotObservation,
   type AdminWebChatCacheSummary,
   type AdminWebChatPilotMember,
-  type AdminWebChatPilotObservation,
-  type WebChatPilotObservationStatus,
 } from '../../lib/adminWebChatPilot'
 import { formatDateTime } from '../../lib/format'
 import { EmptyState } from '../EmptyState'
@@ -25,18 +22,6 @@ function number(value: number): string {
   return numberFormatter.format(value)
 }
 
-const observationStatusCopy: Record<
-  WebChatPilotObservationStatus,
-  { label: string; className: string }
-> = {
-  cohort_size_invalid: { label: '名单需调整', className: 'status-missing' },
-  active_requests: { label: '有请求进行中', className: 'status-stale' },
-  needs_review: { label: '发现异常', className: 'status-error' },
-  awaiting_member_activity: { label: '等待成员使用', className: 'status-missing' },
-  observing: { label: '连续观察中', className: 'status-stale' },
-  ready_for_review: { label: '可进入人工复核', className: 'status-fresh' },
-}
-
 export function AdminWebChatPilotPanel() {
   const [members, setMembers] = useState<AdminWebChatPilotMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,9 +29,6 @@ export function AdminWebChatPilotPanel() {
   const [cacheSummary, setCacheSummary] = useState<AdminWebChatCacheSummary | null>(null)
   const [cacheLoading, setCacheLoading] = useState(true)
   const [cacheError, setCacheError] = useState('')
-  const [observation, setObservation] = useState<AdminWebChatPilotObservation | null>(null)
-  const [observationLoading, setObservationLoading] = useState(true)
-  const [observationError, setObservationError] = useState('')
 
   const loadMembers = useCallback(async () => {
     setLoading(true)
@@ -54,7 +36,7 @@ export function AdminWebChatPilotPanel() {
     try {
       setMembers(await fetchAdminWebChatPilotMembers())
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '试运行成员用量读取失败。')
+      setError(loadError instanceof Error ? loadError.message : 'AI 助手账号用量读取失败。')
     } finally {
       setLoading(false)
     }
@@ -74,31 +56,15 @@ export function AdminWebChatPilotPanel() {
     }
   }, [])
 
-  const loadObservation = useCallback(async () => {
-    setObservationLoading(true)
-    setObservationError('')
-    try {
-      setObservation(await fetchAdminWebChatPilotObservation())
-    } catch (loadError) {
-      setObservationError(
-        loadError instanceof Error ? loadError.message : 'WebChat 试运行观察摘要读取失败。',
-      )
-    } finally {
-      setObservationLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
     void loadMembers()
     void loadCacheSummary()
-    void loadObservation()
-  }, [loadCacheSummary, loadMembers, loadObservation])
+  }, [loadCacheSummary, loadMembers])
 
   const refreshAll = useCallback(() => {
     void loadMembers()
     void loadCacheSummary()
-    void loadObservation()
-  }, [loadCacheSummary, loadMembers, loadObservation])
+  }, [loadCacheSummary, loadMembers])
 
   const summary = useMemo(
     () => ({
@@ -119,21 +85,21 @@ export function AdminWebChatPilotPanel() {
     <section
       className="admin-section webchat-pilot-section"
       aria-labelledby="webchat-pilot-title"
-      aria-busy={loading || cacheLoading || observationLoading}
+      aria-busy={loading || cacheLoading}
     >
       <header className="webchat-pilot-heading">
         <div>
-          <h2 id="webchat-pilot-title">AI 助手账号与正式试运行</h2>
-          <p>AI 使用权限与 3–5 人正式观察名单相互独立；这里只显示额度和脱敏活动状态。</p>
+          <h2 id="webchat-pilot-title">AI 助手账号与用量</h2>
+          <p>集中查看成员权限、累计额度、剩余用量和脱敏活动状态。</p>
         </div>
         <button
           className="secondary-button"
           type="button"
           onClick={refreshAll}
-          disabled={loading || cacheLoading || observationLoading}
+          disabled={loading || cacheLoading}
         >
           <RefreshCw
-            className={loading || cacheLoading || observationLoading ? 'is-spinning' : undefined}
+            className={loading || cacheLoading ? 'is-spinning' : undefined}
             size={15}
             aria-hidden="true"
           />
@@ -142,7 +108,7 @@ export function AdminWebChatPilotPanel() {
       </header>
 
       {members.length > 0 ? (
-        <div className="webchat-pilot-summary" aria-label="试运行摘要">
+        <div className="webchat-pilot-summary" aria-label="AI 助手账号摘要">
           <div>
             <Users size={18} aria-hidden="true" />
             <span>已配置账号</span>
@@ -169,65 +135,6 @@ export function AdminWebChatPilotPanel() {
             <strong>{number(summary.activeRequests)}</strong>
           </div>
         </div>
-      ) : null}
-
-      {observation ? (
-        <>
-          <div
-            className="webchat-pilot-summary webchat-pilot-observation"
-            aria-label="连续观察摘要"
-          >
-            <div>
-              <Users size={18} aria-hidden="true" />
-              <span>正式名单</span>
-              <strong>{number(observation.enabledMembers)} / 建议 3–5</strong>
-            </div>
-            <div>
-              <Activity size={18} aria-hidden="true" />
-              <span>成员覆盖</span>
-              <strong>
-                {number(observation.activeMembers)} / {number(observation.enabledMembers)}
-              </strong>
-            </div>
-            <div>
-              <RefreshCw size={18} aria-hidden="true" />
-              <span>连续观察</span>
-              <strong>{number(Math.min(observation.observationHours, 168))} / 168 小时</strong>
-            </div>
-            <div>
-              <Zap size={18} aria-hidden="true" />
-              <span>成功 / 异常</span>
-              <strong>
-                {number(observation.successfulRequests + observation.incompleteRequests)} /{' '}
-                {number(observation.failedRequests)}
-              </strong>
-            </div>
-            <div>
-              <Coins size={18} aria-hidden="true" />
-              <span>未知用量</span>
-              <strong>{number(observation.unknownUsageRequests)}</strong>
-            </div>
-            <div>
-              <DatabaseZap size={18} aria-hidden="true" />
-              <span>缓存命中</span>
-              <strong>
-                {number(observation.cacheHitRequests)} / {number(observation.cacheEligibleRequests)}
-              </strong>
-            </div>
-          </div>
-          <p className="webchat-pilot-observation-note">
-            <span className={`status ${observationStatusCopy[observation.status].className}`}>
-              {observationStatusCopy[observation.status].label}
-            </span>
-            观察起点：
-            {observation.cohortStartedAt
-              ? formatDateTime(observation.cohortStartedAt)
-              : '尚未形成正式名单'}
-            {' · '}最近请求：
-            {observation.lastRequestAt ? formatDateTime(observation.lastRequestAt) : '尚无请求'}
-            {' · '}进行中 {number(observation.activeGenerationCount)} 条
-          </p>
-        </>
       ) : null}
 
       {cacheSummary ? (
@@ -279,37 +186,28 @@ export function AdminWebChatPilotPanel() {
         </div>
       ) : null}
 
-      {observationError ? (
-        <div className="webchat-pilot-error" role="alert">
-          <p>{observationError}</p>
-          <button className="secondary-button" type="button" onClick={() => void loadObservation()}>
-            重试连续观察
-          </button>
-        </div>
-      ) : null}
-
       {error ? (
         <div className="webchat-pilot-error" role="alert">
           <p>{error}</p>
           <button className="secondary-button" type="button" onClick={() => void loadMembers()}>
-            重试观测数据
+            重试账号用量
           </button>
         </div>
       ) : null}
 
-      {loading && members.length === 0 ? <LoadingState label="正在读取试运行成员用量" /> : null}
+      {loading && members.length === 0 ? <LoadingState label="正在读取 AI 助手账号用量" /> : null}
 
       {!loading && !error && members.length === 0 ? (
         <EmptyState
           title="尚未配置 AI 助手账号"
-          description="请先进入成员详情开放 AI 助手权限，再从获权账号中选择 3–5 人纳入正式观察。"
+          description="请进入成员详情开放 AI 助手权限并设置累计额度。"
         />
       ) : null}
 
       {members.length > 0 ? (
         <div className="compact-table-wrap admin-table-wrap webchat-pilot-table-wrap">
           <table className="compact-table admin-members-table webchat-pilot-table">
-            <caption className="sr-only">WebChat 已配置账号累计用量与正式试运行状态</caption>
+            <caption className="sr-only">WebChat 已配置账号累计用量与权限状态</caption>
             <thead>
               <tr>
                 <th scope="col">成员</th>
@@ -334,18 +232,11 @@ export function AdminWebChatPilotPanel() {
                     <small>{member.major ?? '未填写专业'}</small>
                   </td>
                   <td data-label="权限与状态">
-                    <div className="webchat-pilot-status-stack">
-                      <span
-                        className={`status ${member.accessEnabled ? 'status-fresh' : 'status-missing'}`}
-                      >
-                        {member.accessEnabled ? '已授权' : '已关闭'}
-                      </span>
-                      <span
-                        className={`status ${member.pilotObservationEnabled ? 'status-stale' : 'status-missing'}`}
-                      >
-                        {member.pilotObservationEnabled ? '正式观察' : '未纳入观察'}
-                      </span>
-                    </div>
+                    <span
+                      className={`status ${member.accessEnabled ? 'status-fresh' : 'status-missing'}`}
+                    >
+                      {member.accessEnabled ? '已授权' : '已关闭'}
+                    </span>
                     <small>
                       {member.accountStatus === 'approved' ? '账号正常' : '账号已停用'} · v
                       {member.version}

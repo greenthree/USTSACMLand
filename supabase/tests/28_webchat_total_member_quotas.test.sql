@@ -498,7 +498,7 @@ select throws_ok(
   $$ select * from public.admin_list_webchat_pilot_members() $$,
   '42501',
   'Administrator access required.',
-  'ordinary members cannot read cumulative pilot observability'
+  'ordinary members cannot read other accounts cumulative WebChat usage'
 );
 
 select throws_like(

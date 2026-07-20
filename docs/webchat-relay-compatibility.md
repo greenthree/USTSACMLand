@@ -113,7 +113,7 @@ WEBCHAT_RELAY_REPORT_PATH=artifacts/webchat-relay-compatibility.json
 3. 将精确 Origin、输出/请求上限、额度和租约写入 Supabase Function Secrets，部署 `webchat-config`、`webchat` 与 service-role-only `webchat-cache-probe`；保持 `CHAT_ENABLED=false`。
 4. 管理员在 `/admin/webchat` 写入已通过验收的 Base URL、模型和 API Key，设置全站北京时间每日请求/Token 预算，并继续保持成员请求关闭。确认页面只显示 Key 是否已配置、请求开关、预算、版本和更新时间，配置读取、审计与日志均不含 Key。
 5. 验证环境禁用态与数据库暂停态、CORS、匿名拒绝、无逐人授权拒绝、停用/非普通成员拒绝、非管理员配置拒绝、撤权/降额竞态、成员/全站原子额度、乐观锁冲突和有效成员认证。
-6. 在成员详情中只为 3–5 名成员开启权限并设置逐人请求/Token 上限；核对成员端剩余额度后受控试用，观察请求数、Token、Abort、超时、429 和重复请求结算。
+6. 在成员详情中按实际需要开启权限并设置逐人请求/Token 上限；核对成员端剩余额度后验证请求数、Token、Abort、超时、429 和重复请求结算。
 7. 负责人确认预算、隐私披露和关闭方式后，先开启后端 `CHAT_ENABLED=true`，再由管理员打开数据库成员请求开关；确认健康后，最后在下一次前端构建开启 `VITE_WEBCHAT_UI_ENABLED=true`。
 
 出现协议变化、Usage 缺失、Abort 超时、重复计费、额度绕过或隐私问题时，先关闭数据库成员请求开关，并按需要恢复另外两层为 `false`。只隐藏前端入口不能替代关闭后端模型调用。
@@ -124,4 +124,4 @@ WEBCHAT_RELAY_REPORT_PATH=artifacts/webchat-relay-compatibility.json
 - 中转站 Base URL、模型和全站预算由私有数据库配置保存，Key 位于 Supabase Vault；浏览器与配置读取接口均不能读取明文 Key。
 - `webchat` v18、`webchat-cache-probe` v11、`CHAT_ENABLED=true` 与数据库请求开关已对显式授权账号启用；真实成员追加请求曾命中 6,912 个缓存输入 Token，后续中转站渠道差异诊断见 `docs/evidence/webchat-cache-route-diagnostics-2026-07-19.md`。
 - GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` 已随 Pages run `29594758865` attempt 2 发布；未登录直达 `/assistant` 仍进入登录页，只有登录且经后台授权的账号能获得模型调用。
-- 仍需扩展到 3–5 名正式试运行成员并完成连续观察；出现协议、额度、隐私或稳定性问题时按上文顺序关闭三层开关。
+- 正式试运行观察名单与连续观察机制已取消；出现协议、额度、隐私或稳定性问题时按上文顺序关闭三层开关，并通过管理员用量面板和脱敏请求 ID 排查。

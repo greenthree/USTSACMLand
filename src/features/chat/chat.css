@@ -634,10 +634,6 @@
   color: #63704f;
 }
 
-.assistant-thinking {
-  min-height: 92px;
-}
-
 .assistant-thinking-copy {
   display: flex;
   align-items: center;
