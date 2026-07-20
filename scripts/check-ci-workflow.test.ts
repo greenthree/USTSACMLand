@@ -29,9 +29,9 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 35,
-      assertionCount: 882,
-      releaseMigrationCount: 38,
+      fileCount: 36,
+      assertionCount: 898,
+      releaseMigrationCount: 39,
     })
   })
 
@@ -383,6 +383,17 @@ describe('CI workflow', () => {
         workflow,
         packageJson,
         pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607190005_personal_data_export.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607190005_personal_data_export/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
         migrationFiles,
         deployWorkflow.replace('workflow_run:', 'push:'),
         supabaseConfig,
@@ -448,6 +459,9 @@ describe('CI workflow', () => {
         databaseTypes.replace('read_daily_problem_feed:', 'removed_daily_problem_feed:'),
       ),
     ).toThrow(/read_daily_problem_feed/)
+    expect(() =>
+      verifyDatabaseTypes(databaseTypes.replace('export_own_data:', 'removed_export_own_data:')),
+    ).toThrow(/export_own_data/)
     expect(() =>
       verifyDatabaseTypes(
         databaseTypes.replaceAll('requested_total_request_limit:', 'removed_total_request_limit:'),

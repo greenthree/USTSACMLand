@@ -2531,6 +2531,22 @@ main {
   margin-top: 32px;
 }
 
+.account-data-export {
+  margin-top: 32px;
+}
+
+.account-data-export-note {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.account-export-notice {
+  margin: 18px 0 0;
+}
+
 .account-danger-form {
   margin-top: 32px;
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import { collectRuntimeErrors } from './helpers'
 
 test('rankings supports a direct load and browser reload', async ({ page }) => {
@@ -93,6 +94,30 @@ test('anonymous account navigation returns after demo login', async ({ page }, t
 
   await expect(page).toHaveURL(/\/account$/, { timeout: 20_000 })
   await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
+})
+
+test('demo member can download a versioned personal data export', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
+  })
+  await page.goto('/account')
+  await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
+  const downloadStarted = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出我的数据' }).click()
+  const download = await downloadStarted
+  expect(download.suggestedFilename()).toMatch(
+    /^usts-acm-land-personal-data_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3}Z\.json$/,
+  )
+  const downloadPath = await download.path()
+  expect(downloadPath).not.toBeNull()
+  const exported = JSON.parse(await readFile(downloadPath!, 'utf8')) as {
+    schemaVersion: number
+    account: { email: string }
+    webchat: { conversations: unknown[] }
+  }
+  expect(exported.schemaVersion).toBe(1)
+  expect(exported.account.email).toBe('member@example.edu.cn')
+  expect(exported.webchat.conversations).toEqual([])
 })
 
 test('public pages do not create page-level horizontal overflow', async ({ page }) => {
