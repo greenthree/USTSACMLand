@@ -19,7 +19,7 @@ const forbiddenRetryFlags = [
 for (const flag of forbiddenRetryFlags) {
   if (flag.pattern.test(workflow)) {
     throw new Error(
-      `Sync workflow must not contain ${flag.label}; the POST is not transport-idempotent and QOJ must never be retried automatically.`,
+      `Sync workflow must not contain ${flag.label}; the POST is not transport-idempotent and the durable queue owns the single logical retry.`,
     )
   }
 }
@@ -59,4 +59,6 @@ if (/\.error\.message/.test(workflow)) {
   throw new Error('Sync workflow must not print raw adapter error messages to public logs.')
 }
 
-console.log('Verified single-attempt paginated sync dispatch and sanitized summary logging.')
+console.log(
+  'Verified single-dispatch pagination, durable queue retry ownership, and sanitized summary logging.',
+)

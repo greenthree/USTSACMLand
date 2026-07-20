@@ -392,7 +392,7 @@ Deno.test('QOJ Firecrawl provider closes the session after a Cloudflare challeng
   equal(calls[2].method, 'DELETE')
 })
 
-Deno.test('QOJ Firecrawl provider does not retry an interact rate limit', async () => {
+Deno.test('QOJ interact rate limits use one request per attempt', async () => {
   const calls: Array<{ method: string; retries: number | undefined }> = []
   const provider = createFirecrawlQojProvider(
     'test-api-key',
@@ -430,7 +430,7 @@ Deno.test('QOJ Firecrawl provider does not retry an interact rate limit', async 
   equal(calls[2].retries, 0)
 })
 
-Deno.test('QOJ Firecrawl provider does not retry session creation rate limits', async () => {
+Deno.test('QOJ session creation limits use one request per attempt', async () => {
   const calls: Array<{ method: string; retries: number | undefined }> = []
   const provider = createFirecrawlQojProvider(
     'test-api-key',

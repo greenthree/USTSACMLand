@@ -14,7 +14,7 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 | [AtCoder Problems API](https://kenkoooo.com/atcoder/atcoder-api/) | AtCoder Username                                                     | `user/ac_rank` 返回的 Accepted 题数 `count`                | 由独立社区服务提供，与 AtCoder 官方是不同服务                                    |
 | [XCPC ELO](https://zzzzzzyt.github.io/xcpc-elo/)                  | 通常只请求公开数据集 URL；匹配时使用站内姓名和固定学校“苏州科技大学” | 当前/历史最高 ELO、稳定来源 ID，以及我校选手的精简共享缓存 | 必须“姓名 + 学校”唯一命中；同校同名时拒绝自动绑定                                |
 | [洛谷](https://www.luogu.com.cn/)                                 | 成员填写的数字 UID；服务端另使用专用洛谷账号的 Cookie/CSRF           | 账号存在状态、Accepted 记录 ID 与仅 `P`/`B` 题号的去重集合 | 成员不提供 Cookie；凭据只存 Supabase Function Secrets，不经过 Firecrawl          |
-| [QOJ](https://qoj.ac/)                                            | 成员填写的 Username；临时浏览器登录还会使用独立 QOJ 服务账号         | 目标主页的唯一 Accepted 题数和结构化同步状态               | 每次创建临时 Firecrawl 会话，失败不自动重试，最后主动结束会话                    |
+| [QOJ](https://qoj.ac/)                                            | 成员填写的 Username；临时浏览器登录还会使用独立 QOJ 服务账号         | 目标主页的唯一 Accepted 题数和结构化同步状态               | 每个 attempt 创建临时 Firecrawl 会话并主动结束；可恢复失败最多一次队列重试       |
 | [Firecrawl](https://www.firecrawl.dev/)                           | 牛客回退目标 URL；QOJ 服务账号、目标 Username 和浏览器操作           | 牛客结构化页面结果、QOJ 题数、作业 ID 和会话状态           | Firecrawl 是外部处理方；QOJ 账号必须专用且可独立废弃，不能复用个人或其他系统密码 |
 
 ## 保存口径
@@ -30,7 +30,7 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 - Codeforces、牛客、AtCoder、洛谷：已验证绑定在北京时间每天 07:00 和 19:00 更新。
 - XCPC ELO、QOJ：已验证绑定在每周二 08:00 更新。
 - 平台账号首次验证后会同步一次；管理员可对明确范围手动同步，普通成员不能手动触发。
-- QOJ 失败不自动重试；其他平台只使用有上限的重试和持久队列。
+- 六个平台的可恢复同步失败都最多进入一次持久队列重试；凭据、结构、权限和数据校验错误不重试。
 
 ## 注销与上游数据
 

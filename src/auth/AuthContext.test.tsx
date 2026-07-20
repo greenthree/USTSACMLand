@@ -161,16 +161,14 @@ describe('AuthProvider registration metadata', () => {
     )
   })
 
-  it('retries once when the XCPC ELO registration synchronization cannot start', async () => {
+  it('does not create a second browser request when registration synchronization fails', async () => {
     const user = userEvent.setup()
     const registeredUser = { id: '22222222-2222-4222-8222-222222222222', email: 'test@example.com' }
     authMocks.signUp.mockResolvedValue({
       data: { session: { access_token: 'test-token' }, user: registeredUser },
       error: null,
     })
-    authMocks.invoke
-      .mockResolvedValueOnce({ data: null, error: new Error('temporary failure') })
-      .mockResolvedValueOnce({ data: { status: 'success' }, error: null })
+    authMocks.invoke.mockResolvedValueOnce({ data: null, error: new Error('temporary failure') })
 
     render(
       <AuthProvider>
@@ -179,7 +177,7 @@ describe('AuthProvider registration metadata', () => {
     )
     await user.click(screen.getByRole('button', { name: '注册' }))
 
-    await waitFor(() => expect(authMocks.invoke).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(authMocks.invoke).toHaveBeenCalledTimes(1))
   })
 
   it('invokes password-verified account deletion and clears the local session', async () => {

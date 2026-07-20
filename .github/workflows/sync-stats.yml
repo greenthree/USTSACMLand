@@ -107,7 +107,8 @@ jobs:
               + (if $scope == "queue" or $cursor == "" then {} else {cursor: ($cursor | tonumber)} end)')"
 
             # Each cursor page is a distinct target set and is sent exactly once.
-            # There is no curl retry, so QOJ is never retried automatically.
+            # Durable per-platform retries are owned by sync_jobs; curl must not
+            # create a second batch request outside that idempotent queue.
             http_status="$(curl \
               --silent \
               --show-error \

@@ -57,6 +57,7 @@
    ```
 
 4. `CI / verify`、`CI / database-security` 和 `Secret scan / gitleaks` 必须通过；不得因为本机缺少 Docker 而跳过数据库门禁后直接部署。
+   `database-security` 还必须以 warning 级别 lint `public` schema，并把任何 warning 视为失败。
 5. 记录当前可用版本：Git 提交、Pages 部署 ID、Supabase migration 列表和 Edge Function 版本时间。
 
 ## 3. 标准部署顺序
@@ -113,7 +114,7 @@ WebChat 不随其他函数直接启用。可以先在 `VITE_WEBCHAT_UI_ENABLED=f
 
 Pages 的客户端开关使用 GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED`，只接受小写 `true` 或 `false`；未配置时 workflow 固定回退为 `false`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
 
-WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 Token、正在预留 Token、剩余额度和下一次北京时间 00:00 重置时间。使用隔离数据分别触发请求/Token 首次阻断，接收端应各收到一次 `webchat_budget_exhausted`；同一天的并发后续阻断不得重复投递。告警 Payload 只能包含日期、预算种类、上限、聚合用量和时间，不得包含成员、请求、消息、模型内容、中转站地址或 Key。接收端超时/`503` 时原 WebChat 请求仍应返回额度 `503`，且不得自动重试或放行。
+WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 Token、正在预留 Token、剩余额度和下一次北京时间 00:00 重置时间。使用隔离数据分别触发请求/Token 阻断，确认后台聚合状态准确、并发请求不能越过预算，原请求返回额度 `503` 且不得自动重试或放行。
 
 部署后执行受控烟测：
 
@@ -123,11 +124,11 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。
 3. 连续触发达到限流阈值前停止；确认正常请求不会返回 429。
-4. 对 QOJ 只做一次明确授权的健康检查，禁止自动重试。
+4. 对 QOJ 做一次明确授权的健康检查；可恢复失败只允许数据库队列再执行一个 attempt，凭据或结构错误不得重试，每个 attempt 都必须关闭临时会话。
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
 6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
-计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 自动重试而产生第二次任务。
+计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 直接重发批次；只有适配器返回可恢复错误时，数据库队列可在两分钟后领取唯一一次重试。
 
 数据库队列 cron 还必须满足：`SYNC_QUEUE_TOKEN` 与 Vault 中 `sync_queue_scheduler_token` 一致；Vault 同时存在固定 Edge URL 和公开 anon key；`read_sync_queue_scheduler_health()` 显示 cron active、最近 12 分钟有调度、最近已完成 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。GitHub 不运行第二个自动队列调度器；数据库 cron 故障时，由管理员在工作流中手动选择 `queue` 作为应急恢复入口。
 
@@ -183,14 +184,13 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 
 通用顺序是“创建新值 → 更新目标 Secret → 部署/重启消费者 → 烟测 → 撤销旧值”。不能先撤销旧值再开始配置。
 
-2026-07-15 的只读 Secret 名称审计确认洛谷、QOJ、Firecrawl 与 `ALLOWED_ORIGIN` 已配置；`SYNC_ALERT_WEBHOOK_URL`、`SYNC_ALERT_WEBHOOK_TOKEN`、`DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN` 尚未配置。这四项补齐并完成告警/注销烟测前，不得宣称同步告警或安全注销已在生产可用。审计工具只读取名称，不输出 Secret 值或摘要。
+生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 已配置，仍需补齐 `DELETION_RECOVERY_GITHUB_TOKEN` 并完成注销烟测，才能宣称安全注销在生产可用。Secret 审计工具只读取名称，不输出真实值或摘要。
 
 | 凭据                      | 存放位置                                       | 轮换后验证                                                                                     |
 | ------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Firecrawl API Key         | Supabase Function Secrets                      | 牛客回退一次、QOJ 登录健康检查一次、用量面板正常                                               |
-| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 单次登录、目标主页匹配、会话最终关闭；不重试失败请求                                           |
+| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试                  |
 | 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新        | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                    |
-| 同步告警 Token            | 接收端 + Supabase Function Secrets             | 受控终态失败仅投递一次，Payload 保持脱敏                                                       |
 | 同步队列调度 Token        | Supabase Function Secret + Vault               | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                       |
 | Supabase access token     | GitHub Actions/维护者本机安全存储              | migration list 与函数部署只访问目标项目                                                        |
 | Supabase service role key | Edge/GitHub 受控 Secret                        | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                                       |
@@ -211,7 +211,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 | 错误                 | 首要检查                              | 修复与验证                                     |
 | -------------------- | ------------------------------------- | ---------------------------------------------- |
 | `not_found`          | 用户账号、UID、姓名 + 学校匹配        | 管理员核对绑定；不得猜测或绑定同名 XCPC 选手   |
-| `auth_expired`       | 洛谷 Cookie/CSRF 或 QOJ 服务账号      | 成对轮换后只烟测一次；QOJ 不自动重试           |
+| `auth_expired`       | 洛谷 Cookie/CSRF 或 QOJ 服务账号      | 成对轮换后只烟测一次；认证错误不自动重试       |
 | `rate_limited`       | 第三方/Firecrawl 用量、并发和计划批次 | 等待窗口，降低并发或错峰；不增加无界重试       |
 | `schema_changed`     | 固定样本与真实响应差异                | 保存脱敏最小样本，更新单个平台适配器和契约测试 |
 | `timeout`            | 上游状态、网络和响应体大小            | 先确认单平台故障；只使用已有有限重试/持久队列  |
@@ -225,7 +225,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 - AtCoder：分别检查历史 Rating JSON 与 `user/ac_rank` 的 `count`。
 - XCPC ELO：检查共享缓存版本、租约、源大小和“姓名 + 苏州科技大学”唯一命中。
 - 洛谷：先核对公开 UID，再检查认证记录接口、增量边界和 30 天全量校准。
-- QOJ：检查 Firecrawl 临时会话、登录态标志和目标用户名；失败不自动重试，可临时使用带审计原因的管理员手工题数。
+- QOJ：检查 Firecrawl 临时会话、登录态标志和目标用户名；只有网络、超时、临时限流或上游不可用可进入一次队列重试，凭据/结构错误直接终止；必要时使用带审计原因的管理员手工题数。
 
 修复完成后只重试受影响平台，确认其他平台没有被批量重复同步。
 
@@ -238,7 +238,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 3. 在后台成员管理中选择目标成员，点击“设为管理员”，填写交接原因、核对权限影响并二次确认。
 4. 新管理员登录并完成只读检查，再执行一次低风险、可审计操作。
 5. 确认新管理员可用后，才在同一页面把离任管理员降为普通成员；数据库会串行化角色变化并拒绝移除最后一名启用管理员。
-6. 轮换离任人员可访问的 GitHub、Supabase、Firecrawl、Webhook 和第三方服务凭据。
+6. 轮换离任人员可访问的 GitHub、Supabase、Firecrawl 和第三方服务凭据。
 7. 保存交接清单，但不保存密码、Token、Cookie 或恢复码。
 
 首次部署且数据库中完全没有管理员时，才允许使用一次性的：
@@ -254,7 +254,7 @@ select public.bootstrap_first_admin('new-admin@example.edu.cn');
 发布后至少观察一个完整日更批次；涉及 XCPC ELO/QOJ 时观察到下一个周二批次。关闭变更前确认：
 
 - Pages、认证、后台和公开榜单可用。
-- 同步成功率、耗时、队列长度和终态告警符合预期。
+- 同步成功率、耗时、队列长度和后台终态失败记录符合预期。
 - 没有新增凭据错误、结构错误、无限重试或重复快照。
 - 数据过期规则按最近计划批次计算，没有把失败值写成 0。
 - 变更记录包含验证证据、遗留风险和下一位值班维护者。

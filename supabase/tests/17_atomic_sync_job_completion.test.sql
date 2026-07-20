@@ -117,29 +117,12 @@ update public.sync_jobs set scheduled_for = now() - interval '1 minute' where id
 set local role service_role;
 create temporary table second_claim as
 select * from public.claim_due_sync_jobs(1, interval '15 minutes');
-create temporary table second_completion as
-select * from public.complete_sync_job_attempt(
-  17001,
-  2::smallint,
-  false,
-  true,
-  'timeout',
-  'temporary timeout'
-);
 reset role;
 
 select is(
   (select attempt_count::integer from second_claim where job_id = 17001),
   2,
   'the due retry is claimed as the second attempt'
-);
-
-select is(
-  round(extract(epoch from (
-    (select retry_at from second_completion) - (select transitioned_at from second_completion)
-  )))::integer,
-  240,
-  'the second retry uses an exact four-minute backoff'
 );
 
 set local role service_role;
@@ -161,39 +144,30 @@ select ok(
 
 select is(
   (select status::text from public.sync_jobs where id = 17001),
-  'queued',
-  'the rejected stale completion does not overwrite the newer retry state'
+  'running',
+  'the rejected stale completion does not overwrite the active retry'
 );
 
-update public.sync_jobs set scheduled_for = now() - interval '1 minute' where id = 17001;
 set local role service_role;
-create temporary table third_claim as
-select * from public.claim_due_sync_jobs(1, interval '15 minutes');
-create temporary table third_completion as
+create temporary table second_completion as
 select * from public.complete_sync_job_attempt(
   17001,
-  3::smallint,
+  2::smallint,
   false,
   true,
-  'source_unavailable',
-  'still unavailable'
+  'timeout',
+  'temporary timeout'
 );
 reset role;
 
 select is(
-  (select attempt_count::integer from third_claim where job_id = 17001),
-  3,
-  'the second due retry is claimed as the third attempt'
-);
-
-select is(
-  (select job_status::text from third_completion),
+  (select job_status::text from second_completion),
   'failed',
-  'the third failed attempt exhausts the job'
+  'the second failed attempt exhausts even a legacy max-attempts value'
 );
 
 select is(
-  (select retry_at from third_completion),
+  (select retry_at from second_completion),
   null::timestamptz,
   'an exhausted job has no further retry time'
 );
@@ -206,7 +180,36 @@ select * from public.complete_sync_job_attempt(
   false,
   true,
   'rate_limited',
-  'QOJ must remain single-attempt'
+  'temporary QOJ limit'
+);
+reset role;
+
+select is(
+  (select job_status::text from qoj_completion),
+  'queued',
+  'QOJ receives the same single durable retry as every other platform'
+);
+
+select is(
+  round(extract(epoch from (
+    (select retry_at from qoj_completion) - (select transitioned_at from qoj_completion)
+  )))::integer,
+  120,
+  'the QOJ retry uses the bounded two-minute delay'
+);
+
+update public.sync_jobs set scheduled_for = now() - interval '1 minute' where id = 17002;
+set local role service_role;
+create temporary table qoj_second_claim as
+select * from public.claim_due_sync_jobs(1, interval '15 minutes');
+create temporary table qoj_second_completion as
+select * from public.complete_sync_job_attempt(
+  17002,
+  2::smallint,
+  false,
+  true,
+  'rate_limited',
+  'QOJ limit persisted'
 );
 create temporary table permanent_completion as
 select * from public.complete_sync_job_attempt(
@@ -229,15 +232,15 @@ select * from public.complete_sync_job_attempt(
 reset role;
 
 select is(
-  (select job_status::text from qoj_completion),
-  'failed',
-  'QOJ never retries even if a malformed job allows extra attempts'
+  (select attempt_count::integer from qoj_second_claim where job_id = 17002),
+  2,
+  'the due QOJ retry is claimed as the second attempt'
 );
 
 select is(
-  (select retry_at from qoj_completion),
-  null::timestamptz,
-  'QOJ returns no automatic retry time'
+  (select job_status::text from qoj_second_completion),
+  'failed',
+  'a second QOJ failure is terminal without a third attempt'
 );
 
 select is(

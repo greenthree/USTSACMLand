@@ -10,13 +10,12 @@ export const PLATFORM_CONCURRENCY_LIMITS: Readonly<Record<PlatformId, number>> =
 }
 
 export function maxAttemptsForPlatforms(platforms: readonly PlatformId[]): number {
-  if (platforms.length !== 1 || platforms[0] === 'qoj') return 1
-  return 3
+  return platforms.length === 1 ? 2 : 1
 }
 
 export function mayAutomaticallyRetryPlatformFailure(
-  platform: PlatformId,
+  _platform: PlatformId,
   retryable: boolean,
 ): boolean {
-  return platform !== 'qoj' && retryable
+  return retryable
 }

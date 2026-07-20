@@ -4,6 +4,12 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const supabaseCliVersion = '2.109.1'
+const schemaLintRemediationMigration = '202607200002'
+const remediatedSchemaLintFunctions = new Set([
+  'public.read_daily_problem_feed',
+  'public.list_daily_problem_comments',
+  'public.claim_webchat_total_request',
+])
 
 export const expectedEdgeFunctions = [
   'sync-member',
@@ -23,8 +29,6 @@ export const requiredFunctionSecrets = [
   'QOJ_SERVICE_USERNAME',
   'QOJ_SERVICE_PASSWORD',
   'SYNC_QUEUE_TOKEN',
-  'SYNC_ALERT_WEBHOOK_URL',
-  'SYNC_ALERT_WEBHOOK_TOKEN',
   'DELETION_RECOVERY_REPOSITORY',
   'DELETION_RECOVERY_GITHUB_TOKEN',
 ]
@@ -139,7 +143,16 @@ export function evaluateSupabaseReadiness(state, options = {}) {
   }
 
   if (state.dbLintResults.length > 0) {
-    errors.push(`生产 public schema lint 返回 ${state.dbLintResults.length} 个问题。`)
+    const coveredByPendingRemediation =
+      preflight &&
+      pendingMigrations.includes(schemaLintRemediationMigration) &&
+      state.dbLintResults.every((result) => remediatedSchemaLintFunctions.has(result.function))
+    const message = `生产 public schema lint 返回 ${state.dbLintResults.length} 个问题。`
+    ;(coveredByPendingRemediation ? warnings : errors).push(
+      coveredByPendingRemediation
+        ? `部署前预检确认这些问题仅涉及 ${schemaLintRemediationMigration} 将修复的函数；部署后严格检查仍必须为零：${message}`
+        : message,
+    )
   }
 
   if (!state.providerBackups) {

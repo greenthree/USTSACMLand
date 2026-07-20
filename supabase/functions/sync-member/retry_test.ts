@@ -5,10 +5,10 @@ import {
   PLATFORM_CONCURRENCY_LIMITS,
 } from './retry.ts'
 
-Deno.test('single-platform jobs have bounded retries while QOJ never retries automatically', () => {
-  strictEqual(maxAttemptsForPlatforms(['codeforces']), 3)
-  strictEqual(maxAttemptsForPlatforms(['luogu']), 3)
-  strictEqual(maxAttemptsForPlatforms(['qoj']), 1)
+Deno.test('every single-platform job allows exactly one automatic retry', () => {
+  strictEqual(maxAttemptsForPlatforms(['codeforces']), 2)
+  strictEqual(maxAttemptsForPlatforms(['luogu']), 2)
+  strictEqual(maxAttemptsForPlatforms(['qoj']), 2)
   strictEqual(maxAttemptsForPlatforms(['codeforces', 'atcoder']), 1)
 })
 
@@ -23,8 +23,8 @@ Deno.test('platform concurrency limits keep expensive sources serialized', () =>
   })
 })
 
-Deno.test('QOJ failures never re-enter the queue even when legacy jobs allow more attempts', () => {
-  strictEqual(mayAutomaticallyRetryPlatformFailure('qoj', true), false)
+Deno.test('all platforms re-enter the queue once only for retryable failures', () => {
+  strictEqual(mayAutomaticallyRetryPlatformFailure('qoj', true), true)
   strictEqual(mayAutomaticallyRetryPlatformFailure('qoj', false), false)
   strictEqual(mayAutomaticallyRetryPlatformFailure('nowcoder', true), true)
   strictEqual(mayAutomaticallyRetryPlatformFailure('codeforces', false), false)

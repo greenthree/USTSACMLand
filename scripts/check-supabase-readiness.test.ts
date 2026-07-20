@@ -154,6 +154,32 @@ describe('Supabase production readiness checker', () => {
     )
   })
 
+  it('allows only the known pending schema lint remediation during preflight', () => {
+    const state = createReadyState()
+    state.migrations.push({ local: '202607200002', remote: '', time: '202607200002' })
+    state.dbLintResults = [
+      { function: 'public.read_daily_problem_feed', issues: [{ level: 'warning' }] },
+      { function: 'public.claim_webchat_total_request', issues: [{ level: 'warning extra' }] },
+    ]
+
+    const preflight = evaluateSupabaseReadiness(state, { mode: 'preflight' })
+    expect(preflight.errors).toEqual([])
+    expect(preflight.warnings).toEqual(
+      expect.arrayContaining([expect.stringContaining('部署后严格检查仍必须为零')]),
+    )
+    expect(evaluateSupabaseReadiness(state).errors).toContain(
+      '生产 public schema lint 返回 2 个问题。',
+    )
+
+    state.dbLintResults.push({
+      function: 'public.unexpected_function',
+      issues: [{ level: 'warning' }],
+    })
+    expect(evaluateSupabaseReadiness(state, { mode: 'preflight' }).errors).toContain(
+      '生产 public schema lint 返回 3 个问题。',
+    )
+  })
+
   it('requires all Edge Functions to be active with JWT and import maps', () => {
     const state = createReadyState()
     state.functions = state.functions.filter((fn) => fn.slug !== 'delete-account')
@@ -303,14 +329,11 @@ describe('Supabase production readiness checker', () => {
   it('reports every missing application Function Secret by name only', () => {
     const state = createReadyState()
     state.functionSecrets = state.functionSecrets.filter(
-      (name) => !['SYNC_ALERT_WEBHOOK_URL', 'DELETION_RECOVERY_GITHUB_TOKEN'].includes(name),
+      (name) => name !== 'DELETION_RECOVERY_GITHUB_TOKEN',
     )
 
     expect(evaluateSupabaseReadiness(state).errors).toEqual(
-      expect.arrayContaining([
-        'Supabase Function Secret 未配置：SYNC_ALERT_WEBHOOK_URL。',
-        'Supabase Function Secret 未配置：DELETION_RECOVERY_GITHUB_TOKEN。',
-      ]),
+      expect.arrayContaining(['Supabase Function Secret 未配置：DELETION_RECOVERY_GITHUB_TOKEN。']),
     )
   })
 

@@ -7,18 +7,20 @@
 - `已接受`：当前实现必须遵守；如需改变，应新增一份替代 ADR。
 - `提议中`：仍在评估，不能视为实现承诺。
 - `已替代`：保留历史原因，并链接到新 ADR。
+- `部分已替代`：主体决策继续有效，但明确条款已由新 ADR 取代。
 
 ## 索引
 
-| ADR                                                    | 状态   | 决策                                                    |
-| ------------------------------------------------------ | ------ | ------------------------------------------------------- |
-| [0001](./0001-static-pages-supabase-backend.md)        | 已接受 | GitHub Pages 静态前端与 Supabase 服务端分离             |
-| [0002](./0002-authentication-rls-admin-boundaries.md)  | 已接受 | Supabase Auth、RLS 和受控管理员 RPC 共同构成权限边界    |
-| [0003](./0003-synchronization-scheduling-freshness.md) | 已接受 | GitHub Actions 分组调度、同步去重与批次新鲜度           |
-| [0004](./0004-secrets-and-credential-management.md)    | 已接受 | Secrets 分层、专用服务账号和凭据轮换                    |
-| [0005](./0005-qoj-browser-automation-fallback.md)      | 已接受 | QOJ 临时浏览器自动登录及管理员录入/独立 Worker 备用方案 |
-| [0006](./0006-persistent-sync-retry-queue.md)          | 已接受 | 持久重试队列、指数退避、故障恢复和平台并发上限          |
-| [0007](./0007-atomic-sync-result-persistence.md)       | 已接受 | 同步结果原子提交、快照幂等与 XCPC ELO 小数精度          |
+| ADR                                                    | 状态       | 决策                                                    |
+| ------------------------------------------------------ | ---------- | ------------------------------------------------------- |
+| [0001](./0001-static-pages-supabase-backend.md)        | 已接受     | GitHub Pages 静态前端与 Supabase 服务端分离             |
+| [0002](./0002-authentication-rls-admin-boundaries.md)  | 已接受     | Supabase Auth、RLS 和受控管理员 RPC 共同构成权限边界    |
+| [0003](./0003-synchronization-scheduling-freshness.md) | 部分已替代 | GitHub Actions 分组调度、同步去重与批次新鲜度           |
+| [0004](./0004-secrets-and-credential-management.md)    | 已接受     | Secrets 分层、专用服务账号和凭据轮换                    |
+| [0005](./0005-qoj-browser-automation-fallback.md)      | 部分已替代 | QOJ 临时浏览器自动登录及管理员录入/独立 Worker 备用方案 |
+| [0006](./0006-persistent-sync-retry-queue.md)          | 部分已替代 | 持久重试队列、故障恢复和平台并发上限                    |
+| [0007](./0007-atomic-sync-result-persistence.md)       | 已接受     | 同步结果原子提交、快照幂等与 XCPC ELO 小数精度          |
+| [0008](./0008-single-platform-sync-retry.md)           | 已接受     | 六平台统一为首次失败后最多一次持久队列重试              |
 
 ## 维护规则
 
