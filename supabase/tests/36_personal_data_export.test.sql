@@ -292,10 +292,12 @@ select ok(
 );
 
 select ok(
-  (select pg_catalog.jsonb_array_length(payload -> 'platformAccounts') = 1
-    and payload #>> '{platformAccounts,0,externalId}' = 'ExportHandleA'
+  (select payload @> '{"platformAccounts":[{"externalId":"ExportHandleA"}]}'::jsonb
     and payload::text not like '%ExportHandleB%'
-    and payload::text not like '%normalizedExternalId%'
+    and not pg_catalog.jsonb_path_exists(
+      payload,
+      '$.platformAccounts[*].normalizedExternalId'
+    )
    from member_a_export),
   'platform bindings are isolated and omit canonicalization internals'
 );
