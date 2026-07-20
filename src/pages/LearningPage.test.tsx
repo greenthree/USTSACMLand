@@ -76,7 +76,7 @@ describe('LearningPage', () => {
     )
     expect(screen.getByRole('link', { name: '进入牛客竞赛（新窗口打开）' })).toHaveAttribute(
       'href',
-      'https://ac.nowcoder.com/acm/contest/vip-index',
+      'https://www.nowcoder.com/problem/tracker#/problems',
     )
     expect(screen.getByRole('link', { name: '浏览洛谷题单（新窗口打开）' })).toHaveAttribute(
       'href',

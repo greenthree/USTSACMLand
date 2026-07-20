@@ -154,7 +154,7 @@ const beginnerPlatforms = [
     cue: '完全不会写代码',
     goal: '从中文语法题和基础题开始，先建立编程手感与信心。',
     action: '进入牛客竞赛',
-    href: 'https://ac.nowcoder.com/acm/contest/vip-index',
+    href: 'https://www.nowcoder.com/problem/tracker#/problems',
     className: 'nowcoder',
     firstStep: '今天先完成 3 道输入输出题，熟悉提交和判题结果。',
   },
