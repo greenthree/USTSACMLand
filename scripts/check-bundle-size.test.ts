@@ -8,7 +8,7 @@ const requiredAssets = new Map(
 
 function fixture(entry: Uint8Array, assets = requiredAssets) {
   return {
-    html: `<script type="module" crossorigin src="/USTSACMLand/assets/${entryName}"></script>`,
+    html: `<script type="module" crossorigin src="/assets/${entryName}"></script>`,
     assets: new Map([[entryName, entry], ...assets]),
   }
 }

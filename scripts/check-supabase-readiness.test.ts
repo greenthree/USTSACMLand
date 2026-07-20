@@ -43,12 +43,12 @@ function createReadyState() {
     },
     anonRestAuditError: null,
     functionBoundaryAudit: {
-      allowedOrigin: 'https://greenthree.github.io',
+      allowedOrigin: 'https://ustsacm.fun',
       probes: expectedEdgeFunctions.map((functionName) => ({
         functionName,
         allowed: {
           status: 200,
-          allowOrigin: 'https://greenthree.github.io',
+          allowOrigin: 'https://ustsacm.fun',
           vary: 'Origin, Access-Control-Request-Headers',
         },
         hostile: {
@@ -294,7 +294,7 @@ describe('Supabase production readiness checker', () => {
 
     expect(report.errors).toEqual(
       expect.arrayContaining([
-        'Edge Function sync-member 未正确允许正式 Pages Origin。',
+        'Edge Function sync-member 未正确允许正式站点 Origin。',
         'Edge Function sync-stats 未正确拒绝恶意 CORS Origin。',
         'Edge Function delete-account 匿名 GET 返回 HTTP 200，未体现认证/方法边界。',
       ]),

@@ -280,7 +280,7 @@ export function evaluateSupabaseReadiness(state, options = {}) {
         probe.allowed.allowOrigin !== state.functionBoundaryAudit.allowedOrigin ||
         !headerContainsOrigin(probe.allowed.vary)
       ) {
-        errors.push(`Edge Function ${probe.functionName} 未正确允许正式 Pages Origin。`)
+        errors.push(`Edge Function ${probe.functionName} 未正确允许正式站点 Origin。`)
       }
       if (probe.hostile.status !== 200 || probe.hostile.allowOrigin !== null) {
         errors.push(`Edge Function ${probe.functionName} 未正确拒绝恶意 CORS Origin。`)

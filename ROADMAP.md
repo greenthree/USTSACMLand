@@ -91,12 +91,12 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 默认方案是继续使用 GitHub Pages 作为静态源站，由 Cloudflare 提供自定义域名、DNS、CDN、TLS 和基础防护；暂不迁移到 Cloudflare Pages。
 
-- [ ] 确定并购买/移交正式域名，将 DNS 托管到 Cloudflare。
-- [ ] 在 GitHub Pages 配置自定义域名和 `CNAME`，Cloudflare DNS 指向 `greenthree.github.io`。
+- [x] 确定并购买正式域名 `ustsacm.fun`，将 DNS 托管到 Cloudflare。
+- [x] 在 GitHub Pages 配置并验证自定义域名，Cloudflare DNS 通过 CNAME Flattening 指向 `greenthree.github.io`。
 - [ ] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。
-- [ ] 更新 Supabase Auth Site URL、允许的重定向地址、Edge Function CORS 和生产前端 Origin 白名单。
+- [x] 更新 Supabase Auth Site URL、允许的重定向地址、Edge Function CORS 和生产前端 Origin 白名单。
 - [ ] 验证首页、深链刷新、登录、真实邮箱找回密码、账号页、AI 助手、个人数据导出和后台入口在新域名下正常工作。
-- [ ] 保留 `greenthree.github.io/USTSACMLand/` 回滚入口，记录 DNS、缓存清理、证书和回滚步骤。
+- [ ] 确认 `greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，并按运行手册验证 DNS、缓存清理、证书和回滚步骤。
 - [ ] Cloudflare 接入稳定后更新 README、隐私说明、运维文档和所有公开链接。
 
 ## 5. 唯一保留的后续用户功能：训练目标

@@ -23,8 +23,8 @@ port = 54324
 
 [auth]
 enabled = true
-site_url = "https://greenthree.github.io/USTSACMLand/"
-additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**", "http://127.0.0.1:5174/**", "https://greenthree.github.io/USTSACMLand/**"]
+site_url = "https://ustsacm.fun/"
+additional_redirect_urls = ["http://localhost:5173/**", "http://127.0.0.1:5173/**", "http://127.0.0.1:5174/**", "https://ustsacm.fun/**", "https://greenthree.github.io/USTSACMLand/**"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
