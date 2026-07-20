@@ -31,7 +31,7 @@ describe('CI workflow', () => {
     ).toEqual({
       fileCount: 36,
       assertionCount: 898,
-      releaseMigrationCount: 39,
+      releaseMigrationCount: 40,
     })
   })
 
@@ -388,6 +388,17 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/202607190005_personal_data_export/)
+
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        packageJson,
+        pgTapFiles,
+        migrationFiles.filter((name) => name !== '202607200001_sync_single_retry.sql'),
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/202607200001_sync_single_retry/)
 
     expect(() =>
       verifyCiWorkflow(

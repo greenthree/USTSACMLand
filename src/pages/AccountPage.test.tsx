@@ -159,9 +159,37 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(syncButton).toBeEnabled()
     await user.click(syncButton)
 
-    expect(accountMocks.invoke).toHaveBeenCalledWith('sync-member', {
-      body: { memberId: 'member-1', triggerType: 'manual' },
+    expect(accountMocks.invoke).toHaveBeenCalledWith('sync-stats', {
+      body: { scope: 'member', member_id: 'member-1' },
     })
+  })
+
+  it('reports when a member platform enters the single retry queue', async () => {
+    const user = userEvent.setup()
+    accountMocks.invoke.mockResolvedValueOnce({
+      data: { failed: 0, queued: 1 },
+      error: null,
+    })
+    renderAccountPage(adminAuthValue)
+
+    await user.click(await screen.findByRole('button', { name: '立即同步' }))
+
+    expect(
+      await screen.findByText('同步完成，1 个平台已进入唯一一次自动重试队列。'),
+    ).toBeInTheDocument()
+  })
+
+  it('reports terminal platform failures returned by the member batch', async () => {
+    const user = userEvent.setup()
+    accountMocks.invoke.mockResolvedValueOnce({
+      data: { failed: 2, queued: 0 },
+      error: null,
+    })
+    renderAccountPage(adminAuthValue)
+
+    await user.click(await screen.findByRole('button', { name: '立即同步' }))
+
+    expect(await screen.findByText('同步完成，但有 2 个平台最终失败。')).toBeInTheDocument()
   })
 
   it('never includes XCPC ELO in user upsert or delete requests', async () => {

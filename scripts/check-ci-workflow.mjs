@@ -50,6 +50,7 @@ const requiredReleaseMigrations = [
   '202607190001_webchat_real_request_cache_accounting.sql',
   '202607190002_firecrawl_multi_key_admin.sql',
   '202607190005_personal_data_export.sql',
+  '202607200001_sync_single_retry.sql',
 ]
 
 function requireMatch(source, pattern, message) {

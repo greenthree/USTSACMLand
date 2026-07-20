@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 56 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 36 个 pgTAP 文件和 898 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度、计划同步分页和 QOJ 单次尝试均有生产烟测证据。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署；数据库池为空时继续兼容旧环境 Key，正式切换仍需管理员录入、检查并启用生产 Key。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步失败告警 Webhook 也尚未完成生产投递烟测。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 56 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 36 个 pgTAP 文件和 898 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。XCPC 共享缓存、六平台并发上限、队列 2/4 分钟退避、stale-worker fencing、数据库五分钟队列调度和计划同步分页均有生产烟测证据。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。自助注销仍缺 GitHub 恢复下限写入令牌，成功注销继续失败关闭；同步失败告警 Webhook 也尚未完成生产投递烟测。
 
 ## 已实现
 
@@ -67,14 +67,14 @@ flowchart LR
 
 ## 数据源状态
 
-| 平台       | 标识         | 指标                           | 当前实现                                                                                                                                                |
-| ---------- | ------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，跨页按稳定题目标识去重；后续页失败、页数截断或响应结构漂移时拒绝部分统计；已做真实 smoke test              |
-| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                                           |
-| AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号，并拒绝畸形或乱序 Rating 历史 |
-| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册后按“姓名 + 苏州科技大学”唯一匹配；使用数据库共享缓存、刷新租约与 ETag/Last-Modified 条件请求，同校同名时拒绝绑定                  |
-| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                   |
-| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID，不自动重试              |
+| 平台       | 标识         | 指标                           | 当前实现                                                                                                                                                       |
+| ---------- | ------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，跨页按稳定题目标识去重；后续页失败、页数截断或响应结构漂移时拒绝部分统计；已做真实 smoke test                     |
+| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                                                  |
+| AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号，并拒绝畸形或乱序 Rating 历史        |
+| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册后按“姓名 + 苏州科技大学”唯一匹配；使用数据库共享缓存、刷新租约与 ETag/Last-Modified 条件请求，同校同名时拒绝绑定                         |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                          |
+| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID；可恢复失败进入一次持久队列重试 |
 
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
@@ -94,7 +94,7 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 
 数据新鲜度与计划批次对齐：日更平台在下一个 07:00/19:00 批次之后保留 2 小时执行宽限，周更平台在下一个周二 08:00 批次之后保留 24 小时执行宽限。只有宽限结束仍没有新的成功结果才显示“已过期”；宽限期内的手动、平台验证或重试同步失败会记录错误，但不会把仍有效的数据提前标记过期。榜单时间显示最近成功时间。GitHub Actions 的定时任务是 best-effort，繁忙时可能比标称时间略晚启动；管理员仍可在同步中心手动触发。
 
-单平台临时故障使用持久 `sync_jobs` 队列，普通平台最多执行 3 次，失败后分别等待 2 分钟和 4 分钟；Supabase `pg_cron` 每 5 分钟通过 `pg_net` 调用一次仅限 `scope=queue` 的内部入口，使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。GitHub Actions 只保留管理员手动 `queue` 应急入口，避免两个自动调度器同时领取不同任务并突破跨平台并发上限。计划批次按 `platform_accounts.id` 稳定游标每页读取 3 个已验证账号，避免牛客等串行平台使单次 Edge 请求超过网关时限；每一页只发送一次 POST，工作流不会进行 `curl` 传输层重试，并在全部页完成后统一报告业务失败。QOJ 任务仍只有一次尝试，避免重复创建 Firecrawl 会话或加重风控。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
+单平台临时故障使用持久 `sync_jobs` 队列，六个平台都最多执行 2 个逻辑 attempt（首次 + 一次重试），第一次可恢复失败后固定等待 2 分钟；Supabase `pg_cron` 每 5 分钟通过 `pg_net` 调用一次仅限 `scope=queue` 的内部入口，使用数据库 `SKIP LOCKED` 原子领取到期任务，并回收超过 15 分钟未结束的 Worker。GitHub Actions 只保留管理员手动 `queue` 应急入口，避免两个自动调度器同时领取不同任务并突破跨平台并发上限。计划批次按 `platform_accounts.id` 稳定游标每页读取 3 个已验证账号，避免牛客等串行平台使单次 Edge 请求超过网关时限；每一页只发送一次 POST，工作流不会进行 `curl` 传输层重试，并在全部页完成后统一报告业务失败。QOJ 的可恢复失败同样只进入一次持久队列重试，每个 attempt 创建并清理独立 Firecrawl 会话；凭据和结构错误不重试。批量同步会拆成单平台任务：Codeforces/AtCoder 并发 2，XCPC ELO 并发 4，牛客/洛谷/QOJ 并发 1。
 
 参考项目：[FCYXSZY/astrbot_plugin_acm_helper](https://github.com/FCYXSZY/astrbot_plugin_acm_helper)。本项目借鉴其 Codeforces 分页/Accepted 去重思路，以及 `luogu_api/ckp.py` 的洛谷 Cookie、CSRF 和记录列表请求方式；凭据改由 Supabase Secrets 管理，不进入源码。
 
@@ -289,12 +289,12 @@ Vite 生产 `base` 已设置为 `/USTSACMLand/`，构建脚本会复制 `dist/in
 
 ## 当前限制与下一步
 
-1. 配置生产同步失败 Webhook，并完成 Firecrawl 额度告警投递烟测。
-2. 配置注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-3. 验证生产邮箱确认、密码重置、会话恢复和管理员登录完整流程。
-4. 完成持久队列 stale-worker、退避、跨平台并发限额，以及同步中心/公告/限流的生产 UI 烟测。
+1. 实现所有平台同步失败后最多自动重试一次，并配置生产失败 Webhook；该规则包含 QOJ，但不适用于 WebChat 或其他付费 AI 请求。
+2. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
+3. 配置注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
+4. 完成 AI 助手 3–5 人、168 小时观察，以及真实队员小范围试运行和人工可访问性验收。
 5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
-6. 使用真实队员小范围试运行，修复后按 [正式发布检查单](./docs/release-checklist.md) 准备 `v1.0.0`。
+6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`；发布后为 GitHub Pages 接入 Cloudflare 自定义域名、DNS/CDN 和 TLS。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 

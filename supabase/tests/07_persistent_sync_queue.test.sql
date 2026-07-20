@@ -34,19 +34,19 @@ insert into public.sync_jobs (
 overriding system value
 values
   (99701, 'account', '00000000-0000-0000-0000-0000000000f7', 'codeforces',
-    'queued', 'scheduled', 1, 3, now() - interval '5 minutes', null,
+    'queued', 'scheduled', 1, 2, now() - interval '5 minutes', null,
     '{"platforms":["codeforces"]}'::jsonb, 5),
   (99702, 'account', '00000000-0000-0000-0000-0000000000f7', 'atcoder',
-    'queued', 'scheduled', 1, 3, now() + interval '1 hour', null,
+    'queued', 'scheduled', 1, 2, now() + interval '1 hour', null,
     '{"platforms":["atcoder"]}'::jsonb, 0),
   (99703, 'account', '00000000-0000-0000-0000-0000000000f7', 'luogu',
-    'queued', 'scheduled', 3, 3, now() - interval '5 minutes', null,
+    'queued', 'scheduled', 2, 2, now() - interval '5 minutes', null,
     '{"platforms":["luogu"]}'::jsonb, 0),
   (99704, 'account', '00000000-0000-0000-0000-0000000000f7', 'nowcoder',
-    'running', 'scheduled', 1, 3, now() - interval '1 hour', now() - interval '20 minutes',
+    'running', 'scheduled', 1, 2, now() - interval '1 hour', now() - interval '20 minutes',
     '{"platforms":["nowcoder"]}'::jsonb, 10),
   (99705, 'account', '00000000-0000-0000-0000-0000000000f7', 'qoj',
-    'running', 'scheduled', 1, 1, now() - interval '1 hour', now() - interval '20 minutes',
+    'running', 'scheduled', 1, 2, now() - interval '1 hour', now() - interval '20 minutes',
     '{"platforms":["qoj"]}'::jsonb, 0);
 
 insert into public.sync_runs (
@@ -66,7 +66,7 @@ reset role;
 
 select is(
   (select count(*)::integer from claimed_queue_jobs),
-  2,
+  3,
   'the queue claims due and recovered jobs only'
 );
 
@@ -99,9 +99,9 @@ select is(
 );
 
 select is(
-  (select status::text from public.sync_jobs where id = 99705),
-  'failed',
-  'an exhausted stale worker becomes terminal'
+  (select attempt_count::integer from claimed_queue_jobs where job_id = 99705),
+  2,
+  'a stale QOJ worker is recovered for its single retry'
 );
 
 select is(
@@ -148,7 +148,7 @@ values (
   'queued',
   'manual',
   0,
-  3,
+  2,
   now(),
   '{"platforms":["codeforces"]}'::jsonb,
   'duplicate-submission-guard'
@@ -169,7 +169,7 @@ select throws_ok(
       'running',
       'manual',
       1,
-      3,
+      2,
       now(),
       now(),
       '{"platforms":["codeforces"]}'::jsonb,

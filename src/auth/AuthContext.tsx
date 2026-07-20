@@ -52,19 +52,16 @@ async function loadSupabaseUser(user: User): Promise<AuthUser> {
 async function startRegistrationXcpcSync(memberId: string) {
   if (!supabase) return
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const { error } = await supabase.functions.invoke('sync-member', {
-        body: {
-          memberId,
-          platforms: ['xcpc_elo'],
-          triggerType: 'registration',
-        },
-      })
-      if (!error) return
-    } catch {
-      // A second attempt covers a transient network failure during registration.
-    }
+  try {
+    await supabase.functions.invoke('sync-member', {
+      body: {
+        memberId,
+        platforms: ['xcpc_elo'],
+        triggerType: 'registration',
+      },
+    })
+  } catch {
+    // The browser submits once; retryable platform failures are owned by sync_jobs.
   }
 }
 

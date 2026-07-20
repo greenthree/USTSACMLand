@@ -62,7 +62,7 @@
 - [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
-- [ ] QOJ 健康检查最多执行一次且不自动重试；临时 Firecrawl 会话最终关闭。
+- [ ] QOJ 可恢复同步失败最多进入一次持久队列重试；每个 attempt 的临时 Firecrawl 会话都最终关闭，凭据/结构错误不重试。
 - [ ] 同步失败 Webhook 只发送脱敏任务信息，投递失败不会改变主任务结果。
 - [ ] 已确认日更、周更和到期队列 cron 使用 UTC 表达正确的北京时间计划。
 

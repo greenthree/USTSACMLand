@@ -123,11 +123,11 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。
 3. 连续触发达到限流阈值前停止；确认正常请求不会返回 429。
-4. 对 QOJ 只做一次明确授权的健康检查，禁止自动重试。
+4. 对 QOJ 做一次明确授权的健康检查；可恢复失败只允许数据库队列再执行一个 attempt，凭据或结构错误不得重试，每个 attempt 都必须关闭临时会话。
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
 6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
-计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 自动重试而产生第二次任务。
+计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 直接重发批次；只有适配器返回可恢复错误时，数据库队列可在两分钟后领取唯一一次重试。
 
 数据库队列 cron 还必须满足：`SYNC_QUEUE_TOKEN` 与 Vault 中 `sync_queue_scheduler_token` 一致；Vault 同时存在固定 Edge URL 和公开 anon key；`read_sync_queue_scheduler_health()` 显示 cron active、最近 12 分钟有调度、最近已完成 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。GitHub 不运行第二个自动队列调度器；数据库 cron 故障时，由管理员在工作流中手动选择 `queue` 作为应急恢复入口。
 
@@ -188,7 +188,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 | 凭据                      | 存放位置                                       | 轮换后验证                                                                                     |
 | ------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Firecrawl API Key         | Supabase Function Secrets                      | 牛客回退一次、QOJ 登录健康检查一次、用量面板正常                                               |
-| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 单次登录、目标主页匹配、会话最终关闭；不重试失败请求                                           |
+| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试                  |
 | 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新        | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                    |
 | 同步告警 Token            | 接收端 + Supabase Function Secrets             | 受控终态失败仅投递一次，Payload 保持脱敏                                                       |
 | 同步队列调度 Token        | Supabase Function Secret + Vault               | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                       |
@@ -211,7 +211,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 | 错误                 | 首要检查                              | 修复与验证                                     |
 | -------------------- | ------------------------------------- | ---------------------------------------------- |
 | `not_found`          | 用户账号、UID、姓名 + 学校匹配        | 管理员核对绑定；不得猜测或绑定同名 XCPC 选手   |
-| `auth_expired`       | 洛谷 Cookie/CSRF 或 QOJ 服务账号      | 成对轮换后只烟测一次；QOJ 不自动重试           |
+| `auth_expired`       | 洛谷 Cookie/CSRF 或 QOJ 服务账号      | 成对轮换后只烟测一次；认证错误不自动重试       |
 | `rate_limited`       | 第三方/Firecrawl 用量、并发和计划批次 | 等待窗口，降低并发或错峰；不增加无界重试       |
 | `schema_changed`     | 固定样本与真实响应差异                | 保存脱敏最小样本，更新单个平台适配器和契约测试 |
 | `timeout`            | 上游状态、网络和响应体大小            | 先确认单平台故障；只使用已有有限重试/持久队列  |
@@ -225,7 +225,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 - AtCoder：分别检查历史 Rating JSON 与 `user/ac_rank` 的 `count`。
 - XCPC ELO：检查共享缓存版本、租约、源大小和“姓名 + 苏州科技大学”唯一命中。
 - 洛谷：先核对公开 UID，再检查认证记录接口、增量边界和 30 天全量校准。
-- QOJ：检查 Firecrawl 临时会话、登录态标志和目标用户名；失败不自动重试，可临时使用带审计原因的管理员手工题数。
+- QOJ：检查 Firecrawl 临时会话、登录态标志和目标用户名；只有网络、超时、临时限流或上游不可用可进入一次队列重试，凭据/结构错误直接终止；必要时使用带审计原因的管理员手工题数。
 
 修复完成后只重试受影响平台，确认其他平台没有被批量重复同步。
 

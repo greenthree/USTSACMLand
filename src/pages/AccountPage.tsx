@@ -477,12 +477,26 @@ export function AccountPage() {
     setNotice('')
     setNoticeKind('success')
     if (supabase && userId) {
-      const { error } = await supabase.functions.invoke('sync-member', {
-        body: { memberId: userId, triggerType: 'manual' },
+      const { data, error } = await supabase.functions.invoke('sync-stats', {
+        body: { scope: 'member', member_id: userId },
       })
       setSyncing(false)
-      if (error) setNoticeKind('error')
-      setNotice(error ? `同步请求失败：${error.message}` : '同步任务已完成。')
+      if (error) {
+        setNoticeKind('error')
+        setNotice(`同步请求失败：${error.message}`)
+        return
+      }
+      const summary = data !== null && typeof data === 'object' ? data : {}
+      const failed = Number('failed' in summary ? summary.failed : 0)
+      const queued = Number('queued' in summary ? summary.queued : 0)
+      if (Number.isFinite(failed) && failed > 0) {
+        setNoticeKind('error')
+        setNotice(`同步完成，但有 ${failed} 个平台最终失败。`)
+      } else if (Number.isFinite(queued) && queued > 0) {
+        setNotice(`同步完成，${queued} 个平台已进入唯一一次自动重试队列。`)
+      } else {
+        setNotice('同步任务已完成。')
+      }
       return
     }
     window.setTimeout(() => {
