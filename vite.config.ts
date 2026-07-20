@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig(({ mode }) => ({
   base: mode === 'production' ? '/USTSACMLand/' : '/',
-  plugins: [react()],
+  plugins: [react(), cloudflare()],
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
