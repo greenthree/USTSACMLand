@@ -488,6 +488,9 @@ select ok(
 );
 
 reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claim.role', '', true);
+select set_config('request.jwt.claims', '{}', true);
 insert into public.platform_accounts (
   profile_id, platform, external_id, normalized_external_id, status, verified_at
 )
