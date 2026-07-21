@@ -105,6 +105,24 @@ test('the workbench shows thinking until the first visible reply text arrives', 
   expect(runtimeErrors).toEqual([])
 })
 
+test('an empty stopped reply does not leave a second assistant frame', async ({ page }) => {
+  await openAsMember(page)
+  const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
+  await composer.fill('检查思考状态')
+  await composer.press('Enter')
+
+  await expect(page.getByText('思考中', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '停止生成' }).click()
+  await expect(page.getByRole('button', { name: '发送问题' })).toBeVisible()
+  await expect(page.locator('.assistant-message-model')).toHaveCount(0)
+
+  await composer.fill('请帮我检查二分答案的边界')
+  await composer.press('Enter')
+  await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+  await expect(page.locator('.assistant-message-model')).toHaveCount(1)
+  await expect(page.getByText('学习助手', { exact: true })).toHaveCount(1)
+})
+
 test('stop generation aborts the in-flight upstream stream', async ({ page, request }) => {
   await openAsMember(page)
   const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })

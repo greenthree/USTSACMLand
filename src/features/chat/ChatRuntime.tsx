@@ -79,6 +79,14 @@ function AssistantThinking() {
 }
 
 function AssistantMessage() {
+  const visible = useAuiState(
+    (state) =>
+      state.message.content.some((part) => part.type === 'text' && part.text.trim().length > 0) ||
+      (state.thread.isRunning && state.message.isLast),
+  )
+
+  if (!visible) return null
+
   return (
     <MessagePrimitive.Root className="assistant-message assistant-message-model">
       <div className="assistant-message-rail" aria-hidden="true">
