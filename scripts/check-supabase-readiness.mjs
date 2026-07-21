@@ -41,7 +41,6 @@ const privateRestResources = [
   ['sync_jobs', 'id'],
   ['sync_runs', 'id'],
   ['announcements', 'id'],
-  ['training_goals', 'id'],
   ['audit_logs', 'id'],
 ]
 
