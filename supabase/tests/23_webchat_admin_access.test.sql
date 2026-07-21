@@ -211,6 +211,12 @@ where id in (
   '00000000-0000-0000-0000-000000002304'
 );
 
+delete from private.webchat_member_access
+where user_id in (
+  '00000000-0000-0000-0000-000000002301',
+  '00000000-0000-0000-0000-000000002302'
+);
+
 insert into private.webchat_member_access (
   user_id,
   access_enabled,
@@ -224,7 +230,12 @@ values (
   2,
   500,
   '00000000-0000-0000-0000-000000002301'
-);
+)
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  updated_by = excluded.updated_by;
 
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002304', true);
@@ -323,13 +334,13 @@ select ok(
   exists (
     select 1
     from default_admin_policy
-    where not access_enabled
-      and total_request_limit = 30
-      and total_token_limit = 100000
+    where access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
       and version = 0
       and updated_at is null
   ),
-  'an approved administrator without a private row is still denied by default'
+  'an approved administrator missing its row reports the configured defaults'
 );
 
 reset role;
@@ -356,12 +367,12 @@ select ok(
     select 1
     from default_admin_runtime
     where account_eligible
-      and not access_enabled
-      and total_request_limit = 30
-      and total_token_limit = 100000
+      and access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
       and version = 0
   ),
-  'runtime recognizes an approved administrator account without granting implicit access'
+  'runtime reports configured defaults for an approved administrator missing its row'
 );
 
 select is(
@@ -384,11 +395,11 @@ set local role authenticated;
 create temporary table administrator_self_update as
 select * from public.admin_update_webchat_member_access(
   '00000000-0000-0000-0000-000000002301',
-  true,
+  false,
   4,
   1000,
   0,
-  'Enable administrator pilot access'
+  'Customize administrator AI access'
 );
 reset role;
 
@@ -396,7 +407,7 @@ select ok(
   exists (
     select 1
     from administrator_self_update
-    where access_enabled
+    where not access_enabled
       and total_request_limit = 4
       and total_token_limit = 1000
       and version = 1
@@ -410,7 +421,7 @@ select ok(
     select 1
     from private.webchat_member_access
     where user_id = '00000000-0000-0000-0000-000000002301'
-      and access_enabled
+      and not access_enabled
       and total_request_limit = 4
       and total_token_limit = 1000
       and version = 1
@@ -427,7 +438,7 @@ select ok(
       and action = 'webchat_member_access_update'
       and target_id = '00000000-0000-0000-0000-000000002301'
       and metadata ->> 'profile_id' = '00000000-0000-0000-0000-000000002301'
-      and metadata ->> 'reason' = 'Enable administrator pilot access'
+      and metadata ->> 'reason' = 'Customize administrator AI access'
       and before_data ->> 'version' = '0'
       and after_data ->> 'version' = '1'
       and pg_catalog.concat(before_data, after_data, metadata)
@@ -435,6 +446,18 @@ select ok(
   ),
   'administrator self-authorization is versioned, attributed, and PII-redacted in audit'
 );
+
+set local role authenticated;
+create temporary table administrator_enable_update as
+select * from public.admin_update_webchat_member_access(
+  '00000000-0000-0000-0000-000000002301',
+  true,
+  4,
+  1000,
+  1,
+  'Enable customized administrator access'
+);
+reset role;
 
 set local role service_role;
 create temporary table enabled_admin_runtime as
@@ -451,7 +474,7 @@ select ok(
       and access_enabled
       and total_request_limit = 4
       and total_token_limit = 1000
-      and version = 1
+      and version = 2
   ),
   'service runtime accepts an explicitly authorized approved administrator'
 );
