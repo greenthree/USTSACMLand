@@ -7,6 +7,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/') return '苏州科技大学 ACM 集训队官网'
   if (pathname === '/learning') return '新手学习引导'
   if (pathname === '/daily-problem' || pathname.startsWith('/daily-problem/')) return '每日一题'
+  if (pathname === '/training-goals') return '训练目标'
   if (pathname === '/rankings') return '榜单'
   if (pathname === '/members') return '成员'
   if (pathname.startsWith('/members/')) return '成员详情'

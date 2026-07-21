@@ -751,6 +751,75 @@ export type Database = {
           },
         ]
       }
+      training_goals: {
+        Row: {
+          archived_at: string | null
+          baseline_components: Json
+          baseline_value: number
+          completed_at: string | null
+          created_at: string
+          end_date: string
+          id: number
+          metric: Database['public']['Enums']['training_goal_metric']
+          platform: Database['public']['Enums']['platform_name'] | null
+          profile_id: string
+          start_date: string
+          status: Database['public']['Enums']['training_goal_status']
+          target_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          baseline_components: Json
+          baseline_value: number
+          completed_at?: string | null
+          created_at?: string
+          end_date: string
+          id?: never
+          metric: Database['public']['Enums']['training_goal_metric']
+          platform?: Database['public']['Enums']['platform_name'] | null
+          profile_id: string
+          start_date: string
+          status?: Database['public']['Enums']['training_goal_status']
+          target_value: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          baseline_components?: Json
+          baseline_value?: number
+          completed_at?: string | null
+          created_at?: string
+          end_date?: string
+          id?: never
+          metric?: Database['public']['Enums']['training_goal_metric']
+          platform?: Database['public']['Enums']['platform_name'] | null
+          profile_id?: string
+          start_date?: string
+          status?: Database['public']['Enums']['training_goal_status']
+          target_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'training_goals_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'training_goals_profile_id_fkey'
+            columns: ['profile_id']
+            isOneToOne: false
+            referencedRelation: 'public_members'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       xcpc_elo_cache_players: {
         Row: {
           contests: number | null
@@ -1805,6 +1874,60 @@ export type Database = {
         Returns: boolean
       }
       export_own_data: { Args: never; Returns: Json }
+      export_own_training_goals: { Args: never; Returns: Json }
+      archive_own_training_goal: {
+        Args: { expected_updated_at: string; target_goal_id: number }
+        Returns: { goal_id: number; updated_at: string }[]
+      }
+      complete_own_training_goal: {
+        Args: { expected_updated_at: string; target_goal_id: number }
+        Returns: { goal_id: number; updated_at: string }[]
+      }
+      create_own_training_goal: {
+        Args: {
+          requested_end_date: string
+          requested_metric: Database['public']['Enums']['training_goal_metric']
+          requested_platform: Database['public']['Enums']['platform_name'] | null
+          requested_target_value: number
+          requested_title: string
+        }
+        Returns: { goal_id: number; updated_at: string }[]
+      }
+      list_own_training_goals: {
+        Args: never
+        Returns: {
+          archived_at: string | null
+          baseline_value: number
+          completed_at: string | null
+          created_at: string
+          current_value: number | null
+          data_available: boolean
+          data_message: string | null
+          end_date: string
+          goal_id: number
+          last_success_at: string | null
+          lifecycle_status: string
+          metric: Database['public']['Enums']['training_goal_metric']
+          platform: Database['public']['Enums']['platform_name'] | null
+          progress_percent: number | null
+          progress_value: number | null
+          regressed: boolean
+          start_date: string
+          target_value: number
+          title: string
+          updated_at: string
+        }[]
+      }
+      update_own_training_goal: {
+        Args: {
+          expected_updated_at: string
+          requested_end_date: string
+          requested_target_value: number
+          requested_title: string
+          target_goal_id: number
+        }
+        Returns: { goal_id: number; updated_at: string }[]
+      }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']
@@ -2180,6 +2303,8 @@ export type Database = {
       sync_job_status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
       sync_run_status: 'running' | 'succeeded' | 'failed' | 'skipped'
       sync_trigger_type: 'scheduled' | 'manual' | 'registration' | 'account_changed' | 'retry'
+      training_goal_metric: 'total_solved' | 'platform_solved' | 'platform_rating'
+      training_goal_status: 'active' | 'completed' | 'archived'
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2331,6 +2456,8 @@ export const Constants = {
       sync_job_status: ['queued', 'running', 'succeeded', 'failed', 'cancelled'],
       sync_run_status: ['running', 'succeeded', 'failed', 'skipped'],
       sync_trigger_type: ['scheduled', 'manual', 'registration', 'account_changed', 'retry'],
+      training_goal_metric: ['total_solved', 'platform_solved', 'platform_rating'],
+      training_goal_status: ['active', 'completed', 'archived'],
     },
   },
 } as const

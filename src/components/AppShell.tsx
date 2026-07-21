@@ -63,6 +63,11 @@ export function AppShell() {
                 我的资料
               </NavLink>
             ) : null}
+            {user ? (
+              <NavLink to="/training-goals" onClick={() => setOpen(false)}>
+                训练目标
+              </NavLink>
+            ) : null}
             {webChatUiEnabled && user ? (
               <NavLink to="/assistant" onClick={() => setOpen(false)}>
                 AI 助手

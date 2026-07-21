@@ -115,6 +115,7 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 | `daily_problems`            | 每日题目、公开时间、训练提示和管理版本         |
 | `daily_problem_completions` | 成员完成记录与完成时间                         |
 | `daily_problem_comments`    | 仅成员可读的题目讨论及管理员可恢复的隐藏状态   |
+| `training_goals`            | 成员自有训练目标、不可变成功同步基线和生命周期 |
 | `xcpc_elo_cache_state`      | XCPC ELO 活跃版本、条件请求元数据、租约与冷却  |
 | `xcpc_elo_cache_players`    | 我校选手的版本化精简 XCPC ELO 缓存             |
 
@@ -125,6 +126,7 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 - `/`：集训队官网首页，包含 ACM 介绍、赛事版图、线上公开赛、学习资源、训练记录和加入方式。
 - `/learning`：交互式新手学习引导，包含起点推荐、可持久化四周进度、周任务、可展开五阶段路线、知识地图、训练节奏，以及一键环境配置、算法竞赛 Wiki、XCPC Link 和 ACM 群组坐标汇总等资源入口。
 - `/daily-problem`、`/daily-problem/:date`：每日题目、训练提示、最近题目、完成记录入口和成员讨论；访客只能看到题目与匿名聚合数量。
+- `/training-goals`：成员自有训练目标，支持总题数、平台题数和平台 Rating，按成功同步快照计算进度并保留完成/归档历史。
 - `/rankings`：Rating 榜、刷题累计榜，以及北京时间本周、本月和自定义范围的刷题增量榜。
 - `/members`、`/members/:id`：成员列表与详情；详情页展示平台主页、当前 Rating、历史最高 Rating、通过题数和数据状态。
 - `/privacy`：公开数据范围、第三方处理方和资料删除说明。

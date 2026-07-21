@@ -1,0 +1,624 @@
+.training-goals-page {
+  width: min(1240px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 58px 0 96px;
+}
+
+.training-goals-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.training-goals-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.training-goals-heading > div > svg {
+  color: var(--gold);
+}
+
+.training-goals-heading h1 {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.1;
+}
+
+.training-goals-heading p {
+  max-width: 390px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.training-goals-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 34px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.training-goals-summary > div {
+  min-height: 94px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 24px;
+  border-right: 1px solid var(--line-strong);
+}
+
+.training-goals-summary > div:first-child {
+  padding-left: 0;
+}
+
+.training-goals-summary > div:last-child {
+  border-right: 0;
+}
+
+.training-goals-summary span {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.training-goals-summary strong {
+  color: var(--ink);
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.training-goals-notice {
+  margin: -12px 0 28px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--green);
+  color: var(--green-dark);
+  background: var(--green-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.training-goals-notice.is-error {
+  color: #8f332c;
+  background: var(--red-soft);
+  border-left-color: var(--red);
+}
+
+.training-goals-workspace {
+  display: grid;
+  grid-template-columns: minmax(270px, 0.33fr) minmax(0, 0.67fr);
+  align-items: start;
+  gap: 56px;
+}
+
+.training-goal-create {
+  position: sticky;
+  top: 96px;
+  padding: 22px 0 0;
+  border-top: 3px solid var(--ink);
+}
+
+.training-goal-create-heading,
+.training-goal-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.training-goal-create-heading {
+  justify-content: flex-start;
+  margin-bottom: 22px;
+}
+
+.training-goal-create-heading svg {
+  color: var(--green-dark);
+}
+
+.training-goal-create h2,
+.training-goal-list h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.training-goal-create form {
+  display: grid;
+  gap: 18px;
+}
+
+.training-goal-create label,
+.training-goal-edit label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.training-goal-create input,
+.training-goal-create select,
+.training-goal-edit input {
+  min-height: 40px;
+  width: 100%;
+  padding: 0 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.training-goal-create input:focus,
+.training-goal-create select:focus,
+.training-goal-edit input:focus {
+  outline: 2px solid rgb(22 121 75 / 25%);
+  outline-offset: 1px;
+  border-color: var(--green);
+}
+
+.training-goal-create fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.training-goal-create legend {
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.training-goal-type-control,
+.training-goal-view-control {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.training-goal-type-control button,
+.training-goal-view-control button {
+  min-height: 36px;
+  padding: 0 9px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 0;
+  border-right: 1px solid var(--line-strong);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.training-goal-type-control button:last-child,
+.training-goal-view-control button:last-child {
+  border-right: 0;
+}
+
+.training-goal-type-control button:hover,
+.training-goal-type-control button:focus-visible,
+.training-goal-view-control button:hover,
+.training-goal-view-control button:focus-visible {
+  color: var(--green-dark);
+  background: var(--surface-muted);
+}
+
+.training-goal-type-control button.is-active,
+.training-goal-view-control button.is-active {
+  color: #fff;
+  background: var(--green-dark);
+}
+
+.training-goal-number-field {
+  position: relative;
+}
+
+.training-goal-number-field input {
+  padding-right: 32px;
+}
+
+.training-goal-number-field span {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  color: var(--faint);
+  font-size: 12px;
+  transform: translateY(-50%);
+}
+
+.training-goal-baseline-note {
+  margin: -2px 0 0;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.training-goal-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.training-goal-list {
+  min-width: 0;
+}
+
+.training-goal-list-heading {
+  align-items: flex-end;
+  padding-bottom: 17px;
+  border-bottom: 3px solid var(--ink);
+}
+
+.training-goal-list-heading > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.training-goal-list-heading span {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.training-goal-view-control {
+  width: 180px;
+}
+
+.training-goal-items {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+}
+
+.training-goal-item {
+  padding: 20px 22px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--green);
+  border-radius: 4px;
+}
+
+.training-goal-item.is-expired {
+  border-left-color: var(--gold);
+}
+
+.training-goal-item.is-completed {
+  border-left-color: var(--blue);
+}
+
+.training-goal-item.is-archived {
+  border-left-color: var(--line-strong);
+  background: var(--surface-muted);
+}
+
+.training-goal-item-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.training-goal-item-heading > div:first-child {
+  min-width: 0;
+}
+
+.training-goal-item-heading h3 {
+  margin: 9px 0 5px;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.training-goal-item-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.training-goal-item-heading time {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.training-goal-item-heading time svg {
+  color: var(--green-dark);
+}
+
+.training-goal-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  color: var(--green-dark);
+  background: var(--green-soft);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.training-goal-status.is-expired {
+  color: #8a5a08;
+  background: var(--gold-soft);
+}
+
+.training-goal-status.is-completed {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.training-goal-status.is-archived {
+  color: var(--faint);
+  background: #e8ece9;
+}
+
+.training-goal-progress {
+  display: grid;
+  gap: 9px;
+  margin-top: 21px;
+}
+
+.training-goal-progress-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.training-goal-progress-copy strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.training-goal-progress-track {
+  height: 8px;
+  overflow: hidden;
+  background: #e5ece7;
+  border-radius: 2px;
+}
+
+.training-goal-progress-track span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: inherit;
+  transition: width 220ms ease-out;
+}
+
+.training-goal-item.is-completed .training-goal-progress-track span {
+  background: var(--blue);
+}
+
+.training-goal-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 20px 0 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.training-goal-metrics > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 13px 13px 12px;
+  border-right: 1px solid var(--line);
+}
+
+.training-goal-metrics > div:first-child {
+  padding-left: 0;
+}
+
+.training-goal-metrics > div:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.training-goal-metrics dt {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.training-goal-metrics dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.training-goal-metrics > div:last-child dd {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.training-goal-data-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 14px 0 0;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.training-goal-data-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.training-goal-data-note.is-warning {
+  color: #8a5a08;
+}
+
+.training-goal-actions,
+.training-goal-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.training-goal-actions button,
+.training-goal-edit-actions button {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.training-goal-edit {
+  display: grid;
+  gap: 15px;
+}
+
+.training-goal-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.7fr) minmax(160px, 0.8fr);
+  gap: 12px;
+}
+
+.training-goal-edit-actions {
+  margin-top: 0;
+}
+
+.is-spinning {
+  animation: training-goal-spin 900ms linear infinite;
+}
+
+@keyframes training-goal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .training-goal-progress-track span,
+  .is-spinning {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 920px) {
+  .training-goals-workspace {
+    grid-template-columns: 1fr;
+    gap: 52px;
+  }
+
+  .training-goal-create {
+    position: static;
+  }
+
+  .training-goal-create form {
+    max-width: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .training-goals-page {
+    width: min(100% - 32px, 560px);
+    padding: 36px 0 64px;
+  }
+
+  .training-goals-heading {
+    display: grid;
+    gap: 14px;
+  }
+
+  .training-goals-heading p {
+    max-width: none;
+  }
+
+  .training-goals-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .training-goals-summary > div {
+    min-height: 82px;
+    padding: 13px 10px;
+  }
+
+  .training-goals-summary > div:first-child {
+    padding-left: 0;
+  }
+
+  .training-goals-summary strong {
+    font-size: 20px;
+  }
+
+  .training-goal-list-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .training-goal-view-control {
+    width: 100%;
+  }
+
+  .training-goal-item {
+    padding: 17px 15px 15px;
+  }
+
+  .training-goal-item-heading {
+    display: grid;
+    gap: 11px;
+  }
+
+  .training-goal-item-heading time {
+    justify-self: start;
+  }
+
+  .training-goal-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .training-goal-metrics > div,
+  .training-goal-metrics > div:first-child,
+  .training-goal-metrics > div:last-child {
+    padding: 11px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .training-goal-metrics > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .training-goal-metrics > div:nth-child(3),
+  .training-goal-metrics > div:nth-child(4) {
+    border-bottom: 0;
+  }
+
+  .training-goal-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .training-goal-actions,
+  .training-goal-edit-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .training-goal-actions button,
+  .training-goal-edit-actions button {
+    flex: 1 1 auto;
+  }
+}

@@ -54,6 +54,18 @@ test('/account passes the authenticated member axe gate', async ({ page }) => {
   assertNoViolations('/account', results.violations)
 })
 
+test('/training-goals passes the authenticated member axe gate', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
+  })
+  await page.goto('/training-goals')
+  await expect(page.getByRole('heading', { name: '训练目标' })).toBeVisible()
+  await page.locator('main#main-content').waitFor({ state: 'visible' })
+  await page.waitForLoadState('networkidle')
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  assertNoViolations('/training-goals', results.violations)
+})
+
 for (const route of [
   '/admin/accounts',
   '/admin/daily-problems',

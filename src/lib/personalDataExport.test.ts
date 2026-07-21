@@ -20,20 +20,30 @@ describe('personal data export', () => {
 
   it('loads only the target-free own-data RPC result', async () => {
     const payload = { schemaVersion: 1, profile: { fullName: '测试成员' } }
-    personalExportMocks.rpc.mockResolvedValue({ data: payload, error: null })
+    personalExportMocks.rpc
+      .mockResolvedValueOnce({ data: payload, error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
 
-    await expect(fetchOwnPersonalDataExport()).resolves.toEqual(payload)
+    await expect(fetchOwnPersonalDataExport()).resolves.toEqual({
+      ...payload,
+      trainingGoals: [],
+    })
     expect(personalExportMocks.rpc).toHaveBeenCalledWith('export_own_data')
+    expect(personalExportMocks.rpc).toHaveBeenCalledWith('export_own_training_goals')
   })
 
   it('fails closed for RPC errors and invalid payloads', async () => {
-    personalExportMocks.rpc.mockResolvedValueOnce({
-      data: null,
-      error: new Error('database detail'),
-    })
+    personalExportMocks.rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: new Error('database detail'),
+      })
+      .mockResolvedValueOnce({ data: [], error: null })
     await expect(fetchOwnPersonalDataExport()).rejects.toThrow('个人数据导出失败，请稍后重试。')
 
-    personalExportMocks.rpc.mockResolvedValueOnce({ data: [], error: null })
+    personalExportMocks.rpc
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
     await expect(fetchOwnPersonalDataExport()).rejects.toThrow('个人数据导出失败，请稍后重试。')
   })
 
