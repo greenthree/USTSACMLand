@@ -70,7 +70,13 @@ values
     '00000000-0000-0000-0000-000000002802',
     true, 5, 1000, 1,
     '00000000-0000-0000-0000-000000002803'
-  );
+  )
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  version = excluded.version,
+  updated_by = excluded.updated_by;
 
 update private.webchat_relay_config
 set

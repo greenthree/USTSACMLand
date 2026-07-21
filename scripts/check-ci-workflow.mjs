@@ -53,6 +53,7 @@ const requiredReleaseMigrations = [
   '202607200001_sync_single_retry.sql',
   '202607200002_clear_public_schema_lint.sql',
   '202607210002_training_goals.sql',
+  '202607210003_default_webchat_access.sql',
 ]
 
 function requireMatch(source, pattern, message) {

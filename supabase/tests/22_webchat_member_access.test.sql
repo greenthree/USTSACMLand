@@ -7,7 +7,7 @@ select plan(66);
 select has_table(
   'private',
   'webchat_member_access',
-  'the private deny-by-default WebChat member access table exists'
+  'the private explicit WebChat member access table exists'
 );
 
 select ok(
@@ -349,6 +349,15 @@ where id between
   '00000000-0000-0000-0000-000000002201'
   and '00000000-0000-0000-0000-000000002212';
 
+-- Simulate legacy/corrupt missing rows separately from the normal registration
+-- path, which now creates explicit default authorization automatically.
+delete from private.webchat_member_access
+where user_id in (
+  '00000000-0000-0000-0000-000000002201',
+  '00000000-0000-0000-0000-000000002202',
+  '00000000-0000-0000-0000-000000002203'
+);
+
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002203', true);
 select set_config(
@@ -407,13 +416,13 @@ select ok(
   exists (
     select 1
     from default_admin_access
-    where not access_enabled
-      and total_request_limit = 30
-      and total_token_limit = 100000
+    where access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
       and version = 0
       and updated_at is null
   ),
-  'a missing member access row is returned as disabled version-zero defaults'
+  'a missing member access row reports the configured version-zero defaults'
 );
 
 select throws_ok(
@@ -436,13 +445,13 @@ select ok(
   exists (
     select 1
     from default_self_admin_access
-    where not access_enabled
-      and total_request_limit = 30
-      and total_token_limit = 100000
+    where access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
       and version = 0
       and updated_at is null
   ),
-  'an active administrator is an eligible but deny-by-default WebChat policy target'
+  'an active administrator receives the same missing-row display defaults'
 );
 
 select throws_ok(
@@ -524,9 +533,9 @@ select ok(
     where action = 'webchat_member_access_update'
       and target_table = 'webchat_member_access'
       and target_id = '00000000-0000-0000-0000-000000002202'
-      and before_data = '{"accessEnabled":false,"totalRequestLimit":30,"totalTokenLimit":100000,"version":0}'::jsonb
+      and before_data = '{"accessEnabled":true,"totalRequestLimit":10000,"totalTokenLimit":5000000,"version":0}'::jsonb
   ),
-  'the first audit snapshot records the effective deny-by-default state'
+  'the first audit snapshot records the effective configured default state'
 );
 
 select ok(
@@ -549,7 +558,7 @@ select ok(
       and metadata ->> 'profile_id' = '00000000-0000-0000-0000-000000002202'
       and metadata ->> 'reason' = 'Enable initial pilot access'
       and metadata -> 'changedFields'
-        = '["accessEnabled","totalRequestLimit","totalTokenLimit"]'::jsonb
+        = '["totalRequestLimit","totalTokenLimit"]'::jsonb
   ),
   'the audit lists the reason and changed non-secret fields'
 );
@@ -640,7 +649,12 @@ values
   ('00000000-0000-0000-0000-000000002209', true, 5, 150, '00000000-0000-0000-0000-000000002201'),
   ('00000000-0000-0000-0000-000000002210', true, 5, 1000, '00000000-0000-0000-0000-000000002201'),
   ('00000000-0000-0000-0000-000000002211', true, 5, 1000, '00000000-0000-0000-0000-000000002201'),
-  ('00000000-0000-0000-0000-000000002212', true, 5, 1000, '00000000-0000-0000-0000-000000002201');
+  ('00000000-0000-0000-0000-000000002212', true, 5, 1000, '00000000-0000-0000-0000-000000002201')
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  updated_by = excluded.updated_by;
 
 set local role service_role;
 create temporary table default_runtime_access as
@@ -661,12 +675,12 @@ select ok(
   exists (
     select 1 from default_runtime_access
     where account_eligible
-      and not access_enabled
-      and total_request_limit = 30
-      and total_token_limit = 100000
+      and access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
       and version = 0
   ),
-  'runtime access also treats a missing policy row as denied version-zero defaults'
+  'runtime access reports configured defaults while paid admission stays fail closed'
 );
 
 select ok(

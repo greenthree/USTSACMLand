@@ -208,7 +208,12 @@ insert into private.webchat_member_access (
 )
 values
   ('00000000-0000-0000-0000-000000003601', true, 20, 200000, false),
-  ('00000000-0000-0000-0000-000000003602', true, 30, 300000, false);
+  ('00000000-0000-0000-0000-000000003602', true, 30, 300000, false)
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  pilot_observation_enabled = excluded.pilot_observation_enabled;
 
 insert into private.webchat_daily_usage (
   user_id, usage_date, request_count, input_tokens, output_tokens,

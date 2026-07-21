@@ -120,7 +120,14 @@ values
     '00000000-0000-0000-0000-000000002705',
     true, false, 4, 1500, 5,
     '00000000-0000-0000-0000-000000002704'
-  );
+  )
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  pilot_observation_enabled = excluded.pilot_observation_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  version = excluded.version,
+  updated_by = excluded.updated_by;
 
 insert into private.webchat_daily_usage (
   user_id,

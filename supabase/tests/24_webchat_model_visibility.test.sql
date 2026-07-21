@@ -143,7 +143,19 @@ values
     2,
     500,
     '00000000-0000-0000-0000-000000002402'
-  );
+  )
+on conflict (user_id) do update set
+  access_enabled = excluded.access_enabled,
+  total_request_limit = excluded.total_request_limit,
+  total_token_limit = excluded.total_token_limit,
+  updated_by = excluded.updated_by;
+
+update private.webchat_member_access
+set
+  access_enabled = false,
+  total_request_limit = 30,
+  total_token_limit = 100000
+where user_id = '00000000-0000-0000-0000-000000002403';
 
 update private.webchat_relay_config
 set
@@ -383,8 +395,8 @@ select is(
     from private.webchat_member_access
     where user_id = '00000000-0000-0000-0000-000000002403'
   ),
-  0,
-  'reading denied usage does not materialize a private authorization row'
+  1,
+  'reading denied usage does not alter the explicit disabled authorization row'
 );
 
 update private.webchat_relay_config
