@@ -78,7 +78,7 @@ describe('AI learning assistant workspace', () => {
 
   it('shows thinking before visible text and keeps deletion disabled while generation is running', async () => {
     const user = userEvent.setup()
-    renderChat(new MockChatTransport({ chunkDelayMs: 100 }))
+    renderChat(new MockChatTransport({ chunkDelayMs: 10_000 }))
 
     await user.type(screen.getByRole('textbox', { name: '向 AI 学习助手提问' }), '输出长讲解')
     await user.click(screen.getByRole('button', { name: '发送问题' }))
@@ -93,6 +93,15 @@ describe('AI learning assistant workspace', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: '发送问题' })).toBeInTheDocument()
     })
+    expect(document.querySelectorAll('.assistant-message-model')).toHaveLength(0)
+
+    await user.type(screen.getByRole('textbox', { name: '向 AI 学习助手提问' }), '再次提问')
+    await user.click(screen.getByRole('button', { name: '发送问题' }))
+
+    expect(await screen.findByText('思考中')).toBeInTheDocument()
+    expect(document.querySelectorAll('.assistant-message-model')).toHaveLength(1)
+    expect(screen.getAllByText('学习助手')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: '停止生成' }))
   })
 
   it('restores the active conversation after a refresh-style remount', async () => {

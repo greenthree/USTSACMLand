@@ -12,6 +12,8 @@ export type AdminMemberStatus = 'active' | 'suspended'
 export type AdminMemberRole = 'member' | 'admin'
 export type AnnouncementStatus = 'draft' | 'published' | 'archived'
 export type DailyProblemStatus = 'draft' | 'published' | 'archived'
+export type TrainingGoalMetric = 'total_solved' | 'platform_solved' | 'platform_rating'
+export type TrainingGoalLifecycleStatus = 'active' | 'completed' | 'archived' | 'expired'
 export type SyncStatus = 'fresh' | 'stale' | 'error' | 'missing' | 'syncing'
 export type SyncRunStatus = 'success' | 'running' | 'failed' | 'queued' | 'skipped'
 export type SyncJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
@@ -151,6 +153,37 @@ export interface AdminDailyProblemInput {
   estimatedMinutes: number | null
   status: DailyProblemStatus
   expectedUpdatedAt: string | null
+}
+
+export interface TrainingGoal {
+  id: number
+  title: string
+  metric: TrainingGoalMetric
+  platform: Platform | null
+  baselineValue: number
+  targetValue: number
+  startDate: string
+  endDate: string
+  lifecycleStatus: TrainingGoalLifecycleStatus
+  dataAvailable: boolean
+  currentValue: number | null
+  progressValue: number | null
+  progressPercent: number | null
+  regressed: boolean
+  lastSuccessAt: string | null
+  dataMessage: string | null
+  completedAt: string | null
+  archivedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TrainingGoalInput {
+  title: string
+  metric: TrainingGoalMetric
+  platform: Platform | null
+  targetAmount: number
+  endDate: string
 }
 
 export type AdminMemberAccountStatus = AccountVerificationStatus | 'missing'

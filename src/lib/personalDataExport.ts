@@ -20,9 +20,22 @@ function isJsonObject(value: Json): value is { [key: string]: Json | undefined }
 export async function fetchOwnPersonalDataExport(): Promise<Json> {
   if (!supabase) throw new Error('个人数据导出暂不可用。')
 
-  const { data, error } = await supabase.rpc('export_own_data')
-  if (error || !isJsonObject(data)) throw new Error('个人数据导出失败，请稍后重试。')
-  return data
+  const rpc = supabase.rpc.bind(supabase) as unknown as (
+    functionName: string,
+  ) => Promise<{ data: Json | null; error: { message: string } | null }>
+  const [accountExport, goalExport] = await Promise.all([
+    rpc('export_own_data'),
+    rpc('export_own_training_goals'),
+  ])
+  if (
+    accountExport.error ||
+    goalExport.error ||
+    !isJsonObject(accountExport.data) ||
+    !Array.isArray(goalExport.data)
+  ) {
+    throw new Error('个人数据导出失败，请稍后重试。')
+  }
+  return { ...accountExport.data, trainingGoals: goalExport.data }
 }
 
 export function buildDemoPersonalDataExport(
@@ -74,6 +87,7 @@ export function buildDemoPersonalDataExport(
     platformStats: [],
     statSnapshots: [],
     syncHistory: [],
+    trainingGoals: [],
     dailyProblem: { completions: [], comments: [] },
     webchat: {
       access: null,

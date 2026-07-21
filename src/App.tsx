@@ -32,6 +32,9 @@ const LearningPage = lazy(() =>
 const DailyProblemPage = lazy(() =>
   import('./pages/DailyProblemPage').then((module) => ({ default: module.DailyProblemPage })),
 )
+const TrainingGoalsPage = lazy(() =>
+  import('./pages/TrainingGoalsPage').then((module) => ({ default: module.TrainingGoalsPage })),
+)
 const MemberPage = lazy(() =>
   import('./pages/MemberPage').then((module) => ({ default: module.MemberPage })),
 )
@@ -132,6 +135,14 @@ export default function App() {
             <Route path="learning" element={<LearningPage />} />
             <Route path="daily-problem" element={<DailyProblemPage />} />
             <Route path="daily-problem/:date" element={<DailyProblemPage />} />
+            <Route
+              path="training-goals"
+              element={
+                <RequireAuth>
+                  <TrainingGoalsPage />
+                </RequireAuth>
+              }
+            />
             <Route path="privacy" element={<PrivacyPage />} />
             <Route
               path="account"

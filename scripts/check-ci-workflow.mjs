@@ -52,6 +52,7 @@ const requiredReleaseMigrations = [
   '202607190005_personal_data_export.sql',
   '202607200001_sync_single_retry.sql',
   '202607200002_clear_public_schema_lint.sql',
+  '202607210002_training_goals.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -65,6 +66,7 @@ export function verifyDatabaseTypes(databaseTypes) {
     'daily_problems',
     'daily_problem_completions',
     'daily_problem_comments',
+    'training_goals',
   ]) {
     requireMatch(
       databaseTypes,
@@ -138,6 +140,12 @@ export function verifyDatabaseTypes(databaseTypes) {
     'read_firecrawl_runtime_key',
     'record_firecrawl_key_observation',
     'export_own_data',
+    'list_own_training_goals',
+    'create_own_training_goal',
+    'update_own_training_goal',
+    'complete_own_training_goal',
+    'archive_own_training_goal',
+    'export_own_training_goals',
   ]) {
     requireMatch(
       databaseTypes,
