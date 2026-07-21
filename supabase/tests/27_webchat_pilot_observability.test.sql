@@ -336,16 +336,19 @@ select set_eq(
 
 select is(
   (select count(*)::integer from pilot_roster),
-  4,
-  'the roster contains every account with an explicit access row'
+  5,
+  'the roster contains every account created with default or customized access'
 );
 
 select ok(
-  not exists (
+  exists (
     select 1 from pilot_roster
     where user_id = '00000000-0000-0000-0000-000000002703'
+      and access_enabled
+      and total_request_limit = 10000
+      and total_token_limit = 5000000
   ),
-  'an account without explicit WebChat configuration is absent'
+  'a newly created account appears with the default AI access policy'
 );
 
 select ok(

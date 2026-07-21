@@ -211,18 +211,18 @@ select ok(
 delete from private.webchat_member_access
 where user_id = '00000000-0000-0000-0000-000000003901';
 
-set local role service_role;
-create temporary table missing_member_runtime as
-select * from public.read_webchat_member_runtime_access(
-  '00000000-0000-0000-0000-000000003901'
-);
-
 update private.webchat_relay_config
 set
   requests_enabled = true,
   global_daily_request_limit = 300,
   global_daily_token_limit = 1000000
 where singleton;
+
+set local role service_role;
+create temporary table missing_member_runtime as
+select * from public.read_webchat_member_runtime_access(
+  '00000000-0000-0000-0000-000000003901'
+);
 
 create temporary table missing_member_claim as
 select * from public.claim_authorized_webchat_request(
