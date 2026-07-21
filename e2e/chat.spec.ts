@@ -108,7 +108,7 @@ test('the workbench shows thinking until the first visible reply text arrives', 
 test('an empty stopped reply does not leave a second assistant frame', async ({ page }) => {
   await openAsMember(page)
   const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
-  await composer.fill('检查思考状态')
+  await composer.fill('检查停止前空消息')
   await composer.press('Enter')
 
   await expect(page.getByText('思考中', { exact: true })).toBeVisible()

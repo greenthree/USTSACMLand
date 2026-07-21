@@ -258,6 +258,10 @@ const server = createServer(async (request, response) => {
     )
     return
   }
+  if (text.includes('检查停止前空消息')) {
+    streamReply(request, response, ['停止前不应出现正文。'], 10_000)
+    return
+  }
   if (text.includes('检查思考状态')) {
     streamReply(request, response, ['思考状态结束。'], 500)
     return
