@@ -81,7 +81,7 @@ export type Database = {
           id: number
           published_at: string | null
           status: Database['public']['Enums']['announcement_status']
-          title: string | null
+          title: string
           updated_at: string
           updated_by: string | null
         }
@@ -93,7 +93,7 @@ export type Database = {
           id?: never
           published_at?: string | null
           status?: Database['public']['Enums']['announcement_status']
-          title: string | null
+          title: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -260,7 +260,7 @@ export type Database = {
           source_url: string
           status: Database['public']['Enums']['daily_problem_status']
           tags: string[]
-          title: string | null
+          title: string
           training_note: string
           updated_at: string
           updated_by: string | null
@@ -1072,6 +1072,15 @@ export type Database = {
         Args: { expected_updated_at: string; target_problem_id: number }
         Returns: boolean
       }
+      admin_delete_firecrawl_api_key: {
+        Args: {
+          actor_id: string
+          expected_version: number
+          reason: string
+          target_key_id: string
+        }
+        Returns: string
+      }
       admin_get_member_detail: {
         Args: { target_profile_id: string }
         Returns: {
@@ -1220,22 +1229,22 @@ export type Database = {
       admin_list_firecrawl_api_keys: {
         Args: { actor_id: string }
         Returns: {
-          billing_period_end: string | null
+          billing_period_end: string
           consecutive_failures: number
-          cooldown_until: string | null
+          cooldown_until: string
           created_at: string
-          credits_remaining: number | null
-          credits_total: number | null
+          credits_remaining: number
+          credits_total: number
           enabled: boolean
           health_status: string
           id: string
           key_configured: boolean
           label: string
-          last_checked_at: string | null
-          last_error_code: string | null
-          last_failure_at: string | null
-          last_selected_at: string | null
-          last_success_at: string | null
+          last_checked_at: string
+          last_error_code: string
+          last_failure_at: string
+          last_selected_at: string
+          last_success_at: string
           priority: number
           updated_at: string
           version: number
@@ -1497,15 +1506,6 @@ export type Database = {
           version: number
         }[]
       }
-      admin_delete_firecrawl_api_key: {
-        Args: {
-          actor_id: string
-          expected_version: number
-          reason: string
-          target_key_id: string
-        }
-        Returns: string
-      }
       admin_update_webchat_relay_config: {
         Args: {
           actor_id: string
@@ -1544,39 +1544,6 @@ export type Database = {
           announcement_updated_at: string
         }[]
       }
-      admin_upsert_firecrawl_api_key: {
-        Args: {
-          actor_id: string
-          expected_version: number | null
-          reason: string
-          replacement_api_key: string | null
-          requested_enabled: boolean
-          requested_label: string
-          requested_priority: number
-          target_key_id: string | null
-        }
-        Returns: {
-          billing_period_end: string | null
-          consecutive_failures: number
-          cooldown_until: string | null
-          created_at: string
-          credits_remaining: number | null
-          credits_total: number | null
-          enabled: boolean
-          health_status: string
-          id: string
-          key_configured: boolean
-          label: string
-          last_checked_at: string | null
-          last_error_code: string | null
-          last_failure_at: string | null
-          last_selected_at: string | null
-          last_success_at: string | null
-          priority: number
-          updated_at: string
-          version: number
-        }[]
-      }
       admin_upsert_announcement_unlimited: {
         Args: {
           announcement_body: string
@@ -1612,6 +1579,39 @@ export type Database = {
           problem_updated_at: string
         }[]
       }
+      admin_upsert_firecrawl_api_key: {
+        Args: {
+          actor_id: string
+          expected_version: number
+          reason: string
+          replacement_api_key: string
+          requested_enabled: boolean
+          requested_label: string
+          requested_priority: number
+          target_key_id: string
+        }
+        Returns: {
+          billing_period_end: string
+          consecutive_failures: number
+          cooldown_until: string
+          created_at: string
+          credits_remaining: number
+          credits_total: number
+          enabled: boolean
+          health_status: string
+          id: string
+          key_configured: boolean
+          label: string
+          last_checked_at: string
+          last_error_code: string
+          last_failure_at: string
+          last_selected_at: string
+          last_success_at: string
+          priority: number
+          updated_at: string
+          version: number
+        }[]
+      }
       admin_upsert_member_platform_account: {
         Args: {
           expected_updated_at?: string
@@ -1636,6 +1636,13 @@ export type Database = {
           account_id: number
           account_status: Database['public']['Enums']['account_verification_status']
           account_updated_at: string
+        }[]
+      }
+      archive_own_training_goal: {
+        Args: { expected_updated_at: string; target_goal_id: number }
+        Returns: {
+          goal_id: number
+          updated_at: string
         }[]
       }
       audit_json_contains_identifier: {
@@ -1713,7 +1720,7 @@ export type Database = {
           decision: string
           remaining_global_requests: number
           remaining_global_tokens: number
-          retry_after_seconds: number | null
+          retry_after_seconds: number
           status: string
           usage_date: string
         }[]
@@ -1829,6 +1836,13 @@ export type Database = {
         }
         Returns: number
       }
+      complete_own_training_goal: {
+        Args: { expected_updated_at: string; target_goal_id: number }
+        Returns: {
+          goal_id: number
+          updated_at: string
+        }[]
+      }
       complete_sync_job_attempt: {
         Args: {
           attempt_succeeded: boolean
@@ -1843,6 +1857,18 @@ export type Database = {
           retry_at: string
           transitioned: boolean
           transitioned_at: string
+        }[]
+      }
+      compute_training_goal_progress: {
+        Args: { target_goal_id: number; target_profile_id: string }
+        Returns: {
+          current_value: number
+          data_available: boolean
+          data_message: string
+          last_success_at: string
+          progress_percent: number
+          progress_value: number
+          regressed: boolean
         }[]
       }
       consume_admin_rate_limit: {
@@ -1865,6 +1891,32 @@ export type Database = {
           updated_at: string
         }[]
       }
+      create_own_training_goal: {
+        Args: {
+          requested_end_date: string
+          requested_metric: Database['public']['Enums']['training_goal_metric']
+          requested_platform: Database['public']['Enums']['platform_name']
+          requested_target_value: number
+          requested_title: string
+        }
+        Returns: {
+          goal_id: number
+          updated_at: string
+        }[]
+      }
+      create_own_webchat_conversation: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }[]
+      }
       delete_auth_user_with_recovery_lease: {
         Args: { p_owner_token: string; p_user_id: string }
         Returns: Json
@@ -1873,61 +1925,19 @@ export type Database = {
         Args: { expected_updated_at: string; target_comment_id: number }
         Returns: boolean
       }
+      delete_own_webchat_conversation: {
+        Args: { requested_conversation_id: string }
+        Returns: undefined
+      }
+      delete_own_webchat_messages: {
+        Args: {
+          requested_conversation_id: string
+          requested_message_ids: string[]
+        }
+        Returns: number
+      }
       export_own_data: { Args: never; Returns: Json }
       export_own_training_goals: { Args: never; Returns: Json }
-      archive_own_training_goal: {
-        Args: { expected_updated_at: string; target_goal_id: number }
-        Returns: { goal_id: number; updated_at: string }[]
-      }
-      complete_own_training_goal: {
-        Args: { expected_updated_at: string; target_goal_id: number }
-        Returns: { goal_id: number; updated_at: string }[]
-      }
-      create_own_training_goal: {
-        Args: {
-          requested_end_date: string
-          requested_metric: Database['public']['Enums']['training_goal_metric']
-          requested_platform: Database['public']['Enums']['platform_name'] | null
-          requested_target_value: number
-          requested_title: string
-        }
-        Returns: { goal_id: number; updated_at: string }[]
-      }
-      list_own_training_goals: {
-        Args: never
-        Returns: {
-          archived_at: string | null
-          baseline_value: number
-          completed_at: string | null
-          created_at: string
-          current_value: number | null
-          data_available: boolean
-          data_message: string | null
-          end_date: string
-          goal_id: number
-          last_success_at: string | null
-          lifecycle_status: string
-          metric: Database['public']['Enums']['training_goal_metric']
-          platform: Database['public']['Enums']['platform_name'] | null
-          progress_percent: number | null
-          progress_value: number | null
-          regressed: boolean
-          start_date: string
-          target_value: number
-          title: string
-          updated_at: string
-        }[]
-      }
-      update_own_training_goal: {
-        Args: {
-          expected_updated_at: string
-          requested_end_date: string
-          requested_target_value: number
-          requested_title: string
-          target_goal_id: number
-        }
-        Returns: { goal_id: number; updated_at: string }[]
-      }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']
@@ -1936,6 +1946,23 @@ export type Database = {
           retry_after_seconds: number
         }
         Returns: boolean
+      }
+      finalize_webchat_cache_probe: {
+        Args: {
+          observed_cache_write_tokens?: number
+          observed_cached_input_tokens?: number
+          probe_outcome: string
+          requested_owner_token: string
+          requested_probe_id: string
+          used_input_tokens?: number
+          used_output_tokens?: number
+          used_total_tokens?: number
+        }
+        Returns: {
+          charged_tokens: number
+          status: string
+          transitioned: boolean
+        }[]
       }
       finalize_webchat_request: {
         Args: {
@@ -1955,21 +1982,17 @@ export type Database = {
           transitioned: boolean
         }[]
       }
-      finalize_webchat_cache_probe: {
-        Args: {
-          observed_cache_write_tokens?: number
-          observed_cached_input_tokens?: number
-          probe_outcome: string
-          requested_owner_token: string
-          requested_probe_id: string
-          used_input_tokens?: number
-          used_output_tokens?: number
-          used_total_tokens?: number
-        }
+      get_own_webchat_conversation: {
+        Args: { requested_conversation_id: string }
         Returns: {
-          charged_tokens: number
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
           status: string
-          transitioned: boolean
+          title: string
+          updated_at: string
+          version: number
         }[]
       }
       get_public_practice_increments: {
@@ -2009,15 +2032,67 @@ export type Database = {
           visibility: string
         }[]
       }
-      mark_authorized_webchat_request_started: {
-        Args: {
-          requested_owner_token: string
-          requested_request_id: string
-          requested_user_id: string
-        }
-        Returns: boolean
+      list_firecrawl_runtime_keys: {
+        Args: never
+        Returns: {
+          api_key: string
+          key_id: string
+          pool_configured: boolean
+        }[]
       }
-      mark_webchat_request_started: {
+      list_own_training_goals: {
+        Args: never
+        Returns: {
+          archived_at: string
+          baseline_value: number
+          completed_at: string
+          created_at: string
+          current_value: number
+          data_available: boolean
+          data_message: string
+          end_date: string
+          goal_id: number
+          last_success_at: string
+          lifecycle_status: string
+          metric: Database['public']['Enums']['training_goal_metric']
+          platform: Database['public']['Enums']['platform_name']
+          progress_percent: number
+          progress_value: number
+          regressed: boolean
+          start_date: string
+          target_value: number
+          title: string
+          updated_at: string
+        }[]
+      }
+      list_own_webchat_conversations: {
+        Args: {
+          cursor_id?: string
+          cursor_last_message_at?: string
+          requested_limit?: number
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_message_at: string
+          message_count: number
+          status: string
+          title: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      load_own_webchat_messages: {
+        Args: { requested_conversation_id: string }
+        Returns: {
+          content: Json
+          format: string
+          id: string
+          parent_id: string
+          position: number
+        }[]
+      }
+      mark_authorized_webchat_request_started: {
         Args: {
           requested_owner_token: string
           requested_request_id: string
@@ -2029,6 +2104,16 @@ export type Database = {
         Args: { requested_owner_token: string; requested_probe_id: string }
         Returns: boolean
       }
+      mark_webchat_request_started: {
+        Args: {
+          requested_owner_token: string
+          requested_request_id: string
+          requested_user_id: string
+        }
+        Returns: boolean
+      }
+      purge_expired_webchat_conversations: { Args: never; Returns: number }
+      purge_webchat_cache_probe_runs: { Args: never; Returns: number }
       read_daily_problem_feed: {
         Args: { before_problem_date?: string; row_limit?: number }
         Returns: {
@@ -2049,6 +2134,13 @@ export type Database = {
           updated_at: string
         }[]
       }
+      read_firecrawl_runtime_key: {
+        Args: { target_key_id: string }
+        Returns: {
+          api_key: string
+          key_id: string
+        }[]
+      }
       read_own_webchat_usage: {
         Args: never
         Returns: {
@@ -2064,18 +2156,6 @@ export type Database = {
         }[]
       }
       read_sync_queue_scheduler_health: { Args: never; Returns: Json }
-      list_firecrawl_runtime_keys: {
-        Args: never
-        Returns: {
-          api_key: string | null
-          key_id: string | null
-          pool_configured: boolean
-        }[]
-      }
-      read_firecrawl_runtime_key: {
-        Args: { target_key_id: string }
-        Returns: { api_key: string; key_id: string }[]
-      }
       read_webchat_global_budget_usage: {
         Args: never
         Returns: {
@@ -2124,25 +2204,33 @@ export type Database = {
         }[]
       }
       read_xcpc_elo_cache: { Args: never; Returns: Json }
+      reconcile_expired_webchat_member_requests: {
+        Args: { checked_at: string; requested_user_id: string }
+        Returns: undefined
+      }
       record_firecrawl_key_observation: {
         Args: {
-          observed_billing_period_end?: string | null
-          observed_credits_remaining?: number | null
-          observed_credits_total?: number | null
-          observed_error_code?: string | null
-          observed_severity?: string | null
+          observed_billing_period_end?: string
+          observed_credits_remaining?: number
+          observed_credits_total?: number
+          observed_error_code?: string
+          observed_severity?: string
           observed_success: boolean
           requested_purpose: string
           target_key_id: string
         }
         Returns: undefined
       }
-      reconcile_expired_webchat_member_requests: {
-        Args: { checked_at: string; requested_user_id: string }
-        Returns: undefined
-      }
       release_account_deletion_recovery_lease: {
         Args: { p_owner_token: string; p_target_user_id: string }
+        Returns: boolean
+      }
+      release_webchat_cache_probe: {
+        Args: {
+          release_reason: string
+          requested_owner_token: string
+          requested_probe_id: string
+        }
         Returns: boolean
       }
       release_webchat_request: {
@@ -2154,30 +2242,27 @@ export type Database = {
         }
         Returns: boolean
       }
-      select_firecrawl_runtime_key: {
-        Args: { requested_operation_id?: string | null; requested_purpose: string }
-        Returns: {
-          api_key: string | null
-          key_id: string | null
-          pool_configured: boolean
-        }[]
-      }
-      release_webchat_cache_probe: {
-        Args: {
-          release_reason: string
-          requested_owner_token: string
-          requested_probe_id: string
-        }
-        Returns: boolean
+      rename_own_webchat_conversation: {
+        Args: { requested_conversation_id: string; requested_title: string }
+        Returns: undefined
       }
       renew_account_deletion_recovery_lease: {
         Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
       }
       require_daily_problem_member: { Args: never; Returns: string }
+      require_training_goal_member: { Args: never; Returns: string }
       scrub_account_deletion_audit: {
         Args: { deleted_user_id: string }
         Returns: undefined
+      }
+      select_firecrawl_runtime_key: {
+        Args: { requested_operation_id?: string; requested_purpose: string }
+        Returns: {
+          api_key: string
+          key_id: string
+          pool_configured: boolean
+        }[]
       }
       set_own_daily_problem_completion: {
         Args: { requested_completed: boolean; target_problem_id: number }
@@ -2185,76 +2270,22 @@ export type Database = {
           completed_at: string
         }[]
       }
-      create_own_webchat_conversation: {
-        Args: never
-        Returns: {
-          created_at: string
-          id: string
-          last_message_at: string
-          message_count: number
-          status: string
-          title: string
-          updated_at: string
-          version: number
-        }[]
-      }
-      delete_own_webchat_conversation: {
-        Args: { requested_conversation_id: string }
-        Returns: undefined
-      }
-      delete_own_webchat_messages: {
-        Args: { requested_conversation_id: string; requested_message_ids: string[] }
-        Returns: number
-      }
-      get_own_webchat_conversation: {
-        Args: { requested_conversation_id: string }
-        Returns: {
-          created_at: string
-          id: string
-          last_message_at: string
-          message_count: number
-          status: string
-          title: string
-          updated_at: string
-          version: number
-        }[]
-      }
-      list_own_webchat_conversations: {
-        Args: {
-          cursor_id?: string
-          cursor_last_message_at?: string
-          requested_limit?: number
-        }
-        Returns: {
-          created_at: string
-          id: string
-          last_message_at: string
-          message_count: number
-          status: string
-          title: string
-          updated_at: string
-          version: number
-        }[]
-      }
-      load_own_webchat_messages: {
-        Args: { requested_conversation_id: string }
-        Returns: {
-          content: Json
-          format: string
-          id: string
-          parent_id: string | null
-          position: number
-        }[]
-      }
-      purge_expired_webchat_conversations: { Args: never; Returns: number }
-      purge_webchat_cache_probe_runs: { Args: never; Returns: number }
-      rename_own_webchat_conversation: {
-        Args: { requested_conversation_id: string; requested_title: string }
-        Returns: undefined
-      }
       set_own_webchat_conversation_archived: {
         Args: { requested_archived: boolean; requested_conversation_id: string }
         Returns: undefined
+      }
+      update_own_training_goal: {
+        Args: {
+          expected_updated_at: string
+          requested_end_date: string
+          requested_target_value: number
+          requested_title: string
+          target_goal_id: number
+        }
+        Returns: {
+          goal_id: number
+          updated_at: string
+        }[]
       }
       upsert_own_webchat_message: {
         Args: {
@@ -2262,7 +2293,7 @@ export type Database = {
           requested_conversation_id: string
           requested_format: string
           requested_message_id: string
-          requested_parent_id: string | null
+          requested_parent_id: string
         }
         Returns: number
       }
