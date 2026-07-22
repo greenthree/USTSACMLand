@@ -9,6 +9,9 @@ interface WebChatErrorPayload {
   requestId?: unknown
 }
 
+const MAX_WEBCHAT_MESSAGE_CHARS = 12_000
+const TOOL_PROTOCOL_PATTERN = /(?:\/\*\s*)?TOOLCALL\s+(?:START|END)\s*:/i
+
 export interface WebChatTransportOptions {
   apiUrl: string
   anonKey: string
@@ -91,13 +94,21 @@ async function parseErrorResponse(response: Response): Promise<WebChatApiError> 
 }
 
 function textOnlyMessages(messages: UIMessage[]) {
-  return messages.map((message) => ({
-    id: message.id,
-    role: message.role,
-    parts: message.parts.flatMap((part) =>
+  return messages.flatMap((message) => {
+    const parts = message.parts.flatMap((part) =>
       part.type === 'text' && part.text.trim() ? [{ type: 'text' as const, text: part.text }] : [],
-    ),
-  }))
+    )
+    const text = parts.map((part) => part.text).join('')
+
+    if (
+      message.role === 'assistant' &&
+      (TOOL_PROTOCOL_PATTERN.test(text) || Array.from(text).length > MAX_WEBCHAT_MESSAGE_CHARS)
+    ) {
+      return []
+    }
+
+    return [{ id: message.id, role: message.role, parts }]
+  })
 }
 
 function abortError(error: unknown): boolean {

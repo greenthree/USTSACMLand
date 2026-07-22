@@ -27,6 +27,7 @@ export interface WebChatUpstreamConfig {
   systemPrompt: string
   promptVersion: string
   maxOutputTokens: number
+  maxOutputChars: number
   timeoutMs: number
   fetcher?: typeof fetch
 }
@@ -48,6 +49,12 @@ export class WebChatUpstreamError extends Error {
 }
 
 const encoder = new TextEncoder()
+const TOOL_PROTOCOL_PATTERN = /(?:\/\*\s*)?TOOLCALL\s+(?:START|END)\s*:/i
+const TOOL_PROTOCOL_SCAN_TAIL_CHARS = 80
+
+function unicodeChars(value: string): string[] {
+  return Array.from(value)
+}
 
 export function responsesEndpoint(baseUrl: string): string {
   let url: URL
@@ -86,6 +93,18 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
+}
+
+function isToolProtocolEvent(event: Record<string, unknown>): boolean {
+  const eventType = typeof event.type === 'string' ? event.type : ''
+  if (/(?:tool|function_call|web_search|computer_call|code_interpreter)/i.test(eventType)) {
+    return true
+  }
+  const item = asRecord(event.item)
+  return (
+    typeof item?.type === 'string' &&
+    /(?:tool|function_call|web_search|computer_call|code_interpreter)/i.test(item.type)
+  )
 }
 
 export async function safetyIdentifier(userId: string): Promise<string> {
@@ -204,6 +223,8 @@ export async function startWebChat(
         instructions: config.systemPrompt,
         input: responsesInput(options.messages),
         max_output_tokens: config.maxOutputTokens,
+        tools: [],
+        tool_choice: 'none',
         prompt_cache_key: cacheKey,
         ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
         safety_identifier: safetyId,
@@ -257,6 +278,10 @@ export async function startWebChat(
         let completionUsage: WebChatUsage | null = null
         let completionOutcome = 'completed'
         let finishReason: 'stop' | 'length' | 'content-filter' = 'stop'
+        let assistantText = ''
+        let assistantTextChars = 0
+        let outputTruncated = false
+        let protocolScanTail = ''
         try {
           while (true) {
             const { done, value } = await reader.read()
@@ -279,6 +304,9 @@ export async function startWebChat(
               if (!event || typeof event.type !== 'string') {
                 throw new Error('invalid upstream SSE event')
               }
+              if (isToolProtocolEvent(event)) {
+                throw new Error('upstream emitted a tool protocol event while tools were disabled')
+              }
               if (
                 event.type === 'response.output_text.delta' ||
                 event.type === 'response.refusal.delta'
@@ -287,13 +315,26 @@ export async function startWebChat(
                   throw new Error('invalid text delta')
                 }
                 if (event.delta) {
-                  controller.enqueue(
-                    uiChunk({
-                      type: 'text-delta',
-                      id: textId,
-                      delta: event.delta,
-                    }),
-                  )
+                  const protocolScanText = `${protocolScanTail}${event.delta}`
+                  if (TOOL_PROTOCOL_PATTERN.test(protocolScanText)) {
+                    throw new Error('upstream emitted a tool protocol marker as assistant text')
+                  }
+                  protocolScanTail = unicodeChars(protocolScanText)
+                    .slice(-TOOL_PROTOCOL_SCAN_TAIL_CHARS)
+                    .join('')
+
+                  if (!outputTruncated) {
+                    const deltaChars = unicodeChars(event.delta)
+                    const remainingChars = config.maxOutputChars - assistantTextChars
+                    const acceptedChars = deltaChars.slice(0, Math.max(0, remainingChars))
+                    assistantText += acceptedChars.join('')
+                    assistantTextChars += acceptedChars.length
+                    if (acceptedChars.length < deltaChars.length) {
+                      outputTruncated = true
+                      finishReason = 'length'
+                      completionOutcome = 'incomplete_max_output_chars'
+                    }
+                  }
                 }
               } else if (event.type === 'response.completed') {
                 completionUsage = parseWebChatUsage(event)
@@ -301,13 +342,21 @@ export async function startWebChat(
               } else if (event.type === 'response.incomplete') {
                 const response = asRecord(event.response)
                 const details = asRecord(response?.incomplete_details)
-                if (details?.reason === 'max_output_tokens') {
-                  finishReason = 'length'
-                  completionOutcome = 'incomplete_max_output_tokens'
-                } else if (details?.reason === 'content_filter') {
-                  finishReason = 'content-filter'
-                  completionOutcome = 'incomplete_content_filter'
-                } else throw new Error('unknown incomplete response reason')
+                if (
+                  details?.reason !== 'max_output_tokens' &&
+                  details?.reason !== 'content_filter'
+                ) {
+                  throw new Error('unknown incomplete response reason')
+                }
+                if (!outputTruncated) {
+                  if (details.reason === 'max_output_tokens') {
+                    finishReason = 'length'
+                    completionOutcome = 'incomplete_max_output_tokens'
+                  } else {
+                    finishReason = 'content-filter'
+                    completionOutcome = 'incomplete_content_filter'
+                  }
+                }
                 completionUsage = parseWebChatUsage(event)
                 completed = true
               } else if (event.type === 'response.failed' || event.type === 'error') {
@@ -326,6 +375,15 @@ export async function startWebChat(
           }
           await finalizeQuota(completionOutcome, completionUsage)
           if (downstreamClosed) return
+          if (assistantText) {
+            controller.enqueue(
+              uiChunk({
+                type: 'text-delta',
+                id: textId,
+                delta: assistantText,
+              }),
+            )
+          }
           controller.enqueue(uiChunk({ type: 'text-end', id: textId }))
           controller.enqueue(uiChunk({ type: 'finish', finishReason }))
           controller.enqueue(uiDone())

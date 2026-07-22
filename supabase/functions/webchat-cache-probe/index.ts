@@ -81,7 +81,7 @@ function parseTransition(value: unknown): CacheProbeTransition {
 
 const serviceRoleKey = requiredEnv('SUPABASE_SERVICE_ROLE_KEY')
 const promptVersion =
-  Deno.env.get('CHAT_SYSTEM_PROMPT_VERSION')?.trim() || 'usts-learning-assistant-v2'
+  Deno.env.get('CHAT_SYSTEM_PROMPT_VERSION')?.trim() || 'usts-learning-assistant-v3-tool-safety'
 const timeoutMs = integerEnv('WEBCHAT_CACHE_PROBE_TIMEOUT_MS', 120_000, 5_000, 120_000)
 const leaseSeconds = Math.max(300, Math.ceil((timeoutMs * 2) / 1_000) + 30)
 

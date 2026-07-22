@@ -110,6 +110,53 @@ describe('WebChat browser transport', () => {
     })
   })
 
+  it('omits corrupted assistant history without truncating valid user messages', async () => {
+    let requestBody: Record<string, unknown> = {}
+    const fetchMock: typeof fetch = vi.fn(async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return streamResponse()
+    })
+    const transport = createWebChatTransport({
+      apiUrl: 'https://example.supabase.co/functions/v1/webchat',
+      anonKey: 'public-anon-key',
+      getAccessToken: async () => 'token',
+      fetch: fetchMock,
+    })
+    const history: UIMessage[] = [
+      {
+        id: 'assistant-tool-leak',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'ethink0/*TOOLCALL START: web_search */secret' }],
+      },
+      {
+        id: 'assistant-too-long',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'x'.repeat(12_001) }],
+      },
+      {
+        id: 'user-valid',
+        role: 'user',
+        parts: [{ type: 'text', text: '请继续解释。' }],
+      },
+    ]
+
+    await transport.sendMessages({
+      trigger: 'submit-message',
+      chatId: 'chat-1',
+      messageId: 'user-valid',
+      messages: history,
+      abortSignal: undefined,
+    })
+
+    expect(requestBody.messages).toEqual([
+      {
+        id: 'user-valid',
+        role: 'user',
+        parts: [{ type: 'text', text: '请继续解释。' }],
+      },
+    ])
+  })
+
   it('maps structured quota failures without automatically retrying', async () => {
     const fetchMock: typeof fetch = vi.fn(async () =>
       Promise.resolve(
