@@ -146,11 +146,12 @@ describe('LearningPage', () => {
       </MemoryRouter>,
     )
 
-    const learningLink = await screen.findByRole('link', { name: '学习' }, { timeout: 5000 })
-    await user.click(learningLink)
+    const learningMenu = await screen.findByRole('button', { name: '学习' }, { timeout: 5000 })
+    await user.click(learningMenu)
+    await user.click(screen.getByRole('link', { name: /新手入门/ }))
 
     expect(await screen.findByRole('heading', { name: /新手学习引导/ })).toBeInTheDocument()
-    expect(learningLink).toHaveClass('active')
+    expect(learningMenu).toHaveClass('is-current')
     expect(screen.getByRole('main')).toHaveFocus()
     expect(screen.getByText('已进入新手学习引导页面')).toHaveAttribute('role', 'status')
   })

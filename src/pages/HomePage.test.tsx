@@ -22,6 +22,7 @@ describe('HomePage', () => {
       await screen.findByRole('heading', { name: 'USTS ACM Land' }, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(document.querySelector('.home-hero-logo')).toHaveAttribute('src', '/icpc-foundation.png')
+    expect(screen.getByRole('link', { name: '新手入门' })).toHaveAttribute('href', '/learning')
     expect(screen.getByText('三人一队')).toBeInTheDocument()
     expect(screen.getByText('五小时')).toBeInTheDocument()
     expect(screen.getByText('一台电脑')).toBeInTheDocument()

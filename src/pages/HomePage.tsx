@@ -54,6 +54,10 @@ export function HomePage() {
                 了解集训队与 ACM
                 <ArrowRight size={17} aria-hidden="true" />
               </a>
+              <Link className="home-secondary-action" to="/learning">
+                <BookOpenCheck size={17} aria-hidden="true" />
+                新手入门
+              </Link>
             </div>
           </div>
 

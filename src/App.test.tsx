@@ -181,6 +181,43 @@ describe('route authorization', () => {
     expect(screen.getByText('已进入榜单页面')).toHaveAttribute('role', 'status')
   })
 
+  it('groups learning routes and member actions in the primary navigation', async () => {
+    const user = userEvent.setup()
+    sessionStorage.setItem(demoSessionKey, 'member@example.edu.cn')
+    render(
+      <MemoryRouter initialEntries={['/rankings']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    const navigation = await screen.findByRole('navigation', { name: '主导航' })
+    expect(within(navigation).getByRole('link', { name: '榜单' })).toHaveClass('active')
+
+    await user.click(within(navigation).getByRole('button', { name: '学习' }))
+    const learningGroup = within(navigation).getByRole('group', { name: '学习导航' })
+    expect(within(learningGroup).getByRole('link', { name: /新手入门/ })).toHaveAttribute(
+      'href',
+      '/learning',
+    )
+    expect(within(learningGroup).getByRole('link', { name: /训练目标/ })).toHaveAttribute(
+      'href',
+      '/training-goals',
+    )
+    expect(within(learningGroup).getByRole('link', { name: /每日一题/ })).toHaveAttribute(
+      'href',
+      '/daily-problem',
+    )
+
+    await user.click(within(navigation).getByRole('button', { name: '我的账号' }))
+    expect(within(navigation).queryByRole('group', { name: '学习导航' })).not.toBeInTheDocument()
+    const accountGroup = within(navigation).getByRole('group', { name: '账号导航' })
+    expect(within(accountGroup).getByRole('link', { name: /我的资料/ })).toHaveAttribute(
+      'href',
+      '/account',
+    )
+    expect(within(accountGroup).getByRole('button', { name: /退出登录/ })).toBeInTheDocument()
+  })
+
   it('closes the mobile navigation with Escape and restores menu-button focus', async () => {
     const user = userEvent.setup()
     render(
