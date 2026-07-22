@@ -1,18 +1,61 @@
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
-import { FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { SiteLogo } from '../components/SiteLogo'
+import {
+  checkReferralCodeAvailability,
+  normalizeReferralCode,
+  referralCodeError,
+  referralCodeLength,
+} from '../lib/referrals'
+
+type ReferralProgramState = 'checking' | 'enabled' | 'paused' | 'unavailable'
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { signUp, status, user } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [referralCode, setReferralCode] = useState(() =>
+    normalizeReferralCode(searchParams.get('invite') ?? ''),
+  )
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [referralProgramState, setReferralProgramState] = useState<ReferralProgramState>('checking')
+  const referralStatusRequestIdRef = useRef(0)
+
+  const loadReferralProgramState = useCallback(async () => {
+    const requestId = ++referralStatusRequestIdRef.current
+    try {
+      const result = await checkReferralCodeAvailability()
+      if (requestId !== referralStatusRequestIdRef.current) return
+      setReferralProgramState(result.programEnabled ? 'enabled' : 'paused')
+    } catch {
+      if (requestId !== referralStatusRequestIdRef.current) return
+      setReferralProgramState('unavailable')
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadReferralProgramState()
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadReferralProgramState()
+    }
+    const refreshOnFocus = () => void loadReferralProgramState()
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      referralStatusRequestIdRef.current += 1
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [loadReferralProgramState])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -26,8 +69,14 @@ export function RegisterPage() {
         setError('请输入姓名。')
         return
       }
+      const submittedReferralCode = referralProgramState === 'paused' ? '' : referralCode
+      const invitationError = referralCodeError(submittedReferralCode)
+      if (invitationError) {
+        setError(invitationError)
+        return
+      }
 
-      const signedIn = await signUp(normalizedFullName, email, password)
+      const signedIn = await signUp(normalizedFullName, email, password, submittedReferralCode)
       if (signedIn) {
         navigate('/account', { replace: true })
         return
@@ -100,6 +149,40 @@ export function RegisterPage() {
             />
             <small id="register-password-help">至少 8 位，不要与其他网站共用。</small>
           </label>
+          {referralProgramState === 'paused' ? (
+            <p className="auth-inline-notice" role="status">
+              推荐计划已暂停，不使用邀请码仍可正常注册。
+            </p>
+          ) : (
+            <>
+              <label>
+                <span id="register-referral-label">邀请码（选填）</span>
+                <input
+                  type="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  maxLength={referralCodeLength}
+                  spellCheck={false}
+                  aria-labelledby="register-referral-label"
+                  aria-describedby="register-referral-help"
+                  value={referralCode}
+                  onChange={(event) => setReferralCode(normalizeReferralCode(event.target.value))}
+                />
+                <small id="register-referral-help">
+                  {referralProgramState === 'checking'
+                    ? '正在确认推荐计划状态。'
+                    : referralProgramState === 'unavailable'
+                      ? '提交时会再次验证；不填写邀请码仍可正常注册。'
+                      : '通过成员分享链接进入时会自动填写。'}
+                </small>
+              </label>
+              {referralProgramState === 'unavailable' ? (
+                <p className="auth-inline-notice" role="status">
+                  邀请码状态暂时无法确认，填写邀请码时必须在提交前验证成功。
+                </p>
+              ) : null}
+            </>
+          )}
           {message ? (
             <p className="form-success" role="status">
               {message}

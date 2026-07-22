@@ -1,4 +1,5 @@
 import {
+  classifyGhFailure,
   evaluateRepositoryReadiness,
   expectedWorkflows,
   requiredActionSecrets,
@@ -87,6 +88,24 @@ function createReadyState() {
 }
 
 describe('repository readiness checker', () => {
+  it('classifies GitHub failures without exposing raw responses', () => {
+    expect(classifyGhFailure({ stderr: 'Get https://api.github.com: TLS handshake timeout' })).toBe(
+      'GitHub API 网络连接失败或超时',
+    )
+    expect(classifyGhFailure({ stderr: 'dial tcp: wsarecv: connection attempt failed' })).toBe(
+      'GitHub API 网络连接失败或超时',
+    )
+    expect(
+      classifyGhFailure({ stderr: 'HTTP 401: Bad credentials (https://api.github.com)' }),
+    ).toBe('GitHub CLI 未登录或登录状态已失效')
+    expect(
+      classifyGhFailure({ stderr: 'HTTP 403: Resource not accessible by personal access token' }),
+    ).toBe('GitHub Token 对目标仓库缺少只读权限')
+    expect(classifyGhFailure({ stderr: 'unexpected response containing sensitive details' })).toBe(
+      'GitHub CLI 返回未知错误',
+    )
+  })
+
   it('accepts a repository that satisfies the release settings contract', () => {
     expect(evaluateRepositoryReadiness(createReadyState())).toMatchObject({
       errors: [],

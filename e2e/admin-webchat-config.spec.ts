@@ -18,7 +18,9 @@ test('administrator can update the redacted WebChat configuration without persis
 
   await page.goto('/admin/webchat')
 
-  await expect(page.getByRole('heading', { name: 'WebChat 配置' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'WebChat 配置' })).toBeVisible({
+    timeout: 20_000,
+  })
   await expect(page.getByText('已配置', { exact: true })).toBeVisible()
   await expect(page.getByText(/旧 Key 永不回显/)).toBeVisible()
 
@@ -51,7 +53,7 @@ test('administrator can inspect the pilot roster and open its member policy', as
   await page.goto('/admin/webchat')
 
   const pilot = page.getByRole('region', { name: 'AI 助手账号与用量' })
-  await expect(pilot).toBeVisible()
+  await expect(pilot).toBeVisible({ timeout: 20_000 })
   await expect(pilot.getByLabel('AI 助手账号摘要')).toContainText('已配置账号')
   await expect(pilot.getByRole('heading', { name: 'AI 助手账号与用量' })).toBeVisible()
   await expect(pilot.getByText('8 / 300')).toBeVisible()

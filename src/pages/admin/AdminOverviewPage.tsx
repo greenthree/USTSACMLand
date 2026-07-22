@@ -5,6 +5,7 @@ import IdCard from 'lucide-react/dist/esm/icons/id-card'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AdminReferralProgramPanel } from '../../components/admin/AdminReferralProgramPanel'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
@@ -69,6 +70,8 @@ export function AdminOverviewPage() {
         </div>
         <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>
       </section>
+
+      <AdminReferralProgramPanel />
 
       {errorMessage ? (
         <p className="form-error admin-notice" role="status">

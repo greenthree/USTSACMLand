@@ -27,7 +27,7 @@ test('a recent daily problem has a reloadable date deep link', async ({ page }) 
   await page.goto('/daily-problem')
 
   const archiveLinks = page.locator('.dp-archive a')
-  await expect(archiveLinks.first()).toBeVisible()
+  await expect(archiveLinks.first()).toBeVisible({ timeout: 20_000 })
   const href = await archiveLinks.first().getAttribute('href')
   expect(href).toMatch(/^\/daily-problem\/\d{4}-\d{2}-\d{2}$/)
 

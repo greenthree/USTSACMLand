@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import { loadAccountDraft } from '../lib/accountDraft'
+import type { ReferralSummary } from '../lib/referrals'
 
 const accountMocks = vi.hoisted(() => ({
   accountsSelectEq: vi.fn(),
@@ -20,6 +21,11 @@ const personalExportMocks = vi.hoisted(() => ({
   fetch: vi.fn(),
 }))
 
+const referralMocks = vi.hoisted(() => ({
+  buildUrl: vi.fn(),
+  fetch: vi.fn(),
+}))
+
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: accountMocks.from,
@@ -31,6 +37,11 @@ vi.mock('../lib/personalDataExport', () => ({
   buildDemoPersonalDataExport: personalExportMocks.buildDemo,
   downloadPersonalDataExport: personalExportMocks.download,
   fetchOwnPersonalDataExport: personalExportMocks.fetch,
+}))
+
+vi.mock('../lib/referrals', () => ({
+  buildReferralRegistrationUrl: referralMocks.buildUrl,
+  fetchOwnReferralSummary: referralMocks.fetch,
 }))
 
 import { AccountPage } from './AccountPage'
@@ -92,6 +103,17 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     personalExportMocks.buildDemo.mockReset()
     personalExportMocks.download.mockReset()
     personalExportMocks.fetch.mockReset()
+    referralMocks.buildUrl
+      .mockReset()
+      .mockReturnValue('https://ustsacm.fun/register?invite=8A4C19F2E7B603D5')
+    referralMocks.fetch.mockReset().mockResolvedValue({
+      programEnabled: true,
+      code: '8A4C19F2E7B603D5',
+      rewardCount: 2,
+      remainingRewards: 8,
+      rewardTokens: 2_000_000,
+      available: true,
+    })
 
     accountMocks.profileSingle.mockResolvedValue({
       data: {
@@ -149,6 +171,153 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(screen.queryByLabelText('XCPC ELO 账号')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '立即同步' })).not.toBeInTheDocument()
     expect(accountMocks.invoke).not.toHaveBeenCalled()
+  })
+
+  it('shows the own referral summary and copies the registration link', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    renderAccountPage()
+
+    expect(await screen.findByText('8A4C19F2E7B603D5')).toBeInTheDocument()
+    expect(screen.getByText('2 / 10')).toBeInTheDocument()
+    expect(screen.getByText('2,000,000')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '复制注册链接' }))
+
+    expect(referralMocks.buildUrl).toHaveBeenCalledWith('8A4C19F2E7B603D5')
+    expect(writeText).toHaveBeenCalledWith('https://ustsacm.fun/register?invite=8A4C19F2E7B603D5')
+    expect(screen.getByText('邀请码注册链接已复制。')).toBeInTheDocument()
+  })
+
+  it('disables sharing after all ten referral rewards are used', async () => {
+    referralMocks.fetch.mockResolvedValueOnce({
+      programEnabled: true,
+      code: '8A4C19F2E7B603D5',
+      rewardCount: 10,
+      remainingRewards: 0,
+      rewardTokens: 10_000_000,
+      available: false,
+    })
+    renderAccountPage()
+
+    expect(await screen.findByText('10 / 10')).toBeInTheDocument()
+    expect(screen.getByText('当前邀请码已达到邀请上限，暂不可继续使用。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '复制注册链接' })).toBeDisabled()
+  })
+
+  it('hides the code while preserving historical rewards when the program is paused', async () => {
+    referralMocks.fetch.mockResolvedValueOnce({
+      programEnabled: false,
+      code: null,
+      rewardCount: 3,
+      remainingRewards: 7,
+      rewardTokens: 3_000_000,
+      available: false,
+    })
+    renderAccountPage()
+
+    expect(await screen.findByText('3 / 10')).toBeInTheDocument()
+    expect(screen.getByText('3,000,000')).toBeInTheDocument()
+    expect(screen.queryByText('我的邀请码')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '复制注册链接' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '推荐计划已暂停。邀请码和既有奖励已保留，重新开放后继续使用。',
+    )
+    expect(screen.queryByText('当前邀请码已达到邀请上限，暂不可继续使用。')).not.toBeInTheDocument()
+  })
+
+  it('refreshes the program state before copying a referral link', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    referralMocks.fetch
+      .mockResolvedValueOnce({
+        programEnabled: true,
+        code: '8A4C19F2E7B603D5',
+        rewardCount: 2,
+        remainingRewards: 8,
+        rewardTokens: 2_000_000,
+        available: true,
+      })
+      .mockResolvedValueOnce({
+        programEnabled: false,
+        code: null,
+        rewardCount: 2,
+        remainingRewards: 8,
+        rewardTokens: 2_000_000,
+        available: false,
+      })
+    renderAccountPage()
+
+    await user.click(await screen.findByRole('button', { name: '复制注册链接' }))
+
+    expect(referralMocks.fetch).toHaveBeenCalledTimes(2)
+    expect(writeText).not.toHaveBeenCalled()
+    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已暂停')
+  })
+
+  it('does not copy a stale referral result when a newer refresh observes a pause', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    let resolveCopyRefresh: (summary: ReferralSummary) => void = () => undefined
+    const copyRefresh = new Promise<ReferralSummary>((resolve) => {
+      resolveCopyRefresh = resolve
+    })
+    referralMocks.fetch
+      .mockResolvedValueOnce({
+        programEnabled: true,
+        code: '8A4C19F2E7B603D5',
+        rewardCount: 2,
+        remainingRewards: 8,
+        rewardTokens: 2_000_000,
+        available: true,
+      })
+      .mockReturnValueOnce(copyRefresh)
+      .mockResolvedValueOnce({
+        programEnabled: false,
+        code: null,
+        rewardCount: 2,
+        remainingRewards: 8,
+        rewardTokens: 2_000_000,
+        available: false,
+      })
+    renderAccountPage()
+
+    await user.click(await screen.findByRole('button', { name: '复制注册链接' }))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已暂停')
+    await act(async () => {
+      resolveCopyRefresh({
+        programEnabled: true,
+        code: '8A4C19F2E7B603D5',
+        rewardCount: 2,
+        remainingRewards: 8,
+        rewardTokens: 2_000_000,
+        available: true,
+      })
+    })
+
+    await waitFor(() => expect(referralMocks.fetch).toHaveBeenCalledTimes(3))
+    expect(writeText).not.toHaveBeenCalled()
+  })
+
+  it('shows a bounded error when the referral summary cannot be read', async () => {
+    referralMocks.fetch.mockRejectedValueOnce(new Error('推荐计划信息读取失败，请稍后重试。'))
+    renderAccountPage()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('推荐计划信息读取失败，请稍后重试。')
+    expect(screen.getByRole('button', { name: '复制注册链接' })).toBeDisabled()
+  })
+
+  it('handles denied clipboard permission without an unhandled rejection', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('permission denied'))
+    renderAccountPage()
+
+    await user.click(await screen.findByRole('button', { name: '复制注册链接' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '复制失败，请检查浏览器剪贴板权限后重试。',
+    )
+    expect(screen.queryByText('邀请码注册链接已复制。')).not.toBeInTheDocument()
   })
 
   it('allows administrators to start synchronization from their account page', async () => {

@@ -407,7 +407,13 @@ main {
 
 .home-page {
   overflow: hidden;
+  --home-aux-font-size: 11px;
+  --home-body-font-size: 13px;
   background: #f7f9f7;
+}
+
+.home-page .platform-mark {
+  font-size: var(--home-aux-font-size);
 }
 
 .home-hero {
@@ -637,7 +643,7 @@ main {
   gap: 28px;
   color: #77867e;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-hero-index span:first-child {
@@ -717,7 +723,7 @@ main {
 .acm-ai-note p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--home-body-font-size);
   line-height: 1.75;
 }
 
@@ -737,7 +743,7 @@ main {
 .acm-capability-list article > span {
   color: var(--faint);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10px;
+  font-size: var(--home-aux-font-size);
 }
 
 .acm-capability-list article > svg {
@@ -794,7 +800,7 @@ main {
 .home-competition-note p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--home-body-font-size);
   line-height: 1.75;
 }
 
@@ -829,7 +835,7 @@ main {
   padding-top: 4px;
   color: var(--faint);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-competition-list article > div {
@@ -845,7 +851,7 @@ main {
 
 .home-competition-list small {
   color: var(--faint);
-  font-size: 10px;
+  font-size: var(--home-aux-font-size);
   line-height: 1.5;
 }
 
@@ -853,7 +859,7 @@ main {
   grid-column: 2 / -1;
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--home-body-font-size);
   line-height: 1.7;
 }
 
@@ -863,7 +869,7 @@ main {
   background: var(--green-soft);
   border: 1px solid #c7dfd1;
   border-radius: 3px;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
   font-weight: 800;
   white-space: nowrap;
 }
@@ -966,7 +972,7 @@ main {
 .home-open-contests-platforms > div > span:first-child {
   color: #8fa097;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-open-contests-platforms .platform-mark-wrap {
@@ -975,7 +981,7 @@ main {
 
 .home-open-contests-platforms > div > small {
   color: #8fa097;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-vision-section {
@@ -1024,7 +1030,7 @@ main {
 .home-vision-list p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--home-body-font-size);
   line-height: 1.6;
 }
 
@@ -1036,7 +1042,7 @@ main {
   background: var(--gold-soft);
   border: 1px solid #ead59c;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--home-aux-font-size);
   font-weight: 800;
   text-align: center;
 }
@@ -1097,7 +1103,7 @@ main {
 
 .home-data-summary small {
   color: var(--faint);
-  font-size: 10px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-data-warning {
@@ -1150,7 +1156,7 @@ main {
 .home-platform-list span {
   color: var(--faint);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 9px;
+  font-size: var(--home-aux-font-size);
 }
 
 .home-platform-list strong {
@@ -1163,7 +1169,7 @@ main {
 
 .home-platform-list small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--home-aux-font-size);
   white-space: nowrap;
 }
 
@@ -1274,7 +1280,7 @@ main {
 .home-join-events p {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--home-body-font-size);
   line-height: 1.7;
 }
 
@@ -2721,6 +2727,51 @@ main {
 
 .account-data-export {
   margin-top: 32px;
+}
+
+.account-referral-form {
+  margin-bottom: 32px;
+}
+
+.referral-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 18px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.referral-card {
+  min-width: 0;
+  padding: 18px;
+  background: #fff;
+}
+
+.referral-card span,
+.referral-card strong {
+  display: block;
+}
+
+.referral-card span {
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.referral-card strong {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.referral-copy-note {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .account-data-export-note {
@@ -6166,7 +6217,7 @@ fieldset.form-section {
   }
 
   .contest-brief-items span {
-    font-size: 9px;
+    font-size: var(--home-aux-font-size);
   }
 
   .home-hero-index {
@@ -6795,6 +6846,14 @@ fieldset.form-section {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .referral-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .referral-card {
+    padding: 14px 16px;
   }
 
   .span-two {
@@ -7508,7 +7567,7 @@ fieldset.form-section {
 }
 
 .learning-time-note span {
-  color: #6b776f;
+  color: #526057;
 }
 
 .learning-hero-aside {
@@ -7573,7 +7632,7 @@ fieldset.form-section {
 
 .learning-jump-nav > p {
   margin: 0 0 13px;
-  color: #7b867f;
+  color: #526057;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 9px;
   font-weight: 800;
@@ -7599,7 +7658,7 @@ fieldset.form-section {
 }
 
 .learning-jump-nav a span {
-  color: #98a29b;
+  color: #526057;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 8px;
 }
@@ -7612,7 +7671,7 @@ fieldset.form-section {
 
 .learning-jump-nav > small {
   margin-top: 18px;
-  color: #7b867f;
+  color: #526057;
   font-size: 9px;
   line-height: 1.7;
 }
@@ -8411,7 +8470,7 @@ fieldset.form-section {
 }
 
 .learning-jump-nav a span {
-  color: #98a39b;
+  color: #526057;
   font-size: 8px;
 }
 
@@ -9013,5 +9072,551 @@ fieldset.form-section {
 
   .learning-community-action {
     grid-column: 1;
+  }
+}
+
+/* Learning guide refinement: an editorial page with one focused tool panel. */
+.learning-page {
+  --learning-aux-size: 11px;
+  --learning-body-size: 13px;
+  background: #f7f8f5;
+}
+
+.learning-page p {
+  font-size: var(--learning-body-size);
+}
+
+.learning-page small {
+  font-size: var(--learning-aux-size);
+}
+
+.learning-page button,
+.learning-page a {
+  font-size: var(--learning-body-size);
+}
+
+.learning-hero {
+  width: min(1120px, calc(100% - 48px));
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 360px);
+  gap: 64px;
+  margin: 42px auto 0;
+  padding: 54px 0 46px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.learning-hero::before,
+.learning-hero::after {
+  display: none;
+}
+
+.learning-hero h1,
+.learning-hero h1 span {
+  letter-spacing: 0;
+}
+
+.learning-hero-copy > p:last-of-type,
+.learning-time-note span,
+.learning-start-result span {
+  font-size: var(--learning-body-size);
+}
+
+.learning-time-note strong {
+  font-size: var(--learning-body-size);
+}
+
+.learning-start-panel {
+  padding: 24px;
+  background: #fffef9;
+  border: 1px solid var(--learning-line);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgb(26 46 34 / 5%);
+}
+
+.learning-start-heading small,
+.learning-start-result > small,
+.learning-kicker,
+.learning-section-heading > p,
+.learning-section-heading-light > p,
+.learning-community-copy > p:first-child,
+.learning-jump-nav > p,
+.learning-jump-nav > small {
+  font-size: var(--learning-aux-size);
+}
+
+.learning-start-options button,
+.learning-start-result > a,
+.learning-week-action,
+.learning-plan-progress button,
+.learning-community-action > a {
+  font-size: var(--learning-body-size);
+}
+
+.learning-start-options button {
+  border-radius: 8px;
+}
+
+.learning-start-options button span,
+.learning-jump-nav a span,
+.learning-plan-progress span,
+.learning-week-tabs button > span,
+.learning-week-summary > span,
+.learning-week-checklist > span,
+.learning-platform > span,
+.learning-recommended-badge,
+.learning-stage-trigger small,
+.learning-topic-tags li,
+.learning-topic-grid article > span,
+.learning-rhythm-grid span,
+.learning-rhythm-grid strong,
+.learning-resource-list > a > span,
+.learning-resource-list small,
+.learning-community-action > span {
+  font-size: var(--learning-aux-size);
+}
+
+.learning-week-summary > strong,
+.learning-week-checklist label {
+  font-size: var(--learning-body-size);
+}
+
+.learning-guide-shell {
+  width: min(1120px, calc(100% - 48px));
+  display: grid;
+  grid-template-columns: 164px minmax(0, 1fr);
+  align-items: start;
+  gap: 52px;
+  margin: 32px auto 100px;
+}
+
+.learning-interactive-content {
+  width: 100%;
+  margin: 0;
+}
+
+.learning-jump-nav {
+  position: sticky;
+  top: 96px;
+  z-index: 10;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.learning-jump-nav a,
+.learning-jump-nav a:first-of-type {
+  min-width: 0;
+  min-height: 44px;
+  justify-content: flex-start;
+  gap: 11px;
+  padding: 0;
+  color: #526057;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 1px solid var(--learning-line);
+  font-size: var(--learning-body-size);
+}
+
+.learning-jump-nav a:first-of-type {
+  border-top: 1px solid var(--learning-line);
+}
+
+.learning-jump-nav a:hover {
+  color: var(--green-dark);
+  background: transparent;
+  transform: translateX(4px);
+}
+
+.learning-section-heading div > p,
+.learning-section-heading-light div > p,
+.learning-week-summary > p,
+.learning-stage-trigger p,
+.learning-topic-grid p,
+.learning-rhythm-grid p,
+.learning-resource-list a > p,
+.learning-community-copy > p:last-child,
+.learning-community-action > p,
+.learning-plan-tip p {
+  font-size: var(--learning-body-size);
+}
+
+.learning-plan-app,
+.learning-closing,
+.learning-community {
+  border-radius: 12px;
+}
+
+.learning-platform-list {
+  gap: 0;
+  border-top: 1px solid var(--learning-line);
+  border-bottom: 1px solid var(--learning-line);
+}
+
+.learning-platform {
+  min-height: 230px;
+  border-top-width: 3px;
+  border-right: 1px solid var(--learning-line);
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.learning-platform:last-child {
+  border-right: 0;
+}
+
+.learning-platform.is-recommended {
+  box-shadow: none;
+}
+
+.learning-topic-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--learning-line);
+  border-bottom: 1px solid var(--learning-line);
+}
+
+.learning-topic-grid article {
+  border-top: 0;
+  border-right: 1px solid var(--learning-line);
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.learning-topic-grid article:last-child {
+  border-right: 0;
+}
+
+.learning-rhythm-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--learning-line);
+  border-bottom: 1px solid var(--learning-line);
+}
+
+.learning-rhythm-grid article {
+  min-height: 230px;
+  border-top: 0;
+  border-right: 1px solid var(--learning-line);
+  border-radius: 0;
+}
+
+.learning-rhythm-grid article:last-child {
+  border-right: 0;
+}
+
+@media (max-width: 1020px) {
+  .learning-guide-shell {
+    grid-template-columns: 148px minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .learning-rhythm-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .learning-hero {
+    width: calc(100% - 28px);
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 18px;
+    padding: 34px 0 26px;
+  }
+
+  .learning-start-panel {
+    min-height: 0;
+  }
+
+  .learning-guide-shell {
+    width: 100%;
+    display: block;
+    margin: 24px auto 72px;
+  }
+
+  .learning-jump-nav {
+    position: sticky;
+    top: 72px;
+    z-index: 20;
+    width: 100%;
+    min-height: 50px;
+    display: flex;
+    align-items: stretch;
+    flex-direction: row;
+    padding: 0 14px;
+    overflow-x: auto;
+    background: rgb(247 248 245 / 96%);
+    border-top: 1px solid var(--learning-line);
+    border-bottom: 1px solid var(--learning-line);
+    backdrop-filter: blur(12px);
+  }
+
+  .learning-jump-nav > p,
+  .learning-jump-nav > small {
+    display: none;
+  }
+
+  .learning-jump-nav a,
+  .learning-jump-nav a:first-of-type {
+    min-width: max-content;
+    min-height: 50px;
+    gap: 7px;
+    padding: 0 14px;
+    border-top: 0;
+    border-right: 1px solid var(--learning-line);
+    border-bottom: 0;
+  }
+
+  .learning-jump-nav a:first-of-type {
+    border-left: 1px solid var(--learning-line);
+  }
+
+  .learning-interactive-content {
+    width: calc(100% - 28px);
+    margin: 0 auto;
+  }
+
+  .learning-section,
+  .learning-topics,
+  .learning-platforms {
+    scroll-margin-top: 122px;
+  }
+
+  .learning-platform-list,
+  .learning-topic-grid,
+  .learning-rhythm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-platform,
+  .learning-topic-grid article,
+  .learning-rhythm-grid article {
+    border-right: 0;
+    border-bottom: 1px solid var(--learning-line);
+  }
+
+  .learning-platform:last-child,
+  .learning-topic-grid article:last-child,
+  .learning-rhythm-grid article:last-child {
+    border-bottom: 0;
+  }
+}
+
+.referral-program-panel {
+  margin-bottom: 34px;
+}
+
+.referral-program-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.referral-program-heading h2 {
+  margin-bottom: 5px;
+  font-size: 19px;
+}
+
+.referral-program-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.referral-program-notice {
+  margin-bottom: 12px;
+}
+
+.referral-program-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.referral-program-error .secondary-button {
+  flex: 0 0 auto;
+}
+
+.referral-program-status {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(360px, 1.6fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.referral-program-state {
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--line-strong);
+}
+
+.referral-program-state--enabled {
+  border-left-color: var(--green);
+}
+
+.referral-program-state--paused {
+  border-left-color: #77817b;
+}
+
+.referral-program-state-label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.referral-program-state strong {
+  display: block;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.referral-program-state p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.referral-program-meta {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.referral-program-meta > div {
+  min-width: 0;
+}
+
+.referral-program-meta dt {
+  margin-bottom: 2px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.referral-program-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.referral-program-meta-reason {
+  grid-column: 1 / -1;
+}
+
+.referral-program-dialog .admin-dialog-field {
+  gap: 7px;
+}
+
+.referral-program-dialog .admin-dialog-field small {
+  justify-self: end;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.referral-program-dialog-error {
+  color: #a83b31;
+}
+
+.referral-program-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.referral-program-confirmation input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--green);
+}
+
+.referral-program-confirmation span {
+  display: grid;
+  gap: 3px;
+}
+
+.referral-program-confirmation strong {
+  font-size: 13px;
+}
+
+.referral-program-confirmation small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+@media (max-width: 940px) {
+  .referral-program-status {
+    grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.4fr);
+  }
+
+  .referral-program-status > button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 680px) {
+  .referral-program-heading,
+  .referral-program-error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .referral-program-status {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 16px;
+  }
+
+  .referral-program-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .referral-program-status > button {
+    grid-column: auto;
+    width: 100%;
   }
 }

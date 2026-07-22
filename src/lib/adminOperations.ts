@@ -415,6 +415,19 @@ function firecrawlAuditSummary(details: Record<string, unknown>): string {
   return parts.join('；') || 'Firecrawl Key 配置已更新'
 }
 
+function referralProgramAuditSummary(details: Record<string, unknown>): string {
+  const reason = stringValue(details.reason)
+  const beforeEnabled = details.before_enabled
+  const afterEnabled = details.after_enabled
+  const parts = [
+    beforeEnabled !== afterEnabled && typeof afterEnabled === 'boolean'
+      ? `状态：${afterEnabled ? '全线开启' : '全线关闭'}`
+      : null,
+    reason ? `原因：${reason}` : null,
+  ].filter((part): part is string => Boolean(part))
+  return parts.join('；') || '推荐计划配置已更新'
+}
+
 function auditAction(row: AdminAuditRow, details: Record<string, unknown>): string {
   if (row.target_table === 'profiles') {
     const fieldsChanged = stringArray(details.profile_fields).length > 0
@@ -484,6 +497,12 @@ function auditAction(row: AdminAuditRow, details: Record<string, unknown>): stri
     return '更新 Firecrawl Key'
   }
 
+  if (row.target_table === 'referral_bindings') return '发放推荐奖励'
+
+  if (row.target_table === 'referral_program_config') {
+    return details.after_enabled === true ? '开启推荐计划' : '关闭推荐计划'
+  }
+
   const actionLabels: Record<string, string> = {
     insert: '新增记录',
     update: '更新记录',
@@ -498,6 +517,8 @@ function auditTarget(row: AdminAuditRow, details: Record<string, unknown>): stri
     const platform = platformValue(details.platform)
     if (details.scope === 'platform' && platform) return platformLabels[platform]
   }
+
+  if (row.target_table === 'referral_program_config') return '推荐计划'
 
   const target = row.target_label?.trim() || row.target_id || '--'
   if (row.target_table !== 'platform_accounts') return target
@@ -516,7 +537,11 @@ export function mapAdminAuditEntry(row: AdminAuditRow): AuditEntry {
           ? syncAuditSummary(details)
           : row.target_table === 'firecrawl_api_keys'
             ? firecrawlAuditSummary(details)
-            : `${auditAction(row, details)}。`
+            : row.target_table === 'referral_bindings'
+              ? '有效邀请已增加 1,000,000 WebChat Token 累计额度上限。'
+              : row.target_table === 'referral_program_config'
+                ? referralProgramAuditSummary(details)
+                : `${auditAction(row, details)}。`
 
   return {
     id: numberValue(row.id),

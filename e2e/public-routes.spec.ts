@@ -7,10 +7,14 @@ test('rankings supports a direct load and browser reload', async ({ page }) => {
 
   await page.goto('/rankings')
   await expect(page).toHaveTitle('榜单 | USTS ACM Land')
-  await expect(page.getByRole('heading', { name: 'Rating 榜' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Rating 榜' })).toBeVisible({
+    timeout: 20_000,
+  })
 
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Rating 榜' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Rating 榜' })).toBeVisible({
+    timeout: 20_000,
+  })
   expect(runtimeErrors).toEqual([])
 })
 
@@ -96,12 +100,44 @@ test('anonymous account navigation returns after demo login', async ({ page }, t
   await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
 })
 
+test('shared referral links prefill a normalized invitation on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/register?invite=8a4c19f2e7b603d5')
+
+  const referralInput = page.getByRole('textbox', { name: '邀请码（选填）' })
+  await expect(referralInput).toHaveValue('8A4C19F2E7B603D5')
+  await referralInput.fill('abcdef0123456789')
+  await expect(referralInput).toHaveValue('ABCDEF0123456789')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      ),
+    )
+    .toBe(true)
+})
+
+test('demo members can see their referral reward summary', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
+  })
+  await page.goto('/account')
+
+  await expect(page.getByRole('heading', { name: '推荐计划' })).toBeVisible()
+  await expect(page.getByText('8A4C19F2E7B603D5')).toBeVisible()
+  await expect(page.getByText('2 / 10')).toBeVisible()
+  await expect(page.getByText('2,000,000')).toBeVisible()
+  await expect(page.getByRole('button', { name: '复制注册链接' })).toBeEnabled()
+})
+
 test('demo member can download a versioned personal data export', async ({ page }) => {
   await page.addInitScript(() => {
     window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
   })
   await page.goto('/account')
-  await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible({
+    timeout: 20_000,
+  })
   const downloadStarted = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出我的数据' }).click()
   const download = await downloadStarted

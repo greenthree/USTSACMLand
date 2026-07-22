@@ -106,7 +106,7 @@ npx --yes supabase@2.109.1 migration list --linked
 显式使用仓库 import map：
 
 ```powershell
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password `
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password firecrawl-config `
   --use-api --import-map supabase/functions/deno.json
 ```
 
@@ -119,7 +119,7 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 部署后执行受控烟测：
 
 0. 先运行 `npm run check:supabase-readiness` 严格验收；任何待部署 migration、缺失函数、错误 JWT/import map 或函数边界都会阻塞后续 Pages 发布。
-   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和六个函数部署后的版本号。
+   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和八个函数部署后的版本号。
 
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。
@@ -184,7 +184,7 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 
 通用顺序是“创建新值 → 更新目标 Secret → 部署/重启消费者 → 烟测 → 撤销旧值”。不能先撤销旧值再开始配置。
 
-生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 与 `DELETION_RECOVERY_GITHUB_TOKEN` 已配置，仍需完成权限核对和注销烟测，才能宣称安全注销在生产可用。Secret 审计工具只读取名称，不输出真实值或摘要。
+生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 与 `DELETION_RECOVERY_GITHUB_TOKEN` 已配置；维护端单调前推并回读恢复下限后，真实注销、函数读取恢复下限与残留清理烟测已通过。当前可用凭据权限偏宽，仍需轮换为只授权目标仓库 Variables 读写的 fine-grained Token，并在不倒退现有恢复下限的前提下复测 Edge 自主写入。Secret 审计工具只读取名称，不输出真实值或摘要。
 
 | 凭据                      | 存放位置                                       | 轮换后验证                                                                                   |
 | ------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -258,5 +258,11 @@ select public.bootstrap_first_admin('new-admin@example.edu.cn');
 - 没有新增凭据错误、结构错误、无限重试或重复快照。
 - 数据过期规则按最近计划批次计算，没有把失败值写成 0。
 - 变更记录包含验证证据、遗留风险和下一位值班维护者。
+
+### 推荐计划全线开关
+
+推荐计划异常时，从后台概览的“推荐计划”区域发起关闭，填写可审计原因并二次确认。关闭只停止邀请码展示、校验、新绑定和新奖励，不删除邀请码、绑定或已发 Token；关闭期间新账号仍可注册。操作后同时核对面板版本、修改人和原因，以及审计页的“关闭推荐计划”记录。恢复前确认异常已处理，再通过同一区域重新开启；不得为关闭期间注册的账号手工追补绑定或奖励。
+
+若提交结果因网络中断不确定，先刷新面板对账，不要连续点击。只有状态、版本和原因均符合本次操作时才视为成功；否则按最新版本重新确认。数据库以 `profile -> config -> code -> access` 行锁顺序围栏并发注册，生产发布仍需用受控双连接烟测确认关闭提交后的新注册不计奖。
 
 若无法证明恢复正常，保持事件开放并停止扩大变更范围。

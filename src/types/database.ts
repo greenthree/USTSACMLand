@@ -1348,6 +1348,16 @@ export type Database = {
           version: number
         }[]
       }
+      admin_read_referral_program_config: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          reason: string
+          updated_at: string
+          updated_by_label: string
+          version: number
+        }[]
+      }
       admin_read_webchat_cache_summary: {
         Args: never
         Returns: {
@@ -1488,6 +1498,20 @@ export type Database = {
           target_profile_id: string
         }
         Returns: string
+      }
+      admin_update_referral_program_config: {
+        Args: {
+          expected_version: number
+          requested_enabled: boolean
+          requested_reason: string
+        }
+        Returns: {
+          enabled: boolean
+          reason: string
+          updated_at: string
+          updated_by_label: string
+          version: number
+        }[]
       }
       admin_update_webchat_member_access: {
         Args: {
@@ -1659,6 +1683,13 @@ export type Database = {
         }[]
       }
       can_edit_own_data: { Args: never; Returns: boolean }
+      check_referral_code: {
+        Args: { requested_code?: string }
+        Returns: {
+          available: boolean
+          program_enabled: boolean
+        }[]
+      }
       claim_authorized_webchat_request: {
         Args: {
           lease_seconds?: number
@@ -1938,6 +1969,7 @@ export type Database = {
       }
       export_own_data: { Args: never; Returns: Json }
       export_own_training_goals: { Args: never; Returns: Json }
+      export_own_referral_data: { Args: never; Returns: Json }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']
@@ -2155,6 +2187,17 @@ export type Database = {
           used_tokens: number
         }[]
       }
+      read_own_referral_summary: {
+        Args: never
+        Returns: {
+          available: boolean
+          code: string | null
+          program_enabled: boolean
+          remaining_rewards: number
+          reward_count: number
+          reward_tokens: number
+        }[]
+      }
       read_sync_queue_scheduler_health: { Args: never; Returns: Json }
       read_webchat_global_budget_usage: {
         Args: never
@@ -2190,6 +2233,10 @@ export type Database = {
           updated_at: string
           version: number
         }[]
+      }
+      validate_referral_code: {
+        Args: { requested_code: string }
+        Returns: boolean
       }
       read_webchat_relay_runtime_config: {
         Args: never

@@ -19,7 +19,7 @@ export default defineConfig({
     video: 'off',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4173 --strictPort',
+    command: 'npm run dev -- --mode e2e --host 127.0.0.1 --port 4173 --strictPort',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
