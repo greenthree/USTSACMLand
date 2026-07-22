@@ -356,7 +356,11 @@ function ConversationHistory() {
           </button>
         </ThreadListPrimitive.New>
       </header>
-      <ThreadListPrimitive.Root className="assistant-history-list">
+      <ThreadListPrimitive.Root
+        className="assistant-history-list"
+        aria-label="历史对话列表"
+        tabIndex={0}
+      >
         <EmptyHistoryNotice />
         <ThreadListPrimitive.Items components={{ ThreadListItem: ConversationListItem }} />
         <ThreadListPrimitive.LoadMore asChild>

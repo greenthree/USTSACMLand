@@ -18,7 +18,7 @@ async function openAsMember(page: Page) {
   ] as const)
   await page.goto('/assistant')
   await expect(page).toHaveTitle('AI 学习助手 | USTS ACM Land')
-  await expect(page.getByRole('heading', { name: /把卡住你的地方，\s*放到桌面上。/ })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'AI 对话工作台' })).toBeVisible()
 }
 
 test.beforeEach(async ({ request }) => {
@@ -38,8 +38,13 @@ test('authenticated members send a typed request and receive a streamed reply', 
 }) => {
   await openAsMember(page)
   const menuButton = page.getByRole('button', { name: '打开导航' })
-  if (await menuButton.isVisible()) await menuButton.click()
-  await expect(page.getByRole('link', { name: 'AI 助手' })).toBeVisible()
+  if (await menuButton.isVisible()) {
+    await menuButton.click()
+    await expect(page.getByRole('link', { name: 'AI 助手' })).toBeVisible()
+    await page.getByRole('button', { name: '关闭导航' }).click()
+  } else {
+    await expect(page.getByRole('link', { name: 'AI 助手' })).toBeVisible()
+  }
 
   const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
   await composer.fill('请帮我检查二分答案的边界')
