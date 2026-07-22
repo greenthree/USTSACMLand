@@ -37,6 +37,7 @@ function config(fetcher: typeof fetch): WebChatUpstreamConfig {
     systemPrompt: 'Server-owned prompt',
     promptVersion: 'usts-learning-assistant-v1',
     maxOutputTokens: 2048,
+    maxOutputChars: 12_000,
     timeoutMs: 5_000,
     fetcher,
   }
@@ -117,7 +118,8 @@ Deno.test(
     match(String(requestBody.prompt_cache_key), /^[a-f0-9]{64}$/)
     deepStrictEqual(requestBody.prompt_cache_options, { mode: 'implicit', ttl: '30m' })
     match(String(requestBody.safety_identifier), /^[a-f0-9]{64}$/)
-    strictEqual('tools' in requestBody, false)
+    deepStrictEqual(requestBody.tools, [])
+    strictEqual(requestBody.tool_choice, 'none')
     strictEqual(response.headers.get('x-vercel-ai-ui-message-stream'), 'v1')
     strictEqual(response.headers.get('x-usts-chat-prompt-version'), 'usts-learning-assistant-v1')
     strictEqual(response.headers.get('cache-control'), 'private, no-store, no-transform')
@@ -299,7 +301,7 @@ Deno.test('webchat surfaces malformed or interrupted SSE as a safe UI stream err
       )
       const output = await result.text()
       match(output, /AI 回复中断/)
-      strictEqual(output.includes('partial') || response.headers.get('content-type') === null, true)
+      strictEqual(output.includes('partial'), false)
     } catch (error) {
       strictEqual((error as { code: string }).code, 'upstream_protocol_error')
     }
@@ -324,6 +326,90 @@ Deno.test(
     match(output, /"finishReason":"stop"/)
   },
 )
+
+Deno.test('webchat blocks tool protocol text without leaking buffered output', async () => {
+  for (const deltas of [
+    ['准备回答。/*TOOLCALL START: web_search */', '{"query":"secret"}'],
+    ['准备回答。/*TOOL', 'CALL START: web_search */', '{"query":"secret"}'],
+  ]) {
+    const errors: unknown[] = []
+    const response = await startWebChat(
+      config(async () =>
+        sse([
+          ...deltas.map((delta) => ({ type: 'response.output_text.delta', delta })),
+          { type: 'response.completed', response: { usage } },
+        ]),
+      ),
+      {
+        messages,
+        userId: 'user-1',
+        async reportUnexpectedError(error) {
+          errors.push(error)
+        },
+      },
+    )
+
+    const output = await response.text()
+    match(output, /AI 回复中断/)
+    strictEqual(output.includes('准备回答'), false)
+    strictEqual(output.includes('TOOLCALL'), false)
+    strictEqual(output.includes('web_search'), false)
+    strictEqual(errors.length, 1)
+  }
+})
+
+Deno.test('webchat rejects structured tool events while tools are disabled', async () => {
+  const response = await startWebChat(
+    config(async () =>
+      sse([
+        {
+          type: 'response.output_item.added',
+          item: { type: 'web_search_call', id: 'search-1' },
+        },
+        { type: 'response.completed', response: { usage } },
+      ]),
+    ),
+    { messages, userId: 'user-1' },
+  )
+
+  const output = await response.text()
+  match(output, /AI 回复中断/)
+  strictEqual(output.includes('web_search_call'), false)
+})
+
+Deno.test('webchat caps buffered output at the configured Unicode character limit', async () => {
+  const settlements: Array<{ outcome: string; usage: unknown }> = []
+  const response = await startWebChat(
+    {
+      ...config(async () =>
+        sse([
+          { type: 'response.output_text.delta', delta: '甲乙😀丙丁' },
+          { type: 'response.completed', response: { usage } },
+        ]),
+      ),
+      maxOutputChars: 4,
+    },
+    {
+      messages,
+      userId: 'user-1',
+      quotaLifecycle: {
+        async markStarted() {
+          return true
+        },
+        async finalize(outcome, settledUsage) {
+          settlements.push({ outcome, usage: settledUsage })
+          return true
+        },
+      },
+    },
+  )
+
+  const output = await response.text()
+  match(output, /"delta":"甲乙😀丙"/)
+  strictEqual(output.includes('丁'), false)
+  match(output, /"finishReason":"length"/)
+  strictEqual(settlements[0]?.outcome, 'incomplete_max_output_chars')
+})
 
 Deno.test('webchat preserves Responses API incomplete reasons in the UI finish event', async () => {
   for (const [reason, finishReason] of [
