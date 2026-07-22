@@ -23,13 +23,19 @@ describe('personal data export', () => {
     personalExportMocks.rpc
       .mockResolvedValueOnce({ data: payload, error: null })
       .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({
+        data: { code: '8A4C19F2E7B603D5', rewardCount: 2 },
+        error: null,
+      })
 
     await expect(fetchOwnPersonalDataExport()).resolves.toEqual({
       ...payload,
       trainingGoals: [],
+      referral: { code: '8A4C19F2E7B603D5', rewardCount: 2 },
     })
     expect(personalExportMocks.rpc).toHaveBeenCalledWith('export_own_data')
     expect(personalExportMocks.rpc).toHaveBeenCalledWith('export_own_training_goals')
+    expect(personalExportMocks.rpc).toHaveBeenCalledWith('export_own_referral_data')
   })
 
   it('fails closed for RPC errors and invalid payloads', async () => {
@@ -39,11 +45,13 @@ describe('personal data export', () => {
         error: new Error('database detail'),
       })
       .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: {}, error: null })
     await expect(fetchOwnPersonalDataExport()).rejects.toThrow('个人数据导出失败，请稍后重试。')
 
     personalExportMocks.rpc
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: {}, error: null })
     await expect(fetchOwnPersonalDataExport()).rejects.toThrow('个人数据导出失败，请稍后重试。')
   })
 
@@ -75,6 +83,7 @@ describe('personal data export', () => {
       expect.objectContaining({ platform: 'codeforces', externalId: 'DemoHandle' }),
     ])
     expect(payload.webchat).toEqual(expect.objectContaining({ conversations: [] }))
+    expect(payload.referral).toEqual(expect.objectContaining({ rewardCount: 0 }))
   })
 
   it('downloads a timestamped JSON file and revokes its object URL', () => {

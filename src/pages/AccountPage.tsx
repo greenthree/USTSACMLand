@@ -3,7 +3,7 @@ import Save from 'lucide-react/dist/esm/icons/save'
 import KeyRound from 'lucide-react/dist/esm/icons/key-round'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import Download from 'lucide-react/dist/esm/icons/download'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
 import { PlatformMark } from '../components/PlatformMark'
@@ -31,6 +31,11 @@ import {
   downloadPersonalDataExport,
   fetchOwnPersonalDataExport,
 } from '../lib/personalDataExport'
+import {
+  buildReferralRegistrationUrl,
+  fetchOwnReferralSummary,
+  type ReferralSummary,
+} from '../lib/referrals'
 import { supabase } from '../lib/supabase'
 import { platforms, type AccountVerificationStatus, type Platform } from '../types/domain'
 
@@ -83,6 +88,15 @@ const emptyAccountErrors: Record<Platform, string | null> = {
   xcpc_elo: null,
   luogu: null,
   qoj: null,
+}
+
+const demoReferralSummary: ReferralSummary = {
+  programEnabled: true,
+  code: '8A4C19F2E7B603D5',
+  rewardCount: 2,
+  remainingRewards: 8,
+  rewardTokens: 2_000_000,
+  available: true,
 }
 
 const accountStatusLabels: Record<AccountDisplayStatus, string> = {
@@ -198,8 +212,13 @@ export function AccountPage() {
   const [exportingData, setExportingData] = useState(false)
   const [exportNotice, setExportNotice] = useState('')
   const [exportNoticeKind, setExportNoticeKind] = useState<'success' | 'error'>('success')
+  const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null)
+  const [referralLoading, setReferralLoading] = useState(false)
+  const [referralNotice, setReferralNotice] = useState('')
+  const [copyNotice, setCopyNotice] = useState('')
   const [draftReady, setDraftReady] = useState(false)
   const baselineValuesRef = useRef<AccountFormValues | null>(null)
+  const referralRequestIdRef = useRef(0)
 
   const selectableGrades =
     grade && !gradeOptions.includes(grade) ? [grade, ...gradeOptions] : gradeOptions
@@ -314,6 +333,54 @@ export function AccountPage() {
       active = false
     }
   }, [isDemo, userId])
+
+  const loadReferralSummary = useCallback(async (): Promise<ReferralSummary | null> => {
+    if (!userId) return null
+    const requestId = ++referralRequestIdRef.current
+    setReferralLoading(true)
+    setReferralNotice('')
+    setReferralSummary(null)
+    setCopyNotice('')
+
+    if (isDemo || !supabase) {
+      setReferralSummary(demoReferralSummary)
+      setReferralLoading(false)
+      return demoReferralSummary
+    }
+
+    try {
+      const summary = await fetchOwnReferralSummary()
+      if (requestId !== referralRequestIdRef.current) return null
+      setReferralSummary(summary)
+      return summary
+    } catch (error) {
+      if (requestId === referralRequestIdRef.current) {
+        setReferralSummary(null)
+        setReferralNotice(error instanceof Error ? error.message : '推荐计划读取失败。')
+      }
+      return null
+    } finally {
+      if (requestId === referralRequestIdRef.current) setReferralLoading(false)
+    }
+  }, [isDemo, userId])
+
+  useEffect(() => {
+    if (!userId) return
+    void loadReferralSummary()
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadReferralSummary()
+    }
+    const refreshOnFocus = () => void loadReferralSummary()
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      referralRequestIdRef.current += 1
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [loadReferralSummary, userId])
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -589,6 +656,23 @@ export function AccountPage() {
     }
   }
 
+  async function copyReferralLink() {
+    if (!referralSummary?.programEnabled || !referralSummary.code || !referralSummary.available) {
+      return
+    }
+    setReferralNotice('')
+    const latestSummary = await loadReferralSummary()
+    if (!latestSummary?.programEnabled || !latestSummary.code || !latestSummary.available) return
+    const link = buildReferralRegistrationUrl(latestSummary.code)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopyNotice('邀请码注册链接已复制。')
+    } catch {
+      setCopyNotice('')
+      setReferralNotice('复制失败，请检查浏览器剪贴板权限后重试。')
+    }
+  }
+
   return (
     <div className="page account-page">
       <section className="page-heading account-heading">
@@ -602,6 +686,66 @@ export function AccountPage() {
       </section>
 
       {loadingProfile ? <LoadingState label="正在读取账号资料" /> : null}
+
+      <section className="account-form account-referral-form" aria-labelledby="referral-title">
+        <div className="form-section">
+          <div className="section-title-row">
+            <div>
+              <h2 id="referral-title">推荐计划</h2>
+              <p>分享邀请码，绑定成功后可获得额外 WebChat 累计额度上限。</p>
+            </div>
+          </div>
+          {referralNotice ? (
+            <p className="form-error" role="alert">
+              {referralNotice}
+            </p>
+          ) : null}
+          <div className="referral-summary-grid">
+            {referralSummary?.programEnabled !== false ? (
+              <div className="referral-card">
+                <span>我的邀请码</span>
+                <strong>{referralLoading ? '读取中' : (referralSummary?.code ?? '--')}</strong>
+              </div>
+            ) : null}
+            <div className="referral-card">
+              <span>已奖励次数</span>
+              <strong>
+                {referralLoading ? '读取中' : String(referralSummary?.rewardCount ?? 0) + ' / 10'}
+              </strong>
+            </div>
+            <div className="referral-card">
+              <span>累计增加 Token 上限</span>
+              <strong>
+                {referralLoading
+                  ? '读取中'
+                  : (referralSummary?.rewardTokens ?? 0).toLocaleString('zh-CN')}
+              </strong>
+            </div>
+          </div>
+          {referralSummary?.programEnabled !== false ? (
+            <div className="form-actions">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={referralLoading || !referralSummary?.code || !referralSummary.available}
+                onClick={() => void copyReferralLink()}
+              >
+                复制注册链接
+              </button>
+              <span className="referral-copy-note" aria-live="polite">
+                {copyNotice || '新用户可通过链接自动带入邀请码。'}
+              </span>
+            </div>
+          ) : (
+            <p className="account-data-export-note" role="status">
+              推荐计划已暂停。邀请码和既有奖励已保留，重新开放后继续使用。
+            </p>
+          )}
+          {referralSummary?.programEnabled && referralSummary.remainingRewards === 0 ? (
+            <p className="account-data-export-note">当前邀请码已达到邀请上限，暂不可继续使用。</p>
+          ) : null}
+        </div>
+      </section>
 
       <form className="account-form" onSubmit={handleSave}>
         <fieldset className="form-section" disabled={loadingProfile}>

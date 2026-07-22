@@ -59,7 +59,9 @@ test('/training-goals passes the authenticated member axe gate', async ({ page }
     window.sessionStorage.setItem('usts-acm-land-demo-session:v1', 'member@example.edu.cn')
   })
   await page.goto('/training-goals')
-  await expect(page.getByRole('heading', { name: '训练目标' })).toBeVisible()
+  // The training-goals route is lazy-loaded. A cold WebKit/Vite server can
+  // spend longer compiling this route than the shared 7.5s assertion budget.
+  await expect(page.getByRole('heading', { name: '训练目标' })).toBeVisible({ timeout: 20_000 })
   await page.locator('main#main-content').waitFor({ state: 'visible' })
   await page.waitForLoadState('networkidle')
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
@@ -67,6 +69,7 @@ test('/training-goals passes the authenticated member axe gate', async ({ page }
 })
 
 for (const route of [
+  '/admin',
   '/admin/accounts',
   '/admin/daily-problems',
   '/admin/members',

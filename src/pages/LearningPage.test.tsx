@@ -45,17 +45,16 @@ describe('LearningPage', () => {
     expect(screen.getAllByRole('tab')).toHaveLength(4)
     const weekPanel = screen.getByRole('tabpanel')
     for (const content of [
-      '搭好 C++ 环境',
-      '配置 C++ 编译环境',
+      '搭好 C++/Python 环境',
+      '配置 C++/Python 开发环境',
       '完成输入输出与判断练习',
       '独立提交 5 道短题',
     ]) {
       expect(weekPanel).toHaveTextContent(content)
     }
-    expect(screen.getByRole('link', { name: '一键配置 C++ 环境（新窗口打开）' })).toHaveAttribute(
-      'href',
-      'https://ab.algoux.cn/',
-    )
+    expect(
+      screen.getByRole('link', { name: '一键配置 C++/Python 环境（新窗口打开）' }),
+    ).toHaveAttribute('href', 'https://ab.algoux.cn/')
 
     for (const heading of ['环境与语法', '基础题型', '算法思维', '参加比赛', '准备三人团队赛']) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()

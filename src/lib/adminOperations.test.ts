@@ -297,6 +297,32 @@ describe('admin operations mapping', () => {
     expect(entry.summary).not.toContain('fc-secret')
     expect(entry.summary).not.toContain('Vault Secret ID')
   })
+
+  it('summarizes a referral program switch without exposing internal identifiers', () => {
+    const entry = mapAdminAuditEntry({
+      id: 12,
+      actor_id: 'admin-1',
+      actor_label: '管理员',
+      action: 'referral_program_config_update',
+      target_table: 'referral_program_config',
+      target_id: 'global',
+      target_label: 'Referral program',
+      details: {
+        before_enabled: true,
+        after_enabled: false,
+        reason: '排查异常邀请记录',
+      },
+      created_at: '2026-07-22T13:00:00Z',
+    })
+
+    expect(entry).toMatchObject({
+      action: '关闭推荐计划',
+      target: '推荐计划',
+      summary: '状态：全线关闭；原因：排查异常邀请记录',
+    })
+    expect(entry.summary).not.toContain('admin-1')
+    expect(entry.summary).not.toContain('global')
+  })
 })
 
 describe('admin audit CSV', () => {

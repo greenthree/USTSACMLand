@@ -2,5 +2,10 @@ dist
 coverage
 node_modules
 .firecrawl
+.cli-home
+.npm-cache
+.od-skills
+.supabase
 supabase/.temp
+supabase/.branches
 package-lock.json

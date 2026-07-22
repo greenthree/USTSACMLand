@@ -23,19 +23,26 @@ export async function fetchOwnPersonalDataExport(): Promise<Json> {
   const rpc = supabase.rpc.bind(supabase) as unknown as (
     functionName: string,
   ) => Promise<{ data: Json | null; error: { message: string } | null }>
-  const [accountExport, goalExport] = await Promise.all([
+  const [accountExport, goalExport, referralExport] = await Promise.all([
     rpc('export_own_data'),
     rpc('export_own_training_goals'),
+    rpc('export_own_referral_data'),
   ])
   if (
     accountExport.error ||
     goalExport.error ||
+    referralExport.error ||
     !isJsonObject(accountExport.data) ||
-    !Array.isArray(goalExport.data)
+    !Array.isArray(goalExport.data) ||
+    !isJsonObject(referralExport.data)
   ) {
     throw new Error('个人数据导出失败，请稍后重试。')
   }
-  return { ...accountExport.data, trainingGoals: goalExport.data }
+  return {
+    ...accountExport.data,
+    trainingGoals: goalExport.data,
+    referral: referralExport.data,
+  }
 }
 
 export function buildDemoPersonalDataExport(
@@ -88,6 +95,13 @@ export function buildDemoPersonalDataExport(
     statSnapshots: [],
     syncHistory: [],
     trainingGoals: [],
+    referral: {
+      code: '8A4C19F2E7B603D5',
+      rewardCount: 0,
+      rewardTokens: 0,
+      invitedByAnotherMember: false,
+      boundAt: null,
+    },
     dailyProblem: { completions: [], comments: [] },
     webchat: {
       access: null,

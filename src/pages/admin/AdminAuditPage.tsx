@@ -53,7 +53,7 @@ export function AdminAuditPage() {
       <section className="admin-page-heading">
         <div>
           <h1>审计日志</h1>
-          <p>记录角色、平台账号验证、绑定和手动同步操作。</p>
+          <p>记录角色、平台账号、同步、推荐奖励和其他管理员操作。</p>
         </div>
         <div className="admin-heading-actions">
           <span className="demo-indicator">{demo ? '演示数据' : '实时数据'}</span>

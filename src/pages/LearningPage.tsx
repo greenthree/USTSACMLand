@@ -114,10 +114,10 @@ const learningStages: LearningStage[] = [
 const firstFourWeeks = [
   {
     week: '第 1 周',
-    focus: '搭好 C++ 环境',
+    focus: '搭好 C++/Python 环境',
     detail: '完成输入输出、判断与循环，确保能独立编译、运行和提交代码。',
     outcome: '写出第一批可通过的程序',
-    tasks: ['配置 C++ 编译环境', '完成输入输出与判断练习', '独立提交 5 道短题'],
+    tasks: ['配置 C++/Python 开发环境', '完成输入输出与判断练习', '独立提交 5 道短题'],
   },
   {
     week: '第 2 周',
@@ -143,7 +143,7 @@ const firstFourWeeks = [
 ]
 
 const weekActions: Record<number, { label: string; href: string } | undefined> = {
-  0: { label: '一键配置 C++ 环境', href: 'https://ab.algoux.cn/' },
+  0: { label: '一键配置 C++/Python 环境', href: 'https://ab.algoux.cn/' },
 }
 
 const beginnerPlatforms = [
@@ -345,386 +345,395 @@ export function LearningPage() {
         </div>
       </section>
 
-      <nav className="learning-jump-nav" aria-label="学习页章节">
-        <a href="#learning-first-month">
-          <span>01</span>四周计划
-        </a>
-        <a href="#learning-platforms">
-          <span>02</span>练习平台
-        </a>
-        <a href="#learning-roadmap">
-          <span>03</span>进阶路线
-        </a>
-        <a href="#learning-topics">
-          <span>04</span>知识地图
-        </a>
-        <a href="#learning-rhythm">
-          <span>05</span>训练节奏
-        </a>
-        <a href="#learning-resources">
-          <span>06</span>开放资源
-        </a>
-        <a href="#learning-community">
-          <span>07</span>竞赛圈子
-        </a>
-      </nav>
+      <div className="learning-guide-shell">
+        <nav className="learning-jump-nav" aria-label="学习页章节">
+          <p>学习路径</p>
+          <a href="#learning-first-month">
+            <span>01</span>四周计划
+          </a>
+          <a href="#learning-platforms">
+            <span>02</span>练习平台
+          </a>
+          <a href="#learning-roadmap">
+            <span>03</span>进阶路线
+          </a>
+          <a href="#learning-topics">
+            <span>04</span>知识地图
+          </a>
+          <a href="#learning-rhythm">
+            <span>05</span>训练节奏
+          </a>
+          <a href="#learning-resources">
+            <span>06</span>开放资源
+          </a>
+          <a href="#learning-community">
+            <span>07</span>竞赛圈子
+          </a>
+          <small>按顺序浏览，随时回到当前阶段。</small>
+        </nav>
 
-      <div className="learning-interactive-content">
-        <section className="learning-section learning-first-month" id="learning-first-month">
-          <header className="learning-section-heading">
-            <p>01 / FIRST MONTH</p>
-            <div>
-              <h2>前四周，只做这些事</h2>
-              <p>
-                目标不是刷很多题，而是建立每天能继续的节奏。先完成这条最短路线，再决定如何深入。
-              </p>
-            </div>
-          </header>
-          <div className="learning-plan-app">
-            <div className="learning-plan-progress">
+        <div className="learning-interactive-content">
+          <section className="learning-section learning-first-month" id="learning-first-month">
+            <header className="learning-section-heading">
+              <p>01 / FIRST MONTH</p>
               <div>
-                <span>四周总体进度</span>
-                <strong>{progress}%</strong>
+                <h2>前四周，只做这些事</h2>
+                <p>
+                  目标不是刷很多题，而是建立每天能继续的节奏。先完成这条最短路线，再决定如何深入。
+                </p>
+              </div>
+            </header>
+            <div className="learning-plan-app">
+              <div className="learning-plan-progress">
+                <div>
+                  <span>四周总体进度</span>
+                  <strong>{progress}%</strong>
+                </div>
+                <div
+                  className="learning-progress-track"
+                  role="progressbar"
+                  aria-label="四周学习进度"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
+                >
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCompletedTasks([])}
+                  disabled={completedTasks.length === 0}
+                >
+                  <RotateCcw size={14} aria-hidden="true" />
+                  重置进度
+                </button>
+              </div>
+              <div className="learning-week-tabs" role="tablist" aria-label="选择计划周次">
+                {firstFourWeeks.map((week, index) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={activeWeek === index}
+                    aria-controls={`learning-week-panel-${index}`}
+                    id={`learning-week-tab-${index}`}
+                    className={activeWeek === index ? 'is-active' : ''}
+                    onClick={() => setActiveWeek(index)}
+                    key={week.week}
+                  >
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{week.week}</strong>
+                    <small>{week.focus}</small>
+                  </button>
+                ))}
               </div>
               <div
-                className="learning-progress-track"
-                role="progressbar"
-                aria-label="四周学习进度"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress}
+                className="learning-week-panel"
+                role="tabpanel"
+                id={`learning-week-panel-${activeWeek}`}
+                aria-labelledby={`learning-week-tab-${activeWeek}`}
               >
-                <span style={{ width: `${progress}%` }} />
-              </div>
-              <button
-                type="button"
-                onClick={() => setCompletedTasks([])}
-                disabled={completedTasks.length === 0}
-              >
-                <RotateCcw size={14} aria-hidden="true" />
-                重置进度
-              </button>
-            </div>
-            <div className="learning-week-tabs" role="tablist" aria-label="选择计划周次">
-              {firstFourWeeks.map((week, index) => (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activeWeek === index}
-                  aria-controls={`learning-week-panel-${index}`}
-                  id={`learning-week-tab-${index}`}
-                  className={activeWeek === index ? 'is-active' : ''}
-                  onClick={() => setActiveWeek(index)}
-                  key={week.week}
+                <div className="learning-week-summary">
+                  <span>本周目标</span>
+                  <h3>{selectedWeek.focus}</h3>
+                  <p>{selectedWeek.detail}</p>
+                  <strong>
+                    <Flag size={15} aria-hidden="true" />
+                    {selectedWeek.outcome}
+                  </strong>
+                  {weekActions[activeWeek] ? (
+                    <a
+                      className="learning-week-action"
+                      href={weekActions[activeWeek]?.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`${weekActions[activeWeek]?.label}（新窗口打开）`}
+                    >
+                      {weekActions[activeWeek]?.label}
+                      <ArrowUpRight size={15} aria-hidden="true" />
+                    </a>
+                  ) : null}
+                </div>
+                <div
+                  className="learning-week-checklist"
+                  aria-label={`${selectedWeek.week}任务清单`}
                 >
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{week.week}</strong>
-                  <small>{week.focus}</small>
-                </button>
-              ))}
+                  <span>完成后勾选</span>
+                  {selectedWeek.tasks.map((task, taskIndex) => {
+                    const taskId = `${activeWeek}-${taskIndex}`
+                    return (
+                      <label key={taskId}>
+                        <input
+                          type="checkbox"
+                          checked={completedTasks.includes(taskId)}
+                          onChange={() => toggleTask(taskId)}
+                        />
+                        <span>
+                          <Check size={14} aria-hidden="true" />
+                        </span>
+                        {task}
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+              <aside className="learning-plan-tip">
+                <Lightbulb size={18} aria-hidden="true" />
+                <p>
+                  <strong>卡住 30 分钟？</strong>
+                  先看提示，不直接抄答案；理解后关掉题解，重新独立写一遍。
+                </p>
+              </aside>
             </div>
-            <div
-              className="learning-week-panel"
-              role="tabpanel"
-              id={`learning-week-panel-${activeWeek}`}
-              aria-labelledby={`learning-week-tab-${activeWeek}`}
-            >
-              <div className="learning-week-summary">
-                <span>本周目标</span>
-                <h3>{selectedWeek.focus}</h3>
-                <p>{selectedWeek.detail}</p>
-                <strong>
-                  <Flag size={15} aria-hidden="true" />
-                  {selectedWeek.outcome}
-                </strong>
-                {weekActions[activeWeek] ? (
+          </section>
+
+          <section className="learning-section learning-platforms" id="learning-platforms">
+            <header className="learning-section-heading learning-section-heading-light">
+              <p>02 / CHOOSE A PLATFORM</p>
+              <div>
+                <h2>三个平台，不用一次全学</h2>
+                <p>
+                  根据你现在会什么选择入口。推荐顺序是牛客 → 洛谷 →
+                  Codeforces，但不需要“毕业”后才能使用下一个平台。
+                </p>
+              </div>
+            </header>
+            <div className="learning-platform-list">
+              {beginnerPlatforms.map((platform) => (
+                <article
+                  className={`learning-platform learning-platform-${platform.className}${startLevel === platform.id ? ' is-recommended' : ''}`}
+                  key={platform.name}
+                >
+                  <span>{platform.order}</span>
+                  <div>
+                    <small>{platform.cue}</small>
+                    <h3>{platform.name}</h3>
+                  </div>
+                  {startLevel === platform.id ? (
+                    <strong className="learning-recommended-badge">当前推荐</strong>
+                  ) : null}
+                  <p>{platform.goal}</p>
                   <a
-                    className="learning-week-action"
-                    href={weekActions[activeWeek]?.href}
+                    href={platform.href}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label={`${weekActions[activeWeek]?.label}（新窗口打开）`}
+                    aria-label={`${platform.action}（新窗口打开）`}
                   >
-                    {weekActions[activeWeek]?.label}
-                    <ArrowUpRight size={15} aria-hidden="true" />
+                    {platform.action}
+                    <ArrowUpRight size={17} aria-hidden="true" />
                   </a>
-                ) : null}
+                </article>
+              ))}
+            </div>
+            <div className="learning-platform-order" aria-label="推荐平台学习顺序">
+              <strong>建议顺序</strong>
+              <span>牛客</span>
+              <i aria-hidden="true">→</i>
+              <span>洛谷</span>
+              <i aria-hidden="true">→</i>
+              <span>Codeforces</span>
+              <p>循序渐进，打好基础，更快投入真实比赛。</p>
+            </div>
+          </section>
+
+          <section className="learning-section learning-roadmap" id="learning-roadmap">
+            <header className="learning-section-heading">
+              <p>03 / ROADMAP</p>
+              <div>
+                <h2>从环境与语法，到真正站上赛场</h2>
+                <p>前四阶段对应零基础到比赛的主线；进入团队赛后，继续学习协作与赛场决策。</p>
               </div>
-              <div className="learning-week-checklist" aria-label={`${selectedWeek.week}任务清单`}>
-                <span>完成后勾选</span>
-                {selectedWeek.tasks.map((task, taskIndex) => {
-                  const taskId = `${activeWeek}-${taskIndex}`
-                  return (
-                    <label key={taskId}>
-                      <input
-                        type="checkbox"
-                        checked={completedTasks.includes(taskId)}
-                        onChange={() => toggleTask(taskId)}
-                      />
-                      <span>
-                        <Check size={14} aria-hidden="true" />
-                      </span>
-                      {task}
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-            <aside className="learning-plan-tip">
-              <Lightbulb size={18} aria-hidden="true" />
-              <p>
-                <strong>卡住 30 分钟？</strong>
-                先看提示，不直接抄答案；理解后关掉题解，重新独立写一遍。
-              </p>
-            </aside>
-          </div>
-        </section>
+            </header>
 
-        <section className="learning-section learning-platforms" id="learning-platforms">
-          <header className="learning-section-heading learning-section-heading-light">
-            <p>02 / CHOOSE A PLATFORM</p>
-            <div>
-              <h2>三个平台，不用一次全学</h2>
-              <p>
-                根据你现在会什么选择入口。推荐顺序是牛客 → 洛谷 →
-                Codeforces，但不需要“毕业”后才能使用下一个平台。
-              </p>
-            </div>
-          </header>
-          <div className="learning-platform-list">
-            {beginnerPlatforms.map((platform) => (
-              <article
-                className={`learning-platform learning-platform-${platform.className}${startLevel === platform.id ? ' is-recommended' : ''}`}
-                key={platform.name}
-              >
-                <span>{platform.order}</span>
-                <div>
-                  <small>{platform.cue}</small>
-                  <h3>{platform.name}</h3>
-                </div>
-                {startLevel === platform.id ? (
-                  <strong className="learning-recommended-badge">当前推荐</strong>
-                ) : null}
-                <p>{platform.goal}</p>
-                <a
-                  href={platform.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${platform.action}（新窗口打开）`}
+            <div className="learning-stage-list">
+              {learningStages.map((stage) => (
+                <article
+                  id={stage.id}
+                  className={`learning-stage${openStage === stage.id ? ' is-open' : ''}`}
+                  key={stage.id}
                 >
-                  {platform.action}
-                  <ArrowUpRight size={17} aria-hidden="true" />
-                </a>
-              </article>
-            ))}
-          </div>
-          <div className="learning-platform-order" aria-label="推荐平台学习顺序">
-            <strong>建议顺序</strong>
-            <span>牛客</span>
-            <i aria-hidden="true">→</i>
-            <span>洛谷</span>
-            <i aria-hidden="true">→</i>
-            <span>Codeforces</span>
-            <p>循序渐进，打好基础，更快投入真实比赛。</p>
-          </div>
-        </section>
-
-        <section className="learning-section learning-roadmap" id="learning-roadmap">
-          <header className="learning-section-heading">
-            <p>03 / ROADMAP</p>
-            <div>
-              <h2>从环境与语法，到真正站上赛场</h2>
-              <p>前四阶段对应零基础到比赛的主线；进入团队赛后，继续学习协作与赛场决策。</p>
-            </div>
-          </header>
-
-          <div className="learning-stage-list">
-            {learningStages.map((stage) => (
-              <article
-                id={stage.id}
-                className={`learning-stage${openStage === stage.id ? ' is-open' : ''}`}
-                key={stage.id}
-              >
-                <button
-                  type="button"
-                  className="learning-stage-trigger"
-                  aria-expanded={openStage === stage.id}
-                  aria-controls={`${stage.id}-content`}
-                  onClick={() => setOpenStage((current) => (current === stage.id ? '' : stage.id))}
-                >
-                  <span>{stage.number}</span>
-                  <div>
-                    <small>{stage.duration}</small>
-                    <h3>{stage.title}</h3>
-                    <p>{stage.subtitle}</p>
-                  </div>
-                  <ChevronDown size={20} aria-hidden="true" />
-                </button>
-                {openStage === stage.id ? (
-                  <div className="learning-stage-content" id={`${stage.id}-content`}>
-                    <div className="learning-stage-main">
-                      <p className="learning-stage-description">{stage.description}</p>
-                      <ul className="learning-topic-tags" aria-label={`${stage.title}知识点`}>
-                        {stage.topics.map((topic) => (
-                          <li key={topic}>{topic}</li>
-                        ))}
-                      </ul>
+                  <button
+                    type="button"
+                    className="learning-stage-trigger"
+                    aria-expanded={openStage === stage.id}
+                    aria-controls={`${stage.id}-content`}
+                    onClick={() =>
+                      setOpenStage((current) => (current === stage.id ? '' : stage.id))
+                    }
+                  >
+                    <span>{stage.number}</span>
+                    <div>
+                      <small>{stage.duration}</small>
+                      <h3>{stage.title}</h3>
+                      <p>{stage.subtitle}</p>
                     </div>
-                    <div className="learning-stage-notes">
-                      <div>
-                        <Repeat2 size={18} aria-hidden="true" />
-                        <h4>怎么练</h4>
-                        <p>{stage.practice}</p>
-                      </div>
-                      <div>
-                        <Flag size={18} aria-hidden="true" />
-                        <h4>进入下一阶段前</h4>
-                        <ul>
-                          {stage.checkpoint.map((item) => (
-                            <li key={item}>
-                              <Check size={13} aria-hidden="true" />
-                              {item}
-                            </li>
+                    <ChevronDown size={20} aria-hidden="true" />
+                  </button>
+                  {openStage === stage.id ? (
+                    <div className="learning-stage-content" id={`${stage.id}-content`}>
+                      <div className="learning-stage-main">
+                        <p className="learning-stage-description">{stage.description}</p>
+                        <ul className="learning-topic-tags" aria-label={`${stage.title}知识点`}>
+                          {stage.topics.map((topic) => (
+                            <li key={topic}>{topic}</li>
                           ))}
                         </ul>
                       </div>
+                      <div className="learning-stage-notes">
+                        <div>
+                          <Repeat2 size={18} aria-hidden="true" />
+                          <h4>怎么练</h4>
+                          <p>{stage.practice}</p>
+                        </div>
+                        <div>
+                          <Flag size={18} aria-hidden="true" />
+                          <h4>进入下一阶段前</h4>
+                          <ul>
+                            {stage.checkpoint.map((item) => (
+                              <li key={item}>
+                                <Check size={13} aria-hidden="true" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
                     </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="learning-section learning-topics" id="learning-topics">
+            <header className="learning-section-heading learning-section-heading-light">
+              <p>04 / KNOWLEDGE MAP</p>
+              <div>
+                <h2>知识点不是清单，而是一张相互连接的地图</h2>
+                <p>先认识六个区域，再通过题目理解它们之间的组合方式。</p>
+              </div>
+            </header>
+            <div className="learning-topic-grid">
+              {topicGroups.map((group) => (
+                <article key={group.index}>
+                  <span>{group.index}</span>
+                  <CodeXml size={21} aria-hidden="true" />
+                  <h3>{group.label}</h3>
+                  <p>{group.description}</p>
+                </article>
+              ))}
+            </div>
+            <aside className="learning-topic-note">
+              <Lightbulb size={21} aria-hidden="true" />
+              <p>
+                不需要“学完所有算法”才参赛。比赛会告诉你哪些知识还不牢，也会让抽象的算法第一次变成真正需要的工具。
+              </p>
+            </aside>
+          </section>
+
+          <section className="learning-section learning-rhythm" id="learning-rhythm">
+            <header className="learning-section-heading">
+              <p>05 / WEEKLY RHYTHM</p>
+              <div>
+                <h2>把训练组织成稳定循环</h2>
+                <p>一周不必塞满，但要让学习、比赛和复盘都真正发生。</p>
+              </div>
+            </header>
+            <div className="learning-rhythm-grid">
+              <article>
+                <BookMarked size={23} aria-hidden="true" />
+                <span>MON–THU</span>
+                <h3>专题学习</h3>
+                <p>选择一个小主题，读讲解、写模板、做由浅入深的配套题。</p>
+                <strong>理解 40% · 练习 60%</strong>
+              </article>
+              <article>
+                <TimerReset size={23} aria-hidden="true" />
+                <span>FRI–SUN</span>
+                <h3>完整比赛</h3>
+                <p>参加公开赛或虚拟参赛，不暂停、不查题解，保留真实决策过程。</p>
+                <strong>每周至少 2 场</strong>
+              </article>
+              <article>
+                <CircleGauge size={23} aria-hidden="true" />
+                <span>WITHIN 24H</span>
+                <h3>赛后复盘</h3>
+                <p>重做卡住的题，分类错误原因；读题解后必须关掉题解重新实现。</p>
+                <strong>补题比场数更重要</strong>
+              </article>
+              <article>
+                <UsersRound size={23} aria-hidden="true" />
+                <span>EVERY 2–4 WEEKS</span>
+                <h3>交流与校准</h3>
+                <p>向队友口述一道题的模型和证明，检查自己是否真的理解。</p>
+                <strong>能讲清楚，才算掌握</strong>
+              </article>
+            </div>
+          </section>
+
+          <section className="learning-section learning-resources" id="learning-resources">
+            <header className="learning-section-heading">
+              <p>06 / OPEN RESOURCES</p>
+              <div>
+                <h2>少而明确的开放资源入口</h2>
+                <p>这些资源绝大多数内容免费开放。先按当前阶段选一个入口，不必同时收藏所有资料。</p>
+              </div>
+            </header>
+            <div className="learning-resource-list">
+              {resources.map((resource, index) => (
+                <a
+                  href={resource.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  key={resource.name}
+                  aria-label={`${resource.name}（新窗口打开）`}
+                >
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <div>
+                    <strong>{resource.name}</strong>
+                    <small>{resource.type}</small>
                   </div>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="learning-section learning-topics" id="learning-topics">
-          <header className="learning-section-heading learning-section-heading-light">
-            <p>04 / KNOWLEDGE MAP</p>
-            <div>
-              <h2>知识点不是清单，而是一张相互连接的地图</h2>
-              <p>先认识六个区域，再通过题目理解它们之间的组合方式。</p>
+                  <p>{resource.description}</p>
+                  <ArrowUpRight size={18} aria-hidden="true" />
+                </a>
+              ))}
             </div>
-          </header>
-          <div className="learning-topic-grid">
-            {topicGroups.map((group) => (
-              <article key={group.index}>
-                <span>{group.index}</span>
-                <CodeXml size={21} aria-hidden="true" />
-                <h3>{group.label}</h3>
-                <p>{group.description}</p>
-              </article>
-            ))}
-          </div>
-          <aside className="learning-topic-note">
-            <Lightbulb size={21} aria-hidden="true" />
-            <p>
-              不需要“学完所有算法”才参赛。比赛会告诉你哪些知识还不牢，也会让抽象的算法第一次变成真正需要的工具。
-            </p>
-          </aside>
-        </section>
-
-        <section className="learning-section learning-rhythm" id="learning-rhythm">
-          <header className="learning-section-heading">
-            <p>05 / WEEKLY RHYTHM</p>
-            <div>
-              <h2>把训练组织成稳定循环</h2>
-              <p>一周不必塞满，但要让学习、比赛和复盘都真正发生。</p>
+            <div className="learning-closing">
+              <Route size={27} aria-hidden="true" />
+              <div>
+                <p>不知道从哪一题开始？</p>
+                <h2>从阶段一选一道短题，今天就完成第一次“读题—实现—复盘”。</h2>
+              </div>
+              <a href="#stage-foundation">返回阶段一</a>
             </div>
-          </header>
-          <div className="learning-rhythm-grid">
-            <article>
-              <BookMarked size={23} aria-hidden="true" />
-              <span>MON–THU</span>
-              <h3>专题学习</h3>
-              <p>选择一个小主题，读讲解、写模板、做由浅入深的配套题。</p>
-              <strong>理解 40% · 练习 60%</strong>
-            </article>
-            <article>
-              <TimerReset size={23} aria-hidden="true" />
-              <span>FRI–SUN</span>
-              <h3>完整比赛</h3>
-              <p>参加公开赛或虚拟参赛，不暂停、不查题解，保留真实决策过程。</p>
-              <strong>每周至少 2 场</strong>
-            </article>
-            <article>
-              <CircleGauge size={23} aria-hidden="true" />
-              <span>WITHIN 24H</span>
-              <h3>赛后复盘</h3>
-              <p>重做卡住的题，分类错误原因；读题解后必须关掉题解重新实现。</p>
-              <strong>补题比场数更重要</strong>
-            </article>
-            <article>
-              <UsersRound size={23} aria-hidden="true" />
-              <span>EVERY 2–4 WEEKS</span>
-              <h3>交流与校准</h3>
-              <p>向队友口述一道题的模型和证明，检查自己是否真的理解。</p>
-              <strong>能讲清楚，才算掌握</strong>
-            </article>
-          </div>
-        </section>
+          </section>
 
-        <section className="learning-section learning-resources" id="learning-resources">
-          <header className="learning-section-heading">
-            <p>06 / OPEN RESOURCES</p>
-            <div>
-              <h2>少而明确的开放资源入口</h2>
-              <p>这些资源绝大多数内容免费开放。先按当前阶段选一个入口，不必同时收藏所有资料。</p>
+          <section className="learning-section learning-community" id="learning-community">
+            <div className="learning-community-icon" aria-hidden="true">
+              <UsersRound size={28} />
             </div>
-          </header>
-          <div className="learning-resource-list">
-            {resources.map((resource, index) => (
+            <div className="learning-community-copy">
+              <p>07 / COMMUNITY</p>
+              <h2>融入竞赛圈子</h2>
+              <p>
+                算法竞赛不只是独自刷题。挑选一些你感兴趣的学校、地区或专题交流群，认识一起训练的人，获取比赛信息，也把自己的问题和思路讲出来。
+              </p>
+            </div>
+            <div className="learning-community-action">
+              <span>群组导航</span>
+              <strong>ACM 群组坐标汇总</strong>
+              <p>按兴趣挑选即可，不必一次加入很多群。</p>
               <a
-                href={resource.href}
+                href="https://acmer.info/"
                 target="_blank"
                 rel="noreferrer"
-                key={resource.name}
-                aria-label={`${resource.name}（新窗口打开）`}
+                aria-label="查看 ACM 群组坐标汇总（新窗口打开）"
               >
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div>
-                  <strong>{resource.name}</strong>
-                  <small>{resource.type}</small>
-                </div>
-                <p>{resource.description}</p>
-                <ArrowUpRight size={18} aria-hidden="true" />
+                查看群组汇总
+                <ArrowUpRight size={16} aria-hidden="true" />
               </a>
-            ))}
-          </div>
-          <div className="learning-closing">
-            <Route size={27} aria-hidden="true" />
-            <div>
-              <p>不知道从哪一题开始？</p>
-              <h2>从阶段一选一道短题，今天就完成第一次“读题—实现—复盘”。</h2>
             </div>
-            <a href="#stage-foundation">返回阶段一</a>
-          </div>
-        </section>
-
-        <section className="learning-section learning-community" id="learning-community">
-          <div className="learning-community-icon" aria-hidden="true">
-            <UsersRound size={28} />
-          </div>
-          <div className="learning-community-copy">
-            <p>07 / COMMUNITY</p>
-            <h2>融入竞赛圈子</h2>
-            <p>
-              算法竞赛不只是独自刷题。挑选一些你感兴趣的学校、地区或专题交流群，认识一起训练的人，获取比赛信息，也把自己的问题和思路讲出来。
-            </p>
-          </div>
-          <div className="learning-community-action">
-            <span>群组导航</span>
-            <strong>ACM 群组坐标汇总</strong>
-            <p>按兴趣挑选即可，不必一次加入很多群。</p>
-            <a
-              href="https://acmer.info/"
-              target="_blank"
-              rel="noreferrer"
-              aria-label="查看 ACM 群组坐标汇总（新窗口打开）"
-            >
-              查看群组汇总
-              <ArrowUpRight size={16} aria-hidden="true" />
-            </a>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </div>
   )

@@ -195,6 +195,32 @@ export function evaluateRepositoryReadiness(state) {
   }
 }
 
+export function classifyGhFailure(error) {
+  const stderr =
+    error && typeof error === 'object' && 'stderr' in error
+      ? Buffer.isBuffer(error.stderr)
+        ? error.stderr.toString('utf8')
+        : String(error.stderr ?? '')
+      : ''
+  const message = error instanceof Error ? error.message : ''
+  const diagnostic = `${message}\n${stderr}`
+
+  if (
+    /TLS handshake|timed? out|timeout|context deadline|connection (?:reset|refused|failed)|failed to connect|could not resolve host|no such host|dial tcp|wsarecv|socket|unexpected EOF/i.test(
+      diagnostic,
+    )
+  ) {
+    return 'GitHub API 网络连接失败或超时'
+  }
+  if (/HTTP 401|authentication failed|not logged|gh auth login|bad credentials/i.test(diagnostic)) {
+    return 'GitHub CLI 未登录或登录状态已失效'
+  }
+  if (/HTTP 403|forbidden|resource not accessible|insufficient permission/i.test(diagnostic)) {
+    return 'GitHub Token 对目标仓库缺少只读权限'
+  }
+  return 'GitHub CLI 返回未知错误'
+}
+
 function runGhJson(args, label) {
   try {
     const output = execFileSync('gh', args, {
@@ -204,8 +230,8 @@ function runGhJson(args, label) {
       windowsHide: true,
     })
     return output.trim() ? JSON.parse(output) : null
-  } catch {
-    throw new Error(`无法读取 ${label}；请先确认 gh 已登录且 Token 对目标仓库有只读权限。`)
+  } catch (error) {
+    throw new Error(`无法读取 ${label}：${classifyGhFailure(error)}。`)
   }
 }
 
@@ -342,5 +368,11 @@ async function main() {
 
 const currentFile = fileURLToPath(import.meta.url)
 if (process.argv[1] && resolve(process.argv[1]) === resolve(currentFile)) {
-  await main()
+  try {
+    await main()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '仓库就绪检查发生未知错误。'
+    console.error(`BLOCKER: ${message}`)
+    process.exitCode = 1
+  }
 }

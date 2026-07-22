@@ -177,4 +177,49 @@ describe('TrainingGoalsPage', () => {
     expect(screen.getByText('已跟踪平台缺少可用的成功同步数据。')).toBeInTheDocument()
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '暂不可计算')
   })
+
+  it('shows explicit empty states for current and historical goals', async () => {
+    const user = userEvent.setup()
+    goalMocks.fetch.mockResolvedValue([])
+    renderPage()
+
+    expect(await screen.findByText('还没有进行中的目标')).toBeInTheDocument()
+    expect(screen.getByText('从左侧创建一个可以持续核对的训练目标。')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '历史 0' }))
+    expect(screen.getByText('还没有历史目标')).toBeInTheDocument()
+    expect(screen.getByText('完成或归档的目标会保留在这里。')).toBeInTheDocument()
+  })
+
+  it('keeps expired goals visible for archiving without offering active-only actions', async () => {
+    goalMocks.fetch.mockResolvedValue([
+      {
+        ...activeGoal,
+        lifecycleStatus: 'expired',
+        endDate: '2026-07-20',
+      },
+    ])
+    renderPage()
+
+    expect(await screen.findByText('已过期')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '编辑' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '确认完成' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '归档' })).toBeInTheDocument()
+  })
+
+  it('surfaces missing successful-sync data when goal creation cannot freeze a baseline', async () => {
+    const user = userEvent.setup()
+    goalMocks.create.mockRejectedValue(new Error('当前平台还没有可用的成功同步数据。'))
+    renderPage()
+
+    await screen.findByText(activeGoal.title)
+    await user.type(screen.getByLabelText('目标名称'), 'AtCoder 达到 1200')
+    await user.click(screen.getByRole('button', { name: 'Rating' }))
+    await user.selectOptions(screen.getByLabelText('平台'), 'atcoder')
+    await user.clear(screen.getByLabelText('目标 Rating'))
+    await user.type(screen.getByLabelText('目标 Rating'), '1200')
+    await user.click(screen.getByRole('button', { name: '创建目标' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('当前平台还没有可用的成功同步数据。')
+  })
 })

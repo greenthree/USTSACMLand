@@ -16,6 +16,10 @@ vi.mock('../../lib/adminOperations', () => ({
   fetchAdminSyncRuns: overviewMocks.fetchRuns,
 }))
 
+vi.mock('../../components/admin/AdminReferralProgramPanel', () => ({
+  AdminReferralProgramPanel: () => <section aria-label="推荐计划控制">推荐计划全局开关</section>,
+}))
+
 import { AdminOverviewPage } from './AdminOverviewPage'
 
 const overview: AdminOverview = {
@@ -68,6 +72,7 @@ describe('AdminOverviewPage with Supabase configured', () => {
     expect(screen.getByText('已验证平台账号')).toBeInTheDocument()
     expect(screen.getByText('24 小时失败任务')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '推荐计划控制' })).toBeInTheDocument()
     expect(overviewMocks.fetchRuns).toHaveBeenCalledWith(5)
   })
 
@@ -84,5 +89,6 @@ describe('AdminOverviewPage with Supabase configured', () => {
     expect(await screen.findByText('后台概览读取失败：无权限')).toHaveAttribute('role', 'status')
     expect(screen.getByText('概览数据暂不可用')).toBeInTheDocument()
     expect(screen.queryByText('成员账号')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '推荐计划控制' })).toBeInTheDocument()
   })
 })

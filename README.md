@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 58 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论和刷题增量榜已上线；仓库定义 37 个 pgTAP 文件和 900 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。注销恢复下限 GitHub Token 已录入，仍需完成成功注销和失败边界生产演练。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 62 个 migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论、训练目标和刷题增量榜已上线；仓库定义 41 个 pgTAP 文件和 981 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。推荐计划基础 migration 已部署，并完成真实注册、100 万 Token 到账、奖励保留和临时账号注销清理烟测；全局开关、关闭期注册降级和后台控制已完成本地实现与空库测试，仍待第 63 个生产 migration、前端发布和受控并发烟测。生产自助注销已成功走通恢复下限围栏，但当前恢复凭据权限偏宽，仍需轮换为只授权目标仓库 Variables 读写的细粒度 Token。
 
 ## 已实现
 
@@ -31,6 +31,10 @@
 Rating 总榜在每个 Rating 平台分别取当前分最高的 5 名成员，并计算其平均值 `X_k`。成员总 Rating 为 `400 × Σ(a_i,k / X_k)`；总历史最高 Rating 使用相同公式，但成员分数和平台前五平均值均改用历史最高 Rating。某平台不足 5 个有效 Rating 时使用全部有效数据，缺失平台贡献 0，两项总 Rating 均保留两位小数。刷题累计总榜为 CF、牛客、AtCoder、洛谷、QOJ 的已知通过题数之和，并同时展示各平台题数。刷题增量榜用区间开始前最后一次成功累计值作为基线，减去区间内最后一次成功累计值；失败同步和换绑前旧快照不参与，累计题数回退按 0 计并明确标记，缺少基线或区间内成功观测时不猜测增量。
 
 ## 架构
+
+### 推荐计划
+
+推荐计划使用 `private.referral_codes` 和 `private.referral_bindings` 保存邀请码、一次性绑定关系及奖励次数，`private.referral_program_config` 单例控制全站开启状态。注册页的邀请码会写入 Supabase Auth metadata，Profile 创建后的数据库触发器在同一事务内复核全局状态和邀请码、锁定邀请人额度、增加 `1,000,000` Token 累计上限并写入脱敏审计。关闭后新用户仍可注册，但不展示或校验邀请码、不建立绑定、不发放奖励；重新开启沿用原邀请码且不追补关闭期间注册。开关使用管理员鉴权、原因、版本锁、限流、审计和 `profile -> config -> code -> access` 行锁顺序；每名邀请人最多奖励 10 次，被邀请人注销时绑定身份匿名化但已发奖励保留。浏览器仅能调用结构化邀请码检查、本人推荐摘要、本人导出和管理员专用开关 RPC，不能读取私有表。
 
 GitHub Pages 只能托管静态文件，不能保存密码、Cookie 或 API Secret。浏览器只读取 Supabase 中的快照，第三方平台查询全部在服务端完成。
 
@@ -102,22 +106,25 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 
 迁移文件 [supabase/migrations/202607120001_initial_schema.sql](./supabase/migrations/202607120001_initial_schema.sql) 已创建：
 
-| 表                          | 用途                                           |
-| --------------------------- | ---------------------------------------------- |
-| `profiles`                  | 姓名、QQ、年级、专业、角色、启用状态和公开设置 |
-| `platform_accounts`         | 平台账号、标准化 ID、验证状态和唯一绑定        |
-| `platform_stats`            | 最新 Rating、最高 Rating、刷题数、新鲜度和错误 |
-| `stat_snapshots`            | 历史统计快照                                   |
-| `sync_jobs`                 | 同步任务、重试、冷却和去重信息                 |
-| `sync_runs`                 | 单平台运行结果、耗时、错误码和源版本           |
-| `announcements`             | 公告                                           |
-| `audit_logs`                | 平台验证、角色、绑定和同步等敏感操作审计       |
-| `daily_problems`            | 每日题目、公开时间、训练提示和管理版本         |
-| `daily_problem_completions` | 成员完成记录与完成时间                         |
-| `daily_problem_comments`    | 仅成员可读的题目讨论及管理员可恢复的隐藏状态   |
-| `training_goals`            | 成员自有训练目标、不可变成功同步基线和生命周期 |
-| `xcpc_elo_cache_state`      | XCPC ELO 活跃版本、条件请求元数据、租约与冷却  |
-| `xcpc_elo_cache_players`    | 我校选手的版本化精简 XCPC ELO 缓存             |
+| 表                                | 用途                                           |
+| --------------------------------- | ---------------------------------------------- |
+| `profiles`                        | 姓名、QQ、年级、专业、角色、启用状态和公开设置 |
+| `platform_accounts`               | 平台账号、标准化 ID、验证状态和唯一绑定        |
+| `platform_stats`                  | 最新 Rating、最高 Rating、刷题数、新鲜度和错误 |
+| `stat_snapshots`                  | 历史统计快照                                   |
+| `sync_jobs`                       | 同步任务、重试、冷却和去重信息                 |
+| `sync_runs`                       | 单平台运行结果、耗时、错误码和源版本           |
+| `announcements`                   | 公告                                           |
+| `audit_logs`                      | 平台验证、角色、绑定和同步等敏感操作审计       |
+| `daily_problems`                  | 每日题目、公开时间、训练提示和管理版本         |
+| `daily_problem_completions`       | 成员完成记录与完成时间                         |
+| `daily_problem_comments`          | 仅成员可读的题目讨论及管理员可恢复的隐藏状态   |
+| `training_goals`                  | 成员自有训练目标、不可变成功同步基线和生命周期 |
+| `private.referral_codes`          | 私有邀请码、启用状态和十次奖励计数             |
+| `private.referral_bindings`       | 私有一次性绑定关系和匿名化后的奖励记录         |
+| `private.referral_program_config` | 私有全站开关、乐观锁版本和脱敏修改原因         |
+| `xcpc_elo_cache_state`            | XCPC ELO 活跃版本、条件请求元数据、租约与冷却  |
+| `xcpc_elo_cache_players`          | 我校选手的版本化精简 XCPC ELO 缓存             |
 
 按时间排序的数据库迁移定义仓库目标结构；新 profile 必须从注册 metadata 写入姓名并自动启用，历史待审核/已驳回成员会自动迁移为启用，已停用成员保持停用。公开视图只返回姓名、年级和专业均完整且选择公开的成员。成员年级由 `profiles.grade` 维护；XCPC ELO 账号行由 Profile 姓名触发器创建和失效，普通成员不能直接写入、修改或删除。成员管理 RPC 仅允许正常管理员读取私有目录与详情、编辑资料、维护非 XCPC 平台绑定、停用/恢复成员和手工录入统计，并使用行锁、更新时间乐观锁和原子限流防止并发误操作与重复滥用。公告表撤销浏览器直写权限，管理员通过带行锁和严格递增版本时间戳的 RPC 新建、发布、归档或删除公告；公开视图仍只返回已到发布时间且尚未过期的已发布公告，所有写操作继续由触发器审计。平台账号只有在适配器确认存在后才会标记为已验证并写入首次统计；CF 使用上游返回的规范 Handle，牛客和洛谷 UID 去除前导零，活动同步期间禁止并发改号或解绑。`export_own_data()` 只从 `auth.uid()` 推导成员，版本化导出本人 Auth/Profile、平台数据、安全裁剪后的同步记录、每日一题活动与私有 WebChat 数据；密码、登录令牌、服务密钥、请求指纹、租约令牌、管理员标识和其他成员数据显式排除。普通成员注销后 Auth、资料、平台绑定、统计和同步记录级联删除，相关审计记录在同一数据库事务内移除全部个人标识。完整策略见 [账号与数据生命周期](./docs/data-lifecycle.md)。手工统计会原子创建成功运行记录、当前统计、历史快照和审计日志，来源标记为 `admin-manual/v1`，AtCoder 同时允许 Rating 与题数，XCPC ELO 手工 Rating 保留至多两位小数，下一次成功自动同步会覆盖。带上游观测时间的成功快照由唯一索引保证幂等，失败运行不冒充新的源观测；洛谷使用专用原子纠正 RPC，其他平台使用通用原子 RPC，在同一事务中锁定并复核成员仍为启用、账号与运行记录仍可写，再更新当前统计、写入幂等快照并关闭 run，避免停用后提交或公开半提交数据。XCPC ELO 当前分、历史最高分和共享缓存使用两位小数存储，不再隐式丢失官网精度。生产 Schema 类型已生成到 `src/types/database.ts` 并接入 Supabase Client，XCPC 服务端缓存表与 RPC 也受 CI 类型存在性门禁保护；同步中心支持全体、指定成员和指定平台三种管理员触发范围，并在执行前确认影响范围。数据库身份矩阵、XCPC 缓存租约、快照幂等、平台账号规范化、删除生命周期、持久队列、后台队列进度、公告管理、管理员限流、手工统计平台矩阵、洛谷幂等序列、非洛谷原子提交和注销事务 fencing 已在 PostgreSQL 17 空库 CI 通过。
 
@@ -131,8 +138,8 @@ XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后
 - `/members`、`/members/:id`：成员列表与详情；详情页展示平台主页、当前 Rating、历史最高 Rating、通过题数和数据状态。
 - `/privacy`：公开数据范围、第三方处理方和资料删除说明。
 - `/login`、`/register`、`/forgot-password`、`/reset-password`：登录、注册、发送重置邮件和恢复链接设置新密码流程。
-- `/account`：当前用户资料、平台绑定和密码修改；XCPC ELO 显示姓名自动匹配状态，不提供 ID 输入框。普通成员不能手动同步，数据由计划任务和管理员更新。
-- `/admin`：成员账号、已验证平台账号、失败任务和数据新鲜度概览。
+- `/account`：当前用户资料、平台绑定、推荐计划和密码修改；XCPC ELO 显示姓名自动匹配状态，不提供 ID 输入框。普通成员不能手动同步，数据由计划任务和管理员更新。
+- `/admin`：成员账号、已验证平台账号、失败任务和数据新鲜度概览，以及独立加载、二次确认和审计的推荐计划全局开关。
 - `/admin/members`：成员私有目录、关键词/状态筛选、当前结果 CSV 导出、编辑资料、停用和恢复；不包含成员审批。
 - `/admin/members/:id`：成员详情、平台账号新增/修改/验证/同步/解绑、手工统计录入和最近活动。
 - `/admin/accounts`：平台绑定验证、无效原因、停用和重新验证，使用更新时间乐观锁防止误审旧 UID；XCPC ELO 仅展示服务端自动匹配结果。
@@ -186,7 +193,7 @@ npm run test:db
 
 生产构建还会自动执行 bundle budget：入口 JS 必须不超过 500 KiB 原始体积和 160 KiB gzip，并保留首页、榜单、登录、账号、后台概览和同步中心的独立路由块。`npm run check:bundle` 可在已有 `dist` 上单独复核。
 
-数据库安全测试需要 Docker。它会从空的本地 Supabase 实例应用全部迁移，再以匿名访客、成员、停用成员和管理员身份验证 RLS、列权限、XCPC ELO 写保护、每日题目隐私边界、统计表只读边界与受控管理员 RPC；清单驱动矩阵会自动对照全部 34 个 `admin_*` 函数，保证 25 个浏览器入口对普通/停用成员统一拒绝，9 个内部实现不向浏览器角色开放。CI 在独立任务中执行同一套测试。
+数据库安全测试需要 Docker。它会从空的本地 Supabase 实例应用全部迁移，再以匿名访客、成员、停用成员和管理员身份验证 RLS、列权限、XCPC ELO 写保护、每日题目隐私边界、统计表只读边界与受控管理员 RPC；清单驱动矩阵会自动对照全部 36 个 `admin_*` 函数，保证 27 个浏览器入口对普通/停用成员统一拒绝，9 个内部实现不向浏览器角色开放。CI 在独立任务中执行同一套测试。
 
 ## 环境变量与 Secrets
 
@@ -269,7 +276,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-20 共有 58 个 production migration，`sync-member` 为 v43，`sync-stats` 为 v31，`firecrawl-config` 为 v2，`webchat` 为 v19，`webchat-cache-probe` 为 v12。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-23 共有 63 个 production migration，远端无 pending migration。`sync-member` 为 v45，`sync-stats` 为 v33，`delete-account` 为 v12，`change-password` 为 v13，`webchat-config` 为 v8，`webchat` 为 v22，`webchat-cache-probe` 为 v15，`firecrawl-config` 为 v4。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，再应用尚未部署的 migration。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
@@ -290,11 +297,12 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 
 ## 当前限制与下一步
 
-1. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
-2. 使用已录入的注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-3. 完成 AI 助手真实队员生产验证和人工可访问性验收。
-4. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
-5. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`；发布后为 GitHub Pages 接入 Cloudflare 自定义域名、DNS/CDN 和 TLS。
+1. 部署推荐计划全局开关 migration 与前端，完成关闭/开启、关闭期注册、并发围栏、响应丢失和审计脱敏生产烟测。
+2. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
+3. 使用已录入的注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
+4. 完成 AI 助手真实队员生产验证和人工可访问性验收。
+5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
+6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0` 并完成 Cloudflare 自定义域名、DNS/CDN 和 TLS 的发布验收。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 

@@ -13,6 +13,12 @@ const authMocks = vi.hoisted(() => ({
   invoke: vi.fn(),
 }))
 
+const referralMocks = vi.hoisted(() => ({
+  check: vi.fn(),
+}))
+
+const REFERRAL_CODE = ['8A4C', '19F2', 'E7B6', '03D5'].join('')
+
 vi.mock('../lib/supabase', () => ({
   demoAuthEnabled: false,
   supabase: {
@@ -25,6 +31,14 @@ vi.mock('../lib/supabase', () => ({
     functions: { invoke: authMocks.invoke },
   },
 }))
+
+vi.mock('../lib/referrals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/referrals')>()
+  return {
+    ...actual,
+    checkReferralCodeAvailability: referralMocks.check,
+  }
+})
 
 function SignUpProbe() {
   const { signUp } = useAuth()
@@ -46,6 +60,25 @@ function InvalidSignUpProbe() {
       onClick={() => void signUp('  ', 'test@example.com', 'password123').catch(() => undefined)}
     >
       注册
+    </button>
+  )
+}
+
+function ReferredSignUpProbe() {
+  const { signUp } = useAuth()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void signUp(
+          '测试成员',
+          'test@example.com',
+          'password123',
+          REFERRAL_CODE.toLowerCase(),
+        ).catch(() => undefined)
+      }
+    >
+      邀请注册
     </button>
   )
 }
@@ -97,6 +130,10 @@ describe('AuthProvider registration metadata', () => {
     authMocks.updateUser.mockReset().mockResolvedValue({ error: null })
     authMocks.profileMaybeSingle.mockReset()
     authMocks.invoke.mockReset()
+    referralMocks.check.mockReset().mockResolvedValue({
+      programEnabled: true,
+      available: true,
+    })
     authMocks.signUp.mockResolvedValue({ data: { session: null }, error: null })
     authMocks.profileMaybeSingle.mockResolvedValue({
       data: { role: 'member', review_status: 'approved' },
@@ -120,6 +157,7 @@ describe('AuthProvider registration metadata', () => {
       password: 'password123',
       options: { data: { full_name: '测试成员' } },
     })
+    expect(referralMocks.check).not.toHaveBeenCalled()
     expect(authMocks.invoke).not.toHaveBeenCalled()
   })
 
@@ -132,6 +170,76 @@ describe('AuthProvider registration metadata', () => {
     )
     await user.click(screen.getByRole('button', { name: '注册' }))
 
+    expect(authMocks.signUp).not.toHaveBeenCalled()
+  })
+
+  it('validates and stores a normalized referral code in registration metadata', async () => {
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <ReferredSignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '邀请注册' }))
+
+    expect(referralMocks.check).toHaveBeenCalledWith(REFERRAL_CODE)
+    expect(authMocks.signUp).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+      options: {
+        data: {
+          full_name: '测试成员',
+          referral_code: REFERRAL_CODE,
+        },
+      },
+    })
+  })
+
+  it('does not create an account when a referral code is unavailable', async () => {
+    const user = userEvent.setup()
+    referralMocks.check.mockResolvedValue({ programEnabled: true, available: false })
+    render(
+      <AuthProvider>
+        <ReferredSignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '邀请注册' }))
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalled())
+    expect(authMocks.signUp).not.toHaveBeenCalled()
+  })
+
+  it('continues registration without referral metadata when the program is paused', async () => {
+    const user = userEvent.setup()
+    referralMocks.check.mockResolvedValue({ programEnabled: false, available: false })
+    render(
+      <AuthProvider>
+        <ReferredSignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '邀请注册' }))
+
+    await waitFor(() => expect(authMocks.signUp).toHaveBeenCalled())
+    expect(authMocks.signUp).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+      options: { data: { full_name: '测试成员' } },
+    })
+  })
+
+  it('fails closed for referred registration when the status RPC is unavailable', async () => {
+    const user = userEvent.setup()
+    referralMocks.check.mockRejectedValue(new Error('邀请码暂时无法验证，请稍后重试。'))
+    render(
+      <AuthProvider>
+        <ReferredSignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '邀请注册' }))
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalled())
     expect(authMocks.signUp).not.toHaveBeenCalled()
   })
 

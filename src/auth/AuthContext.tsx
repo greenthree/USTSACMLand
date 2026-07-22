@@ -2,6 +2,11 @@ import type { User } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { demoAuthEnabled, supabase } from '../lib/supabase'
 import { clearAccountDraft } from '../lib/accountDraft'
+import {
+  checkReferralCodeAvailability,
+  normalizeReferralCode,
+  referralCodeError,
+} from '../lib/referrals'
 import type { ReviewStatus } from '../types/domain'
 import {
   AuthContext,
@@ -155,12 +160,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const signUp = useCallback(
-    async (fullName: string, email: string, password: string) => {
+    async (fullName: string, email: string, password: string, referralCode = '') => {
       const normalizedFullName = fullName.trim()
+      const normalizedReferralCode = normalizeReferralCode(referralCode)
       if (!normalizedFullName) throw new Error('请输入姓名。')
       if (normalizedFullName.length > 64) throw new Error('姓名不能超过 64 个字符。')
 
       if (!supabase) {
+        const referralError = referralCodeError(normalizedReferralCode)
+        if (referralError) throw new Error(referralError)
         if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，注册暂不可用。')
         sessionStorage.setItem(demoSessionKey, email.trim())
         setUser(demoUser(email))
@@ -168,10 +176,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true
       }
 
+      let acceptedReferralCode = ''
+      if (normalizedReferralCode) {
+        const referralStatus = await checkReferralCodeAvailability(normalizedReferralCode)
+        if (referralStatus.programEnabled) {
+          const referralError = referralCodeError(normalizedReferralCode)
+          if (referralError) throw new Error(referralError)
+          if (!referralStatus.available) {
+            throw new Error('邀请码不存在、已停用或已达到邀请上限。')
+          }
+          acceptedReferralCode = normalizedReferralCode
+        }
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: normalizedFullName } },
+        options: {
+          data: {
+            full_name: normalizedFullName,
+            ...(acceptedReferralCode ? { referral_code: acceptedReferralCode } : {}),
+          },
+        },
       })
       if (error) throw error
       if (!data.session || !data.user) return false

@@ -12,8 +12,13 @@ coverage/
 
 # Tool caches
 .firecrawl/
+.od-skills/
+.cli-home/
+.npm-cache/
 .playwright/
+.supabase/
 supabase/.temp/
+supabase/.branches/
 
 # Editor and operating system files
 .vscode/

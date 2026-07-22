@@ -20,7 +20,9 @@
   npm run check:ci-workflow
   npm run check:sync-workflow
   npm run check:backup-workflow
+  npm run check:restore-drill-workflow
   npm run check:webchat-relay-workflow
+  npm run check:webchat-cache-probe-workflow
   npm run check:repository-readiness -- greenthree/USTSACMLand
   npm run check:supabase-preflight
   npm test
@@ -28,7 +30,7 @@
   npm run test:e2e
   npm run build
   npm run check:bundle
-  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
+  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
   npx --yes deno lint --config supabase/functions/deno.json supabase/functions
   npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
   git diff --check
@@ -41,8 +43,10 @@
 
 ## 3. 数据库与权限
 
-- [ ] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
-- [ ] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
+- [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
+- [x] 推荐计划 migration 已验证：邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限。
+- [ ] 推荐计划全局开关已部署并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；第 63 个 migration 已部署，本地空库 984 项 pgTAP 已通过，生产行为烟测仍待完成。
+- [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
 - [ ] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [ ] 公开视图不返回邮箱、QQ、内部错误、审计详情或 Secret。
@@ -54,11 +58,11 @@
 ## 4. Edge Functions 与同步
 
 - [ ] 按“数据库 → Edge Functions → Pages”的顺序部署。
-- [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 使用仓库 import map 部署成功。
-- [ ] 如本次发布 WebChat：`webchat-config` 与 `webchat` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
+- [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
+- [ ] 如本次发布 WebChat：`webchat-config`、`webchat` 与 `webchat-cache-probe` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
-- [ ] 发布记录包含当前 Git SHA 与六个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
-- [ ] `npm run check:supabase-readiness` 确认六个函数均精确允许正式 Pages Origin、不允许恶意 Origin，且匿名 GET 只返回 `401` 或 `405`。
+- [ ] 发布记录包含当前 Git SHA 与八个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
+- [ ] `npm run check:supabase-readiness` 确认八个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403` 或 `405`。
 - [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
@@ -86,6 +90,7 @@
 ## 6. 前端与可访问性烟测
 
 - [ ] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新。
+- [ ] 推荐计划页面入口、分享链接复制、注册邀请码预填、无邀请码注册及全局关闭状态已在桌面与移动端烟测。
 - [ ] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限。
 - [ ] 部署后的只读生产门禁拒绝演示回退，并用公开视图逐页复算全部成员在总榜与各平台榜的排序、总 Rating、总历史最高 Rating 和总题数。
 - [ ] 桌面、390px 移动端和至少一个宽屏视口无页面级横向溢出。

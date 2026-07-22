@@ -29,8 +29,8 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toEqual({
-      fileCount: 39,
-      assertionCount: 917,
+      fileCount: 41,
+      assertionCount: 984,
       releaseMigrationCount: 43,
     })
   })
