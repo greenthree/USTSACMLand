@@ -82,13 +82,16 @@ describe('AdminReferralProgramPanel', () => {
     const user = userEvent.setup()
     referralProgramMocks.fetchConfig
       .mockResolvedValueOnce(enabledConfig)
-      .mockResolvedValueOnce(disabledConfig)
+      .mockResolvedValueOnce({ ...disabledConfig, reason: '活动结束 暂停推荐' })
     referralProgramMocks.updateConfig.mockRejectedValue(new Error('网络连接中断'))
     render(<AdminReferralProgramPanel />)
 
     await user.click(await screen.findByRole('button', { name: '关闭推荐计划' }))
     const dialog = screen.getByRole('dialog', { name: '确认关闭推荐计划' })
-    await user.type(within(dialog).getByRole('textbox', { name: '变更原因' }), '活动结束暂停推荐')
+    await user.type(
+      within(dialog).getByRole('textbox', { name: '变更原因' }),
+      '  活动结束   暂停推荐  ',
+    )
     await user.click(within(dialog).getByRole('checkbox', { name: /我已核对全站影响/ }))
     await user.click(within(dialog).getByRole('button', { name: '确认关闭' }))
 
@@ -96,6 +99,7 @@ describe('AdminReferralProgramPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByText('推荐计划已暂停')).toBeInTheDocument()
     expect(referralProgramMocks.fetchConfig).toHaveBeenCalledTimes(2)
+    expect(referralProgramMocks.updateConfig).toHaveBeenCalledWith(false, 7, '活动结束 暂停推荐')
   })
 
   it('reloads a conflicting version and requires the administrator to confirm again', async () => {

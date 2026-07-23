@@ -11,11 +11,14 @@ interface WebChatErrorPayload {
 
 const MAX_WEBCHAT_MESSAGE_CHARS = 12_000
 const TOOL_PROTOCOL_PATTERN = /(?:\/\*\s*)?TOOLCALL\s+(?:START|END)\s*:/i
+const WEBCHAT_ATTACHMENT_URN_PATTERN =
+  /^urn:ustsacm:webchat-attachment:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export interface WebChatTransportOptions {
   apiUrl: string
   anonKey: string
   getAccessToken: () => Promise<string | null>
+  getConversationId?: () => Promise<string | null>
   createRequestId?: () => string
   fetch?: typeof globalThis.fetch
 }
@@ -93,12 +96,26 @@ async function parseErrorResponse(response: Response): Promise<WebChatApiError> 
   )
 }
 
-function textOnlyMessages(messages: UIMessage[]) {
+export function requestMessages(messages: UIMessage[]) {
   return messages.flatMap((message) => {
-    const parts = message.parts.flatMap((part) =>
-      part.type === 'text' && part.text.trim() ? [{ type: 'text' as const, text: part.text }] : [],
-    )
-    const text = parts.map((part) => part.text).join('')
+    const parts: Array<
+      { type: 'text'; text: string } | { type: 'file'; mediaType: 'image/webp'; url: string }
+    > = []
+    for (const part of message.parts) {
+      if (part.type === 'text' && part.text.trim()) {
+        parts.push({ type: 'text', text: part.text })
+        continue
+      }
+      if (
+        message.role === 'user' &&
+        part.type === 'file' &&
+        part.mediaType === 'image/webp' &&
+        WEBCHAT_ATTACHMENT_URN_PATTERN.test(part.url)
+      ) {
+        parts.push({ type: 'file', mediaType: 'image/webp', url: part.url })
+      }
+    }
+    const text = parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
 
     if (
       message.role === 'assistant' &&
@@ -174,6 +191,7 @@ export function createWebChatTransport({
   apiUrl,
   anonKey,
   getAccessToken,
+  getConversationId,
   createRequestId = () => crypto.randomUUID(),
   fetch: fetchImplementation = globalThis.fetch.bind(globalThis),
 }: WebChatTransportOptions): DefaultChatTransport<UIMessage> {
@@ -195,7 +213,10 @@ export function createWebChatTransport({
     credentials: 'omit',
     fetch: guardedFetch,
     prepareSendMessagesRequest: async ({ id, messages, trigger, messageId }) => {
-      const accessToken = await getAccessToken()
+      const [accessToken, conversationId] = await Promise.all([
+        getAccessToken(),
+        getConversationId?.() ?? Promise.resolve(null),
+      ])
       if (!accessToken) {
         throw new WebChatApiError('登录状态已失效，请重新登录。', 401, 'unauthorized')
       }
@@ -207,8 +228,8 @@ export function createWebChatTransport({
           'x-request-id': createRequestId(),
         },
         body: {
-          id,
-          messages: textOnlyMessages(messages),
+          id: conversationId ?? id,
+          messages: requestMessages(messages),
           trigger,
           messageId,
         },
@@ -217,7 +238,7 @@ export function createWebChatTransport({
   })
 }
 
-async function currentAccessToken(): Promise<string | null> {
+export async function currentWebChatAccessToken(): Promise<string | null> {
   if (!supabase) return demoAuthEnabled ? 'ustsacmland-demo-webchat-token' : null
   const { data, error } = await supabase.auth.getSession()
   if (error) {
@@ -226,7 +247,9 @@ async function currentAccessToken(): Promise<string | null> {
   return data.session?.access_token ?? null
 }
 
-export function createBrowserWebChatTransport(): DefaultChatTransport<UIMessage> {
+export function createBrowserWebChatTransport(options?: {
+  getConversationId?: () => Promise<string | null>
+}): DefaultChatTransport<UIMessage> {
   const apiUrl = resolveWebChatApiUrl({
     configuredUrl: import.meta.env.VITE_WEBCHAT_API_URL,
     supabaseUrl,
@@ -237,6 +260,7 @@ export function createBrowserWebChatTransport(): DefaultChatTransport<UIMessage>
   return createWebChatTransport({
     apiUrl,
     anonKey: supabaseAnonKey ?? '',
-    getAccessToken: currentAccessToken,
+    getAccessToken: currentWebChatAccessToken,
+    getConversationId: options?.getConversationId,
   })
 }

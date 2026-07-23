@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { deepStrictEqual, equal } from 'node:assert/strict'
 import type { NowcoderMetricsProvider } from './adapters/nowcoder.ts'
-import type { QojMetricsProvider } from './adapters/qoj.ts'
+import type { QojMetricsProvider, QojSessionCleanupReporter } from './adapters/qoj.ts'
 import {
   createRuntimeNowcoderAdapter,
   createRuntimeQojAdapter,
@@ -81,6 +81,37 @@ Deno.test('runtime QOJ adapter never selects a replacement Key after failure', a
   ])
   if (result.ok) throw new Error('Expected QOJ synchronization failure')
   equal(result.error.code, 'rate_limited')
+})
+
+Deno.test('runtime QOJ cleanup logs use the internal sync run id', async () => {
+  let cleanupReporter: QojSessionCleanupReporter | undefined
+  const provider: QojMetricsProvider = {
+    fetchAcceptedCount() {
+      return Promise.resolve(37)
+    },
+  }
+  const result = await createRuntimeQojAdapter(client, {
+    ...sharedDependencies(() => {}),
+    syncRunId: 601,
+    qojProviderFactory(_apiKey, _username, _password, _apiUrl, _fetcher, reporter) {
+      cleanupReporter = reporter
+      return provider
+    },
+  }).sync('sample_user')
+
+  equal(result.ok, true)
+  if (!cleanupReporter) throw new Error('Expected a QOJ cleanup reporter')
+  const originalInfo = console.info
+  const infoLogs: string[] = []
+  console.info = (...values: unknown[]) => infoLogs.push(values.map(String).join(' '))
+  try {
+    cleanupReporter('succeeded')
+  } finally {
+    console.info = originalInfo
+  }
+  deepStrictEqual(infoLogs, [
+    JSON.stringify({ event: 'qoj_firecrawl_session_cleanup_succeeded', syncRunId: 601 }),
+  ])
 })
 
 Deno.test('missing QOJ service credentials fail before a Key is selected', async () => {

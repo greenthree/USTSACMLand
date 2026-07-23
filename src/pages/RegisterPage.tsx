@@ -2,6 +2,7 @@ import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
+import { RegistrationTurnstile } from '../components/RegistrationTurnstile'
 import { SiteLogo } from '../components/SiteLogo'
 import {
   checkReferralCodeAvailability,
@@ -9,6 +10,7 @@ import {
   referralCodeError,
   referralCodeLength,
 } from '../lib/referrals'
+import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 
 type ReferralProgramState = 'checking' | 'enabled' | 'paused' | 'unavailable'
 
@@ -25,8 +27,11 @@ export function RegisterPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const [referralProgramState, setReferralProgramState] = useState<ReferralProgramState>('checking')
   const referralStatusRequestIdRef = useRef(0)
+  const captchaConfig = getRegistrationCaptchaConfig()
 
   const loadReferralProgramState = useCallback(async () => {
     const requestId = ++referralStatusRequestIdRef.current
@@ -62,6 +67,7 @@ export function RegisterPage() {
     setError('')
     setMessage('')
     setSubmitting(true)
+    let captchaSubmitted = false
 
     try {
       const normalizedFullName = fullName.trim()
@@ -69,14 +75,25 @@ export function RegisterPage() {
         setError('请输入姓名。')
         return
       }
-      const submittedReferralCode = referralProgramState === 'paused' ? '' : referralCode
+      const submittedReferralCode = referralProgramState === 'enabled' ? referralCode : ''
       const invitationError = referralCodeError(submittedReferralCode)
       if (invitationError) {
         setError(invitationError)
         return
       }
+      if (captchaConfig.configurationError) {
+        setError(captchaConfig.configurationError)
+        return
+      }
+      if (captchaConfig.enabled && !captchaToken) {
+        setError('请先完成注册安全验证。')
+        return
+      }
 
-      const signedIn = await signUp(normalizedFullName, email, password, submittedReferralCode)
+      captchaSubmitted = captchaConfig.enabled
+      const signedIn = captchaConfig.enabled
+        ? await signUp(normalizedFullName, email, password, submittedReferralCode, captchaToken)
+        : await signUp(normalizedFullName, email, password, submittedReferralCode)
       if (signedIn) {
         navigate('/account', { replace: true })
         return
@@ -85,6 +102,10 @@ export function RegisterPage() {
     } catch (signUpError) {
       setError(signUpError instanceof Error ? signUpError.message : '注册失败，请稍后重试。')
     } finally {
+      if (captchaSubmitted) {
+        setCaptchaToken('')
+        setCaptchaResetKey((value) => value + 1)
+      }
       setSubmitting(false)
     }
   }
@@ -149,40 +170,35 @@ export function RegisterPage() {
             />
             <small id="register-password-help">至少 8 位，不要与其他网站共用。</small>
           </label>
-          {referralProgramState === 'paused' ? (
-            <p className="auth-inline-notice" role="status">
-              推荐计划已暂停，不使用邀请码仍可正常注册。
+          {referralProgramState === 'enabled' ? (
+            <label>
+              <span id="register-referral-label">邀请码（选填）</span>
+              <input
+                type="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                maxLength={referralCodeLength}
+                spellCheck={false}
+                aria-labelledby="register-referral-label"
+                aria-describedby="register-referral-help"
+                value={referralCode}
+                onChange={(event) => setReferralCode(normalizeReferralCode(event.target.value))}
+              />
+              <small id="register-referral-help">通过成员分享链接进入时会自动填写。</small>
+            </label>
+          ) : null}
+          {captchaConfig.enabled && captchaConfig.siteKey ? (
+            <RegistrationTurnstile
+              siteKey={captchaConfig.siteKey}
+              resetKey={captchaResetKey}
+              onTokenChange={setCaptchaToken}
+            />
+          ) : null}
+          {captchaConfig.configurationError ? (
+            <p className="form-error" role="alert">
+              {captchaConfig.configurationError}
             </p>
-          ) : (
-            <>
-              <label>
-                <span id="register-referral-label">邀请码（选填）</span>
-                <input
-                  type="text"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  maxLength={referralCodeLength}
-                  spellCheck={false}
-                  aria-labelledby="register-referral-label"
-                  aria-describedby="register-referral-help"
-                  value={referralCode}
-                  onChange={(event) => setReferralCode(normalizeReferralCode(event.target.value))}
-                />
-                <small id="register-referral-help">
-                  {referralProgramState === 'checking'
-                    ? '正在确认推荐计划状态。'
-                    : referralProgramState === 'unavailable'
-                      ? '提交时会再次验证；不填写邀请码仍可正常注册。'
-                      : '通过成员分享链接进入时会自动填写。'}
-                </small>
-              </label>
-              {referralProgramState === 'unavailable' ? (
-                <p className="auth-inline-notice" role="status">
-                  邀请码状态暂时无法确认，填写邀请码时必须在提交前验证成功。
-                </p>
-              ) : null}
-            </>
-          )}
+          ) : null}
           {message ? (
             <p className="form-success" role="status">
               {message}
@@ -196,7 +212,13 @@ export function RegisterPage() {
           <button
             className="primary-button full-button"
             type="submit"
-            disabled={submitting || status === 'unavailable' || Boolean(user)}
+            disabled={
+              submitting ||
+              status === 'unavailable' ||
+              Boolean(user) ||
+              Boolean(captchaConfig.configurationError) ||
+              (captchaConfig.enabled && !captchaToken)
+            }
           >
             <UserPlus size={17} aria-hidden="true" />
             {user ? '已登录' : submitting ? '注册中' : '注册'}

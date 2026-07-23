@@ -2,7 +2,42 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(37);
+select plan(40);
+
+select ok(
+  exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'private'
+      and table_name = 'referral_program_config'
+      and column_name = 'reopen_allowed'
+  ),
+  'the referral singleton has a privileged reopen gate'
+);
+
+select is(
+  (select reopen_allowed from private.referral_program_config where singleton),
+  false,
+  'the production safety pause keeps the reopen gate locked'
+);
+
+update private.referral_program_config
+set reopen_allowed = true
+where singleton;
+
+update private.referral_program_config
+set
+  enabled = true,
+  version = 0,
+  updated_at = pg_catalog.clock_timestamp(),
+  updated_by = null,
+  change_reason = 'Referral program enabled by default.'
+where singleton;
+
+delete from public.audit_logs
+where action = 'referral_program_config_update'
+  and target_table = 'referral_program_config'
+  and metadata ->> 'source' = 'security_migration';
 
 select has_table(
   'private',
@@ -49,6 +84,9 @@ select ok(
     )
     and not pg_catalog.has_table_privilege(
       'service_role', 'private.referral_program_config', 'SELECT'
+    )
+    and not pg_catalog.has_table_privilege(
+      'service_role', 'private.referral_program_config', 'UPDATE'
     ),
   'browser and service roles cannot access the private singleton directly'
 );
@@ -584,6 +622,10 @@ select ok(
   'disabled registrations create no bindings, rewards, or quota changes'
 );
 
+update private.referral_program_config
+set reopen_allowed = false
+where singleton;
+
 select set_config(
   'request.jwt.claim.sub',
   '00000000-0000-4000-8000-000000004201',
@@ -594,6 +636,23 @@ select set_config(
   '{"sub":"00000000-0000-4000-8000-000000004201","role":"authenticated"}',
   true
 );
+set local role authenticated;
+
+select throws_ok(
+  $$select * from public.admin_update_referral_program_config(
+    true,
+    1,
+    'Unsafe resume attempt'
+  )$$,
+  '55000',
+  '推荐计划处于安全暂停状态，等待真实邮箱确认或等价的注册滥用防护。',
+  'the administrator cannot reopen while the privileged safety gate is locked'
+);
+
+reset role;
+update private.referral_program_config
+set reopen_allowed = true
+where singleton;
 set local role authenticated;
 create temporary table referral_switch_reenabled_result as
 select *

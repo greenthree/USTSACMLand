@@ -45,7 +45,9 @@ function SignUpProbe() {
   return (
     <button
       type="button"
-      onClick={() => void signUp('测试成员', 'test@example.com', 'password123')}
+      onClick={() =>
+        void signUp('测试成员', 'test@example.com', 'password123').catch(() => undefined)
+      }
     >
       注册
     </button>
@@ -79,6 +81,26 @@ function ReferredSignUpProbe() {
       }
     >
       邀请注册
+    </button>
+  )
+}
+
+function CaptchaSignUpProbe() {
+  const { signUp } = useAuth()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void signUp(
+          '测试成员',
+          'test@example.com',
+          'password123',
+          '',
+          ' verified-turnstile-token ',
+        ).catch(() => undefined)
+      }
+    >
+      安全注册
     </button>
   )
 }
@@ -119,6 +141,10 @@ function PasswordRecoveryProbe() {
 }
 
 describe('AuthProvider registration metadata', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   beforeEach(() => {
     sessionStorage.clear()
     authMocks.getSession.mockResolvedValue({ data: { session: null } })
@@ -140,6 +166,43 @@ describe('AuthProvider registration metadata', () => {
       error: null,
     })
     authMocks.invoke.mockResolvedValue({ data: { status: 'success' }, error: null })
+  })
+
+  it('passes the Turnstile token through Supabase Auth when protection is enabled', async () => {
+    vi.stubEnv('VITE_REGISTRATION_TURNSTILE_ENABLED', 'true')
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '1x00000000000000000000AA')
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <CaptchaSignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '安全注册' }))
+
+    expect(authMocks.signUp).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+      options: {
+        data: { full_name: '测试成员' },
+        captchaToken: 'verified-turnstile-token',
+      },
+    })
+  })
+
+  it('does not contact Supabase Auth without a token when protection is enabled', async () => {
+    vi.stubEnv('VITE_REGISTRATION_TURNSTILE_ENABLED', 'true')
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '1x00000000000000000000AA')
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <SignUpProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '注册' }))
+    await waitFor(() => expect(authMocks.signUp).not.toHaveBeenCalled())
+    expect(authMocks.signUp).not.toHaveBeenCalled()
   })
 
   it('passes the required name to Supabase user metadata', async () => {

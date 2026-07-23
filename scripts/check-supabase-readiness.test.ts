@@ -25,9 +25,10 @@ function createReadyState() {
     dbLintResults: [],
     authSettings: {
       disableSignup: false,
-      mailerAutoconfirm: true,
+      mailerAutoconfirm: false,
       phoneAutoconfirm: false,
       emailProviderEnabled: true,
+      captchaEnabled: true,
     },
     authSettingsError: null,
     anonRestAudit: {
@@ -237,20 +238,22 @@ describe('Supabase production readiness checker', () => {
     )
   })
 
-  it('requires open signup, email autoconfirm and the email provider', () => {
+  it('requires open signup, real email confirmation, the email provider and server CAPTCHA', () => {
     const state = createReadyState()
     state.authSettings = {
       disableSignup: true,
-      mailerAutoconfirm: false,
+      mailerAutoconfirm: true,
       phoneAutoconfirm: false,
       emailProviderEnabled: false,
+      captchaEnabled: false,
     }
 
     expect(evaluateSupabaseReadiness(state).errors).toEqual(
       expect.arrayContaining([
         '生产 Auth 已禁止新用户注册。',
-        '生产 Auth 未启用邮箱自动确认，注册后无法按产品要求直接建立会话。',
+        '生产 Auth 仍在自动确认邮箱，无法证明注册者控制该邮箱。',
         '生产 Auth 未启用邮箱登录。',
+        '生产 Auth 未启用服务端 CAPTCHA，匿名注册可绕过网页直接调用 Auth。',
       ]),
     )
   })

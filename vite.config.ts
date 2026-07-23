@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 
-export default defineConfig(() => ({
+export default defineConfig(({ mode }) => ({
   base: '/',
   plugins: [react()],
+  ...(mode === 'e2e'
+    ? {
+        server: {
+          proxy: {
+            '/functions/v1/webchat-attachment': {
+              target: 'http://127.0.0.1:4176',
+              changeOrigin: false,
+            },
+          },
+        },
+      }
+    : {}),
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',

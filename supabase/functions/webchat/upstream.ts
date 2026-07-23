@@ -4,6 +4,15 @@ export interface WebChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  images?: WebChatImage[]
+}
+
+export interface WebChatImage {
+  attachmentId: string
+  url: string
+  mediaType: 'image/webp'
+  width: number
+  height: number
 }
 
 export interface WebChatQuotaLifecycle {
@@ -127,8 +136,41 @@ export function promptCacheOptions(model: string): PromptCacheOptions | null {
   return major > 5 || (major === 5 && minor >= 6) ? { mode: 'implicit', ttl: '30m' } : null
 }
 
+function safeModelImageUrl(image: WebChatImage): string {
+  let url: URL
+  try {
+    url = new URL(image.url)
+  } catch {
+    throw new Error('WebChat image URL is invalid')
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash) {
+    throw new Error('WebChat image URL is invalid')
+  }
+  if (!Number.isSafeInteger(image.width) || image.width < 1 || image.width > 2048) {
+    throw new Error('WebChat image dimensions are invalid')
+  }
+  if (!Number.isSafeInteger(image.height) || image.height < 1 || image.height > 2048) {
+    throw new Error('WebChat image dimensions are invalid')
+  }
+  return url.toString()
+}
+
 export function responsesInput(messages: WebChatMessage[]): Record<string, unknown>[] {
-  return messages.map(({ role, text }) => ({ role, content: text }))
+  return messages.map(({ role, text, images }) => {
+    const normalizedImages = images ?? []
+    if (normalizedImages.length === 0) return { role, content: text }
+
+    const content: Record<string, unknown>[] = []
+    if (text) content.push({ type: 'input_text', text })
+    for (const image of normalizedImages) {
+      content.push({
+        type: 'input_image',
+        image_url: safeModelImageUrl(image),
+        detail: 'high',
+      })
+    }
+    return { role, content }
+  })
 }
 
 function upstreamError(response: Response): WebChatUpstreamError {

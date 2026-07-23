@@ -49,4 +49,5 @@ artifacts/
 playwright-report/
 test-results/
 .cache/
+.codex-tmp/
 *.tsbuildinfo

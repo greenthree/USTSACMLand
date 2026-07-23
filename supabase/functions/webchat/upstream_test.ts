@@ -1,5 +1,5 @@
 // deno-lint-ignore-file require-await
-import { deepStrictEqual, match, strictEqual } from 'node:assert/strict'
+import { deepStrictEqual, match, strictEqual, throws } from 'node:assert/strict'
 import {
   promptCacheKey,
   promptCacheOptions,
@@ -84,6 +84,66 @@ Deno.test('webchat preserves a byte-stable plain-message prefix across turns', (
     ],
   )
 })
+
+Deno.test(
+  'webchat converts validated image references to fixed high-detail Responses parts',
+  () => {
+    deepStrictEqual(
+      responsesInput([
+        {
+          id: 'user-image',
+          role: 'user',
+          text: '请看图',
+          images: [
+            {
+              attachmentId: '22222222-2222-4222-8222-222222222222',
+              mediaType: 'image/webp',
+              url: 'https://signed.example.test/private-image?token=opaque',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
+        { id: 'assistant-1', role: 'assistant', text: '我看到了。' },
+      ]),
+      [
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: '请看图' },
+            {
+              type: 'input_image',
+              image_url: 'https://signed.example.test/private-image?token=opaque',
+              detail: 'high',
+            },
+          ],
+        },
+        { role: 'assistant', content: '我看到了。' },
+      ],
+    )
+
+    throws(
+      () =>
+        responsesInput([
+          {
+            id: 'user-image',
+            role: 'user',
+            text: '',
+            images: [
+              {
+                attachmentId: '22222222-2222-4222-8222-222222222222',
+                mediaType: 'image/webp',
+                url: 'http://insecure.example.test/image.webp',
+                width: 64,
+                height: 64,
+              },
+            ],
+          },
+        ]),
+      /invalid/,
+    )
+  },
+)
 
 Deno.test(
   'webchat uses the relay-compatible implicit cache policy and plain messages',

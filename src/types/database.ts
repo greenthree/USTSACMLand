@@ -1673,6 +1673,15 @@ export type Database = {
         Args: { identifier: string; value: Json }
         Returns: boolean
       }
+      bind_webchat_image_attachments: {
+        Args: {
+          requested_user_id: string
+          requested_conversation_id: string
+          requested_message_id: string
+          requested_attachment_ids: string[]
+        }
+        Returns: number
+      }
       bootstrap_first_admin: { Args: { target_email: string }; Returns: string }
       calculate_webchat_member_total_usage: {
         Args: { checked_at?: string; requested_user_id: string }
@@ -1754,6 +1763,20 @@ export type Database = {
           retry_after_seconds: number
           status: string
           usage_date: string
+        }[]
+      }
+      claim_webchat_image_deletion_queue: {
+        Args: {
+          requested_owner_token: string
+          requested_limit?: number
+          requested_lease_seconds?: number
+        }
+        Returns: {
+          attachment_id: string
+          user_id: string
+          bucket_id: string
+          object_key: string
+          attempt: number
         }[]
       }
       claim_webchat_request_internal: {
@@ -1890,6 +1913,33 @@ export type Database = {
           transitioned_at: string
         }[]
       }
+      complete_webchat_image_deletion: {
+        Args: {
+          requested_attachment_id: string
+          requested_owner_token: string
+        }
+        Returns: boolean
+      }
+      complete_webchat_image_validation: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+          requested_owner_token: string
+          requested_object_bytes: number
+          requested_width: number
+          requested_height: number
+          requested_sha256: string
+        }
+        Returns: {
+          id: string
+          status: string
+          media_type: string
+          object_bytes: number
+          width: number
+          height: number
+          sha256: string
+        }[]
+      }
       compute_training_goal_progress: {
         Args: { target_goal_id: number; target_profile_id: string }
         Returns: {
@@ -1967,9 +2017,22 @@ export type Database = {
         }
         Returns: number
       }
+      enqueue_expired_webchat_image_attachments: {
+        Args: { requested_limit?: number }
+        Returns: number
+      }
       export_own_data: { Args: never; Returns: Json }
       export_own_training_goals: { Args: never; Returns: Json }
       export_own_referral_data: { Args: never; Returns: Json }
+      fail_webchat_image_validation: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+          requested_owner_token: string
+          requested_error_code: string
+        }
+        Returns: boolean
+      }
       fail_xcpc_elo_cache_refresh: {
         Args: {
           failure_code: Database['public']['Enums']['sync_error_code']
@@ -2114,6 +2177,18 @@ export type Database = {
           version: number
         }[]
       }
+      list_webchat_image_deletion_dead_letters: {
+        Args: { requested_limit?: number }
+        Returns: {
+          attachment_id: string
+          user_id: string
+          bucket_id: string
+          object_key: string
+          attempt_count: number
+          last_error_code: string
+          dead_lettered_at: string
+        }[]
+      }
       load_own_webchat_messages: {
         Args: { requested_conversation_id: string }
         Returns: {
@@ -2144,8 +2219,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      purge_deleted_webchat_image_attachments: {
+        Args: { requested_limit?: number }
+        Returns: number
+      }
       purge_expired_webchat_conversations: { Args: never; Returns: number }
       purge_webchat_cache_probe_runs: { Args: never; Returns: number }
+      queue_webchat_image_attachment_deletion: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+          requested_reason: string
+        }
+        Returns: boolean
+      }
       read_daily_problem_feed: {
         Args: { before_problem_date?: string; row_limit?: number }
         Returns: {
@@ -2171,6 +2258,21 @@ export type Database = {
         Returns: {
           api_key: string
           key_id: string
+        }[]
+      }
+      read_own_webchat_image_attachment_preview: {
+        Args: {
+          requested_conversation_id: string
+          requested_message_id: string
+          requested_attachment_id: string
+        }
+        Returns: {
+          id: string
+          urn: string
+          media_type: string
+          object_bytes: number
+          width: number
+          height: number
         }[]
       }
       read_own_webchat_usage: {
@@ -2209,6 +2311,40 @@ export type Database = {
           settled_tokens: number
           token_budget_alerted_at: string
           usage_date: string
+        }[]
+      }
+      read_webchat_image_attachment_for_model: {
+        Args: {
+          requested_user_id: string
+          requested_conversation_id: string
+          requested_message_id: string
+          requested_attachment_id: string
+        }
+        Returns: {
+          bucket_id: string
+          object_key: string
+          media_type: string
+          object_bytes: number
+          width: number
+          height: number
+          sha256: string
+        }[]
+      }
+      read_webchat_image_attachment_for_preview: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+        }
+        Returns: {
+          id: string
+          status: string
+          bucket_id: string
+          object_key: string
+          media_type: string
+          object_bytes: number
+          width: number
+          height: number
+          sha256: string
         }[]
       }
       read_webchat_member_runtime_access: {
@@ -2255,6 +2391,18 @@ export type Database = {
         Args: { checked_at: string; requested_user_id: string }
         Returns: undefined
       }
+      reconcile_webchat_image_storage_accounting: {
+        Args: never
+        Returns: {
+          recorded_allocation_bytes: number
+          attachment_allocation_bytes: number
+          stored_object_bytes: number
+          orphan_object_count: number
+          missing_ready_object_count: number
+          accounting_consistent: boolean
+          uploads_paused: boolean
+        }[]
+      }
       record_firecrawl_key_observation: {
         Args: {
           observed_billing_period_end?: string
@@ -2297,8 +2445,54 @@ export type Database = {
         Args: { p_owner_token: string; p_target_user_id: string }
         Returns: boolean
       }
+      renew_webchat_image_validation: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+          requested_owner_token: string
+          requested_lease_seconds?: number
+        }
+        Returns: {
+          status: string
+          bucket_id: string
+          object_key: string
+          expires_at: string
+        }[]
+      }
+      requeue_webchat_image_deletion_dead_letter: {
+        Args: {
+          requested_attachment_id: string
+          requested_reason: string
+        }
+        Returns: boolean
+      }
       require_daily_problem_member: { Args: never; Returns: string }
       require_training_goal_member: { Args: never; Returns: string }
+      reserve_webchat_image_attachment: {
+        Args: {
+          requested_user_id: string
+          requested_conversation_id: string
+          requested_attachment_id: string
+          requested_original_mime: string
+          requested_original_bytes: number
+        }
+        Returns: {
+          id: string
+          status: string
+          bucket_id: string
+          object_key: string
+          expires_at: string
+        }[]
+      }
+      retry_webchat_image_deletion: {
+        Args: {
+          requested_attachment_id: string
+          requested_owner_token: string
+          requested_error_code: string
+          requested_retry_after_seconds?: number
+        }
+        Returns: boolean
+      }
       scrub_account_deletion_audit: {
         Args: { deleted_user_id: string }
         Returns: undefined
@@ -2320,6 +2514,20 @@ export type Database = {
       set_own_webchat_conversation_archived: {
         Args: { requested_archived: boolean; requested_conversation_id: string }
         Returns: undefined
+      }
+      start_webchat_image_validation: {
+        Args: {
+          requested_user_id: string
+          requested_attachment_id: string
+          requested_owner_token: string
+          requested_lease_seconds?: number
+        }
+        Returns: {
+          status: string
+          bucket_id: string
+          object_key: string
+          expires_at: string
+        }[]
       }
       update_own_training_goal: {
         Args: {

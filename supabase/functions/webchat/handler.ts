@@ -6,10 +6,19 @@ import {
   type WebChatQuotaPolicy,
   type WebChatUsage,
 } from './quota.ts'
-import { parseWebChatRequest, RequestValidationError } from './request.ts'
+import {
+  parseWebChatRequest,
+  RequestValidationError,
+  type NormalizedWebChatMessage,
+} from './request.ts'
 import type { WebChatRelayRuntimeConfig } from './runtime-config.ts'
 import type { WebChatMemberRuntimeAccess } from './member-access.ts'
-import { type StartWebChatOptions, WebChatUpstreamError } from './upstream.ts'
+import {
+  type StartWebChatOptions,
+  type WebChatImage,
+  type WebChatMessage,
+  WebChatUpstreamError,
+} from './upstream.ts'
 
 export interface WebChatUser {
   id: string
@@ -19,6 +28,18 @@ export interface WebChatServices {
   getUser(token: string): Promise<WebChatUser | null>
   readMemberRuntimeAccess(userId: string): Promise<WebChatMemberRuntimeAccess>
   readRelayRuntimeConfig(): Promise<WebChatRelayRuntimeConfig>
+  bindWebChatImageAttachments(input: {
+    userId: string
+    conversationId: string
+    messageId: string
+    attachmentIds: string[]
+  }): Promise<number>
+  readWebChatImageAttachmentForModel(input: {
+    userId: string
+    conversationId: string
+    messageId: string
+    attachmentId: string
+  }): Promise<Omit<WebChatImage, 'attachmentId'> | null>
   claimWebChatRequest(input: {
     userId: string
     requestId: string
@@ -52,11 +73,14 @@ export interface WebChatServices {
 
 export interface WebChatHandlerDependencies {
   enabled: boolean
+  visionEnabled: boolean
+  visionModel: string | null
   allowedOrigins: string
   maxBodyBytes?: number
   maxMessages?: number
   maxMessageChars?: number
   maxTotalChars?: number
+  maxTotalImages?: number
   quotaPolicy: WebChatQuotaPolicy
   buildSystemPrompt(model: string): string
   createServices(): WebChatServices
@@ -77,6 +101,102 @@ class ApiError extends Error {
   ) {
     super(message)
   }
+}
+
+async function reportSafely(
+  dependencies: WebChatHandlerDependencies,
+  request: Request,
+  error: unknown,
+): Promise<void> {
+  try {
+    await dependencies.reportUnexpectedError(request, error)
+  } catch {
+    // Monitoring is best-effort and must never replace the stable API response.
+  }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function imageCount(messages: NormalizedWebChatMessage[]): number {
+  return messages.reduce((count, message) => count + message.images.length, 0)
+}
+
+function assertImageRequestAllowed(
+  messages: NormalizedWebChatMessage[],
+  conversationId: string | null,
+  visionEnabled: boolean,
+): void {
+  if (imageCount(messages) === 0) return
+  requireImageConversationId(conversationId, visionEnabled)
+}
+
+function requireImageConversationId(conversationId: string | null, visionEnabled: boolean): string {
+  if (!visionEnabled) {
+    throw new ApiError(503, 'vision_not_enabled', '当前模型暂未开启图片理解')
+  }
+  if (!conversationId || !UUID_PATTERN.test(conversationId)) {
+    throw new ApiError(400, 'invalid_request', '图片消息需要有效的历史会话')
+  }
+  return conversationId
+}
+
+function quotaMessages(messages: NormalizedWebChatMessage[]) {
+  return messages.map(({ role, text, images }) => ({
+    role,
+    text,
+    // Dimensions are deliberately unavailable before attachment lookup. The
+    // quota estimator treats them as 2048x2048 so the preflight reservation
+    // remains conservative without touching Storage or attachment metadata.
+    images: images.map(({ attachmentId }) => ({ attachmentId })),
+  }))
+}
+
+async function resolveImageMessages(
+  messages: NormalizedWebChatMessage[],
+  conversationId: string | null,
+  userId: string,
+  services: WebChatServices,
+  visionEnabled: boolean,
+): Promise<WebChatMessage[]> {
+  if (imageCount(messages) === 0) {
+    return messages.map(({ id, role, text }) => ({ id, role, text, images: [] }))
+  }
+  const persistedConversationId = requireImageConversationId(conversationId, visionEnabled)
+
+  const resolved: WebChatMessage[] = []
+  for (const message of messages) {
+    if (message.images.length === 0) {
+      resolved.push({ id: message.id, role: message.role, text: message.text, images: [] })
+      continue
+    }
+
+    const attachmentIds = message.images.map((image) => image.attachmentId)
+    const bound = await services.bindWebChatImageAttachments({
+      userId,
+      conversationId: persistedConversationId,
+      messageId: message.id,
+      attachmentIds,
+    })
+    if (bound !== attachmentIds.length) {
+      throw new ApiError(409, 'image_not_attached', '图片尚未绑定到当前消息，请稍后再试')
+    }
+
+    const images: WebChatImage[] = []
+    for (const image of message.images) {
+      const modelImage = await services.readWebChatImageAttachmentForModel({
+        userId,
+        conversationId: persistedConversationId,
+        messageId: message.id,
+        attachmentId: image.attachmentId,
+      })
+      if (!modelImage) {
+        throw new ApiError(409, 'image_not_attached', '图片尚未准备好，请稍后再试')
+      }
+      images.push({ attachmentId: image.attachmentId, ...modelImage })
+    }
+    resolved.push({ id: message.id, role: message.role, text: message.text, images })
+  }
+  return resolved
 }
 
 function bearerToken(request: Request): string {
@@ -235,7 +355,13 @@ export function createWebChatHandler(
         maxMessages: dependencies.maxMessages,
         maxMessageChars: dependencies.maxMessageChars,
         maxTotalChars: dependencies.maxTotalChars,
+        maxTotalImages: dependencies.maxTotalImages,
       })
+      const visionEnabledForCurrentModel =
+        dependencies.visionEnabled &&
+        dependencies.visionModel !== null &&
+        dependencies.visionModel === runtimeConfig.model
+      assertImageRequestAllowed(body.messages, body.chatId, visionEnabledForCurrentModel)
       const systemPrompt = dependencies.buildSystemPrompt(runtimeConfig.model)
       const requestQuotaPolicy = {
         ...dependencies.quotaPolicy,
@@ -244,7 +370,7 @@ export function createWebChatHandler(
         memberTotalRequestLimit: memberAccess.totalRequestLimit,
         memberTotalTokenLimit: memberAccess.totalTokenLimit,
       }
-      const quota = await prepareWebChatQuota(body.messages, requestQuotaPolicy)
+      const quota = await prepareWebChatQuota(quotaMessages(body.messages), requestQuotaPolicy)
       if (quota.reservedTokens > requestQuotaPolicy.memberTotalTokenLimit) {
         throw new ApiError(413, 'chat_request_token_limit', '当前对话内容过长，请缩短后重新发送')
       }
@@ -280,20 +406,23 @@ export function createWebChatHandler(
           } catch (alertError) {
             // Alerting is operational telemetry. A delivery or marker failure
             // must not turn a deterministic budget rejection into a 500.
-            try {
-              await dependencies.reportUnexpectedError(request, alertError)
-            } catch {
-              // The quota response remains authoritative even if monitoring is unavailable.
-            }
+            await reportSafely(dependencies, request, alertError)
           }
         }
         throw quotaError(claim)
       }
 
       try {
+        const messages = await resolveImageMessages(
+          body.messages,
+          body.chatId,
+          user.id,
+          services,
+          visionEnabledForCurrentModel,
+        )
         const response = await dependencies.startChat(
           {
-            messages: body.messages,
+            messages,
             userId: user.id,
             requestSignal: request.signal,
             requestId: currentRequestId,
@@ -317,14 +446,21 @@ export function createWebChatHandler(
         return streamResponse(response, request, dependencies.allowedOrigins, currentRequestId)
       } catch (error) {
         try {
-          await services.releaseWebChatRequest(
+          const released = await services.releaseWebChatRequest(
             user.id,
             currentRequestId,
             ownerToken,
             'start_failed_before_upstream',
           )
+          if (!released) {
+            await reportSafely(
+              dependencies,
+              request,
+              new Error('WebChat pre-start claim release was not applied.'),
+            )
+          }
         } catch (releaseError) {
-          await dependencies.reportUnexpectedError(request, releaseError)
+          await reportSafely(dependencies, request, releaseError)
         }
         throw error
       }
@@ -339,7 +475,7 @@ export function createWebChatHandler(
         return respond(error.code, error.message, error.status, error.retryAfter)
       }
 
-      await dependencies.reportUnexpectedError(request, error)
+      await reportSafely(dependencies, request, error)
       return respond('internal_error', 'AI 学习助手暂时不可用，请稍后重试', 500)
     }
   }

@@ -4,6 +4,14 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(30);
 
+update private.referral_program_config
+set reopen_allowed = true
+where singleton;
+
+update private.referral_program_config
+set enabled = true, version = version + 1, updated_at = pg_catalog.clock_timestamp()
+where singleton;
+
 select has_table('private', 'referral_codes', 'private referral code table exists');
 select has_table('private', 'referral_bindings', 'private referral binding table exists');
 

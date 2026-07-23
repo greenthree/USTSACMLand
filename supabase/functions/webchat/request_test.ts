@@ -242,14 +242,108 @@ Deno.test(
       trigger: 'regenerate-message',
       messageId: 'assistant-1',
       messages: [
-        { id: 'user-1', role: 'user', text: '什么是二分答案？' },
+        { id: 'user-1', role: 'user', text: '什么是二分答案？', images: [] },
         {
           id: 'assistant-1',
           role: 'assistant',
           text: '它把答案范围对半缩小。\n关键是找到单调性。',
+          images: [],
         },
-        { id: 'user-2', role: 'user', text: '请给一个例子。' },
+        { id: 'user-2', role: 'user', text: '请给一个例子。', images: [] },
       ],
     })
   },
 )
+
+Deno.test('accepts exact image URNs and rejects embedded or cross-message duplicates', async () => {
+  const attachmentUrn = 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222'
+  const imageOnly = jsonRequest({
+    id: '11111111-1111-4111-8111-111111111111',
+    messages: [
+      {
+        id: 'user-image',
+        role: 'user',
+        parts: [{ type: 'file', mediaType: 'image/webp', url: attachmentUrn }],
+      },
+    ],
+  })
+  deepStrictEqual(await parseWebChatRequest(imageOnly.request), {
+    chatId: '11111111-1111-4111-8111-111111111111',
+    trigger: null,
+    messageId: null,
+    messages: [
+      {
+        id: 'user-image',
+        role: 'user',
+        text: '',
+        images: [
+          {
+            attachmentId: '22222222-2222-4222-8222-222222222222',
+            urn: attachmentUrn,
+          },
+        ],
+      },
+    ],
+  })
+
+  for (const part of [
+    { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,secret' },
+    { type: 'file', mediaType: 'image/webp', url: 'https://attacker.example/image.webp' },
+    { type: 'file', mediaType: 'image/webp', url: attachmentUrn, filename: 'private.png' },
+  ]) {
+    const candidate = jsonRequest({
+      id: '11111111-1111-4111-8111-111111111111',
+      messages: [{ id: 'user-image', role: 'user', parts: [part] }],
+    })
+    await expectValidationError(parseWebChatRequest(candidate.request), 400, 'invalid_request')
+  }
+
+  const duplicate = jsonRequest({
+    id: '11111111-1111-4111-8111-111111111111',
+    messages: [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'file', mediaType: 'image/webp', url: attachmentUrn }],
+      },
+      { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: '看到了。' }] },
+      {
+        id: 'user-2',
+        role: 'user',
+        parts: [
+          { type: 'text', text: '继续' },
+          { type: 'file', mediaType: 'image/webp', url: attachmentUrn },
+        ],
+      },
+    ],
+  })
+  await expectValidationError(parseWebChatRequest(duplicate.request), 400, 'invalid_request')
+})
+
+Deno.test('limits total image references across the complete request history', async () => {
+  const imagePart = (index: number) => ({
+    type: 'file',
+    mediaType: 'image/webp',
+    url:
+      'urn:ustsacm:webchat-attachment:' +
+      `00000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`,
+  })
+  const messages = Array.from({ length: 4 }, (_, messageIndex) => ({
+    id: `user-${messageIndex}`,
+    role: 'user',
+    parts: Array.from({ length: messageIndex === 3 ? 1 : 4 }, (_, partIndex) =>
+      imagePart(messageIndex * 4 + partIndex + 1),
+    ),
+  }))
+  const candidate = jsonRequest({
+    id: '11111111-1111-4111-8111-111111111111',
+    messages,
+  })
+
+  await expectValidationError(parseWebChatRequest(candidate.request), 400, 'invalid_request')
+  const accepted = jsonRequest({
+    id: '11111111-1111-4111-8111-111111111111',
+    messages: messages.slice(0, 3),
+  })
+  strictEqual((await parseWebChatRequest(accepted.request)).messages.length, 3)
+})

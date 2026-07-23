@@ -204,7 +204,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(screen.getByRole('button', { name: '复制注册链接' })).toBeDisabled()
   })
 
-  it('hides the code while preserving historical rewards when the program is paused', async () => {
+  it('hides the entire referral feature while the program is paused', async () => {
     referralMocks.fetch.mockResolvedValueOnce({
       programEnabled: false,
       code: null,
@@ -215,14 +215,11 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     })
     renderAccountPage()
 
-    expect(await screen.findByText('3 / 10')).toBeInTheDocument()
-    expect(screen.getByText('3,000,000')).toBeInTheDocument()
+    await waitFor(() => expect(referralMocks.fetch).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
     expect(screen.queryByText('我的邀请码')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '复制注册链接' })).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '推荐计划已暂停。邀请码和既有奖励已保留，重新开放后继续使用。',
-    )
-    expect(screen.queryByText('当前邀请码已达到邀请上限，暂不可继续使用。')).not.toBeInTheDocument()
+    expect(screen.queryByText('3 / 10')).not.toBeInTheDocument()
+    expect(screen.queryByText('3,000,000')).not.toBeInTheDocument()
   })
 
   it('refreshes the program state before copying a referral link', async () => {
@@ -251,7 +248,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     expect(referralMocks.fetch).toHaveBeenCalledTimes(2)
     expect(writeText).not.toHaveBeenCalled()
-    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已暂停')
+    await waitFor(() => expect(screen.queryByText('推荐计划')).not.toBeInTheDocument())
   })
 
   it('does not copy a stale referral result when a newer refresh observes a pause', async () => {
@@ -283,7 +280,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     await user.click(await screen.findByRole('button', { name: '复制注册链接' }))
     act(() => window.dispatchEvent(new Event('focus')))
-    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已暂停')
+    await waitFor(() => expect(screen.queryByText('推荐计划')).not.toBeInTheDocument())
     await act(async () => {
       resolveCopyRefresh({
         programEnabled: true,
@@ -299,12 +296,13 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(writeText).not.toHaveBeenCalled()
   })
 
-  it('shows a bounded error when the referral summary cannot be read', async () => {
+  it('does not reveal the referral feature when its state cannot be read', async () => {
     referralMocks.fetch.mockRejectedValueOnce(new Error('推荐计划信息读取失败，请稍后重试。'))
     renderAccountPage()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('推荐计划信息读取失败，请稍后重试。')
-    expect(screen.getByRole('button', { name: '复制注册链接' })).toBeDisabled()
+    await waitFor(() => expect(referralMocks.fetch).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '复制注册链接' })).not.toBeInTheDocument()
   })
 
   it('handles denied clipboard permission without an unhandled rejection', async () => {

@@ -1,4 +1,41 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { checkReferralCodeAvailability } from '../lib/referrals'
+
 export function PrivacyPage() {
+  const [referralProgramVisible, setReferralProgramVisible] = useState(false)
+  const referralStatusRequestIdRef = useRef(0)
+
+  const loadReferralProgramState = useCallback(async () => {
+    const requestId = ++referralStatusRequestIdRef.current
+    setReferralProgramVisible(false)
+
+    try {
+      const result = await checkReferralCodeAvailability()
+      if (requestId !== referralStatusRequestIdRef.current) return
+      setReferralProgramVisible(result.programEnabled)
+    } catch {
+      if (requestId !== referralStatusRequestIdRef.current) return
+      setReferralProgramVisible(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadReferralProgramState()
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadReferralProgramState()
+    }
+    const refreshOnFocus = () => void loadReferralProgramState()
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      referralStatusRequestIdRef.current += 1
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
+  }, [loadReferralProgramState])
+
   return (
     <div className="page legal-page">
       <header className="legal-heading">
@@ -116,15 +153,17 @@ export function PrivacyPage() {
           </p>
         </section>
 
-        <section>
-          <h2>推荐计划</h2>
-          <p>
-            每个已注册成员都会拥有一个可分享的邀请码。新成员注册时可以选择填写邀请码；绑定成功后，邀请人会获得额外的
-            WebChat 累计 Token
-            上限。本站只保存邀请码、绑定关系和奖励次数等必要数据，不会公开被邀请人的邮箱、QQ
-            或其他私有标识。成员可以在“我的资料”查看自己的邀请码和奖励摘要，管理员只能看到脱敏后的推荐奖励审计。
-          </p>
-        </section>
+        {referralProgramVisible ? (
+          <section>
+            <h2>推荐计划</h2>
+            <p>
+              每个已注册成员都会拥有一个可分享的邀请码。新成员注册时可以选择填写邀请码；绑定成功后，邀请人会获得额外的
+              WebChat 累计 Token
+              上限。本站只保存邀请码、绑定关系和奖励次数等必要数据，不会公开被邀请人的邮箱、QQ
+              或其他私有标识。成员可以在“我的资料”查看自己的邀请码和奖励摘要，管理员只能看到脱敏后的推荐奖励审计。
+            </p>
+          </section>
+        ) : null}
 
         <section>
           <h2>安全边界</h2>

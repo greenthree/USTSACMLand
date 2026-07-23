@@ -3,7 +3,7 @@ import { buildSyncJobTarget } from './job.ts'
 
 const memberId = '8a7c4494-97b0-4c5e-a386-02b0efcf22c7'
 
-Deno.test('single-platform jobs use the member-wide concurrency key', () => {
+Deno.test('single-platform jobs use platform-isolated concurrency keys', () => {
   const luoguJob = buildSyncJobTarget(memberId, ['luogu'], ['luogu'])
   const qojJob = buildSyncJobTarget(memberId, ['qoj'], ['qoj'])
 
@@ -11,12 +11,13 @@ Deno.test('single-platform jobs use the member-wide concurrency key', () => {
     scope: 'account',
     profile_id: memberId,
     platform: 'luogu',
-    dedupe_key: `member:${memberId}`,
+    dedupe_key: `member:${memberId}:platform:luogu`,
     payload: { platforms: ['luogu'] },
   })
   strictEqual(qojJob.scope, 'account')
   strictEqual(qojJob.platform, 'qoj')
-  strictEqual(luoguJob.dedupe_key, qojJob.dedupe_key)
+  strictEqual(qojJob.dedupe_key, `member:${memberId}:platform:qoj`)
+  strictEqual(luoguJob.dedupe_key === qojJob.dedupe_key, false)
 })
 
 Deno.test('repeated requests for the same platform produce the same key', () => {

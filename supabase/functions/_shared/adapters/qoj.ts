@@ -43,6 +43,9 @@ export interface QojAdapterOptions {
   useEnvironmentProvider?: boolean
 }
 
+export type QojSessionCleanupStatus = 'succeeded' | 'failed'
+export type QojSessionCleanupReporter = (status: QojSessionCleanupStatus) => void
+
 type QojJsonFetcher = (input: string, options: FetchWithRetryOptions) => Promise<unknown>
 
 const ORIGIN = 'https://qoj.ac'
@@ -211,6 +214,25 @@ function parseFirecrawlSessionId(payload: unknown): string {
   return jobId
 }
 
+function assertFirecrawlSessionCleanupSucceeded(payload: unknown): void {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    (payload as { success?: unknown }).success !== true
+  ) {
+    throw new Error('Firecrawl session cleanup was not acknowledged')
+  }
+}
+
+export function logQojSessionCleanup(status: QojSessionCleanupStatus, syncRunId?: number): void {
+  const payload = {
+    event: `qoj_firecrawl_session_cleanup_${status}`,
+    ...(Number.isSafeInteger(syncRunId) && (syncRunId as number) > 0 ? { syncRunId } : {}),
+  }
+  if (status === 'succeeded') console.info(JSON.stringify(payload))
+  else console.warn(JSON.stringify(payload))
+}
+
 export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: string): number {
   if (!payload || typeof payload !== 'object') {
     throw new HttpError('Firecrawl interact response is not an object', 'schema_changed', false)
@@ -362,6 +384,7 @@ export function createFirecrawlQojProvider(
   servicePassword: string,
   apiUrl = FIRECRAWL_DEFAULT_URL,
   fetcher: QojJsonFetcher = (input, options) => fetchJson<unknown>(input, options),
+  reportCleanup: QojSessionCleanupReporter = (status) => logQojSessionCleanup(status),
 ): QojMetricsProvider {
   const normalizedApiKey = apiKey.trim()
   const normalizedUsername = serviceUsername.trim()
@@ -380,6 +403,13 @@ export function createFirecrawlQojProvider(
     accept: 'application/json',
     authorization: `Bearer ${normalizedApiKey}`,
     'content-type': 'application/json',
+  }
+  const reportCleanupSafely = (status: QojSessionCleanupStatus) => {
+    try {
+      reportCleanup(status)
+    } catch {
+      // Observability must never change the primary synchronization result.
+    }
   }
   return {
     async fetchAcceptedCount(accountId, signal) {
@@ -421,7 +451,6 @@ export function createFirecrawlQojProvider(
       } catch (error) {
         const diagnostics = {
           ...(error instanceof HttpError ? (error.details ?? {}) : {}),
-          ...(jobId ? { firecrawlJobId: jobId } : {}),
         }
         if (error instanceof HttpError && error.status === 401) {
           throw new HttpError(
@@ -478,12 +507,22 @@ export function createFirecrawlQojProvider(
         throw error
       } finally {
         if (jobId) {
-          await fetcher(`${endpoint}/${encodeURIComponent(jobId)}/interact`, {
-            method: 'DELETE',
-            timeoutMs: 15_000,
-            retries: 0,
-            headers: requestHeaders,
-          }).catch(() => undefined)
+          try {
+            const cleanupPayload = await fetcher(
+              `${endpoint}/${encodeURIComponent(jobId)}/interact`,
+              {
+                method: 'DELETE',
+                timeoutMs: 15_000,
+                retries: 0,
+                headers: requestHeaders,
+              },
+            )
+            assertFirecrawlSessionCleanupSucceeded(cleanupPayload)
+            reportCleanupSafely('succeeded')
+          } catch {
+            // Cleanup must remain best-effort so it cannot replace the primary sync result.
+            reportCleanupSafely('failed')
+          }
         }
       }
     },

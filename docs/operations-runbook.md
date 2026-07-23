@@ -19,16 +19,25 @@
 
 正式发布前必须由对应维护者在供应商控制台核验并填写下表。任何“待核验”项都属于发布阻塞，不得用供应商默认值或推测值代替。
 
-| 服务与数据                          | 实际保留窗口                             | 核验日期与负责人          | 删除/恢复能力与限制                                                          |
-| ----------------------------------- | ---------------------------------------- | ------------------------- | ---------------------------------------------------------------------------- |
-| Supabase 数据库备份 / PITR          | PITR 未启用，可用物理备份 0 份           | 2026-07-15 / 自动只读检查 | `walg_enabled=true` 不等于存在可恢复备份；正式发布必须依赖并演练加密逻辑备份 |
-| Supabase Auth / Edge Functions 日志 | 待核验（发布阻塞）                       | 待填写                    | 待填写                                                                       |
-| GitHub Actions 日志与 artifact      | 仓库默认 90 天；备份 Artifact 单项 14 天 | 2026-07-15 / GitHub API   | 建议把仓库默认值降至 30 天以内；备份 workflow 的 14 天覆盖值仍需首次运行核验 |
-| Firecrawl 作业与会话记录            | 待核验（发布阻塞）                       | 待填写                    | 待填写                                                                       |
+| 服务与数据                          | 实际保留窗口                           | 核验日期与负责人          | 删除/恢复能力与限制                                                          |
+| ----------------------------------- | -------------------------------------- | ------------------------- | ---------------------------------------------------------------------------- |
+| Supabase 数据库备份 / PITR          | PITR 未启用，可用物理备份 0 份         | 2026-07-15 / 自动只读检查 | `walg_enabled=true` 不等于存在可恢复备份；正式发布必须依赖并演练加密逻辑备份 |
+| Supabase Auth / Edge Functions 日志 | 待核验（发布阻塞）                     | 待填写                    | 待填写                                                                       |
+| GitHub Actions 日志与 artifact      | 仓库默认 90 天；完整加密快照单项 14 天 | 2026-07-15 / GitHub API   | 数据库和引用的 WebChat 图片共同进入每日完整快照；约占 `14 × 单次密文大小`    |
+| Firecrawl 作业与会话记录            | 待核验（发布阻塞）                     | 待填写                    | 待填写                                                                       |
 
-数据库备份的文件范围、加密参数、Secret 配置和隔离恢复步骤见 [数据库备份与恢复方案](./backup-and-recovery.md)。数据库 Artifact 不包含 Supabase Storage 文件对象。
+数据库备份的文件范围、加密参数、Secret 配置和隔离恢复步骤见 [数据库备份与恢复方案](./backup-and-recovery.md)。当前 Artifact 同时包含数据库快照和该快照精确引用的私有 `webchat-images` 对象，但不包含其他 Storage Bucket、Edge Function Secrets 或第三方凭据。Storage 失败时整个任务失败，不得发布数据库-only 的部分 Artifact。
 
-本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的目标绑定数据库租约必须覆盖完整临界区：取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用最终删除 RPC。RPC 对租约行和目标 Profile `FOR UPDATE`，重新验证 owner、target、有效期、角色与活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，使 migration 与 Edge Function 的部署切换也保持失败关闭。租约取得、删除前续期或恢复记录失败时不得进入最终 RPC，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`。最终事务由数据库行锁 fencing，不依赖 Edge Runtime 定时器；响应传输失败时不得声称“账号确定未删除”，应在重新登录/查询后确认最终状态。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
+WebChat 图片功能正式部署前，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 必须保持缺失或为 `false`，避免十分钟定时任务调用尚未部署的 migration/RPC。只有图片 migration、`webchat-attachment` 与 `webchat-image-cleanup` 函数均已部署，并完成一次受控 `workflow_dispatch` 清理烟测后，才可将该变量设为 `true`；回滚图片功能时先关闭变量，再回滚入口和函数。
+
+视觉能力使用 `CHAT_VISION_ENABLED` 与 `CHAT_VISION_MODEL` 双重服务端门禁。后者必须与
+管理员后台当前运行时模型完全一致；更换模型会让图片请求立即返回
+`vision_not_enabled`，只有新模型完成视觉协议和 Usage 烟测后才能更新精确绑定。不要用
+宽泛前缀、正则或浏览器传入的模型名放行，纯文本请求不依赖该绑定。
+
+仓库 Actions Variables 必须配置正整数 `MAX_BACKUP_ARTIFACT_BYTES` 和非负整数 `MAX_STORAGE_OBJECTS`；前者同时限制引用图片总字节与最终密文大小，后者限制单次快照引用对象数。每月按最近一次实际密文估算 14 份完整快照的容量，并检查备份耗时和 Runner 磁盘趋势。备份脚本先从数据库快照生成精确对象计划，再逐个下载被引用对象；未引用对象不会进入下载阶段。清理队列积压、对象计划异常增长或备份耗时异常时，应先停止图片功能发布并处理删除队列与死信。
+
+本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的目标绑定数据库租约必须覆盖完整临界区：取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用最终删除 RPC。RPC 对租约行和目标 Profile `FOR UPDATE`，重新验证 owner、target、有效期、角色与活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，使 migration 与 Edge Function 的部署切换也保持失败关闭。租约取得、删除前续期或恢复记录失败时不得进入最终 RPC，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`。最终事务由数据库行锁 fencing，不依赖 Edge Runtime 定时器。最终 RPC 抛出传输错误、返回错误或响应契约损坏时，Edge 并行只读核对 Auth 与 Profile；仅两者均明确不存在才确认提交成功，仍存在、状态分裂、模糊 Auth 404 或任一查询失败均重抛原错误。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
 
 恢复时从 GitHub 当前变量复制值，以 `npm run verify:backup-recovery-floor -- restored-backup/metadata.txt` 检查备份。备份早于当前下限或仓库变量比备份 metadata 中的下限更旧时，恢复工具必须拒绝。生产 Secret、变量更新、失败关闭和隔离恢复尚未真实演练前，正式发布仍保持阻塞。
 
@@ -114,6 +123,10 @@ WebChat 不随其他函数直接启用。可以先在 `VITE_WEBCHAT_UI_ENABLED=f
 
 Pages 的客户端开关使用 GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED`，只接受小写 `true` 或 `false`；未配置时 workflow 固定回退为 `false`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
 
+注册防滥用使用 Cloudflare Turnstile 的公开 Site Key 和 Supabase Auth 私有 Secret 双端
+验证。跨系统启用时先暂时禁止注册，避免 Pages 与 Auth 配置切换窗口；真实邮箱确认、
+Auth 限流、直连拒绝和回滚步骤见 [注册滥用防护](./registration-abuse-controls.md)。
+
 WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 Token、正在预留 Token、剩余额度和下一次北京时间 00:00 重置时间。使用隔离数据分别触发请求/Token 阻断，确认后台聚合状态准确、并发请求不能越过预算，原请求返回额度 `503` 且不得自动重试或放行。
 
 部署后执行受控烟测：
@@ -176,9 +189,9 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 - 尚未应用：停止部署，修正 migration 后重新跑空库 CI。
 - 已应用但无数据破坏：新增后续 corrective migration，不修改已部署文件。
 - 已发生数据破坏：立即暂停同步和管理写入，记录时间窗口，评估 Supabase PITR/备份恢复。
-- 只有整库灾难恢复才考虑使用备份；必须先用 GitHub 当前 `BACKUP_RECOVERY_NOT_BEFORE` 运行恢复下限校验，再核对 Auth、业务表和审计匿名化状态。校验失败时禁止恢复旧备份。
+- 只有整库灾难恢复才考虑使用备份；必须先用 GitHub 当前 `BACKUP_RECOVERY_NOT_BEFORE` 运行恢复下限校验，再核对 Auth、业务表、审计匿名化和私有 `webchat-images` 对象。校验失败时禁止恢复旧备份。
 
-恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、行数核对和抽样结果。
+恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、8 个聚合行数、6 类孤儿关系、Storage 数量/字节/哈希、匿名访问拒绝和抽样结果。2026-07-19 的旧演练只覆盖数据库-only 格式；Storage 版本发布前必须使用 Schema v2 Artifact 完成新的真实演练。
 
 ## 5. 凭据轮换
 

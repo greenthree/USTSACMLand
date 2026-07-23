@@ -225,10 +225,13 @@ export function evaluateSupabaseReadiness(state, options = {}) {
     )
   } else {
     if (state.authSettings.disableSignup) errors.push('生产 Auth 已禁止新用户注册。')
-    if (!state.authSettings.mailerAutoconfirm) {
-      errors.push('生产 Auth 未启用邮箱自动确认，注册后无法按产品要求直接建立会话。')
+    if (state.authSettings.mailerAutoconfirm) {
+      errors.push('生产 Auth 仍在自动确认邮箱，无法证明注册者控制该邮箱。')
     }
     if (!state.authSettings.emailProviderEnabled) errors.push('生产 Auth 未启用邮箱登录。')
+    if (!state.authSettings.captchaEnabled) {
+      errors.push('生产 Auth 未启用服务端 CAPTCHA，匿名注册可绕过网页直接调用 Auth。')
+    }
   }
 
   if (!state.anonRestAudit) {
@@ -306,8 +309,9 @@ export function evaluateSupabaseReadiness(state, options = {}) {
       authEmailReady: Boolean(
         state.authSettings &&
         !state.authSettings.disableSignup &&
-        state.authSettings.mailerAutoconfirm &&
-        state.authSettings.emailProviderEnabled,
+        !state.authSettings.mailerAutoconfirm &&
+        state.authSettings.emailProviderEnabled &&
+        state.authSettings.captchaEnabled,
       ),
       anonRestReady: Boolean(
         state.anonRestAudit &&
@@ -395,6 +399,7 @@ async function readPublicAuthSettings(projectRef, apiKey) {
     mailerAutoconfirm: Boolean(settings.mailer_autoconfirm),
     phoneAutoconfirm: Boolean(settings.phone_autoconfirm),
     emailProviderEnabled: Boolean(settings.external?.email),
+    captchaEnabled: Boolean(settings.captcha_enabled),
   }
 }
 

@@ -1,4 +1,19 @@
-import { promptCacheOptions, type WebChatMessage } from './upstream.ts'
+import { promptCacheOptions } from './upstream.ts'
+
+export interface WebChatQuotaImage {
+  attachmentId: string
+  mediaType?: string
+  url?: string
+  width?: number
+  height?: number
+}
+
+export interface WebChatQuotaMessage {
+  id?: string
+  role: 'user' | 'assistant'
+  text: string
+  images?: WebChatQuotaImage[]
+}
 
 export interface WebChatQuotaPolicy {
   model: string
@@ -63,6 +78,9 @@ export interface WebChatBudgetAlertClaim {
 }
 
 const encoder = new TextEncoder()
+export const WEBCHAT_IMAGE_PATCH_SIZE = 32
+export const WEBCHAT_IMAGE_TOKENS_PER_PATCH = 4
+export const WEBCHAT_IMAGE_FRAME_TOKENS = 256
 const FINGERPRINT_PATTERN = /^[a-f0-9]{64}$/
 const CLAIM_DECISIONS = new Set<WebChatClaimDecision>([
   'acquired',
@@ -98,13 +116,42 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function billableInput(messages: WebChatMessage[], policy: WebChatQuotaPolicy): string {
+/**
+ * Reserve a deliberately conservative amount for high-detail image input.
+ * The relay's final usage remains authoritative; this only protects the
+ * member/global reservation fences before an upstream request starts.
+ */
+export function estimateWebChatImageTokens(image: { width?: number; height?: number }): number {
+  const width =
+    typeof image.width === 'number' && Number.isSafeInteger(image.width) && image.width > 0
+      ? image.width
+      : 2_048
+  const height =
+    typeof image.height === 'number' && Number.isSafeInteger(image.height) && image.height > 0
+      ? image.height
+      : 2_048
+  const patches =
+    Math.ceil(width / WEBCHAT_IMAGE_PATCH_SIZE) * Math.ceil(height / WEBCHAT_IMAGE_PATCH_SIZE)
+  const tokens = WEBCHAT_IMAGE_FRAME_TOKENS + patches * WEBCHAT_IMAGE_TOKENS_PER_PATCH
+  if (!Number.isSafeInteger(tokens) || tokens < 1) {
+    throw new Error('WebChat image token reservation is invalid')
+  }
+  return tokens
+}
+
+function billableInput(messages: WebChatQuotaMessage[], policy: WebChatQuotaPolicy): string {
   const cacheOptions = promptCacheOptions(policy.model)
   return JSON.stringify({
     model: policy.model,
     instructions: policy.systemPrompt,
     promptVersion: policy.promptVersion,
-    input: messages.map(({ role, text }) => ({ role, content: text })),
+    // Keep image identity stable without persisting URLs, object keys, hashes,
+    // dimensions, or any other attachment metadata in the fingerprint.
+    input: messages.map(({ role, text, images }) => ({
+      role,
+      content: text,
+      images: (images ?? []).map(({ attachmentId }) => attachmentId),
+    })),
     maxOutputTokens: policy.maxOutputTokens,
     ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
     store: false,
@@ -112,7 +159,7 @@ function billableInput(messages: WebChatMessage[], policy: WebChatQuotaPolicy): 
 }
 
 export async function prepareWebChatQuota(
-  messages: WebChatMessage[],
+  messages: WebChatQuotaMessage[],
   policy: WebChatQuotaPolicy,
 ): Promise<WebChatQuotaPreparation> {
   const serialized = billableInput(messages, policy)
@@ -122,9 +169,20 @@ export async function prepareWebChatQuota(
     byte.toString(16).padStart(2, '0'),
   ).join('')
 
+  const imageTokens = messages.reduce(
+    (total, message) =>
+      total +
+      (message.images ?? []).reduce(
+        (messageTotal, image) => messageTotal + estimateWebChatImageTokens(image),
+        0,
+      ),
+    0,
+  )
   // Each input token consumes at least one encoded byte. The fixed allowance
-  // covers provider framing that is not represented by the JSON payload.
-  const reservedTokens = bytes.byteLength + policy.maxOutputTokens + 1_024
+  // covers provider framing that is not represented by the JSON payload. Image
+  // patches are added separately because their bytes are intentionally absent
+  // from the quota fingerprint.
+  const reservedTokens = bytes.byteLength + imageTokens + policy.maxOutputTokens + 1_024
   if (!Number.isSafeInteger(reservedTokens) || reservedTokens < 1) {
     throw new Error('WebChat token reservation is invalid')
   }

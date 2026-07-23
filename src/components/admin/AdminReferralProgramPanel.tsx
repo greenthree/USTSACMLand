@@ -64,7 +64,7 @@ export function AdminReferralProgramPanel() {
 
   async function submitUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const normalizedReason = reason.trim()
+    const normalizedReason = reason.trim().replace(/\s+/g, ' ')
     if (
       !config ||
       targetEnabled === null ||
@@ -130,7 +130,7 @@ export function AdminReferralProgramPanel() {
     }
   }
 
-  const normalizedReasonLength = reason.trim().length
+  const normalizedReasonLength = reason.trim().replace(/\s+/g, ' ').length
   const canSubmit =
     !saving && confirmed && normalizedReasonLength >= 3 && normalizedReasonLength <= 500
 

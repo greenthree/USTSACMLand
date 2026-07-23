@@ -4,31 +4,67 @@ import { verifyDatabaseBackupWorkflow } from './check-database-backup-workflow.m
 
 const workflow = readFileSync(resolve('.github/workflows/database-backup.yml'), 'utf8')
 
-describe('encrypted database backup workflow', () => {
+describe('encrypted database and WebChat Storage backup workflow', () => {
   it('accepts the checked-in workflow and reports its recovery coverage', () => {
-    expect(verifyDatabaseBackupWorkflow(workflow)).toEqual({ dumpCount: 7, retentionDays: 14 })
+    expect(verifyDatabaseBackupWorkflow(workflow)).toEqual({
+      dumpCount: 7,
+      storageCopyCount: 1,
+      retentionDays: 14,
+    })
   })
 
-  it('rejects removal of authenticated-user data from the backup', () => {
+  it('requires Auth and application data to share one database snapshot', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('--schema public,private,auth', '--schema public,private'),
+      ),
+    ).toThrow(/one pg_dump snapshot|public,private,auth/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replaceAll(
+          '-- Compatibility placeholder: auth data is included in data.sql.',
+          '-- auth data exported elsewhere',
+        ),
+      ),
+    ).toThrow(/compatibility placeholder|required dump coverage/)
+  })
+
+  it('requires both externally configured backup capacity gates', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replaceAll(
+          'MAX_BACKUP_ARTIFACT_BYTES: ${{ vars.MAX_BACKUP_ARTIFACT_BYTES }}',
+          'MAX_BACKUP_ARTIFACT_BYTES: 1000000',
+        ),
+      ),
+    ).toThrow(/artifact size limit/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replaceAll('MAX_STORAGE_OBJECTS: ${{ vars.MAX_STORAGE_OBJECTS }}', ''),
+      ),
+    ).toThrow(/Storage object limit/)
+  })
+
+  it('keeps production secrets out of the job-wide environment', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
         workflow.replace(
-          '--file "$backup_dir/auth-data.sql" \\\n            --use-copy \\\n            --data-only \\\n            --schema auth',
-          '--file "$backup_dir/auth-data.sql" \\\n            --use-copy \\\n            --data-only \\\n            --schema public',
+          '    steps:',
+          '    env:\n      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}\n    steps:',
         ),
       ),
-    ).toThrow(/Authenticated-user data/)
+    ).toThrow(/scoped only to the shell steps/)
   })
 
-  it('keeps the general data dump disjoint from separate Auth and migration dumps', () => {
+  it('rejects a project reference check that accepts another Supabase project', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
-        workflow.replace('--schema public,private', '--schema public,private,auth'),
+        workflow.replace(
+          '"$SUPABASE_PROJECT_REF" != \'qzggoqdmsvktrtnjislw\'',
+          '"$SUPABASE_PROJECT_REF" != \'aaaaaaaaaaaaaaaaaaaa\'',
+        ),
       ),
-    ).toThrow(/application public and private schemas/)
-    expect(() =>
-      verifyDatabaseBackupWorkflow(workflow.replace('--schema public,private', '')),
-    ).toThrow(/--schema public,private/)
+    ).toThrow(/canonical production project/)
   })
 
   it('rejects removal of the external account-deletion recovery floor', () => {
@@ -42,26 +78,74 @@ describe('encrypted database backup workflow', () => {
     ).toThrow(/account-deletion recovery floor/)
   })
 
-  it('rejects removal of the aggregate restore manifest', () => {
+  it('requires a path-free pre-download plan so empty snapshots skip the CLI copy', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('node scripts/webchat-storage-backup.mjs plan', 'echo skipped-plan'),
+      ),
+    ).toThrow(/stage the exact|Storage download plan/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('if (( storage_object_count > 0 )); then', 'if true; then'),
+      ),
+    ).toThrow(/empty snapshots/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('webchat-storage-backup.mjs uninstalled', 'echo skipped-uninstalled'),
+      ),
+    ).toThrow(/explicit empty snapshot/)
+  })
+
+  it('requires one pinned recursive Storage download with private output redirection', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('npx --yes supabase@2.109.1 storage cp', 'echo skipped-storage-copy'),
+      ),
+    ).toThrow(/one pinned private Storage download/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('> "$storage_cli_log" 2>&1', '')),
+    ).toThrow(/path-bearing output redirected/)
+  })
+
+  it('requires exact Storage staging, verification, and aggregate manifest coverage', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('node scripts/webchat-storage-backup.mjs \\', 'echo skipped-stage \\'),
+      ),
+    ).toThrow(/exact database-referenced/)
     expect(() =>
       verifyDatabaseBackupWorkflow(
         workflow.replace(
-          '          node scripts/build-backup-restore-manifest.mjs',
-          '          echo skipped-restore-manifest',
+          '"$backup_dir/storage/webchat-images/summary.json" \\',
+          '"$backup_dir/metadata.txt" \\',
         ),
       ),
-    ).toThrow(/aggregate restore manifest/)
+    ).toThrow(/including Storage aggregates/)
   })
 
-  it('requires the restore manifest to be covered by internal checksums', () => {
+  it('requires every dynamic database and Storage file in SHA256SUMS', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
-        workflow.replace('              restore-manifest.json \\\n', ''),
+        workflow.replace('find . -type f ! -name SHA256SUMS -print0', 'printf fixed-files'),
       ),
-    ).toThrow(/internal checksum/)
+    ).toThrow(/Every dynamic backup file/)
   })
 
-  it('rejects plaintext artifact uploads', () => {
+  it('requires encrypted archive allowlisting and checksum output privacy before extraction', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          'node scripts/verify-webchat-storage-backup.mjs listing',
+          'echo skipped-listing',
+        ),
+      ),
+    ).toThrow(/self-verification|allowlist/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('> "$verification_checksum_log" 2>&1', '')),
+    ).toThrow(/path-bearing output/)
+  })
+
+  it('rejects plaintext artifact uploads or any additional artifact path', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
         workflow.replace(
@@ -70,9 +154,6 @@ describe('encrypted database backup workflow', () => {
         ),
       ),
     ).toThrow(/exactly the encrypted archive and checksum/)
-  })
-
-  it('rejects any additional artifact path even when the encrypted files remain', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
         workflow.replace(
@@ -83,7 +164,7 @@ describe('encrypted database backup workflow', () => {
     ).toThrow(/exactly the encrypted archive and checksum/)
   })
 
-  it('rejects weaker or removed archive encryption', () => {
+  it('rejects weaker encryption or removal of the encrypted size cap', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
         workflow.replace(
@@ -92,12 +173,48 @@ describe('encrypted database backup workflow', () => {
         ),
       ),
     ).toThrow(/approved PBKDF2 parameters/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          'if (( encrypted_size > MAX_BACKUP_ARTIFACT_BYTES )); then',
+          'if false; then',
+        ),
+      ),
+    ).toThrow(/encrypted artifact exceeds/)
   })
 
-  it('rejects unpinned Supabase CLI versions', () => {
+  it('requires downloaded Storage and path-bearing logs in plaintext cleanup', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          '"$backup_dir" "$verification_dir" "$storage_download_parent"',
+          '"$backup_dir" "$verification_dir"',
+        ),
+      ),
+    ).toThrow(/Plaintext cleanup|path-bearing output redirected/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('              "$storage_cli_log" \\\n', '')),
+    ).toThrow(/Plaintext cleanup|path-bearing output redirected/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('              "$checksum_manifest" \\\n', '')),
+    ).toThrow(/Plaintext cleanup/)
+  })
+
+  it('rejects unpinned Supabase CLI versions and long-lived credentials', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(workflow.replaceAll('supabase@2.109.1', 'supabase@latest')),
     ).toThrow(/seven pinned Supabase CLI dumps/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(workflow.replace('--linked', '--db-url "$SUPABASE_DB_URL"')),
+    ).toThrow(/short-lived linked credentials/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          'SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}',
+          'SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}',
+        ),
+      ),
+    ).toThrow(/long-lived Storage credential|project reference/)
   })
 
   it('requires allow-listed Auth user triggers without archiving the full Auth schema dump', () => {
@@ -109,12 +226,6 @@ describe('encrypted database backup workflow', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(workflow.replace('rm -f "$auth_schema_dump"', ':')),
     ).toThrow(/remove the full Auth schema dump/)
-  })
-
-  it('rejects a long-lived database URL in place of linked credentials', () => {
-    expect(() =>
-      verifyDatabaseBackupWorkflow(workflow.replace('--linked', '--db-url "$SUPABASE_DB_URL"')),
-    ).toThrow(/short-lived linked credentials/)
   })
 
   it('rejects execution on pull-request events', () => {

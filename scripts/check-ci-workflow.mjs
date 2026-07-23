@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url'
 
 const workflowUrl = new URL('../.github/workflows/ci.yml', import.meta.url)
 const deployWorkflowUrl = new URL('../.github/workflows/deploy-pages.yml', import.meta.url)
+const imageCleanupWorkflowUrl = new URL(
+  '../.github/workflows/webchat-image-cleanup.yml',
+  import.meta.url,
+)
 const packageUrl = new URL('../package.json', import.meta.url)
 const supabaseConfigUrl = new URL('../supabase/config.toml', import.meta.url)
 const databaseTypesUrl = new URL('../src/types/database.ts', import.meta.url)
@@ -54,6 +58,16 @@ const requiredReleaseMigrations = [
   '202607200002_clear_public_schema_lint.sql',
   '202607210002_training_goals.sql',
   '202607210003_default_webchat_access.sql',
+  '202607220001_referral_program.sql',
+  '202607220002_referral_program_global_switch.sql',
+  '202607230000_referral_confirmed_rewards.sql',
+  '202607230001_webchat_image_attachments.sql',
+  '202607230002_pause_referrals_pending_abuse_controls.sql',
+  '202607230003_referral_reopen_safety_gate.sql',
+  '202607230004_webchat_image_global_limits.sql',
+  '202607230005_sync_job_platform_isolation.sql',
+  '202607230006_sync_worker_service_role_permissions.sql',
+  '202607230007_account_deletion_storage_fence.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -147,6 +161,24 @@ export function verifyDatabaseTypes(databaseTypes) {
     'complete_own_training_goal',
     'archive_own_training_goal',
     'export_own_training_goals',
+    'reserve_webchat_image_attachment',
+    'start_webchat_image_validation',
+    'renew_webchat_image_validation',
+    'complete_webchat_image_validation',
+    'fail_webchat_image_validation',
+    'bind_webchat_image_attachments',
+    'read_webchat_image_attachment_for_preview',
+    'read_webchat_image_attachment_for_model',
+    'read_own_webchat_image_attachment_preview',
+    'queue_webchat_image_attachment_deletion',
+    'enqueue_expired_webchat_image_attachments',
+    'claim_webchat_image_deletion_queue',
+    'complete_webchat_image_deletion',
+    'retry_webchat_image_deletion',
+    'list_webchat_image_deletion_dead_letters',
+    'requeue_webchat_image_deletion_dead_letter',
+    'purge_deleted_webchat_image_attachments',
+    'reconcile_webchat_image_storage_accounting',
   ]) {
     requireMatch(
       databaseTypes,
@@ -248,6 +280,91 @@ export function inspectPgTapSuite(files) {
   return { fileCount: sqlFiles.length, assertionCount }
 }
 
+export function verifyWebchatImageCleanupWorkflow(workflow) {
+  if (!workflow) throw new Error('WebChat image cleanup workflow must be checked in.')
+  requireMatch(
+    workflow,
+    /name:\s+Clean WebChat image objects/,
+    'Image cleanup workflow must have the expected job identity.',
+  )
+  requireMatch(
+    workflow,
+    /schedule:[\s\S]*cron:\s*['"]?\*\/10 \* \* \* \*['"]?/,
+    'Image cleanup workflow must run on its ten-minute schedule.',
+  )
+  requireMatch(
+    workflow,
+    /workflow_dispatch:/,
+    'Image cleanup workflow must support a bounded manual run.',
+  )
+  requireMatch(
+    workflow,
+    /github\.repository == 'greenthree\/USTSACMLand'[\s\S]*github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)/,
+    'Image cleanup workflow must be restricted to the production repository default branch.',
+  )
+  requireMatch(
+    workflow,
+    /github\.event_name == 'workflow_dispatch' \|\| vars\.WEBCHAT_IMAGE_CLEANUP_ENABLED == 'true'/,
+    'Scheduled image cleanup must remain disabled until the production feature gate is explicitly enabled.',
+  )
+  requireMatch(
+    workflow,
+    /environment:\s*name:\s+production-operations/,
+    'Image cleanup workflow must use the protected production operations environment.',
+  )
+  requireMatch(
+    workflow,
+    /set -euo pipefail/,
+    'Image cleanup workflow must fail closed on shell, curl, and jq errors.',
+  )
+  requireMatch(
+    workflow,
+    /SUPABASE_PROJECT_REF.*secrets\.SUPABASE_PROJECT_REF[\s\S]*SUPABASE_SERVICE_ROLE_KEY.*secrets\.SUPABASE_SERVICE_ROLE_KEY/,
+    'Image cleanup workflow must source both Supabase credentials from Actions secrets.',
+  )
+  requireMatch(
+    workflow,
+    /if \[\[ "\$SUPABASE_PROJECT_REF" != 'qzggoqdmsvktrtnjislw' \]\]/,
+    'Image cleanup workflow must be pinned to the production Supabase project ref.',
+  )
+  requireMatch(
+    workflow,
+    /--output "\$response"[\s\S]*--write-out '%\{http_code\}'[\s\S]*functions\/v1\/webchat-image-cleanup/,
+    'Image cleanup workflow must capture a bounded private response and endpoint status.',
+  )
+  requireMatch(
+    workflow,
+    /http_status.*(?:200.*207|207.*200)/,
+    'Image cleanup workflow must explicitly handle the 200/207 response contract.',
+  )
+  requireMatch(
+    workflow,
+    /\(keys \| sort\) == \[[\s\S]*"deadLettersOutstanding"[\s\S]*"requestId"[\s\S]*"storageAccountingConsistent"[\s\S]*\]/,
+    'Image cleanup workflow must validate the complete JSON response shape.',
+  )
+  requireMatch(
+    workflow,
+    /\.claimed == \(\.deleted \+ \.retried \+ \.deadLettered\)/,
+    'Image cleanup workflow must verify deletion count conservation.',
+  )
+  requireMatch(
+    workflow,
+    /requestId \| type == "string"[\s\S]*deadLettersOutstanding/,
+    'Image cleanup workflow must fail visibly when deletion dead letters remain.',
+  )
+  requireMatch(
+    workflow,
+    /storageAccountingConsistent \| type\) == "boolean"[\s\S]*storageAccountingConsistent == false[\s\S]*::error title=WebChat image Storage accounting drift/,
+    'Image cleanup workflow must validate Storage accounting and fail visibly on drift.',
+  )
+  requireMatch(
+    workflow,
+    /GITHUB_STEP_SUMMARY[\s\S]*::error title=WebChat image cleanup dead letter/,
+    'Image cleanup workflow must leave a bounded summary and actionable dead-letter annotations.',
+  )
+  return true
+}
+
 export function verifyCiWorkflow(
   workflow,
   packageJson,
@@ -255,6 +372,7 @@ export function verifyCiWorkflow(
   migrationFiles = [],
   deployWorkflow = '',
   supabaseConfig = '',
+  imageCleanupWorkflow = '',
 ) {
   requireMatch(
     workflow,
@@ -275,6 +393,8 @@ export function verifyCiWorkflow(
     'delete-account',
     'change-password',
     'webchat',
+    'webchat-attachment',
+    'webchat-image-cleanup',
     'webchat-config',
     'webchat-cache-probe',
     'firecrawl-config',
@@ -332,6 +452,33 @@ export function verifyCiWorkflow(
   requireMatch(workflow, /run:\s+npm run test:db/, 'Database CI must execute the pgTAP suite.')
   requireMatch(
     workflow,
+    /- name: Test account-deletion transaction fencing\s+run: npm run check:account-deletion-concurrency/,
+    'Database CI must execute the real two-connection account-deletion fencing check.',
+  )
+  if (
+    packageJson.scripts?.['check:account-deletion-concurrency'] !==
+    'node scripts/check-account-deletion-concurrency.mjs'
+  ) {
+    throw new Error('The account-deletion concurrency check must use the checked-in verifier.')
+  }
+  requireMatch(
+    workflow,
+    /database-security:[\s\S]*?- name: Set up Deno for database integration checks\s+uses: denoland\/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed[\s\S]*?deno-version: v2\.x/,
+    'Database CI must install the pinned Deno runtime used by the local outage integration check.',
+  )
+  requireMatch(
+    workflow,
+    /- name: Test single-platform outage isolation\s+run: npm run check:sync-platform-outage/,
+    'Database CI must execute the single-platform outage isolation check.',
+  )
+  if (
+    packageJson.scripts?.['check:sync-platform-outage'] !==
+    'node scripts/check-sync-platform-outage.mjs'
+  ) {
+    throw new Error('The single-platform outage check must use the checked-in verifier.')
+  }
+  requireMatch(
+    workflow,
     /- name: Lint database schema[\s\S]*?supabase@2\.109\.1 db lint --local[\s\S]*?--schema public --level warning --fail-on warning/,
     'Database CI must reject public schema lint warnings with the pinned Supabase CLI.',
   )
@@ -386,6 +533,53 @@ export function verifyCiWorkflow(
     /VITE_WEBCHAT_UI_ENABLED must be exactly true or false/,
     'Pages deployment must reject malformed WebChat UI feature flags.',
   )
+  const webChatImageInputBindings = [
+    ...deployWorkflow.matchAll(
+      /VITE_WEBCHAT_IMAGE_INPUT_ENABLED:\s+\$\{\{ vars\.VITE_WEBCHAT_IMAGE_INPUT_ENABLED \|\| 'false' \}\}/g,
+    ),
+  ]
+  if (webChatImageInputBindings.length < 2) {
+    throw new Error(
+      'Pages deployment must validate and build with the default-disabled VITE_WEBCHAT_IMAGE_INPUT_ENABLED repository variable.',
+    )
+  }
+  requireMatch(
+    deployWorkflow,
+    /VITE_WEBCHAT_IMAGE_INPUT_ENABLED must be exactly true or false/,
+    'Pages deployment must reject malformed WebChat image input feature flags.',
+  )
+  const registrationTurnstileBindings = [
+    ...deployWorkflow.matchAll(
+      /VITE_REGISTRATION_TURNSTILE_ENABLED:\s+\$\{\{ vars\.VITE_REGISTRATION_TURNSTILE_ENABLED \|\| 'false' \}\}/g,
+    ),
+  ]
+  if (registrationTurnstileBindings.length < 2) {
+    throw new Error(
+      'Pages deployment must validate and build with the default-disabled registration Turnstile variable.',
+    )
+  }
+  const turnstileSiteKeyBindings = [
+    ...deployWorkflow.matchAll(
+      /VITE_TURNSTILE_SITE_KEY:\s+\$\{\{ vars\.VITE_TURNSTILE_SITE_KEY \|\| '' \}\}/g,
+    ),
+  ]
+  if (turnstileSiteKeyBindings.length < 2) {
+    throw new Error(
+      'Pages deployment must validate and build with the public Turnstile site key variable.',
+    )
+  }
+  requireMatch(
+    deployWorkflow,
+    /VITE_REGISTRATION_TURNSTILE_ENABLED must be exactly true or false/,
+    'Pages deployment must reject malformed registration Turnstile flags.',
+  )
+  requireMatch(
+    deployWorkflow,
+    /VITE_TURNSTILE_SITE_KEY is required when registration Turnstile is enabled/,
+    'Pages deployment must fail closed when Turnstile is enabled without a site key.',
+  )
+
+  if (imageCleanupWorkflow) verifyWebchatImageCleanupWorkflow(imageCleanupWorkflow)
 
   return {
     ...inspectPgTapSuite(pgTapFiles),
@@ -400,6 +594,7 @@ async function main() {
     packageText,
     supabaseConfig,
     databaseTypes,
+    imageCleanupWorkflow,
     entries,
     migrationEntries,
   ] = await Promise.all([
@@ -408,6 +603,7 @@ async function main() {
     readFile(packageUrl, 'utf8'),
     readFile(supabaseConfigUrl, 'utf8'),
     readFile(databaseTypesUrl, 'utf8'),
+    readFile(imageCleanupWorkflowUrl, 'utf8'),
     readdir(pgTapDirectoryUrl, { withFileTypes: true }),
     readdir(migrationDirectoryUrl, { withFileTypes: true }),
   ])
@@ -426,6 +622,7 @@ async function main() {
     migrationEntries.filter((entry) => entry.isFile()).map((entry) => entry.name),
     deployWorkflow,
     supabaseConfig,
+    imageCleanupWorkflow,
   )
   verifyDatabaseTypes(databaseTypes)
   console.log(
