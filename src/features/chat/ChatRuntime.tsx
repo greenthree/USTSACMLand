@@ -1,5 +1,6 @@
 import {
   ActionBarPrimitive,
+  AttachmentPrimitive,
   AssistantRuntimeProvider,
   AuiIf,
   ComposerPrimitive,
@@ -7,6 +8,7 @@ import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   ThreadPrimitive,
+  type Attachment,
   useAui,
   useAuiState,
   useRemoteThreadListRuntime,
@@ -19,23 +21,32 @@ import Check from 'lucide-react/dist/esm/icons/check'
 import CircleAlert from 'lucide-react/dist/esm/icons/circle-alert'
 import Copy from 'lucide-react/dist/esm/icons/copy'
 import History from 'lucide-react/dist/esm/icons/history'
+import ImageIcon from 'lucide-react/dist/esm/icons/image'
+import Paperclip from 'lucide-react/dist/esm/icons/paperclip'
 import Plus from 'lucide-react/dist/esm/icons/plus'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Send from 'lucide-react/dist/esm/icons/send'
 import Square from 'lucide-react/dist/esm/icons/square'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
+import X from 'lucide-react/dist/esm/icons/x'
 import type { ComponentProps } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/authContextValue'
 import { createBrowserWebChatTransport, normalizeWebChatError, WebChatApiError } from './chatApi'
+import {
+  browserWebChatAttachmentClient,
+  createWebChatAttachmentAdapter,
+  parseWebChatAttachmentUrn,
+  toWebChatCreateMessage,
+  webChatImageInputEnabled as defaultWebChatImageInputEnabled,
+  type WebChatAttachmentClient,
+} from './chatAttachments'
 import {
   createWebChatThreadListAdapter,
   readActiveWebChatThreadId,
   storeActiveWebChatThreadId,
 } from './webChatHistory'
-
-const defaultTransport = createBrowserWebChatTransport()
 
 const suggestions = [
   '帮我拆解一道题的输入、输出和关键边界',
@@ -122,10 +133,151 @@ function AssistantMessage() {
   )
 }
 
-function UserMessage() {
+function attachmentUrn(attachment: Attachment): string | null {
+  const image = attachment.content?.find((part) => part.type === 'image')
+  return image?.type === 'image' ? image.image : null
+}
+
+function useAttachmentPreview(
+  attachment: Attachment,
+  client: WebChatAttachmentClient,
+): { url: string | null; failed: boolean; onImageError: () => void } {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [refreshAttempt, setRefreshAttempt] = useState(0)
+  const urn = attachmentUrn(attachment)
+  const attachmentId = urn ? parseWebChatAttachmentUrn(urn) : null
+
+  useEffect(() => {
+    setRefreshAttempt(0)
+  }, [attachment.file, urn])
+
+  useEffect(() => {
+    let active = true
+    let objectUrl: string | null = null
+    let retryTimer: number | null = null
+    setUrl(null)
+    setFailed(false)
+
+    if (attachment.file && typeof URL.createObjectURL === 'function') {
+      objectUrl = URL.createObjectURL(attachment.file)
+      setUrl(objectUrl)
+    } else if (urn) {
+      if (!attachmentId) {
+        setFailed(true)
+      } else {
+        void client
+          .preview(attachmentId, { forceRefresh: refreshAttempt > 0 })
+          .then((preview) => {
+            if (active) setUrl(preview.previewUrl)
+          })
+          .catch(() => {
+            if (!active) return
+            if (refreshAttempt < 2) {
+              retryTimer = window.setTimeout(() => {
+                if (active) setRefreshAttempt((current) => Math.min(2, current + 1))
+              }, 250)
+            } else {
+              setFailed(true)
+            }
+          })
+      }
+    } else if (attachment.status.type === 'complete') {
+      setFailed(true)
+    }
+
+    return () => {
+      active = false
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [attachment.file, attachment.status.type, attachmentId, client, refreshAttempt, urn])
+
+  const onImageError = useCallback(() => {
+    setUrl(null)
+    if (!attachment.file && attachmentId && refreshAttempt < 2) {
+      setFailed(false)
+      setRefreshAttempt((current) => Math.min(2, current + 1))
+      return
+    }
+    setFailed(true)
+  }, [attachment.file, attachmentId, refreshAttempt])
+
+  return { url, failed, onImageError }
+}
+
+function ImageAttachment({
+  attachment,
+  client,
+  removable,
+}: {
+  attachment: Attachment
+  client: WebChatAttachmentClient
+  removable: boolean
+}) {
+  const preview = useAttachmentPreview(attachment, client)
+  const pending = attachment.status.type !== 'complete'
+  const failed =
+    preview.failed ||
+    (attachment.status.type === 'incomplete' && attachment.status.reason === 'error')
+  const statusText =
+    attachment.status.type === 'running'
+      ? `上传中 ${Math.round(attachment.status.progress)}%`
+      : attachment.status.type === 'incomplete'
+        ? `上传失败${attachment.status.message ? `：${attachment.status.message}` : ''}`
+        : preview.failed
+          ? '图片预览失败'
+          : attachment.status.type === 'requires-action'
+            ? '已上传，等待发送'
+            : ''
+
+  return (
+    <AttachmentPrimitive.Root
+      className="assistant-image-attachment"
+      aria-busy={attachment.status.type === 'running'}
+      data-failed={failed || undefined}
+      data-pending={pending || undefined}
+    >
+      <div className="assistant-image-preview">
+        {preview.url ? (
+          <img src={preview.url} alt="用户上传的图片" onError={preview.onImageError} />
+        ) : (
+          <ImageIcon size={20} aria-hidden="true" />
+        )}
+      </div>
+      {statusText ? (
+        <span
+          className="assistant-image-status"
+          role="status"
+          aria-live="polite"
+          data-error={failed || undefined}
+          title={statusText}
+        >
+          {statusText}
+        </span>
+      ) : null}
+      {removable ? (
+        <AttachmentPrimitive.Remove asChild>
+          <button type="button" aria-label="移除图片" title="移除图片">
+            <X size={14} aria-hidden="true" />
+          </button>
+        </AttachmentPrimitive.Remove>
+      ) : null}
+    </AttachmentPrimitive.Root>
+  )
+}
+
+function UserMessage({ attachmentClient }: { attachmentClient: WebChatAttachmentClient }) {
   return (
     <MessagePrimitive.Root className="assistant-message assistant-message-user">
       <p className="assistant-message-label">你</p>
+      <div className="assistant-message-attachments">
+        <MessagePrimitive.Attachments>
+          {({ attachment }) => (
+            <ImageAttachment attachment={attachment} client={attachmentClient} removable={false} />
+          )}
+        </MessagePrimitive.Attachments>
+      </div>
       <MessagePrimitive.Parts />
     </MessagePrimitive.Root>
   )
@@ -186,11 +338,13 @@ function DeleteConversation({ onDelete }: { onDelete: () => void }) {
 
 function ErrorNotice({
   error,
+  allowGenerationRetry = true,
   onDismiss,
   onReauthenticate,
   onRefreshAccess,
 }: {
   error: WebChatApiError | null
+  allowGenerationRetry?: boolean
   onDismiss: () => void
   onReauthenticate: () => Promise<void>
   onRefreshAccess?: () => void | Promise<void>
@@ -223,7 +377,7 @@ function ErrorNotice({
         ) : null}
         {error.requestId ? <small>请求编号：{error.requestId}</small> : null}
       </div>
-      {error.retryable && lastUserMessageId ? (
+      {allowGenerationRetry && error.retryable && lastUserMessageId ? (
         <button type="button" onClick={retry}>
           重新发送
         </button>
@@ -235,19 +389,131 @@ function ErrorNotice({
         <button type="button" onClick={() => void onRefreshAccess()}>
           重新检查权限
         </button>
-      ) : null}
+      ) : (
+        <button type="button" onClick={onDismiss}>
+          关闭
+        </button>
+      )}
     </div>
   )
 }
 
-function ConversationThread() {
+function ConversationThread({
+  attachmentClient,
+  imageInputEnabled,
+}: {
+  attachmentClient: WebChatAttachmentClient
+  imageInputEnabled: boolean
+}) {
+  const blockedAttachment = useAuiState((state) =>
+    state.composer.attachments.find(
+      (attachment) =>
+        attachment.status.type === 'running' || attachment.status.type === 'incomplete',
+    ),
+  )
+  const hasUploadingAttachment = blockedAttachment?.status.type === 'running'
+  const hasAttachmentError = blockedAttachment?.status.type === 'incomplete'
+  const cannotSendWithAttachment = Boolean(blockedAttachment)
+  const composer = (
+    <ComposerPrimitive.Root
+      className="assistant-composer"
+      data-uploading={hasUploadingAttachment || undefined}
+      aria-busy={hasUploadingAttachment}
+      onSubmit={(event) => {
+        if (cannotSendWithAttachment) event.preventDefault()
+      }}
+    >
+      {imageInputEnabled ? (
+        <div className="assistant-composer-attachments">
+          <ComposerPrimitive.Attachments>
+            {({ attachment }) => (
+              <ImageAttachment attachment={attachment} client={attachmentClient} removable />
+            )}
+          </ComposerPrimitive.Attachments>
+        </div>
+      ) : null}
+      <ComposerPrimitive.Input
+        aria-label="向 AI 学习助手提问"
+        placeholder="写下题意、思路或代码问题……"
+        maxLength={12_000}
+        rows={1}
+        addAttachmentOnPaste={imageInputEnabled}
+        onKeyDown={(event) => {
+          if (
+            cannotSendWithAttachment &&
+            event.key === 'Enter' &&
+            (!event.shiftKey || event.ctrlKey || event.metaKey)
+          ) {
+            event.preventDefault()
+          }
+        }}
+      />
+      <div className="assistant-composer-actions">
+        {imageInputEnabled ? (
+          <ComposerPrimitive.AddAttachment asChild multiple={false}>
+            <button
+              className="assistant-attach-button"
+              type="button"
+              aria-label="添加图片"
+              title="添加图片"
+            >
+              <Paperclip size={16} aria-hidden="true" />
+            </button>
+          </ComposerPrimitive.AddAttachment>
+        ) : null}
+        {hasUploadingAttachment ? (
+          <span className="assistant-composer-upload-status" role="status" aria-live="polite">
+            图片上传中，完成后可发送
+          </span>
+        ) : hasAttachmentError ? (
+          <span className="assistant-composer-upload-status" role="status" aria-live="polite">
+            请移除上传失败的图片后发送
+          </span>
+        ) : (
+          <span>Enter 发送 · Shift + Enter 换行</span>
+        )}
+        <AuiIf condition={(state) => !state.thread.isRunning}>
+          <ComposerPrimitive.Send asChild>
+            <button
+              className="assistant-submit-button"
+              type="button"
+              disabled={cannotSendWithAttachment}
+              aria-label="发送问题"
+              title="发送问题"
+            >
+              <Send size={17} aria-hidden="true" />
+            </button>
+          </ComposerPrimitive.Send>
+        </AuiIf>
+        <AuiIf condition={(state) => state.thread.isRunning}>
+          <ComposerPrimitive.Cancel asChild>
+            <button
+              className="assistant-submit-button"
+              type="button"
+              aria-label="停止生成"
+              title="停止生成"
+            >
+              <Square size={14} aria-hidden="true" />
+            </button>
+          </ComposerPrimitive.Cancel>
+        </AuiIf>
+      </div>
+    </ComposerPrimitive.Root>
+  )
+
   return (
     <ThreadPrimitive.Root className="assistant-thread">
       <ThreadPrimitive.Viewport className="assistant-viewport">
         <EmptyConversationGate />
         <div className="assistant-messages" aria-live="polite">
           <ThreadPrimitive.Messages>
-            {({ message }) => (message.role === 'user' ? <UserMessage /> : <AssistantMessage />)}
+            {({ message }) =>
+              message.role === 'user' ? (
+                <UserMessage attachmentClient={attachmentClient} />
+              ) : (
+                <AssistantMessage />
+              )
+            }
           </ThreadPrimitive.Messages>
         </div>
         <ThreadPrimitive.ViewportFooter className="assistant-composer-dock">
@@ -261,31 +527,13 @@ function ConversationThread() {
               <ArrowDown size={16} aria-hidden="true" />
             </button>
           </ThreadPrimitive.ScrollToBottom>
-          <ComposerPrimitive.Root className="assistant-composer">
-            <ComposerPrimitive.Input
-              aria-label="向 AI 学习助手提问"
-              placeholder="写下题意、思路或代码问题……"
-              maxLength={12_000}
-              rows={1}
-            />
-            <div className="assistant-composer-actions">
-              <span>Enter 发送 · Shift + Enter 换行</span>
-              <AuiIf condition={(state) => !state.thread.isRunning}>
-                <ComposerPrimitive.Send asChild>
-                  <button type="button" aria-label="发送问题" title="发送问题">
-                    <Send size={17} aria-hidden="true" />
-                  </button>
-                </ComposerPrimitive.Send>
-              </AuiIf>
-              <AuiIf condition={(state) => state.thread.isRunning}>
-                <ComposerPrimitive.Cancel asChild>
-                  <button type="button" aria-label="停止生成" title="停止生成">
-                    <Square size={14} aria-hidden="true" />
-                  </button>
-                </ComposerPrimitive.Cancel>
-              </AuiIf>
-            </div>
-          </ComposerPrimitive.Root>
+          {imageInputEnabled ? (
+            <ComposerPrimitive.AttachmentDropzone asChild>
+              {composer}
+            </ComposerPrimitive.AttachmentDropzone>
+          ) : (
+            composer
+          )}
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
@@ -386,23 +634,39 @@ function CurrentConversationHeading() {
 }
 
 function AssistantWorkspace({
+  attachmentClient,
+  attachmentError,
   error,
+  imageInputEnabled,
   onClearError,
+  onClearAttachmentError,
   onReauthenticate,
   onRefreshAccess,
 }: {
+  attachmentClient: WebChatAttachmentClient
+  attachmentError: { conversationId: string | null; error: WebChatApiError } | null
   error: WebChatApiError | null
+  imageInputEnabled: boolean
   onClearError: () => void
+  onClearAttachmentError: () => void
   onReauthenticate: () => Promise<void>
   onRefreshAccess?: () => void | Promise<void>
 }) {
+  const conversationId = useAuiState((state) => state.threadListItem.remoteId ?? null)
+  const visibleAttachmentError =
+    attachmentError?.conversationId === conversationId ? attachmentError.error : null
+  const clearAllErrors = useCallback(() => {
+    onClearError()
+    onClearAttachmentError()
+  }, [onClearAttachmentError, onClearError])
+
   return (
     <div className="assistant-chat-layout">
       <ConversationHistory />
       <section className="assistant-workbench" aria-label="AI 对话工作台">
         <header className="assistant-workbench-header">
           <CurrentConversationHeading />
-          <DeleteConversation onDelete={onClearError} />
+          <DeleteConversation onDelete={clearAllErrors} />
         </header>
         <ErrorNotice
           error={error}
@@ -410,23 +674,44 @@ function AssistantWorkspace({
           onReauthenticate={onReauthenticate}
           onRefreshAccess={onRefreshAccess}
         />
-        <ConversationThread />
+        {!error ? (
+          <ErrorNotice
+            error={visibleAttachmentError}
+            allowGenerationRetry={false}
+            onDismiss={onClearAttachmentError}
+            onReauthenticate={onReauthenticate}
+            onRefreshAccess={onRefreshAccess}
+          />
+        ) : null}
+        <ConversationThread
+          attachmentClient={attachmentClient}
+          imageInputEnabled={imageInputEnabled}
+        />
       </section>
     </div>
   )
 }
 
 export function ChatRuntime({
+  attachmentClient = browserWebChatAttachmentClient,
+  imageInputEnabled = defaultWebChatImageInputEnabled,
   transport,
   onUsageChanged,
 }: {
+  attachmentClient?: WebChatAttachmentClient
+  imageInputEnabled?: boolean
   transport?: ChatTransport<UIMessage>
   onUsageChanged?: () => void | Promise<void>
 }) {
   const navigate = useNavigate()
   const { signOut, user } = useAuth()
   const [error, setError] = useState<WebChatApiError | null>(null)
+  const [attachmentError, setAttachmentError] = useState<{
+    conversationId: string | null
+    error: WebChatApiError
+  } | null>(null)
   const clearError = useCallback(() => setError(null), [])
+  const clearAttachmentError = useCallback(() => setAttachmentError(null), [])
   const reauthenticate = useCallback(async () => {
     await signOut()
     navigate('/login?returnTo=%2Fassistant', { replace: true })
@@ -443,8 +728,47 @@ export function ChatRuntime({
     initialThreadId,
     onThreadIdChange: (threadId) => storeActiveWebChatThreadId(userId, threadId),
     runtimeHook: function WebChatThreadRuntime() {
+      const aui = useAui()
+      const getConversationId = useCallback(async () => {
+        const item = aui.threadListItem()
+        const state = item.getState()
+        if (state.remoteId) return state.remoteId
+        return (await item.initialize()).remoteId
+      }, [aui])
+      const activeTransport = useMemo(
+        () => transport ?? createBrowserWebChatTransport({ getConversationId }),
+        // runtimeHook is replaced by the parent when its transport changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [getConversationId, transport],
+      )
+      const attachmentAdapter = useMemo(
+        () =>
+          imageInputEnabled
+            ? createWebChatAttachmentAdapter({
+                client: attachmentClient,
+                getConversationId,
+                getAttachmentCount: () =>
+                  aui
+                    .composer()
+                    .getState()
+                    .attachments.filter((attachment) => attachment.status.type !== 'running')
+                    .length,
+                onError: (nextError) => {
+                  const conversationId = aui.threadListItem().getState().remoteId ?? null
+                  setAttachmentError({ conversationId, error: nextError })
+                },
+              })
+            : undefined,
+        // These parent props are intentionally included: the runtime hook is
+        // refreshed when feature configuration or the attachment client changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [aui, getConversationId, attachmentClient, imageInputEnabled],
+      )
+
       return useChatRuntime({
-        transport: transport ?? defaultTransport,
+        transport: activeTransport,
+        ...(attachmentAdapter ? { adapters: { attachments: attachmentAdapter } } : undefined),
+        ...(imageInputEnabled ? { toCreateMessage: toWebChatCreateMessage } : undefined),
         onError: handleError,
         onFinish: ({ isError }) => {
           if (!isError) clearError()
@@ -457,8 +781,12 @@ export function ChatRuntime({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <AssistantWorkspace
+        attachmentClient={attachmentClient}
+        attachmentError={attachmentError}
         error={error}
+        imageInputEnabled={imageInputEnabled}
         onClearError={clearError}
+        onClearAttachmentError={clearAttachmentError}
         onReauthenticate={reauthenticate}
         onRefreshAccess={onUsageChanged}
       />

@@ -18,16 +18,16 @@ concurrency:
 
 jobs:
   restore-drill:
+    if: github.repository == 'greenthree/USTSACMLand' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
-      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
-
+    environment:
+      name: production-operations
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -38,6 +38,7 @@ jobs:
         id: source
         shell: bash
         env:
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -45,15 +46,6 @@ jobs:
             echo '::error::backup_run_id must be a numeric Actions run ID.'
             exit 1
           fi
-          if (( ${#BACKUP_ENCRYPTION_PASSPHRASE} < 32 )); then
-            echo '::error::BACKUP_ENCRYPTION_PASSPHRASE must contain at least 32 characters.'
-            exit 1
-          fi
-          if ! date -u -d "$BACKUP_RECOVERY_NOT_BEFORE" +'%Y-%m-%dT%H:%M:%SZ' > /dev/null; then
-            echo '::error::BACKUP_RECOVERY_NOT_BEFORE is not a valid timestamp.'
-            exit 1
-          fi
-
           run_json="$RUNNER_TEMP/backup-source-run.json"
           workflow_json="$RUNNER_TEMP/backup-source-workflow.json"
           artifacts_json="$RUNNER_TEMP/backup-source-artifacts.json"
@@ -99,10 +91,23 @@ jobs:
       - name: Decrypt and verify backup
         shell: bash
         env:
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
           SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
         run: |
           set -euo pipefail
           set +x
+          umask 077
+
+          if (( ${#BACKUP_ENCRYPTION_PASSPHRASE} < 32 )); then
+            echo '::error::BACKUP_ENCRYPTION_PASSPHRASE must contain at least 32 characters.'
+            exit 1
+          fi
+          if ! date -u -d "$BACKUP_RECOVERY_NOT_BEFORE" +'%Y-%m-%dT%H:%M:%SZ' > /dev/null; then
+            echo '::error::BACKUP_RECOVERY_NOT_BEFORE is not a valid timestamp.'
+            exit 1
+          fi
 
           artifact_dir="$RUNNER_TEMP/encrypted-backup"
           encrypted="$artifact_dir/ustsacmland-database-backup.enc"
@@ -110,34 +115,65 @@ jobs:
           archive="$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
           restore_dir="$RUNNER_TEMP/restored-backup"
           listing="$RUNNER_TEMP/ustsacmland-restore-files.txt"
+          storage_manifest="$RUNNER_TEMP/ustsacmland-storage-manifest.ndjson"
+          storage_summary="$RUNNER_TEMP/ustsacmland-storage-summary.json"
+          verification_log="$RUNNER_TEMP/ustsacmland-restore-verification.log"
 
           test -s "$encrypted"
           test -s "$checksum"
           test "$(find "$artifact_dir" -maxdepth 1 -type f | wc -l)" -eq 2
-          (
+          if ! (
             cd "$artifact_dir"
-            sha256sum -c ustsacmland-database-backup.enc.sha256
-          )
+            sha256sum -c ustsacmland-database-backup.enc.sha256 > "$verification_log" 2>&1
+          ); then
+            echo '::error::Encrypted backup checksum did not match.'
+            exit 1
+          fi
 
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 \
             -in "$encrypted" \
             -out "$archive" \
             -pass env:BACKUP_ENCRYPTION_PASSPHRASE
 
-          tar -tzf "$archive" | sort > "$listing"
-          diff -u <(printf '%s\n' \
-            './' \
-            './SHA256SUMS' \
-            './auth-data.sql' \
-            './auth-hooks.sql' \
-            './data.sql' \
-            './metadata.txt' \
-            './migrations-data.sql' \
-            './migrations-schema.sql' \
-            './restore-manifest.json' \
-            './roles.sql' \
-            './schema.sql' | sort) "$listing"
-          if tar -tvzf "$archive" | awk '$1 !~ /^[-d]/ { invalid = 1 } END { exit invalid }'; then
+          if ! tar -tzf "$archive" 2> "$verification_log" | sort > "$listing"; then
+            echo '::error::Decrypted backup archive listing failed.'
+            exit 1
+          fi
+          storage_manifest_present=false
+          storage_summary_present=false
+          grep -Fxq './storage/webchat-images/manifest.ndjson' "$listing" \
+            && storage_manifest_present=true
+          grep -Fxq './storage/webchat-images/summary.json' "$listing" \
+            && storage_summary_present=true
+          if [[ "$storage_manifest_present" == true && "$storage_summary_present" == true ]]; then
+            if ! tar -xOzf "$archive" \
+              './storage/webchat-images/manifest.ndjson' > "$storage_manifest" 2> "$verification_log"; then
+              echo '::error::Encrypted backup Storage manifest extraction failed.'
+              exit 1
+            fi
+            if ! tar -xOzf "$archive" \
+              './storage/webchat-images/summary.json' > "$storage_summary" 2> "$verification_log"; then
+              echo '::error::Encrypted backup Storage summary extraction failed.'
+              exit 1
+            fi
+            if ! node scripts/verify-webchat-storage-backup.mjs listing \
+              "$listing" "$storage_manifest" "$storage_summary" \
+              > "$verification_log" 2>&1; then
+              echo '::error::Encrypted backup archive member allowlist failed.'
+              exit 1
+            fi
+          elif [[ "$storage_manifest_present" == false && "$storage_summary_present" == false ]] \
+            && ! grep -Eq '^\./storage/' "$listing"; then
+            if ! node scripts/verify-webchat-storage-backup.mjs listing \
+              "$listing" > "$verification_log" 2>&1; then
+              echo '::error::Legacy v1 backup archive member allowlist failed.'
+              exit 1
+            fi
+          else
+            echo '::error::Backup archive has an incomplete or unsupported Storage snapshot.'
+            exit 1
+          fi
+          if tar -tvzf "$archive" 2> "$verification_log" | awk '$1 !~ /^[-d]/ { invalid = 1 } END { exit invalid }'; then
             true
           else
             echo '::error::Backup archive contains an unsupported entry type.'
@@ -145,12 +181,26 @@ jobs:
           fi
 
           mkdir -p "$restore_dir"
-          tar --extract --gzip --file "$archive" --directory "$restore_dir" \
-            --no-same-owner --no-same-permissions
-          (
+          if ! tar --extract --gzip --file "$archive" --directory "$restore_dir" \
+            --no-same-owner --no-same-permissions 2> "$verification_log"; then
+            echo '::error::Decrypted backup archive extraction failed.'
+            exit 1
+          fi
+          if ! (
             cd "$restore_dir"
-            sha256sum -c SHA256SUMS
-          )
+            sha256sum -c SHA256SUMS > "$verification_log" 2>&1
+          ); then
+            echo '::error::A decrypted backup checksum did not match.'
+            exit 1
+          fi
+          if [[ "$storage_summary_present" == true ]]; then
+            if ! node scripts/verify-webchat-storage-backup.mjs \
+              archive "$restore_dir/storage/webchat-images" \
+              > "$verification_log" 2>&1; then
+              echo '::error::Restored WebChat Storage archive failed validation.'
+              exit 1
+            fi
+          fi
 
           grep -Fxq "repository=$GITHUB_REPOSITORY" "$restore_dir/metadata.txt"
           grep -Fxq "commit=$SOURCE_SHA" "$restore_dir/metadata.txt"
@@ -160,14 +210,26 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg commit "$SOURCE_SHA" \
             --arg run_id "$BACKUP_RUN_ID" '
-              .schemaVersion == 1
-              and .repository == $repository
+              .repository == $repository
               and .commit == $commit
               and .runId == $run_id
               and .supabaseCli == "2.109.1"
+              and (
+                (.schemaVersion == 1 and .storage == null)
+                or (
+                  .schemaVersion == 2
+                  and .storage.bucket == "webchat-images"
+                  and (.storage.featureState == "installed" or .storage.featureState == "uninstalled")
+                )
+              )
             ' "$restore_dir/restore-manifest.json" > /dev/null
-          node scripts/verify-backup-recovery-floor.mjs "$restore_dir/metadata.txt"
-          rm -f "$archive" "$listing"
+          if ! BACKUP_RECOVERY_NOT_BEFORE="$BACKUP_RECOVERY_NOT_BEFORE" \
+            node scripts/verify-backup-recovery-floor.mjs "$restore_dir/metadata.txt" \
+            > "$verification_log" 2>&1; then
+            echo '::error::Backup recovery floor validation failed.'
+            exit 1
+          fi
+          rm -f "$archive" "$listing" "$storage_manifest" "$storage_summary" "$verification_log"
 
       - name: Start isolated local Supabase
         shell: bash
@@ -176,11 +238,12 @@ jobs:
           mv supabase/migrations "$RUNNER_TEMP/repository-migrations"
           mkdir supabase/migrations
           npx --yes supabase@2.109.1 start \
-            --exclude analytics,edge-runtime,functions,imgproxy,inbucket,realtime,storage,studio,vector
+            --exclude analytics,edge-runtime,functions,imgproxy,inbucket,realtime,studio,vector
 
       - name: Restore and validate isolated database
         shell: bash
         env:
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
           SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
         run: |
           set -euo pipefail
@@ -192,12 +255,22 @@ jobs:
           counts="$RUNNER_TEMP/restored-row-counts.json"
           orphans="$RUNNER_TEMP/restored-orphan-counts.json"
           observation="$RUNNER_TEMP/restore-observation.json"
+          storage_source="$restore_dir/storage/webchat-images"
+          storage_download_parent="$RUNNER_TEMP/restored-storage-download"
+          storage_refs="$RUNNER_TEMP/restored-webchat-image-references.ndjson"
+          storage_boundary="$RUNNER_TEMP/restored-storage-boundary.json"
+          storage_observation="$RUNNER_TEMP/restored-storage-observation.json"
+          storage_cli_log="$RUNNER_TEMP/restored-storage-cli.log"
+          restore_psql_log="$RUNNER_TEMP/restored-database-psql.log"
+          storage_probe_file="$RUNNER_TEMP/restored-storage-probe.webp"
           db_container='supabase_db_usts-acm-land'
           container_restore="/tmp/usts-restore-$GITHUB_RUN_ID"
           mkdir -p artifacts
+          umask 077
 
           npx --yes supabase@2.109.1 status -o env > "$status_env"
           set -a
+          # shellcheck source=/dev/null
           source "$status_env"
           set +a
           : "${API_URL:?Missing local API_URL}"
@@ -230,7 +303,7 @@ jobs:
           docker cp "$restore_dir/." "$db_container:$container_restore/"
           docker cp "$pre_restore" "$db_container:$container_restore/pre-restore.sql"
 
-          docker exec "$db_container" psql \
+          if ! docker exec "$db_container" psql \
             --username supabase_admin \
             --dbname postgres \
             --no-psqlrc \
@@ -246,8 +319,216 @@ jobs:
             --file "$container_restore/auth-data.sql" \
             --file "$container_restore/migrations-schema.sql" \
             --file "$container_restore/migrations-data.sql" \
-            --command 'set session_replication_role = origin'
+            --command 'set session_replication_role = origin' \
+            > "$restore_psql_log" 2>&1; then
+            echo '::error::Restore transaction failed; database output was kept out of the public log.'
+            exit 1
+          fi
           echo '::notice::Restore transaction completed.'
+
+          manifest_schema_version="$(jq -r '.schemaVersion' "$restore_dir/restore-manifest.json")"
+          if [[ "$manifest_schema_version" == 1 ]]; then
+            storage_feature_state='legacy-unavailable'
+          else
+            storage_feature_state="$(jq -r '.storage.featureState' "$restore_dir/restore-manifest.json")"
+          fi
+
+          if [[ "$storage_feature_state" == installed ]]; then
+          storage_object_count="$(jq -r '.storage.objectCount' "$restore_dir/restore-manifest.json")"
+          if [[ ! "$storage_object_count" =~ ^[0-9]+$ ]]; then
+            echo '::error::Restored Storage manifest has an invalid object count.'
+            exit 1
+          fi
+          if ! jq -e --argjson expected "$storage_object_count" \
+            '.objectCount == $expected and .bucket == "webchat-images"' \
+            "$storage_source/summary.json" > /dev/null; then
+            echo '::error::Restored Storage summary does not match the aggregate manifest.'
+            exit 1
+          fi
+
+          docker exec "$db_container" psql \
+            --username supabase_admin \
+            --dbname postgres \
+            --no-psqlrc \
+            --quiet \
+            --variable ON_ERROR_STOP=1 \
+            --command "insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+              values ('webchat-images', 'webchat-images', false, 4194304, array['image/webp']::text[])
+              on conflict (id) do update set
+                name = excluded.name,
+                public = excluded.public,
+                file_size_limit = excluded.file_size_limit,
+                allowed_mime_types = excluded.allowed_mime_types"
+
+          while IFS=$'\t' read -r object_path content_type cache_control; do
+            [[ -n "$object_path" ]] || continue
+            object_file="$storage_source/objects/$object_path"
+            if [[ ! -f "$object_file" ]]; then
+              echo '::error::A restored WebChat image object is missing.'
+              exit 1
+            fi
+            if ! curl --fail --silent --show-error \
+              --request POST \
+              "$API_URL/storage/v1/object/webchat-images/$object_path" \
+              --header "apikey: $SERVICE_ROLE_KEY" \
+              --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+              --header "Content-Type: $content_type" \
+              --header "Cache-Control: $cache_control" \
+              --header 'x-upsert: false' \
+              --data-binary "@$object_file" \
+              --output /dev/null \
+              >> "$storage_cli_log" 2>&1; then
+              echo '::error::A restored WebChat image object could not be uploaded to local Storage.'
+              exit 1
+            fi
+          done < <(jq -r '[.path, .contentType, .cacheControl] | @tsv' \
+            "$storage_source/manifest.ndjson")
+          echo '::notice::Restored WebChat image objects uploaded to the isolated private bucket.'
+
+          probe_path="$(jq -r -s 'first(.[] | .path) // empty' "$storage_source/manifest.ndjson")"
+          probe_created=false
+          if (( storage_object_count == 0 )); then
+            probe_path='restore-boundary-canary.webp'
+            printf 'restore-boundary-canary' > "$storage_probe_file"
+            if ! curl --fail --silent --show-error \
+              --request POST \
+              "$API_URL/storage/v1/object/webchat-images/$probe_path" \
+              --header "apikey: $SERVICE_ROLE_KEY" \
+              --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+              --header 'Content-Type: image/webp' \
+              --header 'Cache-Control: 0' \
+              --header 'x-upsert: false' \
+              --data-binary "@$storage_probe_file" \
+              --output /dev/null \
+              >> "$storage_cli_log" 2>&1; then
+              echo '::error::The isolated Storage privacy probe could not be created.'
+              exit 1
+            fi
+            probe_created=true
+          fi
+
+          bucket_private="$(docker exec "$db_container" psql \
+            --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 \
+            --command "select public::text from storage.buckets where id = 'webchat-images'")"
+          if [[ "$bucket_private" != 'f' ]]; then
+            echo '::error::Restored WebChat image bucket is not private.'
+            exit 1
+          fi
+
+          anonymous_storage_curl_exit=0
+          anonymous_storage_status="$(curl --silent --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            "$API_URL/storage/v1/object/webchat-images/$probe_path" \
+            --header "apikey: $ANON_KEY" \
+            2>> "$storage_cli_log")" || anonymous_storage_curl_exit=$?
+          anonymous_storage_bearer_curl_exit=0
+          anonymous_storage_bearer_status="$(curl --silent --show-error \
+            --output /dev/null \
+            --write-out '%{http_code}' \
+            "$API_URL/storage/v1/object/webchat-images/$probe_path" \
+            --header "apikey: $ANON_KEY" \
+            --header "Authorization: Bearer $ANON_KEY" \
+            2>> "$storage_cli_log")" || anonymous_storage_bearer_curl_exit=$?
+          if (( anonymous_storage_curl_exit != 0 || anonymous_storage_bearer_curl_exit != 0 )); then
+            echo '::error::Anonymous Storage privacy probes failed at the transport layer.'
+            exit 1
+          fi
+          if [[ ! "$anonymous_storage_status" =~ ^(400|401|403|404)$ \
+            || ! "$anonymous_storage_bearer_status" =~ ^(400|401|403|404)$ ]]; then
+            echo '::error::Anonymous access to the restored private WebChat bucket was not denied.'
+            exit 1
+          fi
+          if [[ "$probe_created" == true ]]; then
+            if ! curl --fail --silent --show-error \
+              --request DELETE \
+              "$API_URL/storage/v1/object/webchat-images" \
+              --header "apikey: $SERVICE_ROLE_KEY" \
+              --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+              --header 'Content-Type: application/json' \
+              --data "{\"prefixes\":[\"$probe_path\"]}" \
+              --output /dev/null \
+              >> "$storage_cli_log" 2>&1; then
+              echo '::error::The isolated Storage privacy probe could not be removed.'
+              exit 1
+            fi
+          fi
+          echo '::notice::Private WebChat Storage bucket and anonymous access boundaries verified.'
+
+          mkdir -p "$storage_download_parent"
+          if (( storage_object_count > 0 )); then
+            if ! npx --yes supabase@2.109.1 storage cp \
+              --local \
+              --recursive \
+              --jobs 4 \
+              ss:///webchat-images/ \
+              "$storage_download_parent" \
+              > "$storage_cli_log" 2>&1; then
+              echo '::error::Restored WebChat image objects could not be downloaded from local Storage.'
+              exit 1
+            fi
+          fi
+
+          docker exec "$db_container" psql \
+            --username supabase_admin --dbname postgres \
+            --no-psqlrc --quiet --tuples-only --no-align \
+            --variable ON_ERROR_STOP=1 \
+            --command "select pg_catalog.json_build_object(
+              'path', attachment.object_key,
+              'sha256', attachment.sha256,
+              'bytes', attachment.object_bytes,
+              'contentType', object.metadata ->> 'mimetype',
+              'cacheControl', object.metadata ->> 'cacheControl'
+            )::text
+            from private.webchat_image_attachments as attachment
+            join storage.objects as object
+              on object.bucket_id = attachment.bucket_id
+             and object.name = attachment.object_key
+            where attachment.status in ('ready', 'attached')
+            order by attachment.object_key" > "$storage_refs"
+
+          bucket_private_json=false
+          [[ "$bucket_private" == 'f' ]] && bucket_private_json=true
+          jq -n \
+            --argjson bucketPrivate "$bucket_private_json" \
+            --argjson anonymousDenied true \
+            '{bucketPrivate: $bucketPrivate, anonymousDenied: $anonymousDenied}' \
+            > "$storage_boundary"
+          if ! node scripts/verify-webchat-storage-restore.mjs \
+            "$storage_source" \
+            "$storage_download_parent" \
+            "$storage_refs" \
+            "$storage_boundary" \
+            "$storage_observation" \
+            > "$storage_cli_log" 2>&1; then
+            echo '::error::Restored WebChat Storage objects do not match the database snapshot.'
+            exit 1
+          fi
+          echo '::notice::Restored WebChat Storage bytes, hashes, and database references verified.'
+          elif [[ "$storage_feature_state" == uninstalled ]]; then
+            mkdir -p "$storage_download_parent"
+            : > "$storage_refs"
+            jq -n '{featureInstalled: false}' > "$storage_boundary"
+            if ! node scripts/verify-webchat-storage-restore.mjs \
+              "$storage_source" \
+              "$storage_download_parent" \
+              "$storage_refs" \
+              "$storage_boundary" \
+              "$storage_observation" \
+              > "$storage_cli_log" 2>&1; then
+              echo '::error::The explicit uninstalled WebChat image snapshot is invalid.'
+              exit 1
+            fi
+            echo '::notice::WebChat image feature absence verified from the encrypted snapshot.'
+          elif [[ "$storage_feature_state" == legacy-unavailable ]]; then
+            jq -n 'null' > "$storage_observation"
+            echo '::notice::Legacy v1 backup has no WebChat Storage snapshot to restore.'
+          else
+            echo '::error::Backup manifest has an unsupported WebChat Storage feature state.'
+            exit 1
+          fi
 
           docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
@@ -261,6 +542,19 @@ jobs:
               'authUsers', (select pg_catalog.count(*) from auth.users),
               'migrations', (select pg_catalog.count(*) from supabase_migrations.schema_migrations)
             )::text" > "$counts"
+          if [[ "$storage_feature_state" == installed ]]; then
+            webchat_image_count="$(docker exec "$db_container" psql \
+              --username supabase_admin --dbname postgres \
+              --no-psqlrc --quiet --tuples-only --no-align \
+              --variable ON_ERROR_STOP=1 \
+              --command 'select pg_catalog.count(*) from private.webchat_image_attachments')"
+            jq --argjson count "$webchat_image_count" \
+              '. + {webchatImageAttachments: $count}' "$counts" > "$counts.tmp"
+            mv "$counts.tmp" "$counts"
+          elif [[ "$storage_feature_state" == uninstalled ]]; then
+            jq '. + {webchatImageAttachments: 0}' "$counts" > "$counts.tmp"
+            mv "$counts.tmp" "$counts"
+          fi
 
           docker exec "$db_container" psql --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
@@ -269,6 +563,10 @@ jobs:
               'profilesWithoutAuth', (
                 select pg_catalog.count(*) from public.profiles p
                 left join auth.users u on u.id = p.id where u.id is null
+              ),
+              'authUsersWithoutProfile', (
+                select pg_catalog.count(*) from auth.users u
+                left join public.profiles p on p.id = u.id where p.id is null
               ),
               'accountsWithoutProfile', (
                 select pg_catalog.count(*) from public.platform_accounts a
@@ -285,6 +583,28 @@ jobs:
                 where a.id is null
               )
             )::text" > "$orphans"
+          if [[ "$storage_feature_state" == installed ]]; then
+            docker exec "$db_container" psql --username supabase_admin --dbname postgres \
+              --no-psqlrc --quiet --tuples-only --no-align \
+              --variable ON_ERROR_STOP=1 \
+              --command "select pg_catalog.json_build_object(
+                'webchatImagesWithoutProfile', (
+                  select pg_catalog.count(*) from private.webchat_image_attachments a
+                  left join public.profiles p on p.id = a.user_id
+                  where p.id is null
+                ),
+                -- Deleting/deleted rows are retained tombstones after their
+                -- conversation is removed; only live attachment states are orphans.
+                'webchatImagesWithoutConversation', (
+                  select pg_catalog.count(*) from private.webchat_image_attachments a
+                  left join private.webchat_conversations c on c.id = a.conversation_id
+                  where c.id is null
+                    and a.status in ('reserved', 'validating', 'ready', 'attached', 'failed')
+                )
+              )::text" > "$orphans.storage"
+            jq -s '.[0] + .[1]' "$orphans" "$orphans.storage" > "$orphans.tmp"
+            mv "$orphans.tmp" "$orphans"
+          fi
           echo '::notice::Aggregate row-count and orphan queries completed.'
 
           auth_hook_count="$(docker exec "$db_container" psql \
@@ -447,6 +767,7 @@ jobs:
             --argjson durationSeconds "$((restore_finished - restore_started))" \
             --slurpfile rowCounts "$counts" \
             --slurpfile orphanCounts "$orphans" \
+            --slurpfile storageObservation "$storage_observation" \
             --argjson anonymousPublicStatus "$anonymous_public_status" \
             --argjson anonymousPrivateStatus "$anonymous_private_status" \
             --argjson anonymousPrivateEmpty "$anonymous_private_empty" \
@@ -456,9 +777,10 @@ jobs:
               sourceRepository: $sourceRepository,
               completedAt: $completedAt,
               durationSeconds: $durationSeconds,
-              rowCounts: $rowCounts[0],
-              orphanCounts: $orphanCounts[0],
-              authSmoke: {
+               rowCounts: $rowCounts[0],
+               orphanCounts: $orphanCounts[0],
+               storage: $storageObservation[0],
+               authSmoke: {
                 authHooksPresent: true,
                 canaryCreated: true,
                 passwordLogin: true,
@@ -493,7 +815,8 @@ jobs:
           rm -rf \
             "$RUNNER_TEMP/encrypted-backup" \
             "$RUNNER_TEMP/restored-backup" \
-            "$RUNNER_TEMP/repository-migrations"
+            "$RUNNER_TEMP/repository-migrations" \
+            "$RUNNER_TEMP/restored-storage-download"
           rm -f \
             "$RUNNER_TEMP/ustsacmland-database-backup.tar.gz" \
             "$RUNNER_TEMP/ustsacmland-restore-files.txt" \
@@ -502,8 +825,18 @@ jobs:
             "$RUNNER_TEMP/restore-observation.json" \
             "$RUNNER_TEMP/restored-row-counts.json" \
             "$RUNNER_TEMP/restored-orphan-counts.json" \
+            "$RUNNER_TEMP/ustsacmland-storage-manifest.ndjson" \
+            "$RUNNER_TEMP/ustsacmland-storage-summary.json" \
+            "$RUNNER_TEMP/ustsacmland-restore-verification.log" \
+            "$RUNNER_TEMP/restored-webchat-image-references.ndjson" \
+            "$RUNNER_TEMP/restored-storage-boundary.json" \
+            "$RUNNER_TEMP/restored-storage-observation.json" \
+            "$RUNNER_TEMP/restored-storage-cli.log" \
+            "$RUNNER_TEMP/restored-database-psql.log" \
+            "$RUNNER_TEMP/restored-storage-probe.webp" \
             "$RUNNER_TEMP"/canary-*.json
           test ! -e "$RUNNER_TEMP/restored-backup"
+          test ! -e "$RUNNER_TEMP/restored-storage-download"
           test ! -e "$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
 
       - name: Upload sanitized restore report

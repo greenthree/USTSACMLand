@@ -4,6 +4,7 @@ import {
   parseWebChatClaimResult,
   parseWebChatTransition,
   parseWebChatUsage,
+  estimateWebChatImageTokens,
   prepareWebChatQuota,
   type WebChatQuotaPolicy,
 } from './quota.ts'
@@ -59,6 +60,74 @@ Deno.test('webchat quota reserves the declared cache policy bytes for GPT-5.6+',
 
   strictEqual(declared.reservedTokens > legacy.reservedTokens, true)
 })
+
+Deno.test(
+  'webchat quota fingerprints image UUIDs but never signed URLs or image metadata',
+  async () => {
+    const first = await prepareWebChatQuota(
+      [
+        {
+          id: 'one',
+          role: 'user',
+          text: '请看图',
+          images: [
+            {
+              attachmentId: '22222222-2222-4222-8222-222222222222',
+              mediaType: 'image/webp',
+              url: 'https://signed.example.test/a?token=first',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
+      ],
+      policy,
+    )
+    const sameIdentity = await prepareWebChatQuota(
+      [
+        {
+          id: 'different-client-id',
+          role: 'user',
+          text: '请看图',
+          images: [
+            {
+              attachmentId: '22222222-2222-4222-8222-222222222222',
+              mediaType: 'image/webp',
+              url: 'https://signed.example.test/b?token=second',
+              width: 32,
+              height: 32,
+            },
+          ],
+        },
+      ],
+      policy,
+    )
+    const differentImage = await prepareWebChatQuota(
+      [
+        {
+          id: 'one',
+          role: 'user',
+          text: '请看图',
+          images: [
+            {
+              attachmentId: '33333333-3333-4333-8333-333333333333',
+              mediaType: 'image/webp',
+              url: 'https://signed.example.test/a?token=first',
+              width: 640,
+              height: 480,
+            },
+          ],
+        },
+      ],
+      policy,
+    )
+
+    strictEqual(first.fingerprint, sameIdentity.fingerprint)
+    strictEqual(first.fingerprint === differentImage.fingerprint, false)
+    strictEqual(estimateWebChatImageTokens({ width: 64, height: 64 }), 272)
+    strictEqual(first.reservedTokens > sameIdentity.reservedTokens, true)
+  },
+)
 
 Deno.test('webchat quota parses only known database decisions', () => {
   deepStrictEqual(

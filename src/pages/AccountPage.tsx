@@ -687,42 +687,40 @@ export function AccountPage() {
 
       {loadingProfile ? <LoadingState label="正在读取账号资料" /> : null}
 
-      <section className="account-form account-referral-form" aria-labelledby="referral-title">
-        <div className="form-section">
-          <div className="section-title-row">
-            <div>
-              <h2 id="referral-title">推荐计划</h2>
-              <p>分享邀请码，绑定成功后可获得额外 WebChat 累计额度上限。</p>
+      {referralSummary?.programEnabled ? (
+        <section className="account-form account-referral-form" aria-labelledby="referral-title">
+          <div className="form-section">
+            <div className="section-title-row">
+              <div>
+                <h2 id="referral-title">推荐计划</h2>
+                <p>分享邀请码，绑定成功后可获得额外 WebChat 累计额度上限。</p>
+              </div>
             </div>
-          </div>
-          {referralNotice ? (
-            <p className="form-error" role="alert">
-              {referralNotice}
-            </p>
-          ) : null}
-          <div className="referral-summary-grid">
-            {referralSummary?.programEnabled !== false ? (
+            {referralNotice ? (
+              <p className="form-error" role="alert">
+                {referralNotice}
+              </p>
+            ) : null}
+            <div className="referral-summary-grid">
               <div className="referral-card">
                 <span>我的邀请码</span>
                 <strong>{referralLoading ? '读取中' : (referralSummary?.code ?? '--')}</strong>
               </div>
-            ) : null}
-            <div className="referral-card">
-              <span>已奖励次数</span>
-              <strong>
-                {referralLoading ? '读取中' : String(referralSummary?.rewardCount ?? 0) + ' / 10'}
-              </strong>
+              <div className="referral-card">
+                <span>已奖励次数</span>
+                <strong>
+                  {referralLoading ? '读取中' : String(referralSummary?.rewardCount ?? 0) + ' / 10'}
+                </strong>
+              </div>
+              <div className="referral-card">
+                <span>累计增加 Token 上限</span>
+                <strong>
+                  {referralLoading
+                    ? '读取中'
+                    : (referralSummary?.rewardTokens ?? 0).toLocaleString('zh-CN')}
+                </strong>
+              </div>
             </div>
-            <div className="referral-card">
-              <span>累计增加 Token 上限</span>
-              <strong>
-                {referralLoading
-                  ? '读取中'
-                  : (referralSummary?.rewardTokens ?? 0).toLocaleString('zh-CN')}
-              </strong>
-            </div>
-          </div>
-          {referralSummary?.programEnabled !== false ? (
             <div className="form-actions">
               <button
                 className="secondary-button"
@@ -736,16 +734,12 @@ export function AccountPage() {
                 {copyNotice || '新用户可通过链接自动带入邀请码。'}
               </span>
             </div>
-          ) : (
-            <p className="account-data-export-note" role="status">
-              推荐计划已暂停。邀请码和既有奖励已保留，重新开放后继续使用。
-            </p>
-          )}
-          {referralSummary?.programEnabled && referralSummary.remainingRewards === 0 ? (
-            <p className="account-data-export-note">当前邀请码已达到邀请上限，暂不可继续使用。</p>
-          ) : null}
-        </div>
-      </section>
+            {referralSummary?.programEnabled && referralSummary.remainingRewards === 0 ? (
+              <p className="account-data-export-note">当前邀请码已达到邀请上限，暂不可继续使用。</p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <form className="account-form" onSubmit={handleSave}>
         <fieldset className="form-section" disabled={loadingProfile}>

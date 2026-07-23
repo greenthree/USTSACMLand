@@ -10,6 +10,8 @@ export type RuntimeErrorSurface =
   | 'delete-account'
   | 'change-password'
   | 'webchat'
+  | 'webchat-attachment'
+  | 'webchat-image-cleanup'
   | 'webchat-config'
   | 'firecrawl-config'
 

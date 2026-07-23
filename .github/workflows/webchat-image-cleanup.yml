@@ -1,0 +1,173 @@
+name: Clean WebChat image objects
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Maximum deletion jobs to process
+        required: true
+        default: '50'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webchat-image-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: >-
+      github.repository == 'greenthree/USTSACMLand' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name == 'workflow_dispatch' || vars.WEBCHAT_IMAGE_CLEANUP_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production-operations
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      CLEANUP_LIMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.limit || '50' }}
+
+    steps:
+      - name: Validate cleanup configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_PROJECT_REF" || -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then
+            echo 'Required Supabase Actions secrets are not configured.' >&2
+            exit 1
+          fi
+          if [[ "$SUPABASE_PROJECT_REF" != 'qzggoqdmsvktrtnjislw' ]]; then
+            echo 'Supabase project ref does not match the production project.' >&2
+            exit 1
+          fi
+          if [[ ! "$CLEANUP_LIMIT" =~ ^[0-9]+$ ]] || (( CLEANUP_LIMIT < 1 || CLEANUP_LIMIT > 100 )); then
+            echo 'Cleanup limit must be an integer between 1 and 100.' >&2
+            exit 1
+          fi
+
+      - name: Process one deletion queue batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+
+          response="$RUNNER_TEMP/webchat-image-cleanup-response.json"
+          cleanup_response() {
+            rm -f "$response"
+          }
+          trap cleanup_response EXIT
+
+          curl_exit=0
+          http_status="$(curl \
+            --silent \
+            --show-error \
+            --proto '=https' \
+            --tlsv1.2 \
+            --connect-timeout 10 \
+            --max-time 140 \
+            --max-filesize 16384 \
+            --output "$response" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header 'Content-Type: application/json' \
+            --data "{\"limit\":$CLEANUP_LIMIT}" \
+            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/webchat-image-cleanup")" || curl_exit=$?
+
+          if (( curl_exit != 0 )); then
+            echo "::error title=WebChat image cleanup transport failure::curl exited with code $curl_exit."
+            exit 1
+          fi
+
+          if [[ "$http_status" != '200' && "$http_status" != '207' ]]; then
+            echo "::error title=WebChat image cleanup request failed::The cleanup endpoint returned HTTP $http_status."
+            exit 1
+          fi
+
+          if [[ ! -s "$response" ]] || (( $(stat -c '%s' "$response") > 16384 )); then
+            echo '::error title=Invalid WebChat image cleanup response::The response body was empty or too large.'
+            exit 1
+          fi
+          if ! jq -e \
+            --arg httpStatus "$http_status" \
+            --argjson limit "$CLEANUP_LIMIT" '
+              type == "object"
+              and (keys | sort) == [
+                "claimed",
+                "deadLettered",
+                "deadLettersOutstanding",
+                "deleted",
+                "requestId",
+                "retried",
+                "storageAccountingConsistent"
+              ]
+              and ([.claimed, .deleted, .retried, .deadLettered]
+                | all(type == "number" and floor == . and . >= 0))
+              and .claimed <= $limit
+              and .claimed == (.deleted + .retried + .deadLettered)
+              and (.deadLettersOutstanding | type) == "boolean"
+              and (.storageAccountingConsistent | type) == "boolean"
+              and (.requestId | type == "string" and test("^[A-Za-z0-9._:-]{1,128}$"))
+              and (
+                ($httpStatus == "200"
+                  and .retried == 0
+                  and .deadLettered == 0
+                  and .deadLettersOutstanding == false
+                  and .storageAccountingConsistent == true)
+                or
+                ($httpStatus == "207"
+                  and (
+                    .retried > 0
+                    or .deadLettered > 0
+                    or .deadLettersOutstanding == true
+                    or .storageAccountingConsistent == false
+                  ))
+              )
+            ' "$response" > /dev/null; then
+            echo '::error title=Invalid WebChat image cleanup response::The cleanup endpoint returned an unexpected JSON contract.'
+            exit 1
+          fi
+
+          summary="$(jq -c \
+            '{claimed, deleted, retried, deadLettered, deadLettersOutstanding, storageAccountingConsistent, requestId}' \
+            "$response")"
+          echo "$summary"
+
+          request_id="$(jq -r '.requestId' "$response")"
+          claimed="$(jq -r '.claimed' "$response")"
+          deleted="$(jq -r '.deleted' "$response")"
+          retried="$(jq -r '.retried' "$response")"
+          dead_lettered="$(jq -r '.deadLettered' "$response")"
+          dead_letters_outstanding="$(jq -r '.deadLettersOutstanding' "$response")"
+          storage_accounting_consistent="$(jq -r '.storageAccountingConsistent' "$response")"
+          {
+            echo '### WebChat image cleanup'
+            echo
+            echo '| Claimed | Deleted | Retried | Newly dead-lettered | Dead letters outstanding | Storage accounting | Request ID |'
+            echo '| ---: | ---: | ---: | ---: | :---: | :---: | --- |'
+            echo "| $claimed | $deleted | $retried | $dead_lettered | $dead_letters_outstanding | $storage_accounting_consistent | \`$request_id\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if (( dead_lettered > 0 )); then
+            echo "::error title=WebChat image cleanup dead letter::The cleanup run produced $dead_lettered dead-letter item(s); manual recovery is required. Request ID: $request_id"
+            exit 1
+          fi
+          if [[ "$dead_letters_outstanding" == 'true' ]]; then
+            echo "::error title=WebChat image cleanup dead letter::Outstanding dead-letter items require manual recovery. Request ID: $request_id"
+            exit 1
+          fi
+          if [[ "$storage_accounting_consistent" != 'true' ]]; then
+            echo "::error title=WebChat image Storage accounting drift::Attachment and Storage accounting differ; new image uploads were paused automatically. Request ID: $request_id"
+            exit 1
+          fi
+          if (( retried > 0 )); then
+            echo "::error title=WebChat image cleanup retry scheduled::The cleanup run could not delete $retried object(s); the queue scheduled retries. Request ID: $request_id"
+            exit 1
+          fi

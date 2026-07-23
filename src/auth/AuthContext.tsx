@@ -7,6 +7,7 @@ import {
   normalizeReferralCode,
   referralCodeError,
 } from '../lib/referrals'
+import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 import type { ReviewStatus } from '../types/domain'
 import {
   AuthContext,
@@ -160,11 +161,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const signUp = useCallback(
-    async (fullName: string, email: string, password: string, referralCode = '') => {
+    async (
+      fullName: string,
+      email: string,
+      password: string,
+      referralCode = '',
+      captchaToken = '',
+    ) => {
       const normalizedFullName = fullName.trim()
       const normalizedReferralCode = normalizeReferralCode(referralCode)
+      const normalizedCaptchaToken = captchaToken.trim()
+      const captchaConfig = getRegistrationCaptchaConfig()
       if (!normalizedFullName) throw new Error('请输入姓名。')
       if (normalizedFullName.length > 64) throw new Error('姓名不能超过 64 个字符。')
+      if (captchaConfig.configurationError) throw new Error(captchaConfig.configurationError)
+      if (captchaConfig.enabled && !normalizedCaptchaToken) {
+        throw new Error('请先完成注册安全验证。')
+      }
 
       if (!supabase) {
         const referralError = referralCodeError(normalizedReferralCode)
@@ -197,6 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             full_name: normalizedFullName,
             ...(acceptedReferralCode ? { referral_code: acceptedReferralCode } : {}),
           },
+          ...(captchaConfig.enabled ? { captchaToken: normalizedCaptchaToken } : {}),
         },
       })
       if (error) throw error

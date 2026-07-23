@@ -14,28 +14,39 @@ concurrency:
 
 jobs:
   backup:
+    if: github.repository == 'greenthree/USTSACMLand' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
-
+    environment:
+      name: production-operations
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
 
       - name: Validate backup configuration
         shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
+          MAX_BACKUP_ARTIFACT_BYTES: ${{ vars.MAX_BACKUP_ARTIFACT_BYTES }}
+          MAX_STORAGE_OBJECTS: ${{ vars.MAX_STORAGE_OBJECTS }}
         run: |
           set -euo pipefail
           if [[ -z "$SUPABASE_ACCESS_TOKEN" ]]; then
             echo '::error::SUPABASE_ACCESS_TOKEN is not configured.'
             exit 1
           fi
-          if [[ ! "$SUPABASE_PROJECT_REF" =~ ^[a-z]{20}$ ]]; then
-            echo '::error::SUPABASE_PROJECT_REF is not configured correctly.'
+          if [[ "$SUPABASE_PROJECT_REF" != 'qzggoqdmsvktrtnjislw' ]]; then
+            echo '::error::SUPABASE_PROJECT_REF does not match the production project.'
             exit 1
           fi
           if (( ${#BACKUP_ENCRYPTION_PASSPHRASE} < 32 )); then
@@ -46,22 +57,59 @@ jobs:
             echo '::error::BACKUP_RECOVERY_NOT_BEFORE is not a valid timestamp.'
             exit 1
           fi
+          if [[ ! "$MAX_BACKUP_ARTIFACT_BYTES" =~ ^[1-9][0-9]*$ ]]; then
+            echo '::error::MAX_BACKUP_ARTIFACT_BYTES must be configured as a positive integer.'
+            exit 1
+          fi
+          if [[ ! "$MAX_STORAGE_OBJECTS" =~ ^[0-9]+$ ]]; then
+            echo '::error::MAX_STORAGE_OBJECTS must be configured as a non-negative integer.'
+            exit 1
+          fi
 
       - name: Create and verify encrypted logical backup
         shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          BACKUP_RECOVERY_NOT_BEFORE: ${{ vars.BACKUP_RECOVERY_NOT_BEFORE || '1970-01-01T00:00:00.000Z' }}
+          MAX_BACKUP_ARTIFACT_BYTES: ${{ vars.MAX_BACKUP_ARTIFACT_BYTES }}
+          MAX_STORAGE_OBJECTS: ${{ vars.MAX_STORAGE_OBJECTS }}
         run: |
           set -euo pipefail
           set +x
+          umask 077
 
           backup_dir="$RUNNER_TEMP/ustsacmland-db-backup"
           archive="$RUNNER_TEMP/ustsacmland-database-backup.tar.gz"
           encrypted="$RUNNER_TEMP/ustsacmland-database-backup.enc"
           verification_archive="$RUNNER_TEMP/ustsacmland-database-backup.verify.tar.gz"
+          verification_dir="$RUNNER_TEMP/ustsacmland-database-backup-verify"
+          verification_manifest="$RUNNER_TEMP/ustsacmland-storage-manifest.ndjson"
+          verification_summary="$RUNNER_TEMP/ustsacmland-storage-summary.json"
+          verification_checksum_log="$RUNNER_TEMP/ustsacmland-backup-checksums.log"
+          archive_listing="$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          storage_download_parent="$RUNNER_TEMP/ustsacmland-storage-download"
+          storage_cli_log="$RUNNER_TEMP/ustsacmland-storage-cli.log"
+          storage_snapshot_plan="$RUNNER_TEMP/ustsacmland-storage-plan.json"
+          checksum_manifest="$RUNNER_TEMP/ustsacmland-backup-sha256sums"
           auth_schema_dump="$RUNNER_TEMP/ustsacmland-auth-schema.sql"
+          storage_metadata_dump="$RUNNER_TEMP/ustsacmland-storage-metadata.sql"
 
           cleanup_plaintext() {
-            rm -rf "$backup_dir"
-            rm -f "$archive" "$verification_archive" "$auth_schema_dump"
+            rm -rf "$backup_dir" "$verification_dir" "$storage_download_parent"
+            rm -f \
+              "$archive" \
+              "$verification_archive" \
+              "$verification_manifest" \
+              "$verification_summary" \
+              "$verification_checksum_log" \
+              "$archive_listing" \
+              "$storage_cli_log" \
+              "$storage_snapshot_plan" \
+              "$checksum_manifest" \
+              "$auth_schema_dump" \
+              "$storage_metadata_dump"
           }
           trap cleanup_plaintext EXIT
 
@@ -93,13 +141,16 @@ jobs:
             --file "$backup_dir/data.sql" \
             --use-copy \
             --data-only \
-            --schema public,private
+            --schema public,private,auth
           npx --yes supabase@2.109.1 db dump \
             --linked \
-            --file "$backup_dir/auth-data.sql" \
+            --file "$storage_metadata_dump" \
             --use-copy \
             --data-only \
-            --schema auth
+            --schema storage
+          printf '%s\n' \
+            '-- Compatibility placeholder: auth data is included in data.sql.' \
+            > "$backup_dir/auth-data.sql"
           npx --yes supabase@2.109.1 db dump \
             --linked \
             --file "$backup_dir/migrations-schema.sql" \
@@ -130,29 +181,86 @@ jobs:
             "recovery_not_before=$BACKUP_RECOVERY_NOT_BEFORE" \
             'supabase_cli=2.109.1' \
             > "$backup_dir/metadata.txt"
+
+          if grep -Eq '^COPY private\.webchat_image_attachments \(' "$backup_dir/data.sql"; then
+            if ! node scripts/webchat-storage-backup.mjs plan \
+              "$backup_dir/data.sql" \
+              "$storage_metadata_dump" \
+              "$MAX_STORAGE_OBJECTS" \
+              "$MAX_BACKUP_ARTIFACT_BYTES" \
+              > "$storage_snapshot_plan" 2> "$storage_cli_log"; then
+              echo '::error::Private WebChat image snapshot planning failed.'
+              exit 1
+            fi
+            storage_object_count="$(jq -r '.objectCount' "$storage_snapshot_plan")"
+            if [[ ! "$storage_object_count" =~ ^[0-9]+$ ]]; then
+              echo '::error::Private WebChat image snapshot planning failed.'
+              exit 1
+            fi
+            mkdir -p "$storage_download_parent"
+            if (( storage_object_count > 0 )); then
+              while IFS= read -r object_path; do
+                [[ -n "$object_path" ]] || continue
+                destination="$storage_download_parent/webchat-images/$object_path"
+                mkdir -p "$(dirname "$destination")"
+                if ! npx --yes supabase@2.109.1 storage cp \
+                  --linked \
+                  --jobs 4 \
+                  "ss:///webchat-images/$object_path" \
+                  "$destination" \
+                  >> "$storage_cli_log" 2>&1; then
+                  echo '::error::Private WebChat image objects could not be downloaded.'
+                  exit 1
+                fi
+              done < <(jq -r '.references[].path' "$storage_snapshot_plan")
+            fi
+            if ! node scripts/webchat-storage-backup.mjs \
+              "$backup_dir/data.sql" \
+              "$storage_metadata_dump" \
+              "$storage_download_parent" \
+              "$backup_dir/storage/webchat-images" \
+              "$backup_dir/metadata.txt" \
+              "$MAX_STORAGE_OBJECTS" \
+              "$MAX_BACKUP_ARTIFACT_BYTES" \
+              > "$storage_cli_log" 2>&1; then
+              echo '::error::Private WebChat image staging failed.'
+              exit 1
+            fi
+          elif ! node scripts/webchat-storage-backup.mjs uninstalled \
+            "$backup_dir/storage/webchat-images" \
+            "$backup_dir/metadata.txt" \
+            > "$storage_cli_log" 2>&1; then
+            echo '::error::The explicit uninstalled WebChat image snapshot could not be created.'
+            exit 1
+          fi
+          if ! node scripts/verify-webchat-storage-backup.mjs \
+            archive "$backup_dir/storage/webchat-images" \
+            > "$storage_cli_log" 2>&1; then
+            echo '::error::Private WebChat image backup verification failed.'
+            exit 1
+          fi
+
           node scripts/build-backup-restore-manifest.mjs \
             "$backup_dir/data.sql" \
             "$backup_dir/auth-data.sql" \
             "$backup_dir/migrations-data.sql" \
             "$backup_dir/metadata.txt" \
+            "$backup_dir/storage/webchat-images/summary.json" \
             "$backup_dir/restore-manifest.json"
           test -s "$backup_dir/restore-manifest.json"
           (
             cd "$backup_dir"
-            sha256sum \
-              roles.sql \
-              schema.sql \
-              auth-hooks.sql \
-              data.sql \
-              auth-data.sql \
-              migrations-schema.sql \
-              migrations-data.sql \
-              metadata.txt \
-              restore-manifest.json \
-              > SHA256SUMS
+            find . -type f ! -name SHA256SUMS -print0 \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > "$checksum_manifest"
           )
+          mv "$checksum_manifest" "$backup_dir/SHA256SUMS"
 
-          tar -C "$backup_dir" -czf "$archive" .
+          if ! tar -C "$backup_dir" -czf "$archive" . 2> "$storage_cli_log"; then
+            echo '::error::Plaintext backup archive creation failed.'
+            exit 1
+          fi
           openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -md sha256 \
             -in "$archive" \
             -out "$encrypted" \
@@ -163,23 +271,67 @@ jobs:
             -in "$encrypted" \
             -out "$verification_archive" \
             -pass env:BACKUP_ENCRYPTION_PASSPHRASE
-          tar -tzf "$verification_archive" > "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './roles.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './auth-hooks.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './auth-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './migrations-schema.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './migrations-data.sql' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './metadata.txt' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './restore-manifest.json' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
-          grep -Fxq './SHA256SUMS' "$RUNNER_TEMP/ustsacmland-backup-files.txt"
+          if ! tar -tzf "$verification_archive" 2> "$storage_cli_log" > "$archive_listing"; then
+            echo '::error::Encrypted backup archive listing failed.'
+            exit 1
+          fi
+          if ! tar -xOzf "$verification_archive" \
+            './storage/webchat-images/manifest.ndjson' > "$verification_manifest" 2> "$storage_cli_log"; then
+            echo '::error::Encrypted backup Storage manifest extraction failed.'
+            exit 1
+          fi
+          if ! tar -xOzf "$verification_archive" \
+            './storage/webchat-images/summary.json' > "$verification_summary" 2> "$storage_cli_log"; then
+            echo '::error::Encrypted backup Storage summary extraction failed.'
+            exit 1
+          fi
+          if ! node scripts/verify-webchat-storage-backup.mjs listing \
+            "$archive_listing" \
+            "$verification_manifest" \
+            "$verification_summary" \
+            > "$storage_cli_log" 2>&1; then
+            echo '::error::Encrypted backup Storage archive allowlist failed.'
+            exit 1
+          fi
+          if ! tar -tvzf "$verification_archive" 2> "$storage_cli_log" \
+            | awk '$1 !~ /^[-d]/ { invalid = 1 } END { exit invalid }'; then
+            echo '::error::Backup archive contains an unsupported entry type.'
+            exit 1
+          fi
+          mkdir -p "$verification_dir"
+          if ! tar --extract --gzip --file "$verification_archive" --directory "$verification_dir" \
+            --no-same-owner --no-same-permissions 2> "$storage_cli_log"; then
+            echo '::error::Encrypted backup archive extraction failed.'
+            exit 1
+          fi
+          if ! (
+            cd "$verification_dir"
+            sha256sum -c SHA256SUMS > "$verification_checksum_log" 2>&1
+          ); then
+            echo '::error::A decrypted backup checksum did not match.'
+            exit 1
+          fi
+          if ! node scripts/verify-webchat-storage-backup.mjs \
+            archive "$verification_dir/storage/webchat-images" \
+            > "$storage_cli_log" 2>&1; then
+            echo '::error::Encrypted backup extracted Storage verification failed.'
+            exit 1
+          fi
+
+          encrypted_size="$(stat -c '%s' "$encrypted")"
+          if (( encrypted_size > MAX_BACKUP_ARTIFACT_BYTES )); then
+            echo '::error::Encrypted backup exceeds MAX_BACKUP_ARTIFACT_BYTES.'
+            exit 1
+          fi
 
           cleanup_plaintext
           test ! -e "$backup_dir"
           test ! -e "$archive"
           test ! -e "$verification_archive"
           test ! -e "$auth_schema_dump"
+          test ! -e "$storage_metadata_dump"
+          test ! -e "$storage_download_parent"
+          test ! -e "$verification_dir"
           (
             cd "$RUNNER_TEMP"
             sha256sum ustsacmland-database-backup.enc \

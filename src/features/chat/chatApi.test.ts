@@ -110,6 +110,55 @@ describe('WebChat browser transport', () => {
     })
   })
 
+  it('uses the persisted conversation id and forwards only canonical image references', async () => {
+    let requestBody: Record<string, unknown> = {}
+    const fetchMock: typeof fetch = vi.fn(async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return streamResponse()
+    })
+    const transport = createWebChatTransport({
+      apiUrl: 'https://example.supabase.co/functions/v1/webchat',
+      anonKey: 'public-anon-key',
+      getAccessToken: async () => 'token',
+      getConversationId: async () => '11111111-1111-4111-8111-111111111111',
+      fetch: fetchMock,
+    })
+    const imageUrn = 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222'
+
+    await transport.sendMessages({
+      trigger: 'submit-message',
+      chatId: 'local-thread-id',
+      messageId: 'user-image',
+      messages: [
+        {
+          id: 'user-image',
+          role: 'user',
+          parts: [
+            { type: 'text', text: '分析这张题面截图' },
+            { type: 'file', mediaType: 'image/webp', url: imageUrn },
+            { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,secret' },
+          ],
+        },
+      ],
+      abortSignal: undefined,
+    })
+
+    expect(requestBody).toMatchObject({
+      id: '11111111-1111-4111-8111-111111111111',
+      messages: [
+        {
+          id: 'user-image',
+          role: 'user',
+          parts: [
+            { type: 'text', text: '分析这张题面截图' },
+            { type: 'file', mediaType: 'image/webp', url: imageUrn },
+          ],
+        },
+      ],
+    })
+    expect(JSON.stringify(requestBody)).not.toContain('base64')
+  })
+
   it('omits corrupted assistant history without truncating valid user messages', async () => {
     let requestBody: Record<string, unknown> = {}
     const fetchMock: typeof fetch = vi.fn(async (_input, init) => {

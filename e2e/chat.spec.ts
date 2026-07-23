@@ -5,6 +5,9 @@ import { collectRuntimeErrors } from './helpers'
 const demoSessionKey = 'usts-acm-land-demo-session:v1'
 const appBaseUrl = 'http://127.0.0.1:4175'
 const mockBaseUrl = 'http://127.0.0.1:4176'
+const tinyPngBase64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const tinyPng = Buffer.from(tinyPngBase64, 'base64')
 
 async function resetMock(request: APIRequestContext) {
   const response = await request.post(`${mockBaseUrl}/debug/reset`)
@@ -19,6 +22,13 @@ async function openAsMember(page: Page) {
   await page.goto('/assistant')
   await expect(page).toHaveTitle('AI 学习助手 | USTS ACM Land')
   await expect(page.getByRole('region', { name: 'AI 对话工作台' })).toBeVisible()
+}
+
+async function addImage(page: Page, name = 'problem.png') {
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: '添加图片' }).click()
+  const chooser = await chooserPromise
+  await chooser.setFiles({ name, mimeType: 'image/png', buffer: tinyPng })
 }
 
 test.beforeEach(async ({ request }) => {
@@ -91,6 +101,81 @@ test('the active conversation survives refresh and remains available in history'
   ).toBeVisible()
   await historyItem.click()
   await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+})
+
+test('an image-only message keeps a private reference and restores its preview after refresh', async ({
+  page,
+  request,
+}) => {
+  await openAsMember(page)
+  await addImage(page)
+  await expect(page.getByText('已上传，等待发送', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '发送问题' }).click()
+  await expect(page.locator('.assistant-message-user').getByAltText('用户上传的图片')).toBeVisible()
+  await expect(page.getByText('先确认边界，再验证单调性，最后检查复杂度。')).toBeVisible()
+
+  const debug = await (await request.get(`${mockBaseUrl}/debug`)).json()
+  expect(debug.lastRequest.fileParts).toEqual([
+    {
+      mediaType: 'image/webp',
+      url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-000000000001',
+    },
+  ])
+  expect(JSON.stringify(debug.lastRequest)).not.toContain('problem.png')
+  expect(JSON.stringify(debug.lastRequest)).not.toContain('base64')
+
+  await page.reload()
+  await expect(page.locator('.assistant-message-user').getByAltText('用户上传的图片')).toBeVisible()
+  await expect
+    .poll(
+      async () => (await (await request.get(`${mockBaseUrl}/debug`)).json()).attachmentPreviewCount,
+    )
+    .toBeGreaterThanOrEqual(1)
+})
+
+test('pasting an image adds it to the composer and sends it with text', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'clipboard construction is Chromium-specific')
+  await openAsMember(page)
+  const composer = page.getByRole('textbox', { name: '向 AI 学习助手提问' })
+  await composer.fill('解释这张图')
+  await composer.evaluate((element, base64) => {
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([bytes], 'clipboard.png', { type: 'image/png' }))
+    element.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }),
+    )
+  }, tinyPngBase64)
+
+  await expect(page.getByText('已上传，等待发送', { exact: true })).toBeVisible()
+  await composer.press('Enter')
+  await expect(page.getByText('解释这张图', { exact: true })).toBeVisible()
+  await expect(page.locator('.assistant-message-user').getByAltText('用户上传的图片')).toBeVisible()
+})
+
+test('the fifth image is rejected before upload and blocks sending until removed', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'single attachment-limit project')
+  await openAsMember(page)
+
+  for (let index = 1; index <= 4; index += 1) {
+    await addImage(page, `problem-${index}.png`)
+    await expect(page.getByText('已上传，等待发送', { exact: true })).toHaveCount(index)
+  }
+  await addImage(page, 'problem-5.png')
+
+  await expect(page.getByRole('alert')).toContainText('每条消息最多添加 4 张图片。')
+  await expect(page.getByRole('button', { name: '发送问题' })).toBeDisabled()
+  const debug = await (await request.get(`${mockBaseUrl}/debug`)).json()
+  expect(debug.attachmentUploadCount).toBe(4)
+
+  await page.getByRole('button', { name: '移除图片' }).last().click()
+  await expect(page.getByRole('button', { name: '发送问题' })).toBeEnabled()
 })
 
 test('the workbench shows thinking until the first visible reply text arrives', async ({

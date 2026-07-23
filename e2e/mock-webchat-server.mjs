@@ -4,13 +4,22 @@ const host = '127.0.0.1'
 const port = 4176
 const allowedOrigin = 'http://127.0.0.1:4175'
 const encoder = new TextEncoder()
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
 
 let requestCount = 0
 let abortedRequests = 0
 let activeStreams = 0
 let peakConcurrentStreams = 0
 let lastRequest = null
+let attachmentRequestCount = 0
+let attachmentUploadCount = 0
+let attachmentPreviewCount = 0
+let attachmentRemovalCount = 0
 const transientFailures = new Map()
+const attachments = new Map()
 
 function cors(origin) {
   return origin === allowedOrigin
@@ -32,14 +41,18 @@ function json(response, status, body, headers = {}) {
 }
 
 async function readJson(request) {
+  return JSON.parse((await readBody(request)).toString('utf8'))
+}
+
+async function readBody(request) {
   const chunks = []
   let bytes = 0
   for await (const chunk of request) {
     bytes += chunk.byteLength
-    if (bytes > 262_144) throw new Error('body_too_large')
+    if (bytes > 5 * 1024 * 1024) throw new Error('body_too_large')
     chunks.push(chunk)
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  return Buffer.concat(chunks)
 }
 
 function messageText(body) {
@@ -128,6 +141,20 @@ const server = createServer(async (request, response) => {
     json(response, 200, { ok: true })
     return
   }
+  if (request.method === 'GET' && url.pathname.startsWith('/mock-images/')) {
+    const attachmentId = url.pathname.slice('/mock-images/'.length).replace(/\.png$/, '')
+    if (!attachments.has(attachmentId)) {
+      json(response, 404, { error: { code: 'not_found', message: 'Not found' } })
+      return
+    }
+    response.writeHead(200, {
+      'cache-control': 'private, max-age=30',
+      'content-length': String(tinyPng.byteLength),
+      'content-type': 'image/png',
+    })
+    response.end(tinyPng)
+    return
+  }
   if (request.method === 'GET' && url.pathname === '/debug') {
     json(response, 200, {
       requestCount,
@@ -135,6 +162,10 @@ const server = createServer(async (request, response) => {
       activeStreams,
       peakConcurrentStreams,
       lastRequest,
+      attachmentRequestCount,
+      attachmentUploadCount,
+      attachmentPreviewCount,
+      attachmentRemovalCount,
     })
     return
   }
@@ -144,8 +175,96 @@ const server = createServer(async (request, response) => {
     activeStreams = 0
     peakConcurrentStreams = 0
     lastRequest = null
+    attachmentRequestCount = 0
+    attachmentUploadCount = 0
+    attachmentPreviewCount = 0
+    attachmentRemovalCount = 0
     transientFailures.clear()
+    attachments.clear()
     json(response, 200, { reset: true })
+    return
+  }
+  if (request.method === 'POST' && url.pathname === '/functions/v1/webchat-attachment') {
+    if (request.headers.origin !== allowedOrigin) {
+      json(response, 403, { error: { code: 'origin_forbidden', message: 'Origin forbidden' } })
+      return
+    }
+    if (request.headers.authorization !== 'Bearer ustsacmland-demo-webchat-token') {
+      json(response, 401, { error: { code: 'unauthorized', message: 'Unauthorized' } })
+      return
+    }
+
+    attachmentRequestCount += 1
+    const contentType = String(request.headers['content-type'] ?? '')
+    if (contentType.startsWith('multipart/form-data')) {
+      await readBody(request)
+      attachmentUploadCount += 1
+      const suffix = attachmentUploadCount.toString(16).padStart(12, '0')
+      const attachmentId = `22222222-2222-4222-8222-${suffix}`
+      attachments.set(attachmentId, { status: 'ready' })
+      json(
+        response,
+        201,
+        {
+          attachment: {
+            id: attachmentId,
+            mediaType: 'image/webp',
+            width: 1,
+            height: 1,
+            byteSize: tinyPng.byteLength,
+            status: 'ready',
+            previewUrl: `http://${host}:${port}/mock-images/${attachmentId}.png`,
+            expiresIn: 60,
+          },
+          requestId: request.headers['x-request-id'] ?? 'mock-attachment-request',
+        },
+        cors(request.headers.origin),
+      )
+      return
+    }
+
+    let action
+    try {
+      action = await readJson(request)
+    } catch {
+      json(response, 400, { error: { code: 'invalid_json', message: 'Invalid request' } })
+      return
+    }
+    const attachmentId = typeof action?.attachmentId === 'string' ? action.attachmentId : ''
+    if (action?.action === 'preview' && attachments.has(attachmentId)) {
+      attachmentPreviewCount += 1
+      json(
+        response,
+        200,
+        {
+          attachment: {
+            id: attachmentId,
+            mediaType: 'image/webp',
+            width: 1,
+            height: 1,
+            byteSize: tinyPng.byteLength,
+            status: 'attached',
+            previewUrl: `http://${host}:${port}/mock-images/${attachmentId}.png`,
+            expiresIn: 60,
+          },
+          requestId: request.headers['x-request-id'] ?? 'mock-attachment-request',
+        },
+        cors(request.headers.origin),
+      )
+      return
+    }
+    if (action?.action === 'remove' && attachments.has(attachmentId)) {
+      attachmentRemovalCount += 1
+      attachments.delete(attachmentId)
+      json(
+        response,
+        200,
+        { removed: true, requestId: request.headers['x-request-id'] ?? 'mock-attachment-request' },
+        cors(request.headers.origin),
+      )
+      return
+    }
+    json(response, 404, { error: { code: 'attachment_not_found', message: 'Not found' } })
     return
   }
   if (request.method !== 'POST' || url.pathname !== '/api/chat') {
@@ -168,12 +287,17 @@ const server = createServer(async (request, response) => {
 
   requestCount += 1
   const text = messageText(body)
+  const lastMessage = Array.isArray(body.messages) ? body.messages.at(-1) : null
+  const fileParts = Array.isArray(lastMessage?.parts)
+    ? lastMessage.parts.filter((part) => part?.type === 'file')
+    : []
   const requestId = String(request.headers['x-request-id'] ?? '')
   lastRequest = {
     authorizationValid: request.headers.authorization === 'Bearer ustsacmland-demo-webchat-token',
     requestIdValid: /^[0-9a-f-]{36}$/i.test(requestId),
     topLevelFields: Object.keys(body).sort(),
     messageRoles: Array.isArray(body.messages) ? body.messages.map((message) => message?.role) : [],
+    fileParts: fileParts.map((part) => ({ mediaType: part.mediaType, url: part.url })),
   }
 
   const responseHeaders = {

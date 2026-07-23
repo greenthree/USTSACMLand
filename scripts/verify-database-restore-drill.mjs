@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const rowCountKeys = [
+const legacyRowCountKeys = [
   'profiles',
   'platformAccounts',
   'platformStats',
@@ -12,12 +12,17 @@ const rowCountKeys = [
   'migrations',
 ]
 
-const orphanKeys = [
+const storageRowCountKey = 'webchatImageAttachments'
+
+const coreOrphanKeys = [
   'profilesWithoutAuth',
+  'authUsersWithoutProfile',
   'accountsWithoutProfile',
   'statsWithoutProfile',
   'statsWithoutAccount',
 ]
+
+const storageOrphanKeys = ['webchatImagesWithoutProfile', 'webchatImagesWithoutConversation']
 
 function integer(value, label) {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -32,7 +37,16 @@ function requiredString(value, label, pattern = /\S/) {
 }
 
 export function verifyDatabaseRestoreDrill(manifest, observation) {
-  if (manifest?.schemaVersion !== 1) throw new Error('Restore manifest version is unsupported.')
+  if (![1, 2].includes(manifest?.schemaVersion)) {
+    throw new Error('Restore manifest version is unsupported.')
+  }
+  if (
+    manifest.schemaVersion === 1 &&
+    (manifest.storage != null ||
+      Object.prototype.hasOwnProperty.call(manifest?.rowCounts ?? {}, storageRowCountKey))
+  ) {
+    throw new Error('Legacy restore manifest unexpectedly contains Storage data.')
+  }
   const runId = requiredString(observation?.sourceRunId, 'Observed source run ID', /^\d+$/)
   if (runId !== requiredString(manifest.runId, 'Manifest source run ID', /^\d+$/)) {
     throw new Error('Restore observation does not match the backup run ID.')
@@ -51,6 +65,17 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
     throw new Error('Restore observation does not match the backup repository.')
   }
 
+  const featureState =
+    manifest.schemaVersion === 1 ? 'legacy-unavailable' : manifest?.storage?.featureState
+  if (
+    manifest.schemaVersion === 2 &&
+    featureState !== 'installed' &&
+    featureState !== 'uninstalled'
+  ) {
+    throw new Error('Manifest Storage feature state is invalid.')
+  }
+  const rowCountKeys =
+    manifest.schemaVersion === 1 ? legacyRowCountKeys : [...legacyRowCountKeys, storageRowCountKey]
   const rowCounts = {}
   for (const key of rowCountKeys) {
     const expected = integer(manifest?.rowCounts?.[key], `Manifest ${key} count`)
@@ -61,9 +86,71 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
     rowCounts[key] = observed
   }
 
+  const orphanKeys = [...coreOrphanKeys, ...(featureState === 'installed' ? storageOrphanKeys : [])]
   for (const key of orphanKeys) {
     if (integer(observation?.orphanCounts?.[key], `Observed ${key} count`) !== 0) {
       throw new Error(`Restored database contains ${key}.`)
+    }
+  }
+
+  let restoredStorage = null
+  if (manifest.schemaVersion === 2) {
+    const manifestStorage = manifest.storage
+    const observedStorage = observation?.storage
+    if (
+      manifestStorage?.bucket !== 'webchat-images' ||
+      observedStorage?.bucket !== manifestStorage.bucket ||
+      observedStorage?.featureState !== featureState
+    ) {
+      throw new Error('Restored Storage identity differs from the encrypted manifest.')
+    }
+    const storageObjectCount = integer(manifestStorage.objectCount, 'Manifest Storage object count')
+    if (
+      integer(observedStorage.objectCount, 'Observed Storage object count') !== storageObjectCount
+    ) {
+      throw new Error('Restored Storage object count differs from the encrypted manifest.')
+    }
+    const storageTotalBytes = integer(manifestStorage.totalBytes, 'Manifest Storage total bytes')
+    if (integer(observedStorage.totalBytes, 'Observed Storage total bytes') !== storageTotalBytes) {
+      throw new Error('Restored Storage byte total differs from the encrypted manifest.')
+    }
+    const storageManifestSha256 = requiredString(
+      manifestStorage.manifestSha256,
+      'Manifest Storage digest',
+      /^[a-f0-9]{64}$/,
+    )
+    if (observedStorage.manifestSha256 !== storageManifestSha256) {
+      throw new Error('Restored Storage digest differs from the encrypted manifest.')
+    }
+    if (featureState === 'installed') {
+      for (const [key, value] of Object.entries({
+        bucketPrivate: observedStorage.bucketPrivate,
+        anonymousDenied: observedStorage.anonymousDenied,
+        databaseReferencesMatched: observedStorage.databaseReferencesMatched,
+        objectHashesVerified: observedStorage.objectHashesVerified,
+      })) {
+        if (value !== true) throw new Error(`Restore Storage smoke check failed: ${key}.`)
+      }
+    } else {
+      if (
+        integer(manifest.rowCounts[storageRowCountKey], 'Manifest image attachment count') !== 0 ||
+        storageObjectCount !== 0 ||
+        storageTotalBytes !== 0 ||
+        storageManifestSha256 !==
+          'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' ||
+        observedStorage.featureAbsent !== true ||
+        observedStorage.databaseReferencesMatched !== true ||
+        observedStorage.objectHashesVerified !== true
+      ) {
+        throw new Error('Uninstalled Storage restore evidence is invalid.')
+      }
+    }
+    restoredStorage = {
+      featureState,
+      bucket: 'webchat-images',
+      objectCount: storageObjectCount,
+      totalBytes: storageTotalBytes,
+      manifestSha256: storageManifestSha256,
     }
   }
 
@@ -108,9 +195,11 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
     completedAt: new Date(completedAt).toISOString(),
     durationSeconds,
     restoredRowCounts: rowCounts,
+    restoredStorage,
     integrity: {
       orphanCounts: Object.fromEntries(orphanKeys.map((key) => [key, 0])),
       authUserApplicationTriggers: true,
+      authUsersHaveProfiles: true,
       authPasswordLogin: true,
       ownProfileRls: true,
       otherProfilesHiddenByRls: true,
@@ -118,6 +207,11 @@ export function verifyDatabaseRestoreDrill(manifest, observation) {
       anonymousPrivateTableProtected: true,
       fencedAccountDeletion: true,
       canaryCleanedUp: true,
+      storageFeatureState: featureState,
+      storageBucketPrivate: featureState === 'installed' ? true : null,
+      storageAnonymousAccessDenied: featureState === 'installed' ? true : null,
+      storageDatabaseReferencesMatched: featureState === 'legacy-unavailable' ? null : true,
+      storageObjectHashesVerified: featureState === 'legacy-unavailable' ? null : true,
     },
   }
 }
@@ -135,8 +229,9 @@ async function main() {
     JSON.parse(await readFile(resolve(observationPath), 'utf8')),
   )
   await writeFile(resolve(outputPath), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 })
+  const storageMessage = report.restoredStorage ? ' and private Storage' : ''
   console.log(
-    `Verified isolated restore drill for backup run ${report.source.runId}: seven row counts and Auth/RLS smoke checks passed.`,
+    `Verified isolated restore drill for backup run ${report.source.runId}: ${Object.keys(report.restoredRowCounts).length} row counts${storageMessage}, and Auth/RLS smoke checks passed.`,
   )
 }
 

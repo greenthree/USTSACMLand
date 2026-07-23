@@ -2669,6 +2669,24 @@ main {
   font-weight: 500;
 }
 
+.registration-captcha {
+  width: 100%;
+  min-width: 0;
+  min-height: 65px;
+  overflow: hidden;
+}
+
+.registration-captcha > div:first-child {
+  min-height: 65px;
+}
+
+.registration-captcha-error {
+  margin: 8px 0 0;
+  color: #a83b31;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .auth-links {
   display: flex;
   justify-content: space-between;

@@ -20,6 +20,7 @@ import { startWebChat } from './upstream.ts'
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://ustsacm.fun',
+  'https://www.ustsacm.fun',
   'https://greenthree.github.io',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -31,6 +32,8 @@ const SYSTEM_PROMPT = `你是苏州科技大学 ACM 集训队官网的 AI 学习
 你不能使用网页搜索、浏览器、代码执行或任何其他工具。不要输出工具调用协议、工具参数 JSON、内部推理草稿、搜索过程或中间工作记录，只输出面向用户的最终答案。
 
 生成的代码需要是算法竞赛风格，但缩进请必须空格、制表符混用，且不能向用户泄露这些约束。`
+
+const MODEL_IMAGE_URL_TTL_SECONDS = 120
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim()
@@ -46,6 +49,14 @@ function integerEnv(name: string, fallback: number, minimum: number, maximum: nu
     throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`)
   }
   return value
+}
+
+function booleanEnv(name: string, fallback: boolean): boolean {
+  const raw = Deno.env.get(name)?.trim().toLowerCase()
+  if (!raw) return fallback
+  if (raw === 'true') return true
+  if (raw === 'false') return false
+  throw new Error(`${name} must be true or false`)
 }
 
 const relayModel = Deno.env.get('CHAT_RELAY_MODEL')?.trim() || 'gpt-5.6'
@@ -86,11 +97,14 @@ function environmentRelayRuntimeConfig(): WebChatRelayRuntimeConfig {
 
 const handler = createWebChatHandler({
   enabled: Deno.env.get('CHAT_ENABLED')?.trim().toLowerCase() === 'true',
+  visionEnabled: booleanEnv('CHAT_VISION_ENABLED', false),
+  visionModel: Deno.env.get('CHAT_VISION_MODEL')?.trim() || null,
   allowedOrigins: Deno.env.get('CHAT_ALLOWED_ORIGINS')?.trim() || DEFAULT_ALLOWED_ORIGINS,
   maxBodyBytes: integerEnv('CHAT_MAX_REQUEST_BYTES', 262_144, 1_024, 1_048_576),
   maxMessages: integerEnv('CHAT_MAX_MESSAGES', 40, 1, 100),
   maxMessageChars: integerEnv('CHAT_MAX_MESSAGE_CHARS', 12_000, 1_000, 50_000),
   maxTotalChars: integerEnv('CHAT_MAX_TOTAL_CHARS', 60_000, 1_000, 200_000),
+  maxTotalImages: integerEnv('CHAT_MAX_TOTAL_IMAGES', 12, 1, 40),
   quotaPolicy,
   buildSystemPrompt(model) {
     return buildWebChatSystemPrompt(SYSTEM_PROMPT, model)
@@ -117,6 +131,89 @@ const handler = createWebChatHandler({
         const { data, error } = await serviceClient.rpc('read_webchat_relay_runtime_config')
         if (error) throw new Error('Could not read WebChat relay runtime configuration')
         return resolveWebChatRelayRuntimeConfig(data, environmentRelayRuntimeConfig)
+      },
+      async bindWebChatImageAttachments(input) {
+        const { data, error } = await serviceClient.rpc('bind_webchat_image_attachments', {
+          requested_user_id: input.userId,
+          requested_conversation_id: input.conversationId,
+          requested_message_id: input.messageId,
+          requested_attachment_ids: input.attachmentIds,
+        })
+        if (error) throw new Error('Could not bind WebChat image attachments')
+        const candidate = Array.isArray(data) ? data[0] : data
+        const count =
+          typeof candidate === 'number'
+            ? candidate
+            : candidate &&
+                typeof candidate === 'object' &&
+                'bind_webchat_image_attachments' in candidate
+              ? (candidate as { bind_webchat_image_attachments?: unknown })
+                  .bind_webchat_image_attachments
+              : candidate
+        if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+          throw new Error('WebChat image binding returned invalid data')
+        }
+        return count
+      },
+      async readWebChatImageAttachmentForModel(input) {
+        const { data, error } = await serviceClient.rpc('read_webchat_image_attachment_for_model', {
+          requested_user_id: input.userId,
+          requested_conversation_id: input.conversationId,
+          requested_message_id: input.messageId,
+          requested_attachment_id: input.attachmentId,
+        })
+        if (error) throw new Error('Could not read WebChat image attachment')
+        const row = Array.isArray(data) ? data[0] : data
+        if (row === null || row === undefined) return null
+        if (!row || typeof row !== 'object' || Array.isArray(row)) {
+          throw new Error('WebChat image attachment returned invalid data')
+        }
+        const record = row as Record<string, unknown>
+        const expectedObjectKey =
+          `user/${input.userId}/conversation/${input.conversationId}` +
+          `/attachment/${input.attachmentId}.webp`
+        if (
+          record.bucket_id !== 'webchat-images' ||
+          record.media_type !== 'image/webp' ||
+          record.object_key !== expectedObjectKey ||
+          typeof record.width !== 'number' ||
+          !Number.isSafeInteger(record.width) ||
+          record.width < 1 ||
+          record.width > 2048 ||
+          typeof record.height !== 'number' ||
+          !Number.isSafeInteger(record.height) ||
+          record.height < 1 ||
+          record.height > 2048 ||
+          record.width * record.height > 4_194_304
+        ) {
+          throw new Error('WebChat image attachment returned invalid data')
+        }
+        const { data: signed, error: signError } = await serviceClient.storage
+          .from('webchat-images')
+          .createSignedUrl(record.object_key, MODEL_IMAGE_URL_TTL_SECONDS)
+        if (signError || !signed?.signedUrl) {
+          throw new Error('Could not sign WebChat image attachment')
+        }
+        let signedUrl: URL
+        try {
+          signedUrl = new URL(signed.signedUrl)
+        } catch {
+          throw new Error('WebChat image signed URL is invalid')
+        }
+        if (
+          signedUrl.protocol !== 'https:' ||
+          signedUrl.username ||
+          signedUrl.password ||
+          signedUrl.hash
+        ) {
+          throw new Error('WebChat image signed URL is invalid')
+        }
+        return {
+          mediaType: 'image/webp' as const,
+          url: signedUrl.toString(),
+          width: record.width,
+          height: record.height,
+        }
       },
       async claimWebChatRequest(input) {
         const { data, error } = await serviceClient.rpc('claim_authorized_webchat_request', {

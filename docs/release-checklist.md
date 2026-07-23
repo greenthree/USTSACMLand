@@ -39,17 +39,24 @@
 - [ ] GitHub `CI / verify`、`CI / database-security`、`Secret scan / gitleaks` 和部署后的 `production-ranking-audit` 全部通过。
 - [ ] Dependabot 没有尚未评估的高危更新；依赖升级已由测试和构建验证。
 - [ ] 构建日志、测试输出和 Actions artifact 不含 Secret 或成员私有资料。
-- [ ] `Encrypted database backup` 最近一次手动任务成功，Artifact 只包含 `.enc` 和 `.enc.sha256`。
+- [ ] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES` 与 `MAX_STORAGE_OBJECTS` 已按生产规模配置，Artifact 只包含 `.enc` 和 `.enc.sha256`，且密文内是 Schema v2 清单、8 个聚合行数及完整的引用图片对象，Storage 失败时没有发布数据库-only 的部分产物。
+- [ ] 已按最近一次密文大小估算约 `14 × 单次加密快照大小` 的 Artifact 占用，并检查精确对象计划、逐对象下载耗时、Runner 磁盘和删除死信增长风险。
 
 ## 3. 数据库与权限
 
 - [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
 - [x] 推荐计划 migration 已验证：邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限。
-- [ ] 推荐计划全局开关已部署并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；第 63 个 migration 已部署，本地空库 984 项 pgTAP 已通过，生产行为烟测仍待完成。
+- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 69 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
+- [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
+- [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
+- [ ] WebChat 图片 `202607230001` migration、附件/清理 Edge Function 和三层开关保持未部署，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 保持缺失或为 `false`；未完成 ROADMAP 的全站容量、双连接并发和注册滥用防护前不得批量推送 pending migration。
+- [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
+- [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
 - [ ] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [ ] 公开视图不返回邮箱、QQ、内部错误、审计详情或 Secret。
+- [ ] 私有 `webchat-images` Bucket 只允许 WebP、单对象上限 4 MiB；匿名请求和匿名 bearer 请求均不能读取，数据库 `ready`/`attached` 引用与对象归属一致。
 - [ ] 管理员 RPC 保留鉴权、乐观锁、审计和速率限制；清单与数据库目录中的全部 `admin_*` 函数一致，普通/停用成员无法调用 19 个入口，8 个 `_unlimited` 实现不可由浏览器角色执行。
 - [ ] 注销流程的目标绑定租约覆盖“取得 owner/target 租约 → 记录并确认 GitHub 恢复下限 → 续期并停止外部阶段心跳 → 最终 RPC 锁定租约/Profile → 同事务删除 Auth 用户与消费租约”完整临界区；业务级联与审计匿名化整体提交或回滚，管理员注销仍要求先交接权限。
 - [ ] 管理员提升/降级要求原因、乐观锁、速率限制和二次确认；并发操作也不能移除最后一名启用管理员。
@@ -90,7 +97,7 @@
 ## 6. 前端与可访问性烟测
 
 - [ ] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新。
-- [ ] 推荐计划页面入口、分享链接复制、注册邀请码预填、无邀请码注册及全局关闭状态已在桌面与移动端烟测。
+- [ ] 推荐计划页面入口、分享链接复制、注册邀请码预填和无邀请码注册已在桌面与移动端烟测；全局关闭、初始检查和状态查询失败时，普通注册页与成员账号页均不显示推荐计划名称、邀请码、奖励摘要或暂停提示。
 - [ ] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限。
 - [ ] 部署后的只读生产门禁拒绝演示回退，并用公开视图逐页复算全部成员在总榜与各平台榜的排序、总 Rating、总历史最高 Rating 和总题数。
 - [ ] 桌面、390px 移动端和至少一个宽屏视口无页面级横向溢出。
@@ -103,9 +110,9 @@
 - [ ] 如本次启用 WebChat：站内隐私页已说明消息转发对象、本站不保存对话正文及私有额度账本边界；负责人已核对并记录真实中转站和上游模型的留存、训练、删除与跨境政策，未确认前保持生产三层开关关闭。
 - [ ] 已在运维手册核验并填写 Supabase、GitHub Actions 和 Firecrawl 的实际保留窗口、负责人及删除/恢复限制。
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
-- [ ] 使用两个数据库连接验证最终 RPC 的行锁 fencing：竞争接管在删除事务结束前持续阻塞；记录完整提交耗时、响应丢失后的状态对账，以及旧 access JWT 无法越过 live Profile/RLS 边界。
+- [ ] 使用两个数据库连接验证最终 RPC 的行锁 fencing：本地 CI 已证明竞争请求在删除事务结束前持续阻塞，提交后只能观察到已消费租约；响应丢失的 Auth/Profile 双重对账与失败关闭测试已覆盖，旧 access JWT 的生产 RLS 边界已有证据。仍需记录生产完整提交耗时和受控传输故障复核。
 - [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
-- [x] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成且含 `restore-manifest.json` 与 `auth-hooks.sql` 的真实 Artifact，运行手动 `Encrypted database restore drill`；run `29656219433` 完成来源/恢复下限、解密、单事务恢复、7 项行数、4 类孤儿、3 个 Auth hooks、注册建档、密码登录、RLS、匿名边界、受控注销和明文清理核对，证据见 [生产加密数据库隔离恢复演练](./evidence/database-restore-drill-2026-07-19.md)。
+- [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；演练完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、6 类孤儿、私有 Bucket 重建、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。旧 run `29656219433` 只覆盖数据库-only 格式，可作为历史基线但不能替代本项。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
 - [ ] 已由项目负责人选择并加入 `LICENSE`；在此之前不得把源码描述为开源。
 - [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。

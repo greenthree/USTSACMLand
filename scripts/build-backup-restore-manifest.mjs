@@ -12,6 +12,9 @@ const requiredTables = {
   migrations: 'supabase_migrations.schema_migrations',
 }
 
+const webChatImageAttachmentsTable = 'private.webchat_image_attachments'
+const emptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+
 function unquoteIdentifier(quoted, plain) {
   return quoted === undefined ? plain : quoted.replaceAll('""', '"')
 }
@@ -82,19 +85,82 @@ function mergeCounts(...sources) {
   return merged
 }
 
+function parseStorageSummary(storageSummary) {
+  const expectedKeys =
+    storageSummary?.schemaVersion === 1
+      ? ['schemaVersion', 'bucket', 'snapshotAt', 'objectCount', 'totalBytes', 'manifestSha256']
+      : [
+          'schemaVersion',
+          'featureState',
+          'bucket',
+          'snapshotAt',
+          'objectCount',
+          'totalBytes',
+          'manifestSha256',
+        ]
+  const actualKeys = Object.keys(storageSummary ?? {}).sort()
+  expectedKeys.sort()
+  const featureState =
+    storageSummary?.schemaVersion === 1 ? 'installed' : storageSummary?.featureState
+  if (
+    !storageSummary ||
+    ![1, 2].includes(storageSummary.schemaVersion) ||
+    (storageSummary.schemaVersion === 2 && !['installed', 'uninstalled'].includes(featureState)) ||
+    storageSummary.bucket !== 'webchat-images' ||
+    typeof storageSummary.snapshotAt !== 'string' ||
+    !Number.isFinite(Date.parse(storageSummary.snapshotAt)) ||
+    !Number.isSafeInteger(storageSummary.objectCount) ||
+    storageSummary.objectCount < 0 ||
+    !Number.isSafeInteger(storageSummary.totalBytes) ||
+    storageSummary.totalBytes < 0 ||
+    typeof storageSummary.manifestSha256 !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(storageSummary.manifestSha256) ||
+    (featureState === 'uninstalled' &&
+      (storageSummary.objectCount !== 0 ||
+        storageSummary.totalBytes !== 0 ||
+        storageSummary.manifestSha256 !== emptySha256)) ||
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    throw new Error('WebChat Storage summary is invalid.')
+  }
+  return { ...storageSummary, featureState }
+}
+
 export function buildBackupRestoreManifest({
   dataSql,
   authDataSql,
   migrationsDataSql,
   metadataSource,
+  storageSummary,
 }) {
   const metadata = parseMetadata(metadataSource)
-  const counts = mergeCounts(dataSql, authDataSql, migrationsDataSql)
+  const storage = parseStorageSummary(storageSummary)
+  const counts = mergeCounts(dataSql, migrationsDataSql)
+  const legacyAuthCounts = countCopyRows(authDataSql)
+  for (const [table, count] of legacyAuthCounts) {
+    if (counts.has(table)) throw new Error(`Backup dumps repeat table ${table}.`)
+    counts.set(table, count)
+  }
   const rowCounts = {}
 
   for (const [key, table] of Object.entries(requiredTables)) {
     if (!counts.has(table)) throw new Error(`Backup dump is missing COPY data for ${table}.`)
     rowCounts[key] = counts.get(table)
+  }
+
+  if (storage.featureState === 'installed') {
+    if (!counts.has(webChatImageAttachmentsTable)) {
+      throw new Error(`Backup dump is missing COPY data for ${webChatImageAttachmentsTable}.`)
+    }
+    rowCounts.webchatImageAttachments = counts.get(webChatImageAttachmentsTable)
+  } else {
+    if (counts.has(webChatImageAttachmentsTable)) {
+      throw new Error(
+        'Backup dump contains WebChat image attachments but Storage is marked uninstalled.',
+      )
+    }
+    rowCounts.webchatImageAttachments = 0
   }
 
   const createdAt = requiredMetadata(metadata, 'created_at')
@@ -113,8 +179,12 @@ export function buildBackupRestoreManifest({
   const commit = requiredMetadata(metadata, 'commit')
   if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('Backup metadata commit is invalid.')
 
+  if (new Date(storage.snapshotAt).toISOString() !== new Date(createdAt).toISOString()) {
+    throw new Error('WebChat Storage summary does not match the database snapshot time.')
+  }
+
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date(createdAt).toISOString(),
     repository: requiredMetadata(metadata, 'repository'),
     commit,
@@ -122,15 +192,22 @@ export function buildBackupRestoreManifest({
     recoveryNotBefore: new Date(recoveryNotBefore).toISOString(),
     supabaseCli: requiredMetadata(metadata, 'supabase_cli'),
     rowCounts,
+    storage: {
+      featureState: storage.featureState,
+      bucket: storage.bucket,
+      objectCount: storage.objectCount,
+      totalBytes: storage.totalBytes,
+      manifestSha256: storage.manifestSha256,
+    },
   }
 }
 
 async function main() {
-  const [dataPath, authDataPath, migrationsDataPath, metadataPath, outputPath] =
+  const [dataPath, authDataPath, migrationsDataPath, metadataPath, storageSummaryPath, outputPath] =
     process.argv.slice(2)
   if (!outputPath) {
     throw new Error(
-      'Usage: node scripts/build-backup-restore-manifest.mjs <data.sql> <auth-data.sql> <migrations-data.sql> <metadata.txt> <output.json>',
+      'Usage: node scripts/build-backup-restore-manifest.mjs <data.sql> <auth-data.sql> <migrations-data.sql> <metadata.txt> <storage-summary.json> <output.json>',
     )
   }
 
@@ -139,11 +216,14 @@ async function main() {
     authDataSql: await readFile(resolve(authDataPath), 'utf8'),
     migrationsDataSql: await readFile(resolve(migrationsDataPath), 'utf8'),
     metadataSource: await readFile(resolve(metadataPath), 'utf8'),
+    storageSummary: JSON.parse(await readFile(resolve(storageSummaryPath), 'utf8')),
   })
   await writeFile(resolve(outputPath), `${JSON.stringify(manifest, null, 2)}\n`, {
     mode: 0o600,
   })
-  console.log('Created encrypted-backup restore manifest with seven aggregate row counts.')
+  console.log(
+    'Created encrypted-backup restore manifest with eight aggregate row counts and private Storage totals.',
+  )
 }
 
 const currentFile = fileURLToPath(import.meta.url)

@@ -86,6 +86,8 @@ jobs:
           supabase/functions/delete-account/index.ts
           supabase/functions/change-password/index.ts
           supabase/functions/webchat/index.ts
+          supabase/functions/webchat-attachment/index.ts
+          supabase/functions/webchat-image-cleanup/index.ts
           supabase/functions/webchat-config/index.ts
           supabase/functions/webchat-cache-probe/index.ts
           supabase/functions/firecrawl-config/index.ts
@@ -111,6 +113,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Set up Deno for database integration checks
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+        with:
+          deno-version: v2.x
+
       - name: Start local Supabase
         run: >-
           npx --yes supabase@2.109.1 start
@@ -118,6 +125,15 @@ jobs:
 
       - name: Test database security
         run: npm run test:db
+
+      - name: Test account-deletion transaction fencing
+        run: npm run check:account-deletion-concurrency
+
+      - name: Test single-platform outage isolation
+        run: npm run check:sync-platform-outage
+
+      - name: Test WebChat image reservation concurrency
+        run: node scripts/check-webchat-image-reservation-concurrency.mjs
 
       - name: Lint database schema
         run: >-

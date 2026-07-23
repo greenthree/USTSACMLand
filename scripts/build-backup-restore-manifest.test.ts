@@ -28,8 +28,21 @@ const dataSql = [
   'run-2',
   'run-3',
   '\\.',
+  'COPY private.webchat_image_attachments (id) FROM stdin;',
+  'attachment-1',
+  '\\.',
   '',
 ].join('\n')
+
+const storageSummary = {
+  schemaVersion: 2,
+  featureState: 'installed',
+  bucket: 'webchat-images',
+  snapshotAt: '2026-07-19T00:30:00.000Z',
+  objectCount: 1,
+  totalBytes: 1234,
+  manifestSha256: 'a'.repeat(64),
+}
 
 const authDataSql = [
   'COPY auth.users (id, email) FROM stdin;',
@@ -54,6 +67,7 @@ describe('encrypted backup restore manifest', () => {
       'public.platform_stats': 1,
       'public.stat_snapshots': 0,
       'public.sync_runs': 3,
+      'private.webchat_image_attachments': 1,
     })
   })
 
@@ -63,10 +77,11 @@ describe('encrypted backup restore manifest', () => {
       authDataSql,
       migrationsDataSql,
       metadataSource: metadata,
+      storageSummary,
     })
 
     expect(manifest).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       createdAt: '2026-07-19T00:30:00.000Z',
       repository: 'greenthree/USTSACMLand',
       commit: '0123456789abcdef0123456789abcdef01234567',
@@ -79,8 +94,16 @@ describe('encrypted backup restore manifest', () => {
         platformStats: 1,
         statSnapshots: 0,
         syncRuns: 3,
+        webchatImageAttachments: 1,
         authUsers: 1,
         migrations: 2,
+      },
+      storage: {
+        featureState: 'installed',
+        bucket: 'webchat-images',
+        objectCount: 1,
+        totalBytes: 1234,
+        manifestSha256: 'a'.repeat(64),
       },
     })
     expect(JSON.stringify(manifest)).not.toContain('one@example.test')
@@ -97,6 +120,7 @@ describe('encrypted backup restore manifest', () => {
         authDataSql,
         migrationsDataSql,
         metadataSource: metadata,
+        storageSummary,
       }),
     ).toThrow(/public\.platform_stats/)
   })
@@ -108,6 +132,7 @@ describe('encrypted backup restore manifest', () => {
         authDataSql: `${authDataSql}${authDataSql}`,
         migrationsDataSql,
         metadataSource: metadata,
+        storageSummary,
       }),
     ).toThrow(/repeats COPY data|repeat table/)
   })
@@ -125,7 +150,62 @@ describe('encrypted backup restore manifest', () => {
         authDataSql,
         migrationsDataSql,
         metadataSource: metadata.replace('run_id=123456789', 'run_id=not-a-run'),
+        storageSummary,
       }),
     ).toThrow(/run_id is invalid/)
+  })
+
+  it('rejects a Storage summary from a different snapshot or with invalid aggregates', () => {
+    expect(() =>
+      buildBackupRestoreManifest({
+        dataSql,
+        authDataSql,
+        migrationsDataSql,
+        metadataSource: metadata,
+        storageSummary: { ...storageSummary, snapshotAt: '2026-07-19T00:31:00Z' },
+      }),
+    ).toThrow(/snapshot time/)
+    expect(() =>
+      buildBackupRestoreManifest({
+        dataSql,
+        authDataSql,
+        migrationsDataSql,
+        metadataSource: metadata,
+        storageSummary: { ...storageSummary, objectCount: -1 },
+      }),
+    ).toThrow(/summary is invalid/)
+  })
+
+  it('uses auth.users from the unified data dump and accepts an empty legacy placeholder', () => {
+    const manifest = buildBackupRestoreManifest({
+      dataSql: `${dataSql}${authDataSql}`,
+      authDataSql: '',
+      migrationsDataSql,
+      metadataSource: metadata,
+      storageSummary,
+    })
+    expect(manifest.rowCounts.authUsers).toBe(1)
+  })
+
+  it('records a missing image migration as an explicit uninstalled empty feature', () => {
+    const withoutImageTable = dataSql.replace(
+      'COPY private.webchat_image_attachments (id) FROM stdin;\nattachment-1\n\\.\n',
+      '',
+    )
+    const manifest = buildBackupRestoreManifest({
+      dataSql: withoutImageTable,
+      authDataSql,
+      migrationsDataSql,
+      metadataSource: metadata,
+      storageSummary: {
+        ...storageSummary,
+        featureState: 'uninstalled',
+        objectCount: 0,
+        totalBytes: 0,
+        manifestSha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      },
+    })
+    expect(manifest.rowCounts.webchatImageAttachments).toBe(0)
+    expect(manifest.storage.featureState).toBe('uninstalled')
   })
 })

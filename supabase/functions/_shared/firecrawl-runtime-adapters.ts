@@ -7,6 +7,8 @@ import {
 import {
   createFirecrawlQojProvider,
   createQojAdapter,
+  logQojSessionCleanup,
+  type QojSessionCleanupStatus,
   type QojMetricsProvider,
 } from './adapters/qoj.ts'
 import type { PlatformAdapter } from './adapters/types.ts'
@@ -17,6 +19,7 @@ export interface FirecrawlRuntimeAdapterDependencies {
   selectKey?: typeof selectFirecrawlRuntimeKey
   observeOperation?: typeof observeFirecrawlOperation
   operationId?: string
+  syncRunId?: number
   qojServiceUsername?: string | null
   qojServicePassword?: string | null
   qojProviderFactory?: typeof createFirecrawlQojProvider
@@ -62,6 +65,8 @@ function qojRuntimeProvider(
         serviceUsername,
         servicePassword,
         key.apiUrl,
+        undefined,
+        (status: QojSessionCleanupStatus) => logQojSessionCleanup(status, dependencies.syncRunId),
       )
       return await (dependencies.observeOperation ?? observeFirecrawlOperation)(
         client,

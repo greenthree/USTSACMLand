@@ -76,6 +76,12 @@ function services(overrides: Partial<WebChatServices> = {}): WebChatServices {
     async readRelayRuntimeConfig() {
       return runtimeConfig
     },
+    async bindWebChatImageAttachments() {
+      return 0
+    },
+    async readWebChatImageAttachmentForModel() {
+      return null
+    },
     async claimWebChatRequest() {
       return {
         decision: 'acquired',
@@ -120,6 +126,8 @@ function dependencies(
 ): WebChatHandlerDependencies {
   return {
     enabled: true,
+    visionEnabled: false,
+    visionModel: quotaPolicy.model,
     allowedOrigins: allowedOrigin,
     quotaPolicy,
     buildSystemPrompt: () => quotaPolicy.systemPrompt,
@@ -333,8 +341,328 @@ Deno.test('webchat forwards only validated messages and server-derived identity'
       id: 'user-1',
       role: 'user',
       text: '解释二分',
+      images: [],
     },
   ])
+})
+
+Deno.test('webchat rejects image input while vision is fail-closed', async () => {
+  let binds = 0
+  let starts = 0
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async bindWebChatImageAttachments() {
+            binds += 1
+            return 1
+          },
+        }),
+      visionEnabled: false,
+      async startChat() {
+        starts += 1
+        return new Response('data: [DONE]\n\n', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    }),
+  )(
+    request({
+      id: '11111111-1111-4111-8111-111111111111',
+      messages: [
+        {
+          id: 'user-image',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/webp',
+              url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222',
+            },
+          ],
+        },
+      ],
+    }),
+  )
+
+  strictEqual(response.status, 503)
+  deepStrictEqual((await responseBody(response)).error, {
+    code: 'vision_not_enabled',
+    message: '当前模型暂未开启图片理解',
+  })
+  strictEqual(binds, 0)
+  strictEqual(starts, 0)
+})
+
+Deno.test(
+  'webchat rejects images after the runtime model changes away from the reviewed model',
+  async () => {
+    let claims = 0
+    let binds = 0
+    let starts = 0
+    const response = await createWebChatHandler(
+      dependencies({
+        visionEnabled: true,
+        visionModel: 'gpt-5.6-reviewed-vision',
+        createServices: () =>
+          services({
+            async claimWebChatRequest() {
+              claims += 1
+              throw new Error('quota must not be claimed for an unreviewed vision model')
+            },
+            async bindWebChatImageAttachments() {
+              binds += 1
+              throw new Error('images must not bind for an unreviewed vision model')
+            },
+          }),
+        async startChat() {
+          starts += 1
+          throw new Error('upstream must not start for an unreviewed vision model')
+        },
+      }),
+    )(
+      request({
+        id: '11111111-1111-4111-8111-111111111111',
+        messages: [
+          {
+            id: 'user-image',
+            role: 'user',
+            parts: [
+              {
+                type: 'file',
+                mediaType: 'image/webp',
+                url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222',
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    strictEqual(response.status, 503)
+    deepStrictEqual((await responseBody(response)).error, {
+      code: 'vision_not_enabled',
+      message: '当前模型暂未开启图片理解',
+    })
+    strictEqual(claims, 0)
+    strictEqual(binds, 0)
+    strictEqual(starts, 0)
+  },
+)
+
+Deno.test(
+  'webchat binds owned images and sends only signed high-detail URLs upstream',
+  async () => {
+    const starts: StartWebChatOptions[] = []
+    let claimed = false
+    const response = await createWebChatHandler(
+      dependencies({
+        visionEnabled: true,
+        createServices: () =>
+          services({
+            async bindWebChatImageAttachments(input) {
+              strictEqual(claimed, true)
+              strictEqual(input.userId, userId)
+              strictEqual(input.conversationId, '11111111-1111-4111-8111-111111111111')
+              strictEqual(input.messageId, 'user-image')
+              deepStrictEqual(input.attachmentIds, ['22222222-2222-4222-8222-222222222222'])
+              return 1
+            },
+            async readWebChatImageAttachmentForModel(input) {
+              strictEqual(input.attachmentId, '22222222-2222-4222-8222-222222222222')
+              return {
+                mediaType: 'image/webp',
+                url: 'https://signed.example.test/private-image?token=opaque',
+                width: 640,
+                height: 480,
+              }
+            },
+            async claimWebChatRequest() {
+              claimed = true
+              return {
+                decision: 'acquired',
+                status: 'claimed',
+                remainingMinuteRequests: 2,
+                remainingTotalRequests: 29,
+                remainingTotalTokens: 90_000,
+                retryAfterSeconds: null,
+              }
+            },
+          }),
+        async startChat(options) {
+          starts.push(options)
+          return new Response('data: [DONE]\n\n', {
+            headers: { 'content-type': 'text/event-stream' },
+          })
+        },
+      }),
+    )(
+      request({
+        id: '11111111-1111-4111-8111-111111111111',
+        messages: [
+          {
+            id: 'user-image',
+            role: 'user',
+            parts: [
+              { type: 'text', text: '请看图' },
+              {
+                type: 'file',
+                mediaType: 'image/webp',
+                url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222',
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    strictEqual(response.status, 200)
+    strictEqual(claimed, true)
+    strictEqual(starts.length, 1)
+    deepStrictEqual(starts[0].messages, [
+      {
+        id: 'user-image',
+        role: 'user',
+        text: '请看图',
+        images: [
+          {
+            attachmentId: '22222222-2222-4222-8222-222222222222',
+            mediaType: 'image/webp',
+            url: 'https://signed.example.test/private-image?token=opaque',
+            width: 640,
+            height: 480,
+          },
+        ],
+      },
+    ])
+    await response.text()
+  },
+)
+
+Deno.test('webchat fails closed when the image is not attached to the stored message', async () => {
+  let claims = 0
+  let releases = 0
+  let starts = 0
+  const response = await createWebChatHandler(
+    dependencies({
+      visionEnabled: true,
+      createServices: () =>
+        services({
+          async bindWebChatImageAttachments() {
+            strictEqual(claims, 1)
+            return 0
+          },
+          async claimWebChatRequest() {
+            claims += 1
+            return {
+              decision: 'acquired',
+              status: 'claimed',
+              remainingMinuteRequests: 2,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
+              retryAfterSeconds: null,
+            }
+          },
+          async releaseWebChatRequest(_userId, _requestId, _ownerToken, reason) {
+            strictEqual(reason, 'start_failed_before_upstream')
+            releases += 1
+            return true
+          },
+        }),
+      async startChat() {
+        starts += 1
+        throw new Error('must not start for an unbound image')
+      },
+    }),
+  )(
+    request({
+      id: '11111111-1111-4111-8111-111111111111',
+      messages: [
+        {
+          id: 'user-image',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/webp',
+              url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222',
+            },
+          ],
+        },
+      ],
+    }),
+  )
+
+  strictEqual(response.status, 409)
+  deepStrictEqual((await responseBody(response)).error, {
+    code: 'image_not_attached',
+    message: '图片尚未绑定到当前消息，请稍后再试',
+  })
+  strictEqual(claims, 1)
+  strictEqual(releases, 1)
+  strictEqual(starts, 0)
+})
+
+Deno.test('webchat rejects image requests at quota before attachment backend calls', async () => {
+  let binds = 0
+  let reads = 0
+  let starts = 0
+  const response = await createWebChatHandler(
+    dependencies({
+      visionEnabled: true,
+      createServices: () =>
+        services({
+          async bindWebChatImageAttachments() {
+            binds += 1
+            return 1
+          },
+          async readWebChatImageAttachmentForModel() {
+            reads += 1
+            return null
+          },
+          async claimWebChatRequest() {
+            return {
+              decision: 'minute_limited',
+              status: 'blocked',
+              remainingMinuteRequests: 0,
+              remainingTotalRequests: 29,
+              remainingTotalTokens: 90_000,
+              retryAfterSeconds: 30,
+            }
+          },
+        }),
+      async startChat() {
+        starts += 1
+        throw new Error('must not start after a quota rejection')
+      },
+    }),
+  )(
+    request({
+      id: '11111111-1111-4111-8111-111111111111',
+      messages: [
+        {
+          id: 'user-image',
+          role: 'user',
+          parts: [
+            {
+              type: 'file',
+              mediaType: 'image/webp',
+              url: 'urn:ustsacm:webchat-attachment:22222222-2222-4222-8222-222222222222',
+            },
+          ],
+        },
+      ],
+    }),
+  )
+
+  strictEqual(response.status, 429)
+  strictEqual(
+    ((await responseBody(response)).error as { code: string }).code,
+    'chat_minute_limited',
+  )
+  strictEqual(binds, 0)
+  strictEqual(reads, 0)
+  strictEqual(starts, 0)
 })
 
 Deno.test('webchat resolves the actual relay model before quota fingerprinting', async () => {
@@ -707,6 +1035,61 @@ Deno.test('webchat releases only the pre-start claim when relay startup fails', 
   strictEqual(response.status, 502)
   strictEqual(releases, 1)
 })
+
+Deno.test(
+  'webchat reports a rejected pre-start claim release without replacing the upstream error',
+  async () => {
+    const reported: unknown[] = []
+    const response = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async releaseWebChatRequest() {
+              return false
+            },
+          }),
+        async startChat() {
+          throw new WebChatUpstreamError(502, 'upstream_unavailable', '暂时不可用')
+        },
+        async reportUnexpectedError(_request, error) {
+          reported.push(error)
+        },
+      }),
+    )(request())
+
+    strictEqual(response.status, 502)
+    strictEqual(reported.length, 1)
+    strictEqual(String(reported[0]).includes('claim release was not applied'), true)
+  },
+)
+
+Deno.test(
+  'webchat preserves the upstream error when claim release and monitoring both throw',
+  async () => {
+    const response = await createWebChatHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async releaseWebChatRequest() {
+              throw new Error('release transport failed')
+            },
+          }),
+        async startChat() {
+          throw new WebChatUpstreamError(502, 'upstream_unavailable', '暂时不可用')
+        },
+        async reportUnexpectedError() {
+          throw new Error('monitoring unavailable')
+        },
+      }),
+    )(request())
+
+    strictEqual(response.status, 502)
+    deepStrictEqual((await responseBody(response)).error, {
+      code: 'upstream_unavailable',
+      message: '暂时不可用',
+    })
+  },
+)
 
 Deno.test(
   'webchat rejects a request whose conservative reservation exceeds the member total budget',

@@ -239,6 +239,122 @@ Deno.test(
   },
 )
 
+Deno.test(
+  'QOJ Firecrawl provider reports session cleanup without exposing identifiers',
+  async () => {
+    const originalInfo = console.info
+    const originalWarn = console.warn
+    const infoLogs: string[] = []
+    const warningLogs: string[] = []
+    console.info = (...values: unknown[]) => infoLogs.push(values.map(String).join(' '))
+    console.warn = (...values: unknown[]) => warningLogs.push(values.map(String).join(' '))
+
+    try {
+      const successfulCleanupProvider = createFirecrawlQojProvider(
+        'test-api-key',
+        'service_user',
+        'service-pass-value',
+        'https://firecrawl.example',
+        (input, options) => {
+          if (options.method === 'DELETE') return Promise.resolve({ success: true })
+          if (input.endsWith('/interact')) return Promise.resolve(interactPayload())
+          return Promise.resolve({
+            success: true,
+            data: { metadata: { scrapeId: JOB_ID } },
+          })
+        },
+      )
+
+      equal(await successfulCleanupProvider.fetchAcceptedCount('sample_user'), 10)
+      equal(infoLogs.length, 1)
+      equal(infoLogs[0], JSON.stringify({ event: 'qoj_firecrawl_session_cleanup_succeeded' }))
+      equal(infoLogs[0].includes(JOB_ID), false)
+
+      const failedCleanupProvider = createFirecrawlQojProvider(
+        'test-api-key',
+        'service_user',
+        'service-pass-value',
+        'https://firecrawl.example',
+        (input, options) => {
+          if (options.method === 'DELETE') return Promise.resolve({ success: false })
+          if (input.endsWith('/interact')) return Promise.resolve(interactPayload())
+          return Promise.resolve({
+            success: true,
+            data: { metadata: { scrapeId: JOB_ID } },
+          })
+        },
+      )
+
+      equal(await failedCleanupProvider.fetchAcceptedCount('sample_user'), 10)
+      equal(warningLogs.length, 1)
+      equal(warningLogs[0], JSON.stringify({ event: 'qoj_firecrawl_session_cleanup_failed' }))
+      equal(warningLogs[0].includes(JOB_ID), false)
+
+      const primaryFailureWithFailedCleanupProvider = createFirecrawlQojProvider(
+        'test-api-key',
+        'service_user',
+        'service-pass-value',
+        'https://firecrawl.example',
+        (input, options) => {
+          if (options.method === 'DELETE') return Promise.resolve({ success: false })
+          if (input.endsWith('/interact')) {
+            return Promise.resolve(
+              interactPayload('sample_user', 0, {
+                pathname: '/login',
+                profileUsername: null,
+                isLogin: true,
+                hasLogout: false,
+                loginFailure: 'credentials_rejected',
+                acceptedCount: null,
+              }),
+            )
+          }
+          return Promise.resolve({
+            success: true,
+            data: { metadata: { scrapeId: JOB_ID } },
+          })
+        },
+      )
+
+      await rejects(
+        () => primaryFailureWithFailedCleanupProvider.fetchAcceptedCount('sample_user'),
+        (error: unknown) =>
+          error instanceof HttpError &&
+          error.code === 'auth_expired' &&
+          error.retryable === false &&
+          error.details?.firecrawlJobId === undefined,
+      )
+      equal(warningLogs.length, 2)
+      equal(warningLogs[1], JSON.stringify({ event: 'qoj_firecrawl_session_cleanup_failed' }))
+    } finally {
+      console.info = originalInfo
+      console.warn = originalWarn
+    }
+  },
+)
+
+Deno.test('QOJ cleanup reporter failures never replace the synchronization result', async () => {
+  const provider = createFirecrawlQojProvider(
+    'test-api-key',
+    'service_user',
+    'service-pass-value',
+    'https://firecrawl.example',
+    (input, options) => {
+      if (options.method === 'DELETE') return Promise.resolve({ success: true })
+      if (input.endsWith('/interact')) return Promise.resolve(interactPayload())
+      return Promise.resolve({
+        success: true,
+        data: { metadata: { scrapeId: JOB_ID } },
+      })
+    },
+    () => {
+      throw new Error('synthetic log transport failure')
+    },
+  )
+
+  equal(await provider.fetchAcceptedCount('sample_user'), 10)
+})
+
 Deno.test('QOJ Firecrawl provider rejects credentials the login form would truncate', () => {
   throws(
     () => createFirecrawlQojProvider('test-api-key', 'service_user', 'x'.repeat(21)),
@@ -265,7 +381,7 @@ Deno.test('QOJ Firecrawl provider requires a scrape-bound browser session id', a
   )
 })
 
-Deno.test('QOJ Firecrawl provider attaches the browser job id to failures', async () => {
+Deno.test('QOJ Firecrawl provider keeps the browser job id out of failures', async () => {
   const provider = createFirecrawlQojProvider(
     'test-api-key',
     'service_user',
@@ -295,7 +411,7 @@ Deno.test('QOJ Firecrawl provider attaches the browser job id to failures', asyn
     (error: unknown) =>
       error instanceof HttpError &&
       error.message === 'QOJ profile returned HTTP 502' &&
-      error.details?.firecrawlJobId === JOB_ID,
+      error.details?.firecrawlJobId === undefined,
   )
 })
 
@@ -340,7 +456,7 @@ Deno.test(
         error instanceof HttpError &&
         error.code === 'auth_expired' &&
         error.retryable === false &&
-        error.details?.firecrawlJobId === JOB_ID,
+        error.details?.firecrawlJobId === undefined,
     )
     equal(calls.length, 3)
     equal(calls[1].method, 'POST')
@@ -385,7 +501,7 @@ Deno.test('QOJ Firecrawl provider closes the session after a Cloudflare challeng
       error instanceof HttpError &&
       error.code === 'source_unavailable' &&
       error.retryable === true &&
-      error.details?.firecrawlJobId === JOB_ID,
+      error.details?.firecrawlJobId === undefined,
   )
   equal(calls.length, 3)
   equal(calls[1].retries, 0)
@@ -421,7 +537,7 @@ Deno.test('QOJ interact rate limits use one request per attempt', async () => {
       error.code === 'rate_limited' &&
       error.status === 429 &&
       error.retryable === true &&
-      error.details?.firecrawlJobId === JOB_ID,
+      error.details?.firecrawlJobId === undefined,
   )
   equal(calls.length, 3)
   equal(calls[1].method, 'POST')
@@ -485,7 +601,7 @@ Deno.test('QOJ Firecrawl provider maps a busy interact session without retrying'
       error.code === 'rate_limited' &&
       error.status === 409 &&
       error.retryable === true &&
-      error.details?.firecrawlJobId === JOB_ID,
+      error.details?.firecrawlJobId === undefined,
   )
   equal(calls.length, 3)
   equal(calls[1].method, 'POST')

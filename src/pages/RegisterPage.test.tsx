@@ -1,10 +1,15 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useEffect } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 
 const referralMocks = vi.hoisted(() => ({
   check: vi.fn(),
+}))
+
+const captchaMocks = vi.hoisted(() => ({
+  config: vi.fn(),
 }))
 
 vi.mock('../lib/referrals', async (importOriginal) => {
@@ -14,6 +19,27 @@ vi.mock('../lib/referrals', async (importOriginal) => {
     checkReferralCodeAvailability: referralMocks.check,
   }
 })
+
+vi.mock('../lib/registrationCaptcha', () => ({
+  getRegistrationCaptchaConfig: captchaMocks.config,
+}))
+
+vi.mock('../components/RegistrationTurnstile', () => ({
+  RegistrationTurnstile: ({
+    resetKey,
+    onTokenChange,
+  }: {
+    resetKey: number
+    onTokenChange: (token: string) => void
+  }) => {
+    useEffect(() => onTokenChange(''), [onTokenChange, resetKey])
+    return (
+      <button type="button" onClick={() => onTokenChange('verified-turnstile-token')}>
+        完成安全验证
+      </button>
+    )
+  },
+}))
 
 import { RegisterPage } from './RegisterPage'
 
@@ -51,6 +77,54 @@ describe('RegisterPage', () => {
       programEnabled: true,
       available: true,
     })
+    captchaMocks.config.mockReset().mockReturnValue({
+      enabled: false,
+      siteKey: '',
+      configurationError: null,
+    })
+  })
+
+  it('requires and submits a fresh Turnstile token when registration protection is enabled', async () => {
+    const user = userEvent.setup()
+    const signUp = vi.fn().mockResolvedValue(false)
+    captchaMocks.config.mockReturnValue({
+      enabled: true,
+      siteKey: '1x00000000000000000000AA',
+      configurationError: null,
+    })
+    renderRegister(signUp)
+
+    const submit = screen.getByRole('button', { name: '注册' })
+    expect(submit).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '完成安全验证' }))
+    expect(submit).toBeEnabled()
+
+    await user.type(screen.getByRole('textbox', { name: '姓名' }), '测试成员')
+    await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.click(submit)
+
+    expect(signUp).toHaveBeenCalledWith(
+      '测试成员',
+      'new@example.com',
+      'password123',
+      '',
+      'verified-turnstile-token',
+    )
+    await waitFor(() => expect(submit).toBeDisabled())
+  })
+
+  it('fails closed when Turnstile is enabled without a site key', async () => {
+    captchaMocks.config.mockReturnValue({
+      enabled: true,
+      siteKey: '',
+      configurationError: '注册安全验证尚未配置完成，请联系管理员。',
+    })
+    renderRegister(vi.fn())
+
+    expect(screen.getByRole('alert')).toHaveTextContent('注册安全验证尚未配置完成')
+    expect(screen.getByRole('button', { name: '注册' })).toBeDisabled()
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
   })
 
   it('enters the account page immediately when signup returns a session', async () => {
@@ -140,9 +214,8 @@ describe('RegisterPage', () => {
     referralMocks.check.mockResolvedValue({ programEnabled: false, available: false })
     renderRegister(signUp, '/register?invite=8a4c19f2e7b603d5')
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      '推荐计划已暂停，不使用邀请码仍可正常注册。',
-    )
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: '邀请码（选填）' })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '姓名' }), '测试成员')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
@@ -158,10 +231,9 @@ describe('RegisterPage', () => {
     referralMocks.check.mockRejectedValue(new Error('offline'))
     renderRegister(signUp)
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      '邀请码状态暂时无法确认，填写邀请码时必须在提交前验证成功。',
-    )
-    expect(screen.getByRole('textbox', { name: '邀请码（选填）' })).toHaveValue('')
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '邀请码（选填）' })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '姓名' }), '测试成员')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
     await user.type(screen.getByLabelText('密码'), 'password123')
@@ -170,26 +242,21 @@ describe('RegisterPage', () => {
     expect(signUp).toHaveBeenCalledWith('测试成员', 'new@example.com', 'password123', '')
   })
 
-  it('preserves a shared invitation when status lookup fails', async () => {
+  it('ignores a shared invitation when status lookup fails', async () => {
     const user = userEvent.setup()
-    const signUp = vi.fn().mockRejectedValue(new Error('邀请码暂时无法验证，请稍后重试。'))
+    const signUp = vi.fn().mockResolvedValue(false)
     referralMocks.check.mockRejectedValue(new Error('offline'))
     renderRegister(signUp, '/register?invite=8a4c19f2e7b603d5')
 
-    expect(await screen.findByRole('status')).toHaveTextContent('邀请码状态暂时无法确认')
-    expect(screen.getByRole('textbox', { name: '邀请码（选填）' })).toHaveValue('8A4C19F2E7B603D5')
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '邀请码（选填）' })).not.toBeInTheDocument()
     await user.type(screen.getByRole('textbox', { name: '姓名' }), '测试成员')
     await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'new@example.com')
     await user.type(screen.getByLabelText('密码'), 'password123')
     await user.click(screen.getByRole('button', { name: '注册' }))
 
-    expect(signUp).toHaveBeenCalledWith(
-      '测试成员',
-      'new@example.com',
-      'password123',
-      '8A4C19F2E7B603D5',
-    )
-    expect(await screen.findByRole('alert')).toHaveTextContent('邀请码暂时无法验证，请稍后重试。')
+    expect(signUp).toHaveBeenCalledWith('测试成员', 'new@example.com', 'password123', '')
   })
 
   it('refreshes the global state when the registration page regains focus', async () => {
@@ -201,8 +268,8 @@ describe('RegisterPage', () => {
     expect(await screen.findByRole('textbox', { name: '邀请码（选填）' })).toBeInTheDocument()
     act(() => window.dispatchEvent(new Event('focus')))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已暂停')
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: '邀请码（选填）' })).not.toBeInTheDocument()
-    expect(referralMocks.check).toHaveBeenCalledTimes(2)
   })
 })

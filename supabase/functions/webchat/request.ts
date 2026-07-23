@@ -2,6 +2,7 @@ export const DEFAULT_MAX_REQUEST_BYTES = 262_144
 export const DEFAULT_MAX_MESSAGES = 40
 export const DEFAULT_MAX_MESSAGE_CHARS = 12_000
 export const DEFAULT_MAX_TOTAL_CHARS = 60_000
+export const DEFAULT_MAX_TOTAL_IMAGES = 12
 
 export type WebChatTrigger = 'submit-message' | 'regenerate-message'
 
@@ -9,6 +10,12 @@ export interface NormalizedWebChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  images: NormalizedWebChatImageReference[]
+}
+
+export interface NormalizedWebChatImageReference {
+  attachmentId: string
+  urn: string
 }
 
 export interface WebChatRequest {
@@ -37,6 +44,7 @@ export interface WebChatRequestLimits {
   maxMessages?: number
   maxMessageChars?: number
   maxTotalChars?: number
+  maxTotalImages?: number
 }
 
 interface ResolvedLimits {
@@ -44,12 +52,17 @@ interface ResolvedLimits {
   maxMessages: number
   maxMessageChars: number
   maxTotalChars: number
+  maxTotalImages: number
 }
 
 const TOP_LEVEL_FIELDS = new Set(['id', 'messages', 'trigger', 'messageId'])
 const MESSAGE_FIELDS = new Set(['id', 'role', 'parts'])
 const TEXT_PART_FIELDS = new Set(['type', 'text', 'state', 'providerMetadata'])
+const FILE_PART_FIELDS = new Set(['type', 'mediaType', 'url'])
 const TRIGGERS = new Set<WebChatTrigger>(['submit-message', 'regenerate-message'])
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const ATTACHMENT_URN_PATTERN =
+  /^urn:ustsacm:webchat-attachment:([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
 
 function invalid(message: string): never {
   throw new RequestValidationError(400, 'invalid_request', message)
@@ -93,6 +106,11 @@ function resolveLimits(limits: WebChatRequestLimits): ResolvedLimits {
       limits.maxTotalChars,
       DEFAULT_MAX_TOTAL_CHARS,
       'maxTotalChars',
+    ),
+    maxTotalImages: resolvePositiveInteger(
+      limits.maxTotalImages,
+      DEFAULT_MAX_TOTAL_IMAGES,
+      'maxTotalImages',
     ),
   }
 }
@@ -202,33 +220,54 @@ function parseMessage(
     invalid(`${location}.parts must contain at least one text part`)
   }
 
-  const texts = value.parts.map((part, partIndex) => {
+  const texts: string[] = []
+  const images: NormalizedWebChatImageReference[] = []
+  for (const [partIndex, part] of value.parts.entries()) {
     const partLocation = `${location}.parts[${partIndex}]`
     if (!isRecord(part)) invalid(`${partLocation} must be an object`)
-    rejectUnknownFields(part, TEXT_PART_FIELDS, partLocation)
-    if (part.type !== 'text') invalid(`${partLocation} must be a text part`)
-    if (typeof part.text !== 'string' || characterCount(part.text) < 1) {
-      invalid(`${partLocation}.text must be a non-empty string`)
+    if (part.type === 'text') {
+      rejectUnknownFields(part, TEXT_PART_FIELDS, partLocation)
+      if (typeof part.text !== 'string' || characterCount(part.text) < 1) {
+        invalid(`${partLocation}.text must be a non-empty string`)
+      }
+      if (part.state !== undefined && part.state !== 'streaming' && part.state !== 'done') {
+        invalid(`${partLocation}.state is invalid`)
+      }
+      if (part.providerMetadata !== undefined && !isRecord(part.providerMetadata)) {
+        invalid(`${partLocation}.providerMetadata must be an object when provided`)
+      }
+      texts.push(part.text)
+      continue
     }
-    if (part.state !== undefined && part.state !== 'streaming' && part.state !== 'done') {
-      invalid(`${partLocation}.state is invalid`)
+    if (part.type === 'file') {
+      rejectUnknownFields(part, FILE_PART_FIELDS, partLocation)
+      if (role !== 'user') invalid(`${partLocation} is only allowed in user messages`)
+      if (part.mediaType !== 'image/webp' || typeof part.url !== 'string') {
+        invalid(`${partLocation} must use the normalized WebChat image protocol`)
+      }
+      const match = ATTACHMENT_URN_PATTERN.exec(part.url)
+      if (!match) invalid(`${partLocation}.url must be a WebChat attachment URN`)
+      const attachmentId = match[1]!.toLowerCase()
+      if (images.some((image) => image.attachmentId === attachmentId)) {
+        invalid(`${partLocation} duplicates an image attachment`)
+      }
+      images.push({ attachmentId, urn: `urn:ustsacm:webchat-attachment:${attachmentId}` })
+      if (images.length > 4) invalid(`${location} may contain at most four images`)
+      continue
     }
-    if (part.providerMetadata !== undefined && !isRecord(part.providerMetadata)) {
-      invalid(`${partLocation}.providerMetadata must be an object when provided`)
-    }
-    return part.text
-  })
+    invalid(`${partLocation} must be a text or normalized image part`)
+  }
 
   const text = texts.join('\n')
   const chars = characterCount(text)
-  if (text.trim().length < 1) {
-    invalid(`${location} must contain non-whitespace text`)
+  if (text.trim().length < 1 && images.length === 0) {
+    invalid(`${location} must contain non-whitespace text or an image`)
   }
   if (chars > maxMessageChars) {
     invalid(`${location} exceeds the ${maxMessageChars} character limit`)
   }
 
-  return { message: { id, role, text }, chars }
+  return { message: { id, role, text, images }, chars }
 }
 
 function normalizePayload(value: unknown, limits: ResolvedLimits): WebChatRequest {
@@ -240,15 +279,30 @@ function normalizePayload(value: unknown, limits: ResolvedLimits): WebChatReques
     invalid(`messages must contain between 1 and ${limits.maxMessages} items`)
   }
 
+  const chatId = parseOptionalId(value.id, 'id')
   let totalChars = 0
+  const seenAttachmentIds = new Set<string>()
   const messages = value.messages.map((message, index) => {
     const parsed = parseMessage(message, index, limits.maxMessageChars)
     totalChars += parsed.chars
     if (totalChars > limits.maxTotalChars) {
       invalid(`Message text exceeds the ${limits.maxTotalChars} total character limit`)
     }
+    for (const image of parsed.message.images) {
+      if (seenAttachmentIds.has(image.attachmentId)) {
+        invalid('An image attachment cannot appear in more than one message')
+      }
+      seenAttachmentIds.add(image.attachmentId)
+      if (seenAttachmentIds.size > limits.maxTotalImages) {
+        invalid(`Request may contain at most ${limits.maxTotalImages} images`)
+      }
+    }
     return parsed.message
   })
+
+  if (seenAttachmentIds.size > 0 && (!chatId || !UUID_PATTERN.test(chatId))) {
+    invalid('Image messages require a persisted conversation UUID')
+  }
 
   if (messages.at(-1)?.role !== 'user') {
     invalid('The final message must have role "user"')
@@ -263,7 +317,7 @@ function normalizePayload(value: unknown, limits: ResolvedLimits): WebChatReques
   }
 
   return {
-    chatId: parseOptionalId(value.id, 'id'),
+    chatId,
     trigger,
     messageId: parseOptionalId(value.messageId, 'messageId'),
     messages,
