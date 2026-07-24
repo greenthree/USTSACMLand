@@ -164,7 +164,7 @@ const cases: ContractCase[] = [
     accountId: 'contract_user',
     expectedAccountId: 'contract_user',
     metrics: { currentRating: null, maxRating: null, solvedCount: 42 },
-    sourceVersion: 'qoj-firecrawl-interact-v1',
+    sourceVersion: 'qoj-firecrawl-interact-v2',
     sourceUpdatedAt: null,
     invalidAccountId: 'invalid user',
   },

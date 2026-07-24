@@ -141,6 +141,8 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
 6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
+单平台停机的生产复核使用 `npm run check:sync-platform-outage:production`。该命令不会访问真实第三方平台，也不会暂停队列 cron 或调用全局 `claim_due_sync_jobs`：它先确认 Supabase CLI 唯一 linked 项目就是生产项目，再对随机临时成员运行一个失败平台和一个成功平台的两阶段组合演练。第二阶段只用同时限定临时 `profile_id`、`platform=codeforces`、`status=queued`、`attempt_count=1` 和 `max_attempts=2` 的管理 SQL 原子领取夹具任务，并把返回的唯一 job ID 交给测试。夹具 setup 从请求发出前就被视为必须清理，即使管理响应丢失也会执行清理和独立只读对账；最终必须确认临时 Auth/Profile/账号/统计/任务/运行/快照均为 0 且 cron 仍 active。不得删除这些检查、扩大 Deno 网络权限或改用真实平台请求制造停机。
+
 计划同步部署后还要手动触发一次包含牛客的多平台范围，确认 Actions 出现连续的 `Sync page N summary`，每页最多 3 个账号、游标持续前进、后续平台不会被前一平台阻塞，且不再出现 Supabase 网关超时。日志只能包含范围、平台、成功/失败聚合和是否有下一页，不得输出游标、成员 ID、平台账号、任务 ID 或第三方错误原文。QOJ 即使位于后续页也不得因 HTTP/curl 直接重发批次；只有适配器返回可恢复错误时，数据库队列可在两分钟后领取唯一一次重试。
 
 数据库队列 cron 还必须满足：`SYNC_QUEUE_TOKEN` 与 Vault 中 `sync_queue_scheduler_token` 一致；Vault 同时存在固定 Edge URL 和公开 anon key；`read_sync_queue_scheduler_health()` 显示 cron active、最近 12 分钟有调度、最近已完成 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。GitHub 不运行第二个自动队列调度器；数据库 cron 故障时，由管理员在工作流中手动选择 `queue` 作为应急恢复入口。

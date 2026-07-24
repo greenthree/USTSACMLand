@@ -19,14 +19,48 @@ export function parseSupabaseStatusEnv(output) {
   return values
 }
 
-export function buildDenoArguments() {
+export function buildDenoArguments(allowNet = '127.0.0.1:54321,localhost:54321') {
   return [
     'test',
     '--config=supabase/functions/deno.json',
-    '--allow-env=ANON_KEY,API_URL,SERVICE_ROLE_KEY,SYNC_OUTAGE_PHASE,SYNC_OUTAGE_PROFILE_ID,SYNC_OUTAGE_SUFFIX,SYNC_OUTAGE_OBSERVED_AT',
-    '--allow-net=127.0.0.1:54321,localhost:54321',
+    '--allow-env=ANON_KEY,API_URL,SERVICE_ROLE_KEY,SYNC_OUTAGE_PHASE,SYNC_OUTAGE_PROFILE_ID,SYNC_OUTAGE_SUFFIX,SYNC_OUTAGE_OBSERVED_AT,SYNC_OUTAGE_PRECLAIMED_JOB_ID',
+    `--allow-net=${allowNet}`,
     integrationTest,
   ]
+}
+
+export function parseLinkedProjectRef(payload, expectedProjectRef) {
+  const rows = Array.isArray(payload) ? payload : payload?.projects
+  if (!Array.isArray(rows)) throw new Error('Supabase project list response is invalid.')
+  const linked = rows.filter((project) => project?.linked === true)
+  if (linked.length !== 1 || typeof linked[0]?.ref !== 'string') {
+    throw new Error('Production outage drill requires exactly one linked Supabase project.')
+  }
+  if (linked[0].ref !== expectedProjectRef) {
+    throw new Error('Linked Supabase project does not match the production project ref.')
+  }
+  return linked[0].ref
+}
+
+export function parseProductionApiKeys(payload, projectRef) {
+  const rows = Array.isArray(payload) ? payload : payload?.keys
+  if (!Array.isArray(rows)) throw new Error('Production API key response is invalid.')
+  const anonKey = rows.find((key) => key?.name === 'anon' && key?.type === 'legacy')?.api_key
+  const serviceRoleKey = rows.find(
+    (key) => key?.name === 'service_role' && key?.type === 'legacy',
+  )?.api_key
+  if (typeof anonKey !== 'string' || !anonKey) {
+    throw new Error('Production anon key is unavailable.')
+  }
+  if (typeof serviceRoleKey !== 'string' || !serviceRoleKey) {
+    throw new Error('Production service role key is unavailable.')
+  }
+  if (!/^[a-z0-9]{20}$/i.test(projectRef)) throw new Error('Production project ref is invalid.')
+  return {
+    ANON_KEY: anonKey,
+    API_URL: `https://${projectRef}.supabase.co`,
+    SERVICE_ROLE_KEY: serviceRoleKey,
+  }
 }
 
 function quoteLiteral(value) {
@@ -91,7 +125,7 @@ insert into public.platform_stats (
 `
 }
 
-function makeRetryDueSql(profileId) {
+export function makeRetryDueSql(profileId) {
   return `
 update public.sync_jobs
 set scheduled_for = pg_catalog.clock_timestamp() - interval '1 second'
@@ -114,6 +148,58 @@ begin
   end if;
 end;
 $$;
+`
+}
+
+export function preclaimFixtureRetrySql(profileId) {
+  return `
+do $$
+declare
+  affected integer;
+begin
+  update public.sync_jobs
+  set scheduled_for = pg_catalog.clock_timestamp() - interval '1 second'
+  where profile_id = ${quoteLiteral(profileId)}::uuid
+    and platform = 'codeforces'
+    and status = 'queued'
+    and attempt_count = 1
+    and max_attempts = 2;
+  get diagnostics affected = row_count;
+  if affected <> 1 then
+    raise exception 'Expected exactly one queued fixture retry, found %.', affected;
+  end if;
+
+  update public.sync_jobs
+  set
+    status = 'running',
+    attempt_count = attempt_count + 1,
+    started_at = pg_catalog.clock_timestamp(),
+    finished_at = null
+  where profile_id = ${quoteLiteral(profileId)}::uuid
+    and platform = 'codeforces'
+    and status = 'queued'
+    and attempt_count = 1
+    and max_attempts = 2
+    and scheduled_for <= pg_catalog.clock_timestamp();
+  get diagnostics affected = row_count;
+  if affected <> 1 then
+    raise exception 'Expected to preclaim exactly one fixture retry, claimed %.', affected;
+  end if;
+end;
+$$;
+
+select
+  id::text as job_id,
+  profile_id::text as profile_id,
+  platform::text as platform,
+  attempt_count::int as attempt_count,
+  max_attempts::int as max_attempts
+from public.sync_jobs
+where profile_id = ${quoteLiteral(profileId)}::uuid
+  and platform = 'codeforces'
+  and status = 'running'
+  and attempt_count = 2
+  and max_attempts = 2;
 `
 }
 
@@ -164,22 +250,100 @@ $$;
 `
 }
 
+export function fixtureCleanupAuditSql(profileId) {
+  return `
+select
+  (select count(*)::int from auth.users where id = ${quoteLiteral(profileId)}::uuid) as auth_users,
+  (select count(*)::int from public.profiles where id = ${quoteLiteral(profileId)}::uuid) as profiles,
+  (select count(*)::int from public.platform_accounts where profile_id = ${quoteLiteral(profileId)}::uuid) as platform_accounts,
+  (select count(*)::int from public.platform_stats where profile_id = ${quoteLiteral(profileId)}::uuid) as platform_stats,
+  (select count(*)::int from public.sync_jobs where profile_id = ${quoteLiteral(profileId)}::uuid) as sync_jobs,
+  (select count(*)::int from public.sync_runs where profile_id = ${quoteLiteral(profileId)}::uuid) as sync_runs,
+  (select count(*)::int from public.stat_snapshots where profile_id = ${quoteLiteral(profileId)}::uuid) as stat_snapshots,
+  coalesce((
+    select active from cron.job where jobname = 'sync-queue-every-five-minutes'
+  ), false) as scheduler_active;
+`
+}
+
+function assertFixtureCleanupAudit(payload) {
+  const state = payload?.rows?.[0]
+  const countColumns = [
+    'auth_users',
+    'profiles',
+    'platform_accounts',
+    'platform_stats',
+    'sync_jobs',
+    'sync_runs',
+    'stat_snapshots',
+  ]
+  if (
+    !state ||
+    countColumns.some((column) => state[column] !== 0) ||
+    state.scheduler_active !== true
+  ) {
+    throw new Error('Production outage fixture cleanup or queue scheduler audit failed.')
+  }
+}
+
 export async function runSyncPlatformOutageCheck({
   platform = process.platform,
   execFile = execFileSync,
   spawn = spawnSync,
+  production = false,
+  projectRef = 'qzggoqdmsvktrtnjislw',
 } = {}) {
   const npx = platform === 'win32' ? process.execPath : 'npx'
   const npxPrefix =
     platform === 'win32'
       ? [resolve(dirname(process.execPath), 'node_modules/npm/bin/npx-cli.js')]
       : []
-  const statusOutput = execFile(
-    npx,
-    [...npxPrefix, '--yes', 'supabase@2.109.1', 'status', '-o', 'env'],
-    { encoding: 'utf8' },
-  )
-  const localEnvironment = parseSupabaseStatusEnv(statusOutput)
+  let productionCommandStage = 'linked_project'
+  const runSupabaseJson = (args) => {
+    let output
+    try {
+      output = execFile(
+        npx,
+        [...npxPrefix, '--yes', 'supabase@2.109.1', ...args, '--agent', 'yes'],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
+      )
+    } catch (error) {
+      const status = Number.isInteger(error?.status) ? error.status : 'unknown'
+      throw new Error(
+        `A production Supabase command failed at ${productionCommandStage} with process status ${status}; SQL and credentials were redacted.`,
+      )
+    }
+    let payload
+    try {
+      payload = output.trim() ? JSON.parse(output) : null
+    } catch {
+      throw new Error(
+        `A production Supabase command returned invalid JSON at ${productionCommandStage}; SQL and credentials were redacted.`,
+      )
+    }
+    if (payload?._tag === 'Error') {
+      const code = typeof payload.error?.code === 'string' ? payload.error.code : 'unknown'
+      throw new Error(
+        `A production Supabase command returned ${code} at ${productionCommandStage}; SQL and credentials were redacted.`,
+      )
+    }
+    return payload
+  }
+  let environment
+  if (production) {
+    parseLinkedProjectRef(runSupabaseJson(['projects', 'list']), projectRef)
+    productionCommandStage = 'api_keys'
+    environment = parseProductionApiKeys(
+      runSupabaseJson(['projects', 'api-keys', '--project-ref', projectRef]),
+      projectRef,
+    )
+  } else {
+    environment = parseSupabaseStatusEnv(
+      execFile(npx, [...npxPrefix, '--yes', 'supabase@2.109.1', 'status', '-o', 'env'], {
+        encoding: 'utf8',
+      }),
+    )
+  }
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10)
   const fixture = {
     profileId: randomUUID(),
@@ -189,23 +353,36 @@ export async function runSyncPlatformOutageCheck({
     observedAt: new Date(Date.now() - 60 * 60 * 1_000).toISOString(),
     staleAfter: new Date(Date.now() + 24 * 60 * 60 * 1_000).toISOString(),
   }
-  const container = findSupabaseDatabaseContainer()
+  const container = production ? null : findSupabaseDatabaseContainer()
   const denoCommandName = platform === 'win32' ? 'deno.exe' : 'deno'
   const denoAvailable = spawn(denoCommandName, ['--version'], { stdio: 'ignore' }).status === 0
   const denoCommand = denoAvailable ? denoCommandName : npx
+  const allowedHost = production ? new URL(environment.API_URL).host : undefined
   const denoArguments = denoAvailable
-    ? buildDenoArguments()
-    : [...npxPrefix, '--yes', 'deno@2.5.6', ...buildDenoArguments()]
-  const runPhase = (phase) => {
+    ? buildDenoArguments(allowedHost)
+    : [...npxPrefix, '--yes', 'deno@2.5.6', ...buildDenoArguments(allowedHost)]
+  const runSql = async (sql, stage = 'database') => {
+    if (production) {
+      productionCommandStage = stage
+      const normalizedSql = sql.replace(/\s+/g, ' ').trim()
+      return runSupabaseJson(['db', 'query', '--linked', normalizedSql])
+    }
+    await runPsql(container, sql, { timeoutMs: 10_000 })
+    return null
+  }
+  const runPhase = (phase, preclaimedJobId = null) => {
     const result = spawn(denoCommand, denoArguments, {
       stdio: 'inherit',
       env: {
         ...process.env,
-        ...localEnvironment,
+        ...environment,
         SYNC_OUTAGE_PHASE: phase,
         SYNC_OUTAGE_PROFILE_ID: fixture.profileId,
         SYNC_OUTAGE_SUFFIX: fixture.suffix,
         SYNC_OUTAGE_OBSERVED_AT: fixture.observedAt,
+        ...(preclaimedJobId === null
+          ? {}
+          : { SYNC_OUTAGE_PRECLAIMED_JOB_ID: String(preclaimedJobId) }),
       },
     })
     if (result.error) throw result.error
@@ -215,27 +392,83 @@ export async function runSyncPlatformOutageCheck({
   }
 
   let primaryError = null
+  let fixtureCleanupRequired = false
   try {
-    await runPsql(container, fixtureSetupSql(fixture), { timeoutMs: 10_000 })
+    // The setup response can be lost after PostgreSQL commits. From this point
+    // onward cleanup is mandatory even when setup appears to fail.
+    fixtureCleanupRequired = true
+    await runSql(fixtureSetupSql(fixture), 'fixture_setup')
     runPhase('initial')
-    await runPsql(container, makeRetryDueSql(fixture.profileId), { timeoutMs: 10_000 })
-    runPhase('retry')
+    if (production) {
+      const claim = await runSql(
+        preclaimFixtureRetrySql(fixture.profileId),
+        'fixture_retry_preclaim',
+      )
+      const rows = claim?.rows
+      if (
+        !Array.isArray(rows) ||
+        rows.length !== 1 ||
+        typeof rows[0]?.job_id !== 'string' ||
+        rows[0]?.profile_id !== fixture.profileId ||
+        rows[0]?.platform !== 'codeforces' ||
+        rows[0]?.attempt_count !== 2 ||
+        rows[0]?.max_attempts !== 2
+      ) {
+        throw new Error('Production outage retry preclaim did not return the exact fixture job.')
+      }
+      runPhase('retry', rows[0].job_id)
+    } else {
+      await runSql(makeRetryDueSql(fixture.profileId), 'retry_due')
+      runPhase('retry')
+    }
   } catch (error) {
     primaryError = error
     throw error
   } finally {
-    try {
-      await runPsql(container, fixtureCleanupSql(fixture), { timeoutMs: 10_000 })
-    } catch (cleanupError) {
-      if (primaryError) primaryError.message = `${primaryError.message}\n${cleanupError.message}`
-      else throw cleanupError
+    let finalizationError = null
+    if (fixtureCleanupRequired) {
+      let cleanupError = null
+      try {
+        await runSql(fixtureCleanupSql(fixture), 'fixture_cleanup')
+      } catch (error) {
+        cleanupError = error
+      }
+      if (production) {
+        try {
+          const audit = await runSql(
+            fixtureCleanupAuditSql(fixture.profileId),
+            'fixture_cleanup_audit',
+          )
+          assertFixtureCleanupAudit(audit)
+          cleanupError = null
+        } catch (auditError) {
+          if (cleanupError) cleanupError.message = `${cleanupError.message}\n${auditError.message}`
+          else cleanupError = auditError
+        }
+      }
+      if (cleanupError) {
+        if (primaryError) primaryError.message = `${primaryError.message}\n${cleanupError.message}`
+        else finalizationError = cleanupError
+      }
     }
+    if (!primaryError && finalizationError) throw finalizationError
   }
 }
 
 if (basename(process.argv[1] ?? '') === 'check-sync-platform-outage.mjs') {
-  runSyncPlatformOutageCheck().catch((error) => {
-    console.error(`Single-platform outage integration check failed: ${error.message}`)
-    process.exitCode = 1
-  })
+  const production = process.argv.includes('--production')
+  runSyncPlatformOutageCheck({ production })
+    .then(() => {
+      console.log(
+        JSON.stringify({
+          ok: true,
+          environment: production ? 'production' : 'local',
+          fixtureCleaned: true,
+        }),
+      )
+    })
+    .catch((error) => {
+      console.error(`Single-platform outage integration check failed: ${error.message}`)
+      process.exitCode = 1
+    })
 }

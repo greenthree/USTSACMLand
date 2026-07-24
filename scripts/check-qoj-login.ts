@@ -1,4 +1,5 @@
 import { createFirecrawlQojProvider } from '../supabase/functions/_shared/adapters/qoj.ts'
+import { HttpError } from '../supabase/functions/_shared/http.ts'
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)
@@ -22,7 +23,21 @@ try {
   const acceptedCount = await provider.fetchAcceptedCount(accountId)
   console.log(`QOJ automatic login is healthy; accepted count: ${acceptedCount}`)
 } catch (error) {
-  const message = error instanceof Error ? error.message : 'Unknown QOJ login error'
-  console.error(`QOJ automatic login check failed: ${message}`)
+  if (error instanceof HttpError) {
+    console.error(
+      JSON.stringify({
+        ok: false,
+        code: error.code,
+        retryable: error.retryable,
+        status: error.status ?? null,
+        failureStage:
+          typeof error.details?.failureStage === 'string' ? error.details.failureStage : null,
+        loginSubmitStep:
+          typeof error.details?.loginSubmitStep === 'string' ? error.details.loginSubmitStep : null,
+      }),
+    )
+  } else {
+    console.error(JSON.stringify({ ok: false, code: 'unknown', retryable: false }))
+  }
   Deno.exit(1)
 }

@@ -4,18 +4,18 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 
 ## 数据流概览
 
-| 服务                                                              | 本站发送的内容                                                       | 本站读取或保存的内容                                       | 认证与重要边界                                                                   |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [GitHub Pages](https://pages.github.com/)                         | 静态站点资源请求                                                     | 不保存业务数据库；GitHub 可能按其服务策略处理访问日志      | 前端构建不得包含 service role、Cookie、CSRF 或第三方密码                         |
-| [Supabase](https://supabase.com/)                                 | 邮箱认证、成员资料、平台标识和站内管理请求                           | Auth 会话、业务表、快照、同步记录和 Edge Function 日志     | 密码只交给 Supabase Auth；公开 anon key 受 RLS 约束，service role 只在服务端使用 |
-| [Codeforces](https://codeforces.com/apiHelp)                      | 成员填写的 Handle                                                    | 当前/最高 Rating、Accepted 提交与题目标识                  | 使用公开 API，不发送成员邮箱、QQ 或本站会话                                      |
-| [牛客竞赛](https://ac.nowcoder.com/)                              | 成员填写的数字 UID                                                   | 当前/最高 Rating、唯一通过题数                             | 优先直接查询；仅遇到反自动化响应时把目标公开页面交给 Firecrawl 回退              |
-| [AtCoder](https://atcoder.jp/)                                    | 成员填写的 Username                                                  | 当前/最高 Rating、账号存在状态                             | Rating 来自 AtCoder 公开页面/JSON，不发送本站私有资料                            |
-| [AtCoder Problems API](https://kenkoooo.com/atcoder/atcoder-api/) | AtCoder Username                                                     | `user/ac_rank` 返回的 Accepted 题数 `count`                | 由独立社区服务提供，与 AtCoder 官方是不同服务                                    |
-| [XCPC ELO](https://zzzzzzyt.github.io/xcpc-elo/)                  | 通常只请求公开数据集 URL；匹配时使用站内姓名和固定学校“苏州科技大学” | 当前/历史最高 ELO、稳定来源 ID，以及我校选手的精简共享缓存 | 必须“姓名 + 学校”唯一命中；同校同名时拒绝自动绑定                                |
-| [洛谷](https://www.luogu.com.cn/)                                 | 成员填写的数字 UID；服务端另使用专用洛谷账号的 Cookie/CSRF           | 账号存在状态、Accepted 记录 ID 与仅 `P`/`B` 题号的去重集合 | 成员不提供 Cookie；凭据只存 Supabase Function Secrets，不经过 Firecrawl          |
-| [QOJ](https://qoj.ac/)                                            | 成员填写的 Username；临时浏览器登录还会使用独立 QOJ 服务账号         | 目标主页的唯一 Accepted 题数和结构化同步状态               | 每个 attempt 创建临时 Firecrawl 会话并主动结束；可恢复失败最多一次队列重试       |
-| [Firecrawl](https://www.firecrawl.dev/)                           | 牛客回退目标 URL；QOJ 服务账号、目标 Username 和浏览器操作           | 牛客结构化页面结果、QOJ 题数、作业 ID 和会话状态           | Firecrawl 是外部处理方；QOJ 账号必须专用且可独立废弃，不能复用个人或其他系统密码 |
+| 服务                                                              | 本站发送的内容                                                       | 本站读取或保存的内容                                       | 认证与重要边界                                                                                                     |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [GitHub Pages](https://pages.github.com/)                         | 静态站点资源请求                                                     | 不保存业务数据库；GitHub 可能按其服务策略处理访问日志      | 前端构建不得包含 service role、Cookie、CSRF 或第三方密码                                                           |
+| [Supabase](https://supabase.com/)                                 | 邮箱认证、成员资料、平台标识和站内管理请求                           | Auth 会话、业务表、快照、同步记录和 Edge Function 日志     | 密码只交给 Supabase Auth；公开 anon key 受 RLS 约束，service role 只在服务端使用                                   |
+| [Codeforces](https://codeforces.com/apiHelp)                      | 成员填写的 Handle                                                    | 当前/最高 Rating、Accepted 提交与题目标识                  | 使用公开 API，不发送成员邮箱、QQ 或本站会话                                                                        |
+| [牛客竞赛](https://ac.nowcoder.com/)                              | 成员填写的数字 UID                                                   | 当前/最高 Rating、唯一通过题数                             | 优先直接查询；仅遇到反自动化响应时把目标公开页面交给 Firecrawl 回退                                                |
+| [AtCoder](https://atcoder.jp/)                                    | 成员填写的 Username                                                  | 当前/最高 Rating、账号存在状态                             | Rating 来自 AtCoder 公开页面/JSON，不发送本站私有资料                                                              |
+| [AtCoder Problems API](https://kenkoooo.com/atcoder/atcoder-api/) | AtCoder Username                                                     | `user/ac_rank` 返回的 Accepted 题数 `count`                | 由独立社区服务提供，与 AtCoder 官方是不同服务                                                                      |
+| [XCPC ELO](https://zzzzzzyt.github.io/xcpc-elo/)                  | 通常只请求公开数据集 URL；匹配时使用站内姓名和固定学校“苏州科技大学” | 当前/历史最高 ELO、稳定来源 ID，以及我校选手的精简共享缓存 | 必须“姓名 + 学校”唯一命中；同校同名时拒绝自动绑定                                                                  |
+| [洛谷](https://www.luogu.com.cn/)                                 | 成员填写的数字 UID；服务端另使用专用洛谷账号的 Cookie/CSRF           | 账号存在状态、Accepted 记录 ID 与仅 `P`/`B` 题号的去重集合 | 成员不提供 Cookie；凭据只存 Supabase Function Secrets，不经过 Firecrawl                                            |
+| [QOJ](https://qoj.ac/)                                            | 成员填写的 Username；临时浏览器登录还会使用独立 QOJ 服务账号         | 目标主页的唯一 Accepted 题数和结构化同步状态               | 每个 attempt 创建不录制、不开直播的临时 Firecrawl 会话并主动结束；可恢复失败最多一次队列重试                       |
+| [Firecrawl](https://www.firecrawl.dev/)                           | 牛客回退目标 URL；QOJ 服务账号、目标 Username 和浏览器操作           | 牛客结构化页面结果、QOJ 题数和脱敏会话状态                 | Firecrawl 是外部处理方；本站不保存会话 ID 或原始页面正文，QOJ 账号必须专用且可独立废弃，不能复用个人或其他系统密码 |
 
 ## 保存口径
 
@@ -23,7 +23,7 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 - 邮箱、QQ、认证会话、同步错误详情和管理审计不进入公开榜单。
 - 成功同步保存当前统计和必要的历史快照；失败保留最后成功值，不会把统计清零。
 - 洛谷额外保存私有增量边界和去重题号集合；XCPC ELO 只缓存“苏州科技大学”选手的精简记录。
-- QOJ 和牛客 Firecrawl 日志只在本站保存结构化错误和作业标识，不保存第三方页面正文或服务账号密码。
+- QOJ 和牛客 Firecrawl 日志只在本站保存结构化错误；QOJ 不保存会话 ID、目标 URL、第三方页面正文或服务账号密码。
 
 ## 查询频率
 
