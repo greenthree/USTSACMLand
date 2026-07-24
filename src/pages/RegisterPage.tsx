@@ -2,8 +2,8 @@ import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
+import { AuthContextPanel } from '../components/AuthContextPanel'
 import { RegistrationTurnstile } from '../components/RegistrationTurnstile'
-import { SiteLogo } from '../components/SiteLogo'
 import {
   checkReferralCodeAvailability,
   normalizeReferralCode,
@@ -112,23 +112,7 @@ export function RegisterPage() {
 
   return (
     <main id="main-content" className="auth-page" tabIndex={-1}>
-      <section className="auth-context">
-        <div className="auth-context-inner">
-          <SiteLogo className="auth-logo" />
-          <h1>USTS ACM Land</h1>
-          <p>苏州科技大学 ACM 集训队</p>
-          <dl>
-            <div>
-              <dt>6</dt>
-              <dd>数据平台</dd>
-            </div>
-            <div>
-              <dt>8</dt>
-              <dd>核心指标</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
+      <AuthContextPanel mode="register" />
       <section className="auth-form-section">
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>

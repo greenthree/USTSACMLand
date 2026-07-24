@@ -3,7 +3,7 @@ import { FormEvent, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { consumePasswordChangeNotice } from '../auth/passwordChangeNotice'
-import { SiteLogo } from '../components/SiteLogo'
+import { AuthContextPanel } from '../components/AuthContextPanel'
 import { hasSupabaseConfig } from '../lib/supabase'
 
 export function LoginPage() {
@@ -38,23 +38,7 @@ export function LoginPage() {
 
   return (
     <main id="main-content" className="auth-page" tabIndex={-1}>
-      <section className="auth-context">
-        <div className="auth-context-inner">
-          <SiteLogo className="auth-logo" />
-          <h1>USTS ACM Land</h1>
-          <p>苏州科技大学 ACM 集训队</p>
-          <dl>
-            <div>
-              <dt>6</dt>
-              <dd>数据平台</dd>
-            </div>
-            <div>
-              <dt>8</dt>
-              <dd>核心指标</dd>
-            </div>
-          </dl>
-        </div>
-      </section>
+      <AuthContextPanel mode="login" />
       <section className="auth-form-section">
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
