@@ -1,15 +1,17 @@
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
+import Activity from 'lucide-react/dist/esm/icons/activity'
 import BookOpenCheck from 'lucide-react/dist/esm/icons/book-open-check'
 import Braces from 'lucide-react/dist/esm/icons/braces'
 import CalendarClock from 'lucide-react/dist/esm/icons/calendar-clock'
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days'
+import Crosshair from 'lucide-react/dist/esm/icons/crosshair'
 import MessagesSquare from 'lucide-react/dist/esm/icons/messages-square'
-import Monitor from 'lucide-react/dist/esm/icons/monitor'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
+import Terminal from 'lucide-react/dist/esm/icons/terminal'
 import Timer from 'lucide-react/dist/esm/icons/timer'
 import Trophy from 'lucide-react/dist/esm/icons/trophy'
 import Users from 'lucide-react/dist/esm/icons/users'
-import { useMemo } from 'react'
+import { useMemo, type PointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { PlatformMark } from '../components/PlatformMark'
@@ -20,6 +22,7 @@ import { platformLabels, ratingPlatforms, solvedPlatforms } from '../lib/platfor
 import { calculateTotalSolved } from '../lib/rankings'
 
 const icpcLogoUrl = `${import.meta.env.BASE_URL}icpc-foundation.png`
+const ccpcLogoUrl = `${import.meta.env.BASE_URL}ccpc-logo.png`
 
 export function HomePage() {
   const { user } = useAuth()
@@ -29,9 +32,36 @@ export function HomePage() {
     [members],
   )
 
+  const handleHeroPointerMove = (event: PointerEvent<HTMLElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2
+    const y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 2
+    event.currentTarget.style.setProperty('--hero-pointer-x', String(x))
+    event.currentTarget.style.setProperty('--hero-pointer-y', String(y))
+  }
+
+  const resetHeroPointer = (event: PointerEvent<HTMLElement>) => {
+    event.currentTarget.style.removeProperty('--hero-pointer-x')
+    event.currentTarget.style.removeProperty('--hero-pointer-y')
+  }
+
   return (
     <div className="home-page">
-      <section className="home-hero" aria-labelledby="home-title">
+      <section
+        className="home-hero"
+        aria-labelledby="home-title"
+        onPointerMove={handleHeroPointerMove}
+        onPointerLeave={resetHeroPointer}
+      >
+        <div className="home-hero-grid-lines" aria-hidden="true" />
+        <div className="home-hero-corner home-hero-corner--top" aria-hidden="true">
+          <span>USTS / ACM</span>
+          <span>31°19' N&nbsp;&nbsp;120°37' E</span>
+        </div>
+        <div className="home-hero-corner home-hero-corner--bottom" aria-hidden="true">
+          <span>训练不是准备，是正在发生</span>
+          <span>2026 — 01</span>
+        </div>
         <img
           className="home-hero-logo"
           src={icpcLogoUrl}
@@ -42,12 +72,22 @@ export function HomePage() {
         />
         <div className="home-hero-grid">
           <div className="home-hero-copy">
-            <p className="home-eyebrow">苏州科技大学 ACM 集训队官网</p>
+            <div className="home-hero-kicker">
+              <span className="home-hero-kicker-mark">
+                <Activity size={13} aria-hidden="true" />
+              </span>
+              <span>SUZHOU UNIVERSITY OF SCIENCE AND TECHNOLOGY</span>
+              <span className="home-hero-kicker-status">LIVE / 01</span>
+            </div>
             <h1 id="home-title">USTS ACM Land</h1>
+            <p className="home-hero-statement">
+              把最难的题
+              <br />
+              <em>留给自己。</em>
+            </p>
             <p className="home-hero-lead">
-              这里是苏州科技大学 ACM
-              集训队的线上主页，记录队伍、训练与共同成长，并逐步提供学习引导、每日一题和 AI
-              学习助手，让知识、实践与交流在同一处发生。
+              苏州科技大学 ACM
+              集训队的线上主页。记录训练，也记录那些在时间压力下被重新理解的算法、协作与创造力。
             </p>
             <div className="home-hero-actions">
               <a className="home-primary-action" href="#about-acm">
@@ -61,25 +101,55 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="contest-brief" aria-label="ACM 竞赛基本形式">
-            <p className="contest-brief-label">ICPC / CCPC 赛制速览</p>
-            <div className="contest-brief-items">
+          <div className="home-hero-instrument" aria-label="ACM 竞赛状态">
+            <div className="home-hero-instrument-head">
+              <span>
+                <Crosshair size={15} aria-hidden="true" /> FIELD NOTE / 001
+              </span>
+              <span>READY</span>
+            </div>
+            <div className="home-hero-art">
+              <span
+                className="home-hero-art-axis home-hero-art-axis--horizontal"
+                aria-hidden="true"
+              />
+              <span
+                className="home-hero-art-axis home-hero-art-axis--vertical"
+                aria-hidden="true"
+              />
+              <img
+                className="home-hero-art-logo"
+                src={icpcLogoUrl}
+                width="390"
+                height="362"
+                alt="ICPC Foundation"
+              />
+              <span className="home-hero-art-coordinate home-hero-art-coordinate--one">
+                X 031.19
+              </span>
+              <span className="home-hero-art-coordinate home-hero-art-coordinate--two">
+                Y 120.37
+              </span>
+              <span className="home-hero-art-scan" aria-hidden="true" />
+            </div>
+            <div className="home-hero-instrument-grid">
               <div>
-                <Users size={18} aria-hidden="true" />
-                <strong>三人一队</strong>
-                <span>共同分析与分工</span>
-              </div>
-              <div>
-                <Timer size={18} aria-hidden="true" />
-                <strong>五小时</strong>
-                <span>持续判断与取舍</span>
-              </div>
-              <div>
-                <Monitor size={18} aria-hidden="true" />
+                <Terminal size={16} aria-hidden="true" />
+                <span>DEVICE</span>
                 <strong>一台电脑</strong>
-                <span>共享编码与调试</span>
+              </div>
+              <div>
+                <Users size={16} aria-hidden="true" />
+                <span>TEAM</span>
+                <strong>三人一队</strong>
+              </div>
+              <div>
+                <Timer size={16} aria-hidden="true" />
+                <span>TIME</span>
+                <strong>五小时</strong>
               </div>
             </div>
+            <p className="home-hero-instrument-caption">算法、协作与判断，在有限时间内同时发生。</p>
           </div>
         </div>
         <div className="home-hero-index" aria-hidden="true">
@@ -87,6 +157,7 @@ export function HomePage() {
           <span>ALGORITHM</span>
           <span>TEAMWORK</span>
           <span>CONTEST</span>
+          <span className="home-hero-index-line" />
         </div>
       </section>
 
@@ -143,6 +214,30 @@ export function HomePage() {
         <div className="home-section-heading">
           <p className="home-section-index">02 / 赛事版图</p>
           <h2 id="competition-overview-title">从省赛到世界赛，认识主要算法竞赛</h2>
+          <div className="home-competition-marks" aria-label="ICPC 与 CCPC 赛事标志">
+            <figure>
+              <img
+                src={icpcLogoUrl}
+                width="390"
+                height="362"
+                loading="lazy"
+                decoding="async"
+                alt="ICPC Foundation 标志"
+              />
+              <figcaption>ICPC / WORLD</figcaption>
+            </figure>
+            <figure>
+              <img
+                src={ccpcLogoUrl}
+                width="722"
+                height="726"
+                loading="lazy"
+                decoding="async"
+                alt="CCPC 标志"
+              />
+              <figcaption>CCPC / CHINA</figcaption>
+            </figure>
+          </div>
         </div>
         <div className="home-competition-body">
           <div className="home-competition-copy">
