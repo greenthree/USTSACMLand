@@ -105,15 +105,17 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [x] 图片安全基础已以默认关闭方式部署到生产：71 项 migration 全部一致，`webchat-attachment` 与 `webchat-image-cleanup` 为 ACTIVE，私有 Bucket、4 MiB/仅 WebP 限制、全站暂停、匿名/普通成员拒绝和夹具零残留已通过 47 项可复跑生产检查；这不代表图片输入已向成员开放。证据见 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
 - [x] 默认关闭状态下的真实图片对象生命周期已完成生产验收：随机临时成员的规范 WebP 经私有路径保存，本人历史可恢复、跨成员和直接 Storage 读取被拒绝、30 秒签名预览内容与 SHA-256 一致；删除消息后正式清理函数只领取该夹具，零重试/零死信删除对象并恢复全局账目，最终注销后附件、对象和删除队列物理零残留。可复跑生产检查现为 55 项且 `cleanupFallbacks=0`；前端和视觉模型仍未开放。证据见 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
+- [x] 私有 Supabase Storage、成员/会话隔离、本人历史引用、跨成员拒绝、浏览器直读拒绝和 30 秒签名预览已用真实生产对象验收；浏览器不接触 service role key。开放态附件界面仍由后续端到端条目验收。
+- [x] 图片对象的删除消息队列、幂等领取、零重试/零死信物理清理、注销零残留和全局 Storage 对账已通过真实生产生命周期验收；定时 schedule 仍保持关闭。
+- [x] 图片 Schema v2 加密备份与隔离恢复路径已在当前生产零对象状态通过：安装状态、私有 Bucket、匿名拒绝、数据库引用、对象集合哈希、Auth/RLS 和恢复夹具清理均成功。零对象快照不替代正式开放前的非空对象贯通恢复演练。证据见 [`docs/evidence/webchat-image-backup-restore-2026-07-25.md`](./docs/evidence/webchat-image-backup-restore-2026-07-25.md)。
 - [ ] 支持在 WebChat 输入区直接粘贴剪贴板图片，也支持通过图片按钮选择本地文件；发送前展示稳定尺寸的缩略图、文件状态和移除操作，桌面端、移动端与键盘操作均可用。
 - [ ] 第一版只接受 JPEG、PNG 和 WebP，拒绝 SVG、动图和伪造 MIME；客户端与服务端同时限制单图体积、像素尺寸、单条消息图片数量、会话待上传总量和账号级 Storage 使用；4 MiB、2,048 px / 4,194,304 像素、每条 4 张、每会话待处理 8 张 / 16 MiB、每账号 200 个 / 64 MiB、滚动一小时 30 个新附件等具体上限已写入 [`docs/webchat-image-input-v1.md`](./docs/webchat-image-input-v1.md)。数据库已在每账号行锁内按最近一小时 `reserved_at` 记录计数；从零安装全部 migration 后当前 48 个 pgTAP 文件、1205 项断言通过，真实双连接验证第 30 个预留成功、第 31 个在等待同一全局优先锁后以账号滚动限额拒绝。生产 migration 和默认暂停边界已部署验收，仍缺开放态端到端验收，因此不提前勾选。证据见 [`docs/evidence/webchat-image-safety-foundation-2026-07-23.md`](./docs/evidence/webchat-image-safety-foundation-2026-07-23.md) 与 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
-- [ ] 使用私有 Supabase Storage 保存需要随历史会话恢复的图片，按用户与会话隔离对象路径；普通成员只能访问自己的对象，Edge Function 使用短时签名地址读取，禁止公开 Bucket、跨成员读取和浏览器接触 service role key。默认关闭状态下的真实对象、本人历史、跨成员拒绝、直接 Storage 拒绝和短时签名预览已在生产通过；仍需开放态下由附件 Edge Function 返回签名预览的端到端验收后才能勾选。
 - [ ] 图片消息使用中转站兼容的多模态消息格式发送，并在请求前确认当前模型支持视觉输入；不支持图片的模型必须给出明确提示，不能静默丢图、降级为 OCR 文本或自动改用其他模型。
 - [ ] 图片输入沿用 WebChat 的单次请求 claim、累计请求上限和累计 Token 上限；服务端按可解释的保守值预留图片 Token，成功后以中转站真实 usage 结算，上游启动前失败释放预留，上游启动后无法取得 usage 时把预留转入未知用量，付费请求仍禁止自动重试。
-- [ ] 历史会话记录图片附件元数据和安全对象引用，刷新后可恢复缩略图与上下文；删除消息、删除会话和注销账号时同步清理对象，个人数据导出只包含本人附件清单与必要元数据，不泄露长期可访问 URL。生产已验证本人历史 RPC 恢复 URN、删除消息触发真实对象清理及注销后物理零残留；仍需前端刷新恢复缩略图、删除会话和真实个人数据导出的开放态端到端验收。
-- [ ] 服务端校验文件签名、解码结果和像素上限，移除 EXIF 等隐私元数据，不把图片内容、签名 URL 或原始文件名写入运行日志、审计详情和错误消息；上传失败、过期对象和孤儿对象有幂等清理任务。定时清理工作流由默认关闭的仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 门控；生产空队列和真实对象清理均确认零重试、零死信且 Storage 对账一致。仍需开放态上传失败、过期对象、孤儿对象和日志脱敏生产验收后才能勾选或启用 schedule。证据见 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
+- [ ] 在开放态附件流程中完成上传、签名预览、发送和刷新恢复；删除会话时清理全部对象，个人数据导出只包含本人附件清单与必要元数据，不泄露长期可访问 URL。
+- [ ] 在开放态附件流程中复核服务端文件签名、解码、像素上限和 EXIF 移除；确认图片内容、签名 URL 和原始文件名不进入日志、审计或错误消息，并验收上传失败、过期对象和孤儿对象的清理路径。
 - [ ] 图片功能全线开启前增加全站每小时上传数量/字节预算、总 Storage 容量上限和并发熔断，并完成匿名注册滥用防护；账号级限额不能作为批量注册攻击下的唯一成本边界。全站数量/字节预算、Storage 容量预留、跨实例 validation lease 熔断、删除确认后释放和漂移自动暂停已实现并通过干净数据库验证；Turnstile token 客户端、Pages 默认关闭门禁和 Supabase Auth 就绪检查已实现，仍待生产 Auth Secret、真实邮箱确认、限流和直连注册烟测，因此不提前勾选。证据见 [`docs/evidence/registration-abuse-foundation-2026-07-23.md`](./docs/evidence/registration-abuse-foundation-2026-07-23.md)。
-- [ ] 补齐粘贴、选择、预览、移除、发送、刷新恢复、模型不兼容、超限、上游前失败释放、上游后未知用量保守结算、跨成员 RLS、对象清理、移动端和无障碍自动化，并完成真实视觉模型的受控生产烟测。
+- [ ] 补齐开放态粘贴、选择、预览、移除、发送、刷新恢复、模型不兼容、超限、上游前失败释放、上游后未知用量保守结算、移动端和无障碍自动化；完成真实视觉模型烟测及受控非空对象备份恢复贯通演练。
 
 ### 训练目标
 
