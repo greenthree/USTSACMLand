@@ -222,7 +222,7 @@ export function verifyDatabaseRestoreDrillWorkflow(workflow) {
   )
   requireMatch(
     workflow,
-    /select public::text from storage\.buckets where id = 'webchat-images'[\s\S]*bucket_private.*!= 'f'/,
+    /select case when public is false then 'private' else 'public' end\r?\n\s+from storage\.buckets where id = 'webchat-images'[\s\S]*bucket_privacy_state.*!= private/,
     'Restore drill must verify the restored Storage bucket remains private.',
   )
   requireMatch(

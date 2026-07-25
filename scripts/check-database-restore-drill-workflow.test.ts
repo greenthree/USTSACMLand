@@ -176,6 +176,14 @@ describe('encrypted database and WebChat Storage restore drill workflow', () => 
   it('requires empty-bucket privacy probe and both anonymous access checks', () => {
     expect(() =>
       verifyDatabaseRestoreDrillWorkflow(
+        workflow.replace(
+          "select case when public is false then 'private' else 'public' end",
+          'select public::text',
+        ),
+      ),
+    ).toThrow(/bucket remains private/)
+    expect(() =>
+      verifyDatabaseRestoreDrillWorkflow(
         workflow.replace("probe_path='restore-boundary-canary.webp'", "probe_path='missing.webp'"),
       ),
     ).toThrow(/disposable probe/)

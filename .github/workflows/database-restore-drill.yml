@@ -407,12 +407,13 @@ jobs:
             probe_created=true
           fi
 
-          bucket_private="$(docker exec "$db_container" psql \
+          bucket_privacy_state="$(docker exec "$db_container" psql \
             --username supabase_admin --dbname postgres \
             --no-psqlrc --quiet --tuples-only --no-align \
             --variable ON_ERROR_STOP=1 \
-            --command "select public::text from storage.buckets where id = 'webchat-images'")"
-          if [[ "$bucket_private" != 'f' ]]; then
+            --command "select case when public is false then 'private' else 'public' end
+              from storage.buckets where id = 'webchat-images'")"
+          if [[ "$bucket_privacy_state" != private ]]; then
             echo '::error::Restored WebChat image bucket is not private.'
             exit 1
           fi
@@ -490,7 +491,7 @@ jobs:
             order by attachment.object_key" > "$storage_refs"
 
           bucket_private_json=false
-          [[ "$bucket_private" == 'f' ]] && bucket_private_json=true
+          [[ "$bucket_privacy_state" == private ]] && bucket_private_json=true
           jq -n \
             --argjson bucketPrivate "$bucket_private_json" \
             --argjson anonymousDenied true \
