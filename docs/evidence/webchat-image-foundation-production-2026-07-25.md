@@ -48,10 +48,30 @@ WebChat 图片输入的数据库与 Edge Function 安全基础已经部署到生
 检查器输出只包含布尔结果、聚合计数和公开部署状态；不输出临时邮箱、成员 UUID、JWT、
 图片内容、对象路径、会话 ID 或任何 Secret。
 
+## 受控清理工作流烟测
+
+Pages 与生产榜单审计成功后，手动触发一次默认分支上的
+`Clean WebChat image objects` 工作流（run `30158322261`，`limit=1`）。该次运行只调用
+service-role 清理端点，不修改仓库变量，也不启用十分钟 schedule。脱敏聚合结果为：
+
+```json
+{
+  "claimed": 0,
+  "deleted": 0,
+  "retried": 0,
+  "deadLettered": 0,
+  "deadLettersOutstanding": false,
+  "storageAccountingConsistent": true
+}
+```
+
+这证明生产函数的 service-role 授权、空删除队列、无重试/死信和 Storage 对账路径可用；
+因为生产尚无图片对象，它不能替代正式开放前的真实对象删除与恢复验收。
+
 ## 仍然阻塞正式开放的项目
 
 - 生产 Auth 仍为自动确认邮箱，CAPTCHA/Turnstile 尚未完成真实配置与注册滥用烟测。
 - 前端粘贴、选择、预览、发送与刷新恢复尚未作为生产功能开放。
 - 尚未完成精确视觉模型协议、真实图片 Usage/额度结算和付费请求生产烟测。
-- 定时清理工作流仍未开启；正式开启前还需受控 service-role 清理烟测和对象删除/恢复验收。
+- 定时清理工作流仍未开启；空队列 service-role 烟测已通过，正式开启前仍需真实对象删除/恢复验收。
 - 在上述项目完成前，不得开启任何图片 UI、视觉模型门禁或定时清理仓库变量。

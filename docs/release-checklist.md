@@ -49,7 +49,7 @@
 - [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
 - [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
-- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限和零残留生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
+- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限、零残留和空队列 service-role 清理生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
 - [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
 - [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
