@@ -73,7 +73,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 真实邮箱找回密码已完成：生产邮件、回调、重置页面、新密码登录和旧会话失效流程可用。
 - [x] 注销恢复凭据已轮换为只授权 `greenthree/USTSACMLand` 的 `Variables: Read and write` Fine-grained Token；GitHub 强制的 Metadata 保持只读，没有 Contents、Administration 或其他额外权限。无回显原值回写/回读预检、Supabase Secret 覆盖、生产 Edge 自主恢复下限前推、随机临时成员真实自助注销和 Auth/Profile/租约/关联夹具零残留核对均通过；证据见 `docs/evidence/account-deletion-fine-grained-token-production-2026-07-25.md`。
 - [x] 注销的 Storage / 受控约束 `409`、双连接锁、旧 JWT RLS 和响应丢失对账测试已完成。Auth/Profile 双重只读对账与真实双连接锁等待已加入 CI；只有两者均明确不存在才确认成功，状态分裂或查询失败保持失败关闭。通用 Storage 围栏覆盖 `storage.objects.owner` 与 `owner_id`，并通过共享 Auth 行锁消除了上传/删除竞态；生产 Storage 阻断、清理后成功注销和零残留核对均已通过。2026-07-25 使用一次性 Secret 门控的临时包装器，在生产最终删除 RPC 已提交后主动丢弃响应，函数通过 Auth/Profile 对账返回 HTTP `200`，没有执行第二次兜底注销；恢复正式函数后的完整生产注销耗时为 `6502 ms`。临时钩子未提交，临时 Secret 已删除，正式 `delete-account` 版本 18 为 `ACTIVE`。证据见 `docs/evidence/account-deletion-reconciliation-2026-07-23.md`、`docs/evidence/account-deletion-storage-fence-local-2026-07-23.md`、`docs/evidence/account-deletion-storage-fence-production-2026-07-23.md` 与 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
-- [ ] 完成生产 RLS、管理员交接和最小权限最终复核，确认没有浏览器可读服务密钥或跨成员私有数据。
+- [x] 生产 RLS、管理员交接和最小权限最终复核已完成。可复跑的 `npm run check:production-security` 在当前生产 schema 下完成 37 项真实检查：访客、普通成员、停用成员、管理员与 service role 边界；提升/降级对已签发 JWT 的即时生效；管理员成员资料授权与审计表、`_unlimited`、Firecrawl/WebChat 运行时密钥 RPC 拒绝；WebChat 会话和训练目标跨成员隔离；注销后旧 JWT 失效及 Auth/Profile/任务/审计引用零残留。正式站点 64 个 JavaScript 分块与当前服务端 Supabase Key 值及常见 Token 格式比对均无泄露，最终运行 `cleanupFallbacks=0`、`cleanupConfirmed=true`。证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 
 ### P1：生产验证
 

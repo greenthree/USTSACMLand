@@ -110,6 +110,14 @@ npx --yes supabase@2.109.1 migration list --linked
 - 管理员能读取后台，但写操作仍经过乐观锁、审计和速率限制。
 - 公共榜单、成员详情与公告视图不暴露邮箱、QQ、错误原文或 Secret。
 
+最终生产权限复核使用：
+
+```powershell
+npm run check:production-security
+```
+
+该命令会创建三个随机临时账号，使用真实 JWT 验证访客、普通成员、停用成员、管理员即时交接、旧 JWT、WebChat/训练目标跨成员隔离和 service-only RPC，并递归扫描正式站点 JavaScript 分块中的真实服务端 Key 值。运行前必须确认 CLI 唯一 linked 项目是正式项目；不得修改固定项目或正式 Origin。夹具数据库初始化只使用 CLI 动态短期登录，service role 通过 PostgREST 修改受保护 Profile 字段必须继续返回 `42501`。命令输出不得增加邮箱、UUID、QQ、JWT、Key、对话或目标主键；结束时必须显示 `cleanupConfirmed=true`。失败时先核对并清理 `security-final-` / `受控安全复核` 随机夹具，再处理断言，不得把真实成员纳入测试。
+
 若 migration 因历史账号冲突或前置条件失败而停止，先按错误提示修复数据，再重新执行；不要删除约束、跳过检查或手工标记 migration 已完成。
 
 ### 3.2 Edge Functions
