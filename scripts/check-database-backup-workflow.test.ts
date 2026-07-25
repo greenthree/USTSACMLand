@@ -81,6 +81,11 @@ describe('encrypted database and WebChat Storage backup workflow', () => {
   it('requires a path-free pre-download plan so empty snapshots skip the CLI copy', () => {
     expect(() =>
       verifyDatabaseBackupWorkflow(
+        workflow.replace('webchat-storage-backup.mjs state', 'echo installed'),
+      ),
+    ).toThrow(/Storage download plan/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
         workflow.replace('node scripts/webchat-storage-backup.mjs plan', 'echo skipped-plan'),
       ),
     ).toThrow(/stage the exact|Storage download plan/)
@@ -94,6 +99,22 @@ describe('encrypted database and WebChat Storage backup workflow', () => {
         workflow.replace('webchat-storage-backup.mjs uninstalled', 'echo skipped-uninstalled'),
       ),
     ).toThrow(/explicit empty snapshot/)
+  })
+
+  it('fails closed when structured image feature detection fails or returns an invalid state', () => {
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace('if ! storage_feature_state=', 'storage_feature_state='),
+      ),
+    ).toThrow(/Storage download plan/)
+    expect(() =>
+      verifyDatabaseBackupWorkflow(
+        workflow.replace(
+          "          else\n            echo '::error::Private WebChat image feature detection returned an invalid state.'\n            exit 1\n          fi",
+          '          fi',
+        ),
+      ),
+    ).toThrow(/unexpected state/)
   })
 
   it('requires one pinned recursive Storage download with private output redirection', () => {

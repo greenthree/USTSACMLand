@@ -182,7 +182,12 @@ jobs:
             'supabase_cli=2.109.1' \
             > "$backup_dir/metadata.txt"
 
-          if grep -Eq '^COPY private\.webchat_image_attachments \(' "$backup_dir/data.sql"; then
+          if ! storage_feature_state="$(node scripts/webchat-storage-backup.mjs state \
+            "$backup_dir/data.sql" 2> "$storage_cli_log")"; then
+            echo '::error::Private WebChat image feature detection failed.'
+            exit 1
+          fi
+          if [[ "$storage_feature_state" == installed ]]; then
             if ! node scripts/webchat-storage-backup.mjs plan \
               "$backup_dir/data.sql" \
               "$storage_metadata_dump" \
@@ -226,11 +231,16 @@ jobs:
               echo '::error::Private WebChat image staging failed.'
               exit 1
             fi
-          elif ! node scripts/webchat-storage-backup.mjs uninstalled \
-            "$backup_dir/storage/webchat-images" \
-            "$backup_dir/metadata.txt" \
-            > "$storage_cli_log" 2>&1; then
-            echo '::error::The explicit uninstalled WebChat image snapshot could not be created.'
+          elif [[ "$storage_feature_state" == uninstalled ]]; then
+            if ! node scripts/webchat-storage-backup.mjs uninstalled \
+              "$backup_dir/storage/webchat-images" \
+              "$backup_dir/metadata.txt" \
+              > "$storage_cli_log" 2>&1; then
+              echo '::error::The explicit uninstalled WebChat image snapshot could not be created.'
+              exit 1
+            fi
+          else
+            echo '::error::Private WebChat image feature detection returned an invalid state.'
             exit 1
           fi
           if ! node scripts/verify-webchat-storage-backup.mjs \
