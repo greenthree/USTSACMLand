@@ -18,6 +18,7 @@
     "check:restore-drill-workflow": "node scripts/check-database-restore-drill-workflow.mjs",
     "check:ci-workflow": "node scripts/check-ci-workflow.mjs",
     "check:repository-readiness": "node scripts/check-repository-readiness.mjs",
+    "check:recovery-token": "node scripts/check-recovery-token.mjs",
     "check:supabase-preflight": "node scripts/check-supabase-readiness.mjs --preflight",
     "check:supabase-readiness": "node scripts/check-supabase-readiness.mjs",
     "check:sync-workflow": "node scripts/check-sync-workflow.mjs",

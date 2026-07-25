@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-07-24（Asia/Shanghai）
+最后更新：2026-07-25（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -71,7 +71,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ### P0：账号与权限收尾
 
 - [x] 真实邮箱找回密码已完成：生产邮件、回调、重置页面、新密码登录和旧会话失效流程可用。
-- [ ] 将当前可用但权限偏宽的注销恢复凭据轮换为只授权目标仓库 Variables 读写的 fine-grained Token。维护端单调前推并回读恢复下限后，临时账号真实自助注销、函数读取恢复下限和清理核验已通过；凭据收敛后还需在不倒退现有下限的前提下复测 Edge 自主写入，证据见 `docs/evidence/account-deletion-readiness-2026-07-22.md`。
+- [x] 注销恢复凭据已轮换为只授权 `greenthree/USTSACMLand` 的 `Variables: Read and write` Fine-grained Token；GitHub 强制的 Metadata 保持只读，没有 Contents、Administration 或其他额外权限。无回显原值回写/回读预检、Supabase Secret 覆盖、生产 Edge 自主恢复下限前推、随机临时成员真实自助注销和 Auth/Profile/租约/关联夹具零残留核对均通过；证据见 `docs/evidence/account-deletion-fine-grained-token-production-2026-07-25.md`。
 - [ ] 完成注销的 Storage / 受控约束 `409`、双连接锁、旧 JWT RLS 和响应丢失对账测试。响应丢失后 Auth/Profile 双重只读对账与真实本地双连接锁等待已实现并加入 CI；只有两者均明确不存在才确认成功，状态分裂或查询失败保持失败关闭。通用 Storage 围栏覆盖 `storage.objects.owner` 与 `owner_id`，并通过共享 Auth 行锁消除了上传/删除竞态：上传先赢时删除保留 Auth/Profile/对象，删除先赢时上传被拒绝且不留孤儿；对象全部显式清理后重试才成功。干净数据库 1205 项断言和三个双连接场景已通过，`202607230007` 已部署；随机临时成员的真实 Storage 阻断返回 `409`，清理对象后第二次注销返回 `200`，最终 Auth/Profile/租约/对象/Bucket 均为零。旧 JWT 的生产 RLS 边界已有证据，仍缺生产传输故障复核，因此本项继续保持未完成。证据见 `docs/evidence/account-deletion-reconciliation-2026-07-23.md`、`docs/evidence/account-deletion-storage-fence-local-2026-07-23.md` 与 `docs/evidence/account-deletion-storage-fence-production-2026-07-23.md`。
 - [ ] 完成生产 RLS、管理员交接和最小权限最终复核，确认没有浏览器可读服务密钥或跨成员私有数据。
 
