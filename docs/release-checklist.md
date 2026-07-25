@@ -53,9 +53,9 @@
 - [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
 - [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
-- [ ] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核。
+- [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 37 项真实身份、即时交接、跨成员隐私、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
-- [ ] 公开视图不返回邮箱、QQ、内部错误、审计详情或 Secret。
+- [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - [ ] 私有 `webchat-images` Bucket 只允许 WebP、单对象上限 4 MiB；匿名请求和匿名 bearer 请求均不能读取，数据库 `ready`/`attached` 引用与对象归属一致。
 - [ ] 管理员 RPC 保留鉴权、乐观锁、审计和速率限制；清单与数据库目录中的全部 `admin_*` 函数一致，普通/停用成员无法调用 19 个入口，8 个 `_unlimited` 实现不可由浏览器角色执行。
 - [ ] 注销流程的目标绑定租约覆盖“取得 owner/target 租约 → 记录并确认 GitHub 恢复下限 → 续期并停止外部阶段心跳 → 最终 RPC 锁定租约/Profile → 同事务删除 Auth 用户与消费租约”完整临界区；业务级联与审计匿名化整体提交或回滚，管理员注销仍要求先交接权限。
@@ -78,7 +78,7 @@
 
 ## 5. 凭据与外部服务
 
-- [ ] 浏览器构建只含 `VITE_SUPABASE_URL` 和公开 anon key，不含 service role 或第三方凭据。
+- [x] 生产首页递归发现的 64 个 JavaScript 分块均不含当前 service-role/secret Key 值、Fine-grained GitHub Token 或常见服务端 API Key 形态；公开 Supabase Key 继续作为允许的浏览器配置，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - [ ] 洛谷 Cookie/CSRF、QOJ 服务账号和 Firecrawl key 均来自可独立轮换的生产 Secret。
 - [ ] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
 - [ ] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。
