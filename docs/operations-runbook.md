@@ -39,6 +39,8 @@ WebChat 图片功能正式部署前，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLE
 
 本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的目标绑定数据库租约必须覆盖完整临界区：取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用最终删除 RPC。RPC 对租约行和目标 Profile `FOR UPDATE`，重新验证 owner、target、有效期、角色与活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，使 migration 与 Edge Function 的部署切换也保持失败关闭。租约取得、删除前续期或恢复记录失败时不得进入最终 RPC，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`。最终事务由数据库行锁 fencing，不依赖 Edge Runtime 定时器。最终 RPC 抛出传输错误、返回错误或响应契约损坏时，Edge 并行只读核对 Auth 与 Profile；仅两者均明确不存在才确认提交成功，仍存在、状态分裂、模糊 Auth 404 或任一查询失败均重抛原错误。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
 
+2026-07-25 已在生产使用一次性 Secret 门控的临时包装器验证最终 RPC 成功提交后响应丢失：Edge 通过 Auth/Profile 对账返回成功且夹具无残留；临时包装器随后从工作树移除、正式函数重新部署，临时 Secret 也已删除。正式函数的另一轮完整注销耗时为 `6502 ms`。详细脱敏证据见 [`docs/evidence/account-deletion-response-loss-production-2026-07-25.md`](./evidence/account-deletion-response-loss-production-2026-07-25.md)。此类故障注入不得作为长期生产入口保留；如需重测，必须使用新的随机 Secret、普通临时成员，并在同一维护窗口恢复正式函数和确认 Secret 不存在。
+
 恢复时从 GitHub 当前变量复制值，以 `npm run verify:backup-recovery-floor -- restored-backup/metadata.txt` 检查备份。备份早于当前下限或仓库变量比备份 metadata 中的下限更旧时，恢复工具必须拒绝。生产 Secret、变量更新、失败关闭和隔离恢复尚未真实演练前，正式发布仍保持阻塞。
 
 ## 2. 发布前检查
