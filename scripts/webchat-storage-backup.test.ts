@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import {
   decodePostgresCopyText,
+  detectWebChatImageFeatureState,
   extractWebChatImageReferences,
   extractWebChatStorageObjectMetadata,
   inspectWebChatStorageSnapshot,
@@ -64,6 +65,17 @@ function dump(...rows: string[]) {
   ].join('\n')
 }
 
+function quotedDump(...rows: string[]) {
+  return [
+    `COPY "private"."webchat_image_attachments" (${columns
+      .map((column) => `"${column}"`)
+      .join(', ')}) FROM stdin;`,
+    ...rows,
+    '\\.',
+    '',
+  ].join('\n')
+}
+
 const metadata = 'created_at=2026-07-23T00:30:00Z\nrepository=test/repo\n'
 const storageColumns = ['bucket_id', 'name', 'metadata']
 
@@ -91,6 +103,17 @@ function storageDump(...rows: string[]) {
   ].join('\n')
 }
 
+function quotedStorageDump(...rows: string[]) {
+  return [
+    `COPY "storage"."objects" (${storageColumns
+      .map((column) => `"${column}"`)
+      .join(', ')}) FROM stdin;`,
+    ...rows,
+    '\\.',
+    '',
+  ].join('\n')
+}
+
 describe('WebChat Storage backup snapshot', () => {
   let root = ''
 
@@ -106,6 +129,27 @@ describe('WebChat Storage backup snapshot', () => {
     expect(decodePostgresCopyText('line\\tvalue\\nnext')).toBe('line\tvalue\nnext')
     expect(decodePostgresCopyText('slash\\\\value')).toBe('slash\\value')
     expect(decodePostgresCopyText('\\N')).toBeNull()
+  })
+
+  it('detects the installed feature from quoted or unquoted COPY headers', () => {
+    expect(detectWebChatImageFeatureState(dump())).toBe('installed')
+    expect(detectWebChatImageFeatureState(quotedDump())).toBe('installed')
+    expect(
+      detectWebChatImageFeatureState(
+        ['COPY public.profiles (id) FROM stdin;', '\\.', ''].join('\n'),
+      ),
+    ).toBe('uninstalled')
+  })
+
+  it('fails closed when the detected image COPY block is malformed', () => {
+    expect(() =>
+      detectWebChatImageFeatureState(
+        'COPY "private"."webchat_image_attachments" ("id") FROM stdin;\n\\.\n',
+      ),
+    ).toThrow(/missing private\.webchat_image_attachments\.user_id/)
+    expect(() => detectWebChatImageFeatureState(quotedDump().replace('\\.\n', ''))).toThrow(
+      /unterminated COPY block/,
+    )
   })
 
   it('extracts only ready or attached immutable image references', () => {
@@ -155,8 +199,8 @@ describe('WebChat Storage backup snapshot', () => {
     const outputDirectory = join(root, 'backup', 'storage', 'webchat-images')
 
     const result = await stageWebChatStorageBackup({
-      dataSql: dump(row()),
-      storageDataSql: storageDump(storageRow()),
+      dataSql: quotedDump(row()),
+      storageDataSql: quotedStorageDump(storageRow()),
       metadataSource: metadata,
       downloadParent,
       outputDirectory,

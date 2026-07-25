@@ -38,6 +38,14 @@ const requiredColumns = [
   'sha256',
 ]
 
+function validateImageCopyHeader(header) {
+  for (const column of requiredColumns) {
+    if (!header.columns.includes(column)) {
+      throw new Error(`Backup dump is missing ${targetTable}.${column}.`)
+    }
+  }
+}
+
 function unquoteIdentifier(quoted, plain) {
   return quoted === undefined ? plain : quoted.replaceAll('""', '"')
 }
@@ -185,11 +193,7 @@ function extractDatabaseImageReferences(dataSql) {
     if (!header || header.table !== targetTable) continue
     if (found) throw new Error(`Backup dump repeats COPY data for ${targetTable}.`)
     found = true
-    for (const column of requiredColumns) {
-      if (!header.columns.includes(column)) {
-        throw new Error(`Backup dump is missing ${targetTable}.${column}.`)
-      }
-    }
+    validateImageCopyHeader(header)
     active = header
   }
 
@@ -203,6 +207,28 @@ function extractDatabaseImageReferences(dataSql) {
     }
   }
   return references
+}
+
+export function detectWebChatImageFeatureState(dataSql) {
+  let active = false
+  let found = false
+
+  for (const line of dataSql.split(/\r?\n/)) {
+    if (active) {
+      if (line === '\\.') active = false
+      continue
+    }
+
+    const header = parseCopyHeader(line)
+    if (!header || header.table !== targetTable) continue
+    if (found) throw new Error(`Backup dump repeats COPY data for ${targetTable}.`)
+    found = true
+    validateImageCopyHeader(header)
+    active = true
+  }
+
+  if (active) throw new Error(`Backup dump has an unterminated COPY block for ${targetTable}.`)
+  return found ? WEBCHAT_IMAGE_FEATURE_INSTALLED : WEBCHAT_IMAGE_FEATURE_UNINSTALLED
 }
 
 export function extractWebChatStorageObjectMetadata(storageDataSql) {
@@ -464,6 +490,14 @@ function parseLimit(value, name, allowZero) {
 
 async function main() {
   const args = process.argv.slice(2)
+  if (args[0] === 'state') {
+    const [, dataPath] = args
+    if (!dataPath) {
+      throw new Error('Usage: node scripts/webchat-storage-backup.mjs state <data.sql>')
+    }
+    console.log(detectWebChatImageFeatureState(await readFile(resolve(dataPath), 'utf8')))
+    return
+  }
   if (args[0] === 'uninstalled') {
     const [, outputDirectory, metadataPath] = args
     if (!metadataPath) {

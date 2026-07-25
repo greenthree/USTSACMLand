@@ -187,13 +187,18 @@ export function verifyDatabaseBackupWorkflow(workflow) {
   }
   requireMatch(
     workflow,
-    /grep -Eq '\^COPY private\\\.webchat_image_attachments \\\(' "\$backup_dir\/data\.sql"[\s\S]*node scripts\/webchat-storage-backup\.mjs plan \\\r?\n\s+"\$backup_dir\/data\.sql" \\\r?\n\s+"\$storage_metadata_dump" \\\r?\n\s+"\$MAX_STORAGE_OBJECTS" \\\r?\n\s+"\$MAX_BACKUP_ARTIFACT_BYTES" \\\r?\n\s+> "\$storage_snapshot_plan" 2> "\$storage_cli_log"[\s\S]*storage_object_count="\$\(jq -r '\.objectCount' "\$storage_snapshot_plan"\)"/,
+    /if ! storage_feature_state="\$\(node scripts\/webchat-storage-backup\.mjs state \\\r?\n\s+"\$backup_dir\/data\.sql" 2> "\$storage_cli_log"\)"; then[\s\S]*Private WebChat image feature detection failed\.[\s\S]*exit 1[\s\S]*fi[\s\S]*\[\[ "\$storage_feature_state" == installed \]\][\s\S]*node scripts\/webchat-storage-backup\.mjs plan \\\r?\n\s+"\$backup_dir\/data\.sql" \\\r?\n\s+"\$storage_metadata_dump" \\\r?\n\s+"\$MAX_STORAGE_OBJECTS" \\\r?\n\s+"\$MAX_BACKUP_ARTIFACT_BYTES" \\\r?\n\s+> "\$storage_snapshot_plan" 2> "\$storage_cli_log"[\s\S]*storage_object_count="\$\(jq -r '\.objectCount' "\$storage_snapshot_plan"\)"/,
     'Backup workflow must create a bounded database-and-Storage-metadata-referenced Storage download plan before downloading.',
   )
   requireMatch(
     workflow,
-    /elif ! node scripts\/webchat-storage-backup\.mjs uninstalled \\\r?\n\s+"\$backup_dir\/storage\/webchat-images" \\\r?\n\s+"\$backup_dir\/metadata\.txt"/,
+    /elif \[\[ "\$storage_feature_state" == uninstalled \]\]; then[\s\S]*node scripts\/webchat-storage-backup\.mjs uninstalled \\\r?\n\s+"\$backup_dir\/storage\/webchat-images" \\\r?\n\s+"\$backup_dir\/metadata\.txt"/,
     'Backup workflow must emit an explicit empty snapshot when the image feature is not installed.',
+  )
+  requireMatch(
+    workflow,
+    /else\r?\n\s+echo '::error::Private WebChat image feature detection returned an invalid state\.'\r?\n\s+exit 1\r?\n\s+fi/,
+    'Backup workflow must fail closed when image feature detection returns an unexpected state.',
   )
   requireMatch(
     workflow,
