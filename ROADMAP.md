@@ -39,7 +39,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ## 2. 当前生产基线
 
 - [x] GitHub Pages 已发布 React SPA，支持子路径资源、深链刷新和生产榜单审计。
-- [x] Supabase Auth、Postgres、RLS、八个 Edge Function 和 69 个生产 migration 已部署；推荐计划因生产邮箱自动确认无法证明邮箱控制权而安全暂停，重开安全闸门已部署，WebChat 图片 migration 保持未部署并由三层开关关闭。
+- [x] Supabase Auth、Postgres、RLS、十个 Edge Function 和 71 个生产 migration 已部署；推荐计划因生产邮箱自动确认无法证明邮箱控制权而安全暂停，重开安全闸门已部署；WebChat 图片数据库与函数安全基础已部署，但前端入口、视觉模型和定时清理开关继续关闭。
 - [x] 邮箱注册、密码登录、真实邮箱找回密码、修改密码和会话恢复流程可用。
 - [x] 成员资料、年级、专业联想、QQ、六个平台绑定和 XCPC ELO 姓名自动匹配已上线。
 - [x] Rating 榜、刷题榜、周榜、月榜和自定义时间范围增量榜已上线。
@@ -73,7 +73,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 真实邮箱找回密码已完成：生产邮件、回调、重置页面、新密码登录和旧会话失效流程可用。
 - [x] 注销恢复凭据已轮换为只授权 `greenthree/USTSACMLand` 的 `Variables: Read and write` Fine-grained Token；GitHub 强制的 Metadata 保持只读，没有 Contents、Administration 或其他额外权限。无回显原值回写/回读预检、Supabase Secret 覆盖、生产 Edge 自主恢复下限前推、随机临时成员真实自助注销和 Auth/Profile/租约/关联夹具零残留核对均通过；证据见 `docs/evidence/account-deletion-fine-grained-token-production-2026-07-25.md`。
 - [x] 注销的 Storage / 受控约束 `409`、双连接锁、旧 JWT RLS 和响应丢失对账测试已完成。Auth/Profile 双重只读对账与真实双连接锁等待已加入 CI；只有两者均明确不存在才确认成功，状态分裂或查询失败保持失败关闭。通用 Storage 围栏覆盖 `storage.objects.owner` 与 `owner_id`，并通过共享 Auth 行锁消除了上传/删除竞态；生产 Storage 阻断、清理后成功注销和零残留核对均已通过。2026-07-25 使用一次性 Secret 门控的临时包装器，在生产最终删除 RPC 已提交后主动丢弃响应，函数通过 Auth/Profile 对账返回 HTTP `200`，没有执行第二次兜底注销；恢复正式函数后的完整生产注销耗时为 `6502 ms`。临时钩子未提交，临时 Secret 已删除，正式 `delete-account` 版本 18 为 `ACTIVE`。证据见 `docs/evidence/account-deletion-reconciliation-2026-07-23.md`、`docs/evidence/account-deletion-storage-fence-local-2026-07-23.md`、`docs/evidence/account-deletion-storage-fence-production-2026-07-23.md` 与 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
-- [x] 生产 RLS、管理员交接和最小权限最终复核已完成。可复跑的 `npm run check:production-security` 在当前生产 schema 下完成 37 项真实检查：访客、普通成员、停用成员、管理员与 service role 边界；提升/降级对已签发 JWT 的即时生效；管理员成员资料授权与审计表、`_unlimited`、Firecrawl/WebChat 运行时密钥 RPC 拒绝；WebChat 会话和训练目标跨成员隔离；注销后旧 JWT 失效及 Auth/Profile/任务/审计引用零残留。正式站点 64 个 JavaScript 分块与当前服务端 Supabase Key 值及常见 Token 格式比对均无泄露，最终运行 `cleanupFallbacks=0`、`cleanupConfirmed=true`。证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
+- [x] 生产 RLS、管理员交接和最小权限最终复核已完成。可复跑的 `npm run check:production-security` 在当前生产 schema 下完成 47 项真实检查：访客、普通成员、停用成员、管理员与 service role 边界；提升/降级对已签发 JWT 的即时生效；管理员成员资料授权与审计表、`_unlimited`、Firecrawl/WebChat 运行时密钥 RPC 拒绝；WebChat 会话、训练目标和图片基础跨成员隔离；图片函数匿名/普通成员拒绝、私有 Bucket、全站暂停、Storage 账目一致及夹具零残留；注销后旧 JWT 失效及 Auth/Profile/任务/审计引用零残留。正式站点 64 个 JavaScript 分块与当前服务端 Supabase Key 值及常见 Token 格式比对均无泄露，最终运行 `cleanupFallbacks=0`、`cleanupConfirmed=true`。证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 
 ### P1：生产验证
 
@@ -103,8 +103,9 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 ### AI 学习助手图片输入
 
+- [x] 图片安全基础已以默认关闭方式部署到生产：71 项 migration 全部一致，`webchat-attachment` 与 `webchat-image-cleanup` 为 ACTIVE，私有 Bucket、4 MiB/仅 WebP 限制、全站暂停、匿名/普通成员拒绝和夹具零残留已通过 47 项可复跑生产检查；这不代表图片输入已向成员开放。证据见 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
 - [ ] 支持在 WebChat 输入区直接粘贴剪贴板图片，也支持通过图片按钮选择本地文件；发送前展示稳定尺寸的缩略图、文件状态和移除操作，桌面端、移动端与键盘操作均可用。
-- [ ] 第一版只接受 JPEG、PNG 和 WebP，拒绝 SVG、动图和伪造 MIME；客户端与服务端同时限制单图体积、像素尺寸、单条消息图片数量、会话待上传总量和账号级 Storage 使用；4 MiB、2,048 px / 4,194,304 像素、每条 4 张、每会话待处理 8 张 / 16 MiB、每账号 200 个 / 64 MiB、滚动一小时 30 个新附件等具体上限已写入 [`docs/webchat-image-input-v1.md`](./docs/webchat-image-input-v1.md)。数据库已在每账号行锁内按最近一小时 `reserved_at` 记录计数；从零安装全部 migration 后当前 48 个 pgTAP 文件、1205 项断言通过，真实双连接验证第 30 个预留成功、第 31 个在等待同一全局优先锁后以账号滚动限额拒绝。仍缺生产部署与端到端验收，因此不提前勾选。证据见 [`docs/evidence/webchat-image-safety-foundation-2026-07-23.md`](./docs/evidence/webchat-image-safety-foundation-2026-07-23.md)。
+- [ ] 第一版只接受 JPEG、PNG 和 WebP，拒绝 SVG、动图和伪造 MIME；客户端与服务端同时限制单图体积、像素尺寸、单条消息图片数量、会话待上传总量和账号级 Storage 使用；4 MiB、2,048 px / 4,194,304 像素、每条 4 张、每会话待处理 8 张 / 16 MiB、每账号 200 个 / 64 MiB、滚动一小时 30 个新附件等具体上限已写入 [`docs/webchat-image-input-v1.md`](./docs/webchat-image-input-v1.md)。数据库已在每账号行锁内按最近一小时 `reserved_at` 记录计数；从零安装全部 migration 后当前 48 个 pgTAP 文件、1205 项断言通过，真实双连接验证第 30 个预留成功、第 31 个在等待同一全局优先锁后以账号滚动限额拒绝。生产 migration 和默认暂停边界已部署验收，仍缺开放态端到端验收，因此不提前勾选。证据见 [`docs/evidence/webchat-image-safety-foundation-2026-07-23.md`](./docs/evidence/webchat-image-safety-foundation-2026-07-23.md) 与 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
 - [ ] 使用私有 Supabase Storage 保存需要随历史会话恢复的图片，按用户与会话隔离对象路径；普通成员只能访问自己的对象，Edge Function 使用短时签名地址读取，禁止公开 Bucket、跨成员读取和浏览器接触 service role key。
 - [ ] 图片消息使用中转站兼容的多模态消息格式发送，并在请求前确认当前模型支持视觉输入；不支持图片的模型必须给出明确提示，不能静默丢图、降级为 OCR 文本或自动改用其他模型。
 - [ ] 图片输入沿用 WebChat 的单次请求 claim、累计请求上限和累计 Token 上限；服务端按可解释的保守值预留图片 Token，成功后以中转站真实 usage 结算，上游启动前失败释放预留，上游启动后无法取得 usage 时把预留转入未知用量，付费请求仍禁止自动重试。
@@ -125,7 +126,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ### 推荐计划
 
 - [ ] 在管理后台提供推荐计划全局开关，管理员可一键开启或关闭，并清晰显示当前状态、最后修改时间和修改人；关闭和重新开启都需要二次确认，操作结果即时反馈。本地组件、焦点管理、错误恢复和浏览器流程已实现，待生产发布烟测。
-- [ ] 全局开关必须由私有数据库配置和仅管理员可调用的 RPC 强制执行，并包含原因、乐观锁、原子限流和审计记录；注册触发器、邀请码校验、账号页摘要和奖励事务都读取同一状态，不能只隐藏前端入口。生产关闭/重开烟测和重开安全闸门均已完成，当前共 69 个 production migration；仓库当前 48 个 pgTAP 文件、1205 项断言已在干净数据库通过，仍待双连接生产并发烟测。
+- [ ] 全局开关必须由私有数据库配置和仅管理员可调用的 RPC 强制执行，并包含原因、乐观锁、原子限流和审计记录；注册触发器、邀请码校验、账号页摘要和奖励事务都读取同一状态，不能只隐藏前端入口。生产关闭/重开烟测和重开安全闸门均已完成，当前共 71 个 production migration；仓库当前 48 个 pgTAP 文件、1205 项断言已在干净数据库通过，仍待双连接生产并发烟测。
 - [ ] 关闭后立即停止邀请码展示、公开校验、新绑定和新奖励，但不删除已有邀请码、绑定或撤回已发 Token；新用户仍可正常注册。关闭态、初始检查和状态查询失败时，注册页与成员账号页均不渲染推荐计划名称、邀请码或历史奖励摘要；重新开启后沿用原邀请码，不追补关闭期间完成的注册，也不改变已有奖励次数。成员端单元测试与本地桌面/移动浏览器烟测已通过，待生产页面验收。
 - [ ] 开关切换与并发注册使用数据库行锁或等价事务围栏：关闭事务提交后启动的注册不得绑定或计奖，已成功提交的绑定不能被回滚；重复点击和网络响应丢失必须可安全对账。数据库已统一 `profile -> config -> code -> access` 锁序并收紧同管理员/同原因的丢失响应识别，仍待双连接生产烟测。
 - [ ] 补齐普通成员越权、停用管理员、最后管理员保护、并发开关/注册、审计脱敏、关闭状态页面、重新开启和生产回滚烟测后再上线；本地权限矩阵、审计白名单、关闭/重开和前端失败状态已覆盖。

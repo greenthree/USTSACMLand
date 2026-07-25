@@ -29,6 +29,13 @@ export const requiredSecurityChecks = [
   'adminCrossConversationDenied',
   'adminOwnListIsolated',
   'adminExportIsolated',
+  'anonymousAttachmentGatewayDenied',
+  'anonymousImageCleanupGatewayDenied',
+  'memberImageCleanupDenied',
+  'memberImageUploadSafelyDisabled',
+  'imageBucketPrivate',
+  'imageStorageAccountingConsistent',
+  'imageUploadsPaused',
   'trainingGoalOwnReadable',
   'adminCrossTrainingGoalDenied',
   'adminOwnTrainingGoalListIsolated',
@@ -42,6 +49,9 @@ export const requiredSecurityChecks = [
   'zeroProfiles',
   'zeroSyncJobs',
   'zeroAuditUuidReferences',
+  'zeroFixtureImageAttachments',
+  'zeroFixtureImageObjects',
+  'zeroFixtureImageDeletionQueue',
   'browserServiceKeysAbsent',
   'serviceRuntimeRpcsAvailable',
   'serviceProfileMutationBlocked',
@@ -158,6 +168,18 @@ function randomPassword() {
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message)
+}
+
+async function readJsonResponse(response) {
+  try {
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+function errorCode(body) {
+  return typeof body?.error?.code === 'string' ? body.error.code : null
 }
 
 function quoteLiteral(value) {
@@ -471,6 +493,120 @@ where id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')});
     results.adminExportIsolated =
       !promotedExport.error && !JSON.stringify(promotedExport.data).includes(conversationId)
 
+    const attachmentUrl = `${environment.API_URL}/functions/v1/webchat-attachment`
+    const imageCleanupUrl = `${environment.API_URL}/functions/v1/webchat-image-cleanup`
+    const anonymousAttachmentResponse = await fetchImpl(attachmentUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: PRODUCTION_ORIGIN },
+      body: JSON.stringify({ action: 'preview', attachmentId: crypto.randomUUID() }),
+    })
+    const anonymousImageCleanupResponse = await fetchImpl(imageCleanupUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ limit: 1 }),
+    })
+    results.anonymousAttachmentGatewayDenied = [401, 403].includes(
+      anonymousAttachmentResponse.status,
+    )
+    results.anonymousImageCleanupGatewayDenied = [401, 403].includes(
+      anonymousImageCleanupResponse.status,
+    )
+
+    const memberSession = await firstAdmin.auth.getSession()
+    const memberToken = memberSession.data.session?.access_token
+    requireCondition(memberToken, 'Member session token is unavailable for image boundary checks.')
+    const memberCleanupResponse = await fetchImpl(imageCleanupUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${memberToken}`,
+        apikey: environment.ANON_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ limit: 1 }),
+    })
+    const memberCleanupBody = await readJsonResponse(memberCleanupResponse)
+    results.memberImageCleanupDenied =
+      memberCleanupResponse.status === 403 &&
+      errorCode(memberCleanupBody) === 'service_role_required'
+
+    const uploadForm = new FormData()
+    uploadForm.set('action', 'upload')
+    uploadForm.set('conversationId', conversationId)
+    uploadForm.set(
+      'file',
+      new File(
+        [
+          Uint8Array.from(
+            Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+              'base64',
+            ),
+          ),
+        ],
+        'controlled.png',
+        { type: 'image/png' },
+      ),
+    )
+    const memberUploadResponse = await fetchImpl(attachmentUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${memberToken}`,
+        apikey: environment.ANON_KEY,
+        origin: PRODUCTION_ORIGIN,
+      },
+      body: uploadForm,
+    })
+    const memberUploadBody = await readJsonResponse(memberUploadResponse)
+    results.memberImageUploadSafelyDisabled =
+      memberUploadResponse.status === 503 &&
+      ['attachment_disabled', 'attachment_uploads_paused'].includes(errorCode(memberUploadBody))
+
+    const bucket = await admin.storage.getBucket('webchat-images')
+    results.imageBucketPrivate =
+      !bucket.error &&
+      bucket.data?.public === false &&
+      Number(bucket.data?.file_size_limit) === 4_194_304 &&
+      Array.isArray(bucket.data?.allowed_mime_types) &&
+      bucket.data.allowed_mime_types.length === 1 &&
+      bucket.data.allowed_mime_types[0] === 'image/webp'
+
+    const imageAccounting = await admin.rpc('reconcile_webchat_image_storage_accounting')
+    const imageAccountingRow = imageAccounting.data?.[0]
+    results.imageStorageAccountingConsistent =
+      !imageAccounting.error &&
+      imageAccountingRow?.accounting_consistent === true &&
+      Number(imageAccountingRow?.recorded_allocation_bytes) === 0 &&
+      Number(imageAccountingRow?.attachment_allocation_bytes) === 0 &&
+      Number(imageAccountingRow?.stored_object_bytes) === 0 &&
+      Number(imageAccountingRow?.orphan_object_count) === 0 &&
+      Number(imageAccountingRow?.missing_ready_object_count) === 0
+    results.imageUploadsPaused = imageAccountingRow?.uploads_paused === true
+
+    const imageResidueSql = `
+select
+  (select count(*)::integer
+   from private.webchat_image_attachments as attachment
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
+    as fixture_image_attachments,
+  (select count(*)::integer
+   from storage.objects as object
+   where object.bucket_id = 'webchat-images'
+     and (${fixtures.map((id) => `object.name like ${quoteLiteral(`user/${id}/%`)}`).join(' or ')}))
+    as fixture_image_objects,
+  (select count(*)::integer
+   from private.webchat_image_deletion_outbox as deletion
+   join private.webchat_image_attachments as attachment on attachment.id = deletion.attachment_id
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
+    as fixture_image_deletion_queue;
+`
+    const imageResidue = runSupabaseJson(
+      ['db', 'query', '--linked', imageResidueSql.replace(/\s+/g, ' ').trim()],
+      execFile,
+    )?.rows?.[0]
+    results.zeroFixtureImageAttachments = Number(imageResidue?.fixture_image_attachments) === 0
+    results.zeroFixtureImageObjects = Number(imageResidue?.fixture_image_objects) === 0
+    results.zeroFixtureImageDeletionQueue = Number(imageResidue?.fixture_image_deletion_queue) === 0
+
     const trainingGoalFixture = runSupabaseJson(
       [
         'db',
@@ -544,6 +680,9 @@ where id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')});
       zeroProfiles: true,
       zeroSyncJobs: true,
       zeroAuditUuidReferences: true,
+      zeroFixtureImageAttachments: true,
+      zeroFixtureImageObjects: true,
+      zeroFixtureImageDeletionQueue: true,
     })
 
     runSupabaseJson(

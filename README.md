@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 69 个 production migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论、训练目标和刷题增量榜已上线；仓库定义 48 个 pgTAP 文件和 1205 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产两把真实 Key 的额度、启停、轮换/冷却、牛客回退和 QOJ 有效登录均已完成受控生产烟测；QOJ 已迁移到独立 Browser Sandbox，每个 attempt 创建并清理临时会话。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。推荐计划基础、全局开关、“邮箱确认后计奖”和重开安全闸门 migration 已部署；旧流程的真实注册、100 万 Token 到账、奖励保留和临时账号注销烟测已完成。生产 Auth 当前自动确认邮箱，不能证明邮箱控制权，因此推荐计划已全局暂停；成员端关闭态不展示推荐计划，数据库安全闸门锁死未经受控解锁的重新开启；重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。WebChat 图片输入代码和数据库测试保留在仓库中，但 `202607230001`、`202607230004` migration 与三层生产开关保持关闭，达到 ROADMAP 的全部启用门槛前不得部署。生产自助注销已成功走通恢复下限围栏，并通过真实 Storage `409` 与清理后重试烟测；当前恢复凭据权限仍偏宽，需要轮换为只授权目标仓库 Variables 读写的细粒度 Token。
+> 当前状态：集训队官网、生产 Supabase、首管理员、十个 Edge Function 和 71 个 production migration 均已部署，前端由 GitHub Pages 发布并连接真实认证、榜单、管理与 AI 学习助手接口。每日一题、讨论、训练目标、刷题增量榜、私有 WebChat 历史、累计成员限额和个人数据导出已上线；六个平台的可恢复同步失败统一最多自动重试一次。Firecrawl 多 Key、QOJ 独立 Browser Sandbox、真实邮箱找回密码、加密备份与隔离恢复、注销恢复下限围栏和细粒度 GitHub 凭据均已完成生产验收。推荐计划因生产邮箱自动确认无法证明邮箱控制权而全局暂停，成员端关闭态不展示相关内容。WebChat 图片数据库、私有 Storage 与附件/清理函数安全基础已部署并保持全站暂停；前端入口、视觉模型和定时清理仍关闭，不能视为图片功能已上线。主分支 CI、secret scan、Pages build/deploy、生产榜单审计和 47 项可复跑生产安全检查持续作为发布门禁。
 
 ## 已实现
 
@@ -288,7 +288,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config`、`webchat`、`webchat-cache-probe` 与 `firecrawl-config` 均已部署为 ACTIVE；截至 2026-07-23 共有 69 个 production migration，推荐计划处于全局暂停状态且重开安全闸门已部署。`202607230001_webchat_image_attachments.sql` 与 `202607230004_webchat_image_global_limits.sql` 仅用于尚未开放的图片输入，必须继续保持 pending，直至 ROADMAP 的启用门槛全部完成。`sync-member` 为 v47，`sync-stats` 为 v34，`delete-account` 为 v13，`change-password` 为 v14，`webchat-config` 为 v9，`webchat` 为 v23，`webchat-cache-probe` 为 v16，`firecrawl-config` 为 v5。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 核对远端状态，不得使用会无差别应用图片 migration 的批量命令。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联；截至 2026-07-25，仓库与生产均为 71 个 migration、0 项 pending，十个 Edge Function 均为 ACTIVE、启用 JWT 验证并使用仓库 import map。`webchat-attachment` 与 `webchat-image-cleanup` 已以默认关闭方式部署，推荐计划仍全局暂停。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 和 `db push --dry-run --include-all` 核对远端状态。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
@@ -301,6 +301,9 @@ npx --yes supabase@2.109.1 functions deploy firecrawl-config \
   --use-api --import-map supabase/functions/deno.json
 # 可先在三层关闭态部署；正式启用前必须通过 WebChat 发布检查单。
 npx --yes supabase@2.109.1 functions deploy webchat webchat-config webchat-cache-probe \
+  --use-api --import-map supabase/functions/deno.json
+# 图片函数可以在全站暂停态部署；不得因此开启前端、视觉模型或定时清理。
+npx --yes supabase@2.109.1 functions deploy webchat-attachment webchat-image-cleanup \
   --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```

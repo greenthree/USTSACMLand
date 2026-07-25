@@ -46,14 +46,14 @@
 
 - [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
 - [x] 推荐计划 migration 已验证：邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限。
-- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 69 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
+- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
 - [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
-- [ ] WebChat 图片 `202607230001` migration、附件/清理 Edge Function 和三层开关保持未部署，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 保持缺失或为 `false`；未完成 ROADMAP 的全站容量、双连接并发和注册滥用防护前不得批量推送 pending migration。
+- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限和零残留生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
 - [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
 - [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
-- [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 37 项真实身份、即时交接、跨成员隐私、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
+- [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 47 项真实身份、即时交接、跨成员隐私、图片默认关闭、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - [ ] 私有 `webchat-images` Bucket 只允许 WebP、单对象上限 4 MiB；匿名请求和匿名 bearer 请求均不能读取，数据库 `ready`/`attached` 引用与对象归属一致。
@@ -68,8 +68,8 @@
 - [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
 - [ ] 如本次发布 WebChat：`webchat-config`、`webchat` 与 `webchat-cache-probe` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
-- [ ] 发布记录包含当前 Git SHA 与八个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
-- [ ] `npm run check:supabase-readiness` 确认八个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403` 或 `405`。
+- [ ] 发布记录包含当前 Git SHA 与十个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
+- [ ] `npm run check:supabase-readiness` 确认十个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
 - [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
