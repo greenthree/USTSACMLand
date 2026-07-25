@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { randomBytes, randomInt } from 'node:crypto'
+import { createHash, randomBytes, randomInt } from 'node:crypto'
 import { basename, dirname, resolve } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { parseLinkedProjectRef, parseProductionApiKeys } from './check-sync-platform-outage.mjs'
@@ -36,6 +36,14 @@ export const requiredSecurityChecks = [
   'imageBucketPrivate',
   'imageStorageAccountingConsistent',
   'imageUploadsPaused',
+  'imageObjectStoredPrivately',
+  'imageOwnerHistoryRestored',
+  'imageCrossMemberPreviewDenied',
+  'imageSignedPreviewWorks',
+  'imageMessageDeletionQueued',
+  'imageCleanupDeletedObject',
+  'imagePostCleanupAccountingConsistent',
+  'imageNoActiveResidueBeforeAccountDeletion',
   'trainingGoalOwnReadable',
   'adminCrossTrainingGoalDenied',
   'adminOwnTrainingGoalListIsolated',
@@ -210,6 +218,8 @@ export async function runProductionSecurityBoundaryCheck({
   const results = { browserServiceKeysAbsent: true }
   let cleanupFallbacks = 0
   let primaryError = null
+  let imageAttachmentId = null
+  let imageObjectKey = null
 
   const createFixture = async (label) => {
     const suffix = randomBytes(10).toString('hex')
@@ -283,6 +293,67 @@ export async function runProductionSecurityBoundaryCheck({
   const expectRpcDenied = async (client, name, args = undefined) => {
     const result = await client.rpc(name, args)
     return Boolean(result.error)
+  }
+
+  const emergencyCleanupImageFixture = async () => {
+    if (imageObjectKey) {
+      const removed = await admin.storage.from('webchat-images').remove([imageObjectKey])
+      if (removed.error) {
+        throw new Error('Controlled image fixture object cleanup failed.')
+      }
+    }
+    if (!imageAttachmentId) return
+    const cleanupOwner = crypto.randomUUID()
+    const cleanupSql = `
+begin;
+select 1 from private.webchat_global_quota_state where singleton for update;
+with target as (
+  select attachment.storage_allocation_bytes
+  from private.webchat_image_attachments as attachment
+  where attachment.id = ${quoteLiteral(imageAttachmentId)}::uuid
+  for update
+), transitioned as (
+  update private.webchat_image_attachments as attachment
+  set
+    status = 'deleted',
+    validation_owner_token = null,
+    validation_lease_expires_at = null,
+    deletion_requested_at = coalesce(attachment.deletion_requested_at, pg_catalog.clock_timestamp()),
+    deleted_at = coalesce(attachment.deleted_at, pg_catalog.clock_timestamp()),
+    storage_allocation_bytes = 0,
+    updated_at = pg_catalog.clock_timestamp()
+  where attachment.id = ${quoteLiteral(imageAttachmentId)}::uuid
+  returning attachment.id
+)
+update private.webchat_global_quota_state as state
+set
+  image_storage_allocated_bytes = greatest(
+    state.image_storage_allocated_bytes - coalesce((select target.storage_allocation_bytes from target), 0),
+    0
+  ),
+  image_uploads_paused = true,
+  updated_at = pg_catalog.clock_timestamp()
+where state.singleton;
+update private.webchat_image_deletion_outbox as queue
+set
+  claimed_by = coalesce(queue.claimed_by, ${quoteLiteral(cleanupOwner)}::uuid),
+  lease_expires_at = null,
+  completed_at = coalesce(queue.completed_at, pg_catalog.clock_timestamp()),
+  updated_at = pg_catalog.clock_timestamp()
+where queue.attachment_id = ${quoteLiteral(imageAttachmentId)}::uuid;
+commit;
+select
+  (select count(*)::integer from private.webchat_image_attachments where id = ${quoteLiteral(imageAttachmentId)}::uuid and status <> 'deleted') as active_attachment,
+  (select image_uploads_paused from private.webchat_global_quota_state where singleton) as uploads_paused;
+`
+    const cleanup = runSupabaseJson(
+      ['db', 'query', '--linked', cleanupSql.replace(/\s+/g, ' ').trim()],
+      execFile,
+    )?.rows?.[0]
+    requireCondition(
+      Number(cleanup?.active_attachment) === 0 && cleanup?.uploads_paused === true,
+      'Controlled image fixture database cleanup could not be confirmed.',
+    )
   }
 
   let firstAdminId = null
@@ -582,12 +653,204 @@ where id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')});
       Number(imageAccountingRow?.missing_ready_object_count) === 0
     results.imageUploadsPaused = imageAccountingRow?.uploads_paused === true
 
+    const webpBytes = Uint8Array.from(
+      Buffer.from(
+        'UklGRpoAAABXRUJQVlA4WAoAAAAQAAAAAgAAAQAAQUxQSAcAAAAA/////4D/AFZQOCBsAAAAUAQAnQEqAwACAADAEiWoAnS6AfgB+oFKA/ACtAP4BlAH6ADnVTqxTi77AAD+4pVX2n/ELe6//sAKEByNvhrYZf3f4s8O0kvut/8TWxOhwt/z8PDpnVd/+90//3gLi/CGOl3/pV5jHj/+mLAA',
+        'base64',
+      ),
+    )
+    const webpSha256 = createHash('sha256').update(webpBytes).digest('hex')
+    imageAttachmentId = crypto.randomUUID()
+    const imageValidationOwner = crypto.randomUUID()
+    const imageMessageId = `security-image-${randomBytes(8).toString('hex')}`
+    imageObjectKey =
+      `user/${firstAdminId}/conversation/${conversationId}` +
+      `/attachment/${imageAttachmentId}.webp`
+    const lifecycleSetupSql = `
+begin;
+update private.webchat_global_quota_state
+set image_uploads_paused = false, updated_at = pg_catalog.clock_timestamp()
+where singleton;
+select * from public.reserve_webchat_image_attachment(
+  ${quoteLiteral(firstAdminId)}::uuid,
+  ${quoteLiteral(conversationId)}::uuid,
+  ${quoteLiteral(imageAttachmentId)}::uuid,
+  'image/webp',
+  ${webpBytes.byteLength}
+);
+select * from public.start_webchat_image_validation(
+  ${quoteLiteral(firstAdminId)}::uuid,
+  ${quoteLiteral(imageAttachmentId)}::uuid,
+  ${quoteLiteral(imageValidationOwner)}::uuid,
+  600
+);
+update private.webchat_global_quota_state
+set image_uploads_paused = true, updated_at = pg_catalog.clock_timestamp()
+where singleton;
+commit;
+select
+  (select status from private.webchat_image_attachments where id = ${quoteLiteral(imageAttachmentId)}::uuid) as attachment_status,
+  (select image_uploads_paused from private.webchat_global_quota_state where singleton) as uploads_paused;
+`
+    const lifecycleSetup = runSupabaseJson(
+      ['db', 'query', '--linked', lifecycleSetupSql.replace(/\s+/g, ' ').trim()],
+      execFile,
+    )?.rows?.[0]
+    requireCondition(
+      lifecycleSetup?.attachment_status === 'validating' && lifecycleSetup?.uploads_paused === true,
+      'Controlled image fixture validation setup failed.',
+    )
+
+    const storedObject = await admin.storage
+      .from('webchat-images')
+      .upload(imageObjectKey, webpBytes, {
+        cacheControl: '0',
+        contentType: 'image/webp',
+        upsert: false,
+      })
+    requireCondition(!storedObject.error, 'Controlled image fixture Storage upload failed.')
+    const completedImage = await admin.rpc('complete_webchat_image_validation', {
+      requested_user_id: firstAdminId,
+      requested_attachment_id: imageAttachmentId,
+      requested_owner_token: imageValidationOwner,
+      requested_object_bytes: webpBytes.byteLength,
+      requested_width: 3,
+      requested_height: 2,
+      requested_sha256: webpSha256,
+    })
+    requireCondition(
+      !completedImage.error && completedImage.data?.[0]?.status === 'ready',
+      'Controlled image fixture validation completion failed.',
+    )
+
+    const anonymousObject = await anonymous.storage.from('webchat-images').download(imageObjectKey)
+    const memberObject = await firstAdmin.storage.from('webchat-images').download(imageObjectKey)
+    results.imageObjectStoredPrivately =
+      Boolean(anonymousObject.error) && Boolean(memberObject.error)
+
+    const imageUrn = `urn:ustsacm:webchat-attachment:${imageAttachmentId}`
+    const storedMessage = await firstAdmin.rpc('upsert_own_webchat_message', {
+      requested_conversation_id: conversationId,
+      requested_message_id: imageMessageId,
+      requested_parent_id: null,
+      requested_format: 'ai-sdk/v6',
+      requested_content: {
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'Controlled production image lifecycle audit' },
+          { type: 'file', mediaType: 'image/webp', url: imageUrn },
+        ],
+      },
+    })
+    requireCondition(!storedMessage.error, 'Controlled image history fixture could not be stored.')
+
+    const ownerImagePreview = await firstAdmin.rpc('read_own_webchat_image_attachment_preview', {
+      requested_conversation_id: conversationId,
+      requested_message_id: imageMessageId,
+      requested_attachment_id: imageAttachmentId,
+    })
+    const crossImagePreview = await member.rpc('read_own_webchat_image_attachment_preview', {
+      requested_conversation_id: conversationId,
+      requested_message_id: imageMessageId,
+      requested_attachment_id: imageAttachmentId,
+    })
+    const restoredHistory = await firstAdmin.rpc('load_own_webchat_messages', {
+      requested_conversation_id: conversationId,
+    })
+    results.imageOwnerHistoryRestored =
+      !ownerImagePreview.error &&
+      ownerImagePreview.data?.[0]?.id === imageAttachmentId &&
+      !restoredHistory.error &&
+      restoredHistory.data?.some(
+        (message) =>
+          message.id === imageMessageId && JSON.stringify(message.content).includes(imageUrn),
+      )
+    results.imageCrossMemberPreviewDenied =
+      !crossImagePreview.error && crossImagePreview.data?.length === 0
+
+    const signedPreview = await admin.storage
+      .from('webchat-images')
+      .createSignedUrl(imageObjectKey, 30)
+    requireCondition(
+      !signedPreview.error && signedPreview.data?.signedUrl,
+      'Controlled image fixture signed preview could not be created.',
+    )
+    const signedPreviewResponse = await fetchImpl(signedPreview.data.signedUrl, {
+      headers: { 'cache-control': 'no-store' },
+    })
+    const signedPreviewBytes = new Uint8Array(await signedPreviewResponse.arrayBuffer())
+    results.imageSignedPreviewWorks =
+      signedPreviewResponse.status === 200 &&
+      signedPreviewResponse.headers.get('content-type')?.split(';', 1)[0] === 'image/webp' &&
+      signedPreviewBytes.byteLength === webpBytes.byteLength &&
+      createHash('sha256').update(signedPreviewBytes).digest('hex') === webpSha256
+
+    const deletedMessage = await firstAdmin.rpc('delete_own_webchat_messages', {
+      requested_conversation_id: conversationId,
+      requested_message_ids: [imageMessageId],
+    })
+    requireCondition(
+      !deletedMessage.error && Number(deletedMessage.data) === 1,
+      'Controlled image history fixture could not be deleted.',
+    )
+    const queuedImageSql = `
+select
+  count(*) filter (where queue.completed_at is null)::integer as open_jobs,
+  count(*) filter (
+    where queue.attachment_id = ${quoteLiteral(imageAttachmentId)}::uuid
+      and queue.completed_at is null
+      and queue.dead_lettered_at is null
+      and queue.available_at <= pg_catalog.clock_timestamp()
+  )::integer as fixture_open_jobs
+from private.webchat_image_deletion_outbox as queue;
+`
+    const queuedImage = runSupabaseJson(
+      ['db', 'query', '--linked', queuedImageSql.replace(/\s+/g, ' ').trim()],
+      execFile,
+    )?.rows?.[0]
+    results.imageMessageDeletionQueued =
+      Number(queuedImage?.open_jobs) === 1 && Number(queuedImage?.fixture_open_jobs) === 1
+
+    const imageCleanupResponse = await fetchImpl(imageCleanupUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${environment.SERVICE_ROLE_KEY}`,
+        apikey: environment.SERVICE_ROLE_KEY,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ limit: 1 }),
+    })
+    const imageCleanupBody = await readJsonResponse(imageCleanupResponse)
+    const deletedObject = await admin.storage.from('webchat-images').download(imageObjectKey)
+    results.imageCleanupDeletedObject =
+      imageCleanupResponse.status === 200 &&
+      imageCleanupBody?.claimed === 1 &&
+      imageCleanupBody?.deleted === 1 &&
+      imageCleanupBody?.retried === 0 &&
+      imageCleanupBody?.deadLettered === 0 &&
+      imageCleanupBody?.deadLettersOutstanding === false &&
+      imageCleanupBody?.storageAccountingConsistent === true &&
+      Boolean(deletedObject.error)
+
+    const postCleanupAccounting = await admin.rpc('reconcile_webchat_image_storage_accounting')
+    const postCleanupAccountingRow = postCleanupAccounting.data?.[0]
+    results.imagePostCleanupAccountingConsistent =
+      !postCleanupAccounting.error &&
+      postCleanupAccountingRow?.accounting_consistent === true &&
+      postCleanupAccountingRow?.uploads_paused === true &&
+      Number(postCleanupAccountingRow?.recorded_allocation_bytes) === 0 &&
+      Number(postCleanupAccountingRow?.attachment_allocation_bytes) === 0 &&
+      Number(postCleanupAccountingRow?.stored_object_bytes) === 0 &&
+      Number(postCleanupAccountingRow?.orphan_object_count) === 0 &&
+      Number(postCleanupAccountingRow?.missing_ready_object_count) === 0
+
     const imageResidueSql = `
 select
   (select count(*)::integer
    from private.webchat_image_attachments as attachment
-   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
-    as fixture_image_attachments,
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')})
+     and attachment.status <> 'deleted')
+    as active_fixture_image_attachments,
   (select count(*)::integer
    from storage.objects as object
    where object.bucket_id = 'webchat-images'
@@ -596,16 +859,18 @@ select
   (select count(*)::integer
    from private.webchat_image_deletion_outbox as deletion
    join private.webchat_image_attachments as attachment on attachment.id = deletion.attachment_id
-   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
-    as fixture_image_deletion_queue;
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')})
+     and deletion.completed_at is null)
+    as open_fixture_image_deletion_queue;
 `
     const imageResidue = runSupabaseJson(
       ['db', 'query', '--linked', imageResidueSql.replace(/\s+/g, ' ').trim()],
       execFile,
     )?.rows?.[0]
-    results.zeroFixtureImageAttachments = Number(imageResidue?.fixture_image_attachments) === 0
-    results.zeroFixtureImageObjects = Number(imageResidue?.fixture_image_objects) === 0
-    results.zeroFixtureImageDeletionQueue = Number(imageResidue?.fixture_image_deletion_queue) === 0
+    results.imageNoActiveResidueBeforeAccountDeletion =
+      Number(imageResidue?.active_fixture_image_attachments) === 0 &&
+      Number(imageResidue?.fixture_image_objects) === 0 &&
+      Number(imageResidue?.open_fixture_image_deletion_queue) === 0
 
     const trainingGoalFixture = runSupabaseJson(
       [
@@ -738,6 +1003,31 @@ select
     results.zeroProfiles = profilesGone.every(Boolean)
     results.zeroSyncJobs = !jobs.error && (jobs.count ?? 0) === 0
     results.zeroAuditUuidReferences = !auditRefs.error && (auditRefs.count ?? 0) === 0
+    const finalImageResidueSql = `
+select
+  (select count(*)::integer
+   from private.webchat_image_attachments as attachment
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
+    as fixture_image_attachments,
+  (select count(*)::integer
+   from storage.objects as object
+   where object.bucket_id = 'webchat-images'
+     and (${fixtures.map((id) => `object.name like ${quoteLiteral(`user/${id}/%`)}`).join(' or ')}))
+    as fixture_image_objects,
+  (select count(*)::integer
+   from private.webchat_image_deletion_outbox as deletion
+   join private.webchat_image_attachments as attachment on attachment.id = deletion.attachment_id
+   where attachment.user_id in (${fixtures.map((id) => `${quoteLiteral(id)}::uuid`).join(', ')}))
+    as fixture_image_deletion_queue;
+`
+    const finalImageResidue = runSupabaseJson(
+      ['db', 'query', '--linked', finalImageResidueSql.replace(/\s+/g, ' ').trim()],
+      execFile,
+    )?.rows?.[0]
+    results.zeroFixtureImageAttachments = Number(finalImageResidue?.fixture_image_attachments) === 0
+    results.zeroFixtureImageObjects = Number(finalImageResidue?.fixture_image_objects) === 0
+    results.zeroFixtureImageDeletionQueue =
+      Number(finalImageResidue?.fixture_image_deletion_queue) === 0
     assertSecurityChecks(results)
   } catch (error) {
     primaryError = error
@@ -746,6 +1036,7 @@ select
     let cleanupError = null
     try {
       if (fixtures.length) {
+        await emergencyCleanupImageFixture()
         runSupabaseJson(
           [
             'db',

@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网、生产 Supabase、首管理员、十个 Edge Function 和 71 个 production migration 均已部署，前端由 GitHub Pages 发布并连接真实认证、榜单、管理与 AI 学习助手接口。每日一题、讨论、训练目标、刷题增量榜、私有 WebChat 历史、累计成员限额和个人数据导出已上线；六个平台的可恢复同步失败统一最多自动重试一次。Firecrawl 多 Key、QOJ 独立 Browser Sandbox、真实邮箱找回密码、加密备份与隔离恢复、注销恢复下限围栏和细粒度 GitHub 凭据均已完成生产验收。推荐计划因生产邮箱自动确认无法证明邮箱控制权而全局暂停，成员端关闭态不展示相关内容。WebChat 图片数据库、私有 Storage 与附件/清理函数安全基础已部署并保持全站暂停；前端入口、视觉模型和定时清理仍关闭，不能视为图片功能已上线。主分支 CI、secret scan、Pages build/deploy、生产榜单审计和 47 项可复跑生产安全检查持续作为发布门禁。
+> 当前状态：集训队官网、生产 Supabase、首管理员、十个 Edge Function 和 71 个 production migration 均已部署，前端由 GitHub Pages 发布并连接真实认证、榜单、管理与 AI 学习助手接口。每日一题、讨论、训练目标、刷题增量榜、私有 WebChat 历史、累计成员限额和个人数据导出已上线；六个平台的可恢复同步失败统一最多自动重试一次。Firecrawl 多 Key、QOJ 独立 Browser Sandbox、真实邮箱找回密码、加密备份与隔离恢复、注销恢复下限围栏和细粒度 GitHub 凭据均已完成生产验收。推荐计划因生产邮箱自动确认无法证明邮箱控制权而全局暂停，成员端关闭态不展示相关内容。WebChat 图片数据库、私有 Storage 与附件/清理函数安全基础已部署并保持全站暂停；真实私有对象的本人历史恢复、跨成员拒绝、短时签名预览、消息删除清理和注销零残留已通过生产烟测，但前端入口、视觉模型和定时清理仍关闭，不能视为图片功能已上线。主分支 CI、secret scan、Pages build/deploy、生产榜单审计和 55 项可复跑生产安全检查持续作为发布门禁。
 
 ## 已实现
 

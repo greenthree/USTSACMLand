@@ -49,11 +49,11 @@
 - [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
 - [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
-- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限、零残留和空队列 service-role 清理生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
+- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限、真实对象本人历史/跨成员拒绝/短时预览、消息删除清理、零残留和空队列 service-role 生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
 - [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
 - [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
-- [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 47 项真实身份、即时交接、跨成员隐私、图片默认关闭、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
+- [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 55 项真实身份、即时交接、跨成员隐私、图片默认关闭与真实对象生命周期、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - [ ] 私有 `webchat-images` Bucket 只允许 WebP、单对象上限 4 MiB；匿名请求和匿名 bearer 请求均不能读取，数据库 `ready`/`attached` 引用与对象归属一致。
