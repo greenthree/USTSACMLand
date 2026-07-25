@@ -34,6 +34,19 @@
 
 - 在 Actions Secrets 配置 `SUPABASE_ACCESS_TOKEN` 和独立的 `BACKUP_ENCRYPTION_PASSPHRASE`；前者仅授予项目维护所需权限，由固定版本 Supabase CLI 每次动态取得短期数据库登录，后者至少 32 个随机字符并由密码管理器保管。
 - 仓库变量 `BACKUP_RECOVERY_NOT_BEFORE` 初始可不存在，备份工作流会按 `1970-01-01T00:00:00.000Z` 处理；首次受控注销前必须确认 `delete-account` 能创建并回读该变量。
+
+### 注销恢复 Token 预检
+
+轮换 `DELETION_RECOVERY_GITHUB_TOKEN` 前，在本地安全环境运行：
+
+```powershell
+$env:DELETION_RECOVERY_GITHUB_TOKEN = '<只在当前进程设置，不要写入文件>'
+npm run check:recovery-token
+Remove-Item Env:DELETION_RECOVERY_GITHUB_TOKEN
+```
+
+脚本固定检查 `greenthree/USTSACMLand`，读取 `BACKUP_RECOVERY_NOT_BEFORE`，用完全相同的值执行一次 Variables 写入，再读取确认。它不会打印 Token 或恢复下限，也会拒绝明显的 classic/broad Token 格式。GitHub API 只能证明目标仓库和 Variables 读写路径可用，不能证明 GitHub 设置页中每一个细粒度权限选择；因此仍需人工确认该 PAT 只授权目标仓库的 Variables read/write，不授予 Contents、Administration 或其他仓库权限。
+
 - 为 `delete-account` 创建 fine-grained PAT，只选择本仓库并只授予 **Variables: Read and write**。Token 存入 Supabase Function Secret `DELETION_RECOVERY_GITHUB_TOKEN`，仓库名存入 `DELETION_RECOVERY_REPOSITORY`；不得授予 Contents 或 Administration。
 - `Encrypted database backup` Artifact 必须只包含 `.enc` 和 `.enc.sha256`。SQL、解密归档和密码不得出现在 Artifact 或日志。
 - 删除 GitHub 变量或撤销 Token 会让成员注销安全失败，这是预期的失败关闭；修复配置前不得绕过服务端注销入口直接删除 Auth 用户。
