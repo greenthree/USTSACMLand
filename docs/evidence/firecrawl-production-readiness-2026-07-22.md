@@ -91,3 +91,7 @@ Firecrawl/QOJ session or upstream availability problem rather than a credential 
 A successful QOJ login, invalid-credential classification, Cloudflare challenge, per-Key
 rotation/cooldown, and cleanup-event log verification are still required before the P0
 Firecrawl/QOJ items can be checked.
+
+## 2026-07-24 后续结果
+
+上述首个 P0 的剩余项已经在后续受控验证中完成：数据库两把 Key 均完成额度与健康检查，轮换/冷却和牛客回退通过，QOJ 登录提交导航竞态修复后在 `sync-member` v50 首次 attempt 成功，且函数日志确认会话清理成功。完整证据见 [`firecrawl-qoj-production-smoke-2026-07-24.md`](./firecrawl-qoj-production-smoke-2026-07-24.md)。错误密码、Cloudflare challenge 与 Firecrawl `429` 仍属于下一条独立 P0。

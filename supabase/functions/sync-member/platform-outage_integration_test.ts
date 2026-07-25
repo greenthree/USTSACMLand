@@ -41,7 +41,8 @@ function requiredFixtureEnv(
     | 'SYNC_OUTAGE_PHASE'
     | 'SYNC_OUTAGE_PROFILE_ID'
     | 'SYNC_OUTAGE_SUFFIX'
-    | 'SYNC_OUTAGE_OBSERVED_AT',
+    | 'SYNC_OUTAGE_OBSERVED_AT'
+    | 'SYNC_OUTAGE_PRECLAIMED_JOB_ID',
 ): string {
   const value = Deno.env.get(name)
   if (!value)
@@ -107,6 +108,7 @@ Deno.test({
     const phase = requiredFixtureEnv('SYNC_OUTAGE_PHASE')
     const profileId = requiredFixtureEnv('SYNC_OUTAGE_PROFILE_ID')
     const observedAt = requiredFixtureEnv('SYNC_OUTAGE_OBSERVED_AT')
+    const preclaimedJobId = Deno.env.get('SYNC_OUTAGE_PRECLAIMED_JOB_ID')?.trim() || null
     if (phase !== 'initial' && phase !== 'retry')
       throw new Error(`Unsupported outage phase: ${phase}`)
 
@@ -230,25 +232,37 @@ Deno.test({
     )) as FixtureJob[]
     const failedJob = firstJobs.find((job) => job.platform === 'codeforces')
     ok(failedJob)
-    const claimed = (await dataOrThrow(
-      'Could not claim due retry',
-      serviceClient.rpc('claim_due_sync_jobs', {
-        batch_limit: 12,
-        stale_timeout: '15 minutes',
-      }),
-    )) as Array<{
-      job_id: number
-      profile_id: string
-      platform: PlatformId
-      attempt_count: number
-      max_attempts: number
-    }>
-    const retry = claimed.find((job) => job.job_id === failedJob.id)
-    ok(retry)
-    deepStrictEqual(
-      { attempt: retry.attempt_count, maxAttempts: retry.max_attempts },
-      { attempt: 2, maxAttempts: 2 },
-    )
+    if (preclaimedJobId !== null) {
+      equal(String(failedJob.id), preclaimedJobId)
+      deepStrictEqual(
+        {
+          status: failedJob.status,
+          attempt: failedJob.attempt_count,
+          maxAttempts: failedJob.max_attempts,
+        },
+        { status: 'running', attempt: 2, maxAttempts: 2 },
+      )
+    } else {
+      const claimed = (await dataOrThrow(
+        'Could not claim due retry',
+        serviceClient.rpc('claim_due_sync_jobs', {
+          batch_limit: 12,
+          stale_timeout: '15 minutes',
+        }),
+      )) as Array<{
+        job_id: number
+        profile_id: string
+        platform: PlatformId
+        attempt_count: number
+        max_attempts: number
+      }>
+      const retry = claimed.find((job) => job.job_id === failedJob.id)
+      ok(retry)
+      deepStrictEqual(
+        { attempt: retry.attempt_count, maxAttempts: retry.max_attempts },
+        { attempt: 2, maxAttempts: 2 },
+      )
+    }
 
     const secondRound = await invokeMemberSync(handler, serviceRoleKey, {
       memberId: profileId,
@@ -260,17 +274,19 @@ Deno.test({
       { platform: 'codeforces', requested: 1, succeeded: 0, queued: 0, failed: 1 },
     ])
 
-    const thirdClaim = (await dataOrThrow(
-      'Could not verify that no third retry is claimable',
-      serviceClient.rpc('claim_due_sync_jobs', {
-        batch_limit: 12,
-        stale_timeout: '15 minutes',
-      }),
-    )) as Array<{ job_id: number; profile_id: string }>
-    equal(
-      thirdClaim.some((job) => job.profile_id === profileId),
-      false,
-    )
+    if (preclaimedJobId === null) {
+      const thirdClaim = (await dataOrThrow(
+        'Could not verify that no third retry is claimable',
+        serviceClient.rpc('claim_due_sync_jobs', {
+          batch_limit: 12,
+          stale_timeout: '15 minutes',
+        }),
+      )) as Array<{ job_id: number; profile_id: string }>
+      equal(
+        thirdClaim.some((job) => job.profile_id === profileId),
+        false,
+      )
+    }
     equal(calls.get('codeforces'), 1)
     equal(calls.get('atcoder') ?? 0, 0)
 

@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-07-23（Asia/Shanghai）
+最后更新：2026-07-24（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -63,10 +63,10 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
   - 第二次仍失败时写入最终失败状态，并在后台同步中心与数据源健康页展示；保留最后成功统计，不得写成 0。
   - 两次尝试必须复用同一逻辑任务身份并保持幂等，旧 worker 不能覆盖新 attempt。
   - 本项只适用于平台数据同步；WebChat、中转站兼容性检查和其他付费 AI 请求继续禁止自动重试。
-- [ ] 使用已录入的生产 Firecrawl Key 完成额度检查、启用状态、轮换/冷却以及牛客和 QOJ 真实烟测。维护环境中的单个真实 Key 已通过额度检查；生产 QOJ 单平台烟测已严格执行两次 attempt 后终止，分别观察到 Firecrawl session `404` 与登录页导航失败，最后成功题数和时间均保留。数据库 Key 池逐 Key 检查、轮换/冷却、牛客回退与一次成功 QOJ 登录仍待完成，证据见 `docs/evidence/firecrawl-production-readiness-2026-07-22.md`。
-- [ ] 完成 QOJ 密码错误、Cloudflare challenge、Firecrawl 限流和会话清理的受控生产演练。会话清理成功/失败事件已随 `sync-member` v47 部署，并只用本站内部 `syncRunId` 关联，不记录 Firecrawl Job ID、账号或响应正文；托管服务 create/interact/delete 成功响应契约、固定样本与生产失败重试边界均已验证，仍缺日志侧清理确认、错误密码、challenge 和 `429` 生产复核。
-- [ ] 完成单平台停机演练，确认其他平台继续更新、失败平台保留最后成功值且只重试一次。
-  - 本地空库组合演练已接入 `npm run check:sync-platform-outage`：使用假适配器、不访问第三方网络，覆盖首次排队、到期领取、第二次最终失败、统计/快照保留和公开投影；生产停机演练仍待安排窗口后执行。
+- [x] 使用已录入的生产 Firecrawl Key 完成额度检查、启用状态、轮换/冷却以及牛客和 QOJ 真实烟测。两把数据库 Key 均已配置、启用、逐一检查为健康且有可用额度，受控冷却/轮换与牛客 Firecrawl 回退已验证；`sync-member` v50 的 QOJ 生产烟测在首次 attempt 成功，写入有效题数且没有安排重试，函数日志确认临时会话清理成功。证据见 `docs/evidence/firecrawl-production-readiness-2026-07-22.md` 与 `docs/evidence/firecrawl-qoj-production-smoke-2026-07-24.md`。
+- [x] 完成 QOJ 密码错误、反爬 Challenge 页面分类、Firecrawl 限流和会话清理的受控生产演练。真实 QOJ 成功烟测与错误密码演练均确认会话清理成功；错误密码被归类为不可重试的 `auth_expired`，不会安排第二次 attempt。Firecrawl 官方没有 Challenge/`429` 专用测试模式；已用严格限定为 3 次会话创建的受控检查观察到 `200/200/429`，并立即成功清理前两次会话，没有访问 QOJ 或使用请求洪泛。Challenge 检查使用真实 Browser Sandbox 执行受控合成页面，由生产解析器归类为可重试的 `source_unavailable`，随后清理成功；它验证的是页面识别、错误分类和清理路径，不宣称人为触发了 QOJ 的真实 Cloudflare 防护。清理事件只用本站内部 `syncRunId` 关联，不记录 Firecrawl 会话 ID、账号或响应正文。证据见 `docs/evidence/firecrawl-qoj-production-smoke-2026-07-24.md`。
+- [x] 完成单平台停机演练，确认其他平台继续更新、失败平台保留最后成功值且只重试一次。
+  - 本地空库与受控生产组合演练分别通过 `npm run check:sync-platform-outage` 和 `npm run check:sync-platform-outage:production` 完成；生产模式不暂停 cron、不调用全局领取 RPC，只原子领取随机夹具的唯一 Codeforces 重试任务，并使用不访问第三方的合成 Codeforces 故障与 AtCoder 成功适配器，覆盖首次排队、第二次最终失败、无第三次 attempt、统计/快照保留、公开投影、响应丢失清理对账和 cron 持续可用。2026-07-25 安全复核版已再次通过，证据见 `docs/evidence/sync-platform-outage-production-2026-07-24.md`。
 
 ### P0：账号与权限收尾
 

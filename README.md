@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 69 个 production migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论、训练目标和刷题增量榜已上线；仓库定义 48 个 pgTAP 文件和 1205 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产真实 Key 已录入 Vault；仍需完成额度、轮换/冷却和牛客/QOJ 真实烟测。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。推荐计划基础、全局开关、“邮箱确认后计奖”和重开安全闸门 migration 已部署；旧流程的真实注册、100 万 Token 到账、奖励保留和临时账号注销烟测已完成。生产 Auth 当前自动确认邮箱，不能证明邮箱控制权，因此推荐计划已全局暂停；成员端关闭态不展示推荐计划，数据库安全闸门锁死未经受控解锁的重新开启；重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。WebChat 图片输入代码和数据库测试保留在仓库中，但 `202607230001`、`202607230004` migration 与三层生产开关保持关闭，达到 ROADMAP 的全部启用门槛前不得部署。生产自助注销已成功走通恢复下限围栏，并通过真实 Storage `409` 与清理后重试烟测；当前恢复凭据权限仍偏宽，需要轮换为只授权目标仓库 Variables 读写的细粒度 Token。
+> 当前状态：集训队官网首页、生产 Supabase、首管理员、八个 Edge Function 和 69 个 production migration 均已部署，前端已连接真实认证与管理接口并由 GitHub Pages 发布；登录成员可在账号页导出仅属于自己的版本化 JSON 数据。每日一题、完成记录、成员讨论、训练目标和刷题增量榜已上线；仓库定义 48 个 pgTAP 文件和 1205 项断言。主分支 CI、secret scan、Pages build/deploy 与生产榜单审计持续作为发布门禁。六个平台的可恢复同步失败现在统一最多自动重试一次，生产状态机验收确认第二次失败终止且不会产生第三次 attempt。Firecrawl 多 Key 管理、逐 Key 额度监控与 QOJ 一次性 operation claim 已部署，生产两把真实 Key 的额度、启停、轮换/冷却、牛客回退和 QOJ 有效登录均已完成受控生产烟测；QOJ 已迁移到独立 Browser Sandbox，每个 attempt 创建并清理临时会话。真实邮箱找回密码已完成生产邮件、回调、重置和新密码登录验证。WebChat 中转站协议、当前模型系统提示词和受控生产对话已通过，服务端与数据库请求开关已对显式授权账号开放；成员请求与 Token 限额现为保留历史用量的累计总限额，全站预算仍按北京时间每日重置。登录且经后台授权的账号可以从导航进入 AI 学习助手；刷新恢复、私有历史会话、“思考中”和稳定提示词缓存路由键已随 PR #67 发布。生产缓存探针曾在第二次相同长前缀请求中命中 1792 个输入 Token，后续渠道未命中差异已增加脱敏请求级诊断并等待中转站渠道修复。2026-07-19 已完成真实加密备份的隔离恢复演练：7 项行数、4 类孤儿、Auth hooks、密码登录、RLS、匿名边界和受控注销全部通过，数据库自动化恢复 RTO 基线约 3 分钟。推荐计划基础、全局开关、“邮箱确认后计奖”和重开安全闸门 migration 已部署；旧流程的真实注册、100 万 Token 到账、奖励保留和临时账号注销烟测已完成。生产 Auth 当前自动确认邮箱，不能证明邮箱控制权，因此推荐计划已全局暂停；成员端关闭态不展示推荐计划，数据库安全闸门锁死未经受控解锁的重新开启；重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。WebChat 图片输入代码和数据库测试保留在仓库中，但 `202607230001`、`202607230004` migration 与三层生产开关保持关闭，达到 ROADMAP 的全部启用门槛前不得部署。生产自助注销已成功走通恢复下限围栏，并通过真实 Storage `409` 与清理后重试烟测；当前恢复凭据权限仍偏宽，需要轮换为只授权目标仓库 Variables 读写的细粒度 Token。
 
 ## 已实现
 
@@ -71,18 +71,18 @@ flowchart LR
 
 ## 数据源状态
 
-| 平台       | 标识         | 指标                           | 当前实现                                                                                                                                                       |
-| ---------- | ------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，跨页按稳定题目标识去重；后续页失败、页数截断或响应结构漂移时拒绝部分统计；已做真实 smoke test                     |
-| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                                                  |
-| AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号，并拒绝畸形或乱序 Rating 历史        |
-| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册后按“姓名 + 苏州科技大学”唯一匹配；使用数据库共享缓存、刷新租约与 ETag/Last-Modified 条件请求，同校同名时拒绝绑定                         |
-| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                          |
-| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 每次请求自动登录并读取去重 Accepted problems；失败时记录登录/主页阶段、HTTP 状态或导航异常及 Firecrawl Job ID；可恢复失败进入一次持久队列重试 |
+| 平台       | 标识         | 指标                           | 当前实现                                                                                                                                                            |
+| ---------- | ------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codeforces | Handle       | 当前/最高 Rating、唯一 AC 题数 | 已实现官方 `user.info` 和分页 `user.status`，跨页按稳定题目标识去重；后续页失败、页数截断或响应结构漂移时拒绝部分统计；已做真实 smoke test                          |
+| 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                                                       |
+| AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号，并拒绝畸形或乱序 Rating 历史             |
+| XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册后按“姓名 + 苏州科技大学”唯一匹配；使用数据库共享缓存、刷新租约与 ETag/Last-Modified 条件请求，同校同名时拒绝绑定                              |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                               |
+| QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 独立临时浏览器每次请求自动登录并读取去重 Accepted problems；失败只记录脱敏阶段、HTTP 状态或错误类别，不记录会话 ID；可恢复失败进入一次持久队列重试 |
 
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
-QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，先以 `maxAge: 0` 创建全新 Firecrawl scrape 会话，再通过 `/interact` 登录并在同一浏览器中打开目标主页，最后主动结束会话；请求不使用持久 profile，也不读写 Firecrawl 页面缓存。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为 Firecrawl interact 作业请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
+QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，通过 `POST /v2/interact` 创建全新 Firecrawl Browser Sandbox，再通过 `POST /v2/interact/{sessionId}/execute` 登录并在同一浏览器中打开目标主页，最后主动删除会话。创建请求显式设置 `recordSession: false`、`streamWebView: false`，不使用持久 profile，也不保存页面缓存；浏览器异常只归类为 `timeout` 或 `navigation_error`，并按 `login_navigation`、`login_selector`、`login_submit`、`profile_navigation` 等脱敏阶段定位。登录提交后的页面执行上下文切换只允许在同一次执行中重试 DOM 观察，不会再次提交表单或创建额外上游请求。不得把目标主页 URL、成员账号、会话 ID 或原始错误正文写入统计记录。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为单次浏览器执行请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
 
 Firecrawl API Key 可在后台“数据源健康”页管理。每个 Key 的明文只写入 Supabase Vault，浏览器仅接收名称、启用状态、优先级、健康度、剩余额度和时间；新增或轮换后的 Key 固定停用，必须由管理员执行一次无重试额度检查后才能启用，检查结果超过 60 分钟或额度为零时不能重新启用。运行时先排除认证失败、冷却中和零额度 Key，再按较小优先级选择，并在同优先级中选择最久未使用的 Key；QOJ 每个同步操作还会写入一次性数据库 claim，同一 operation ID 无法再次领取或切换到第二个 Key。牛客只有在直接请求命中允许回退的 WAF/可用性错误后才延迟领取 Key。数据库尚无 Key 记录时兼容旧 `FIRECRAWL_API_KEY` Function Secret；一旦建立数据库 Key 池，数据库即成为权威来源，即使全部停用也不会偷偷回退旧 Secret。
 
@@ -273,7 +273,7 @@ AI 学习助手会把成员提交的问题、当前会话的可见上下文和�
 
 ### QOJ 自动登录
 
-`QOJ_SERVICE_USERNAME` 和 `QOJ_SERVICE_PASSWORD` 只配置在 Supabase Function Secrets。适配器每次创建不使用缓存的临时 Firecrawl 浏览器，通过 `/interact` 填写 QOJ 登录表单、确认 `Logout` 登录态、读取目标用户主页，并在 `finally` 中请求结束会话。不要把真实值写入 `.env.example`、命令历史、CI 日志或截图。
+`QOJ_SERVICE_USERNAME` 和 `QOJ_SERVICE_PASSWORD` 只配置在 Supabase Function Secrets。适配器每次创建不录制、不开直播且不使用持久 profile 的临时 Firecrawl Browser Sandbox，通过 `/execute` 填写 QOJ 登录表单、确认 `Logout` 登录态、读取目标用户主页，并在 `finally` 中请求删除会话。不要把真实值写入 `.env.example`、命令历史、CI 日志或截图。
 
 在受控环境中注入三项 Secret 后，可使用任一公开 QOJ 用户名做完整登录健康检查：
 

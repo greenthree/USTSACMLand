@@ -1,13 +1,9 @@
 import { fetchJson, type FetchWithRetryOptions, HttpError, toAdapterHttpError } from '../http.ts'
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
-interface FirecrawlScrapeResponse {
+interface FirecrawlSessionResponse {
   success?: unknown
-  data?: {
-    metadata?: {
-      scrapeId?: unknown
-    }
-  }
+  id?: unknown
 }
 
 interface FirecrawlInteractResponse {
@@ -29,6 +25,7 @@ interface FirecrawlQojValue {
   rateLimited?: unknown
   fetchFailed?: unknown
   failureStage?: unknown
+  loginSubmitStep?: unknown
   responseStatus?: unknown
   navigationError?: unknown
   acceptedCount?: unknown
@@ -50,11 +47,12 @@ type QojJsonFetcher = (input: string, options: FetchWithRetryOptions) => Promise
 
 const ORIGIN = 'https://qoj.ac'
 const FIRECRAWL_DEFAULT_URL = 'https://api.firecrawl.dev'
+const FIRECRAWL_SESSION_TTL_SECONDS = 120
 const QOJ_USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,50}$/
 const QOJ_SERVICE_USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,25}$/
 const QOJ_SERVICE_PASSWORD_PATTERN = /^[!-~]{6,20}$/
 const QOJ_RESULT_PREFIX = 'QOJ_RESULT:'
-const FIRECRAWL_JOB_ID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
+const FIRECRAWL_SESSION_ID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 
 function qojInteractCode(
   accountId: string,
@@ -66,6 +64,7 @@ function qojInteractCode(
     responseStatus = null,
     failureStage = null,
     navigationError = null,
+    loginSubmitStep = null,
   ) => {
     const pathname = new URL(page.url()).pathname.replace(/\/+$/, '') || '/';
     const profileMatch = pathname.match(/^\/user\/profile\/([^/]+)$/);
@@ -117,28 +116,63 @@ function qojInteractCode(
         && responseStatus !== 404
         && responseStatus !== 429,
       failureStage,
+      loginSubmitStep,
       responseStatus,
       navigationError,
       acceptedCount,
     };
   };
 
+  let loginFailureStage = 'login_navigation';
+  let loginSubmitStep = null;
+  let loginResponseStatus = null;
   try {
-    await page.locator('#form-login #input-username').waitFor({ state: 'visible', timeout: 15_000 });
-    await page.locator('#form-login #input-username').fill(${JSON.stringify(serviceUsername)});
-    await page.locator('#form-login #input-password').fill(${JSON.stringify(servicePassword)});
-    await page.locator('#form-login #button-submit').click();
+    const loginResponse = await page.goto(${JSON.stringify(`${ORIGIN}/login?locale=en`)}, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+    loginResponseStatus = loginResponse ? loginResponse.status() : null;
 
+    loginFailureStage = 'login_selector';
+    const usernameInput = page.locator('#form-login #input-username');
+    const passwordInput = page.locator('#form-login #input-password');
+    const submitButton = page.locator('#form-login #button-submit');
+    await usernameInput.waitFor({ state: 'visible', timeout: 15_000 });
+    await passwordInput.waitFor({ state: 'visible', timeout: 15_000 });
+    await submitButton.waitFor({ state: 'visible', timeout: 15_000 });
+
+    loginFailureStage = 'login_submit';
+    loginSubmitStep = 'fill_username';
+    await usernameInput.fill(${JSON.stringify(serviceUsername)});
+    loginSubmitStep = 'fill_password';
+    await passwordInput.fill(${JSON.stringify(servicePassword)});
+    loginSubmitStep = 'click_submit';
+    await submitButton.click();
+
+    loginSubmitStep = 'observe_result';
     const loginDeadline = Date.now() + 15_000;
-    let loginState = await inspect();
-    while (
-      !loginState.challenge
-      && !loginState.loginFailure
-      && (loginState.isLogin || !loginState.hasLogout)
-      && Date.now() < loginDeadline
-    ) {
+    let loginState = null;
+    while (Date.now() < loginDeadline) {
+      try {
+        loginState = await inspect(null, loginFailureStage, null, loginSubmitStep);
+      } catch {
+        // A successful form submission can replace the execution context.
+        // Retry only this DOM observation while navigation settles; this does
+        // not submit the form or create another upstream request.
+        await page.waitForTimeout(250);
+        continue;
+      }
+      if (
+        loginState.challenge
+        || loginState.loginFailure
+        || (!loginState.isLogin && loginState.hasLogout)
+      ) {
+        break;
+      }
       await page.waitForTimeout(250);
-      loginState = await inspect();
+    }
+    if (!loginState) {
+      throw new Error('QOJ login result could not be observed');
     }
 
     if (loginState.challenge || loginState.isLogin || !loginState.hasLogout) {
@@ -150,12 +184,16 @@ function qojInteractCode(
           timeout: 30_000,
         });
         await page.waitForTimeout(500);
-        const profileState = await inspect(response ? response.status() : null);
+        const profileState = await inspect(
+          response ? response.status() : null,
+          'profile_navigation',
+        );
         process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify(profileState) + '\n');
       } catch (error) {
-        const navigationError = error instanceof Error
-          ? (error.name + ': ' + error.message).slice(0, 500)
-          : 'Unknown navigation error';
+        const navigationError = error && typeof error === 'object'
+          && typeof error.name === 'string' && /timeout/i.test(error.name)
+          ? 'timeout'
+          : 'navigation_error';
         process.stdout.write(${JSON.stringify(QOJ_RESULT_PREFIX)} + JSON.stringify({
           ...loginState,
           rateLimited: false,
@@ -167,12 +205,18 @@ function qojInteractCode(
       }
     }
   } catch (error) {
-    const navigationError = error instanceof Error
-      ? (error.name + ': ' + error.message).slice(0, 500)
-      : 'Unknown login-form error';
+    const navigationError = error && typeof error === 'object'
+      && typeof error.name === 'string' && /timeout/i.test(error.name)
+      ? 'timeout'
+      : 'navigation_error';
     let loginFormState;
     try {
-      const inspectedLoginState = await inspect(null, 'login_form', navigationError);
+      const inspectedLoginState = await inspect(
+        loginResponseStatus,
+        loginFailureStage,
+        navigationError,
+        loginSubmitStep,
+      );
       loginFormState = inspectedLoginState.challenge || inspectedLoginState.loginFailure
         ? inspectedLoginState
         : { ...inspectedLoginState, fetchFailed: true };
@@ -187,8 +231,9 @@ function qojInteractCode(
         challenge: false,
         rateLimited: false,
         fetchFailed: true,
-        failureStage: 'login_form',
-        responseStatus: null,
+        failureStage: loginFailureStage,
+        loginSubmitStep,
+        responseStatus: loginResponseStatus,
         navigationError,
         acceptedCount: null,
       };
@@ -203,15 +248,14 @@ function parseFirecrawlSessionId(payload: unknown): string {
     throw new HttpError('Firecrawl response is not an object', 'schema_changed', false)
   }
 
-  const response = payload as FirecrawlScrapeResponse
-  if (response.success !== true || !response.data) {
+  const response = payload as FirecrawlSessionResponse
+  if (response.success !== true) {
     throw new HttpError('Firecrawl session could not be created', 'source_unavailable', true)
   }
-  const jobId = response.data.metadata?.scrapeId
-  if (typeof jobId !== 'string' || !FIRECRAWL_JOB_ID_PATTERN.test(jobId)) {
+  if (typeof response.id !== 'string' || !FIRECRAWL_SESSION_ID_PATTERN.test(response.id)) {
     throw new HttpError('Firecrawl session id is missing', 'schema_changed', false)
   }
-  return jobId
+  return response.id
 }
 
 function assertFirecrawlSessionCleanupSucceeded(payload: unknown): void {
@@ -292,7 +336,18 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
     'account_disabled',
     'rejected',
   ])
-  const allowedFailureStages = new Set(['login_form', 'profile_navigation'])
+  const allowedFailureStages = new Set([
+    'login_navigation',
+    'login_selector',
+    'login_submit',
+    'profile_navigation',
+  ])
+  const allowedLoginSubmitSteps = new Set([
+    'fill_username',
+    'fill_password',
+    'click_submit',
+    'observe_result',
+  ])
   if (
     typeof value.pathname !== 'string' ||
     typeof value.isLogin !== 'boolean' ||
@@ -305,17 +360,41 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
     typeof value.fetchFailed !== 'boolean' ||
     (value.failureStage !== null &&
       (typeof value.failureStage !== 'string' || !allowedFailureStages.has(value.failureStage))) ||
+    (value.loginSubmitStep !== null &&
+      (typeof value.loginSubmitStep !== 'string' ||
+        !allowedLoginSubmitSteps.has(value.loginSubmitStep))) ||
     (value.responseStatus !== null && typeof value.responseStatus !== 'number') ||
     (value.navigationError !== null && typeof value.navigationError !== 'string')
   ) {
     throw new HttpError('Firecrawl returned invalid QOJ page state', 'schema_changed', false)
   }
 
+  const pageDiagnostics = {
+    failureStage: value.failureStage,
+    loginSubmitStep: value.loginSubmitStep,
+    responseStatus: value.responseStatus,
+    navigationError: value.navigationError,
+  }
+
   if (value.challenge) {
-    throw new HttpError('QOJ returned an anti-bot challenge page', 'source_unavailable', true)
+    throw new HttpError(
+      'QOJ returned an anti-bot challenge page',
+      'source_unavailable',
+      true,
+      undefined,
+      undefined,
+      pageDiagnostics,
+    )
   }
   if (value.rateLimited) {
-    throw new HttpError('QOJ rate limit was reached', 'rate_limited', true)
+    throw new HttpError(
+      'QOJ rate limit was reached',
+      'rate_limited',
+      true,
+      429,
+      undefined,
+      pageDiagnostics,
+    )
   }
   if (value.fetchFailed) {
     const navigationError =
@@ -324,11 +403,17 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
       typeof value.responseStatus === 'number' ? value.responseStatus : undefined
     const timedOut = navigationError !== null && /timeout/i.test(navigationError)
     const message =
-      value.failureStage === 'login_form'
-        ? `QOJ login form could not be loaded${navigationError ? `: ${navigationError}` : ''}`
-        : responseStatus !== undefined
-          ? `QOJ profile returned HTTP ${responseStatus}`
-          : `QOJ profile navigation failed${navigationError ? `: ${navigationError}` : ''}`
+      value.failureStage === 'login_navigation'
+        ? responseStatus !== undefined
+          ? `QOJ login page returned HTTP ${responseStatus}`
+          : `QOJ login page navigation failed${navigationError ? `: ${navigationError}` : ''}`
+        : value.failureStage === 'login_selector'
+          ? `QOJ login form controls were unavailable${navigationError ? `: ${navigationError}` : ''}`
+          : value.failureStage === 'login_submit'
+            ? `QOJ login form could not be submitted${navigationError ? `: ${navigationError}` : ''}`
+            : responseStatus !== undefined
+              ? `QOJ profile returned HTTP ${responseStatus}`
+              : `QOJ profile navigation failed${navigationError ? `: ${navigationError}` : ''}`
     throw new HttpError(
       message,
       timedOut ? 'timeout' : 'source_unavailable',
@@ -337,43 +422,108 @@ export function parseFirecrawlQojAcceptedCount(payload: unknown, accountId: stri
       undefined,
       {
         failureStage: value.failureStage,
+        loginSubmitStep: value.loginSubmitStep,
         responseStatus: responseStatus ?? null,
         navigationError,
       },
     )
   }
   if (value.isLogin || value.pathname === '/login' || !value.hasLogout) {
+    const loginFailureDetails = {
+      failureStage: 'login_submit',
+      loginSubmitStep:
+        typeof value.loginSubmitStep === 'string' ? value.loginSubmitStep : 'observe_result',
+    }
     if (value.loginFailure === 'session_expired') {
-      throw new HttpError('QOJ login page session expired', 'source_unavailable', true)
+      throw new HttpError(
+        'QOJ login page session expired',
+        'source_unavailable',
+        true,
+        undefined,
+        undefined,
+        loginFailureDetails,
+      )
     }
     if (value.loginFailure === 'security_rejected') {
-      throw new HttpError('QOJ rejected the automated login request', 'source_unavailable', false)
+      throw new HttpError(
+        'QOJ rejected the automated login request',
+        'source_unavailable',
+        false,
+        undefined,
+        undefined,
+        loginFailureDetails,
+      )
     }
     if (value.loginFailure === 'two_factor') {
       throw new HttpError(
         'QOJ service account requires two-factor authentication',
         'auth_required',
         false,
+        undefined,
+        undefined,
+        loginFailureDetails,
       )
     }
     if (value.loginFailure === 'account_disabled') {
-      throw new HttpError('QOJ service account is disabled', 'auth_required', false)
+      throw new HttpError(
+        'QOJ service account is disabled',
+        'auth_required',
+        false,
+        undefined,
+        undefined,
+        loginFailureDetails,
+      )
     }
     if (value.loginFailure === 'credentials_rejected') {
-      throw new HttpError('QOJ rejected the service-account credentials', 'auth_expired', false)
+      throw new HttpError(
+        'QOJ rejected the service-account credentials',
+        'auth_expired',
+        false,
+        undefined,
+        undefined,
+        loginFailureDetails,
+      )
     }
-    throw new HttpError('QOJ service-account login failed', 'auth_expired', false)
+    throw new HttpError(
+      'QOJ service-account login failed',
+      'auth_expired',
+      false,
+      undefined,
+      undefined,
+      loginFailureDetails,
+    )
   }
 
   if (value.notFound) {
-    throw new HttpError('QOJ user was not found', 'not_found', false)
+    throw new HttpError(
+      'QOJ user was not found',
+      'not_found',
+      false,
+      404,
+      undefined,
+      pageDiagnostics,
+    )
   }
   const expectedPath = `/user/profile/${encodeURIComponent(accountId)}`
   if (value.pathname !== expectedPath || value.profileUsername !== accountId) {
-    throw new HttpError('Firecrawl returned the wrong QOJ profile', 'schema_changed', false)
+    throw new HttpError(
+      'Firecrawl returned the wrong QOJ profile',
+      'schema_changed',
+      false,
+      undefined,
+      undefined,
+      pageDiagnostics,
+    )
   }
   if (!Number.isSafeInteger(value.acceptedCount) || (value.acceptedCount as number) < 0) {
-    throw new HttpError('QOJ accepted problem count is missing', 'schema_changed', false)
+    throw new HttpError(
+      'QOJ accepted problem count is missing',
+      'schema_changed',
+      false,
+      undefined,
+      undefined,
+      pageDiagnostics,
+    )
   }
   return value.acceptedCount as number
 }
@@ -398,7 +548,7 @@ export function createFirecrawlQojProvider(
     throw new HttpError('QOJ service-account password is not configured', 'auth_required', false)
   }
 
-  const endpoint = `${apiUrl.replace(/\/+$/, '')}/v2/scrape`
+  const endpoint = `${apiUrl.replace(/\/+$/, '')}/v2/interact`
   const requestHeaders = {
     accept: 'application/json',
     authorization: `Bearer ${normalizedApiKey}`,
@@ -413,46 +563,53 @@ export function createFirecrawlQojProvider(
   }
   return {
     async fetchAcceptedCount(accountId, signal) {
-      let jobId: string | null = null
+      let sessionId: string | null = null
+      let transportStage = 'session_create'
       try {
         const sessionPayload = await fetcher(endpoint, {
           method: 'POST',
           signal,
-          timeoutMs: 45_000,
+          timeoutMs: 20_000,
           retries: 0,
           retryBaseMs: 1_500,
           headers: requestHeaders,
           body: JSON.stringify({
-            url: `${ORIGIN}/login?locale=en`,
-            formats: ['html'],
-            onlyMainContent: false,
-            timeout: 35_000,
-            proxy: 'auto',
-            maxAge: 0,
-            storeInCache: false,
+            ttl: FIRECRAWL_SESSION_TTL_SECONDS,
+            activityTtl: FIRECRAWL_SESSION_TTL_SECONDS,
+            streamWebView: false,
+            recordSession: false,
           }),
         })
-        jobId = parseFirecrawlSessionId(sessionPayload)
+        sessionId = parseFirecrawlSessionId(sessionPayload)
+        transportStage = 'browser_execute'
 
-        const interactPayload = await fetcher(`${endpoint}/${encodeURIComponent(jobId)}/interact`, {
-          method: 'POST',
-          signal,
-          timeoutMs: 110_000,
-          retries: 0,
-          retryBaseMs: 1_500,
-          headers: requestHeaders,
-          body: JSON.stringify({
-            code: qojInteractCode(accountId, normalizedUsername, servicePassword),
-            language: 'node',
-            timeout: 90,
-          }),
-        })
+        const interactPayload = await fetcher(
+          `${endpoint}/${encodeURIComponent(sessionId)}/execute`,
+          {
+            method: 'POST',
+            signal,
+            timeoutMs: 110_000,
+            retries: 0,
+            retryBaseMs: 1_500,
+            headers: requestHeaders,
+            body: JSON.stringify({
+              code: qojInteractCode(accountId, normalizedUsername, servicePassword),
+              language: 'node',
+              timeout: 90,
+            }),
+          },
+        )
         return parseFirecrawlQojAcceptedCount(interactPayload, accountId)
       } catch (error) {
+        const errorDetails = error instanceof HttpError ? (error.details ?? {}) : {}
         const diagnostics = {
-          ...(error instanceof HttpError ? (error.details ?? {}) : {}),
+          ...errorDetails,
+          ...('failureStage' in errorDetails ? {} : { failureStage: transportStage }),
         }
-        if (error instanceof HttpError && error.status === 401) {
+        const failureStage = diagnostics.failureStage
+        const isFirecrawlTransportFailure =
+          failureStage === 'session_create' || failureStage === 'browser_execute'
+        if (error instanceof HttpError && isFirecrawlTransportFailure && error.status === 401) {
           throw new HttpError(
             'Firecrawl API key is invalid or expired',
             'auth_expired',
@@ -462,7 +619,7 @@ export function createFirecrawlQojProvider(
             { ...diagnostics, authTarget: 'firecrawl' },
           )
         }
-        if (error instanceof HttpError && error.status === 403) {
+        if (error instanceof HttpError && isFirecrawlTransportFailure && error.status === 403) {
           throw new HttpError(
             'Firecrawl API access is forbidden',
             'auth_required',
@@ -472,7 +629,7 @@ export function createFirecrawlQojProvider(
             { ...diagnostics, authTarget: 'firecrawl' },
           )
         }
-        if (error instanceof HttpError && error.status === 409) {
+        if (error instanceof HttpError && isFirecrawlTransportFailure && error.status === 409) {
           throw new HttpError(
             'Firecrawl QOJ browser session is busy',
             'rate_limited',
@@ -482,7 +639,12 @@ export function createFirecrawlQojProvider(
             diagnostics,
           )
         }
-        if (error instanceof HttpError && error.status === 404) {
+        if (
+          error instanceof HttpError &&
+          isFirecrawlTransportFailure &&
+          error.status === 404 &&
+          sessionId
+        ) {
           throw new HttpError(
             'Firecrawl QOJ browser session was not found',
             'source_unavailable',
@@ -492,7 +654,32 @@ export function createFirecrawlQojProvider(
             diagnostics,
           )
         }
-        if (error instanceof HttpError && jobId) {
+        if (
+          error instanceof HttpError &&
+          isFirecrawlTransportFailure &&
+          error.status === 410 &&
+          sessionId
+        ) {
+          throw new HttpError(
+            'Firecrawl QOJ browser session was destroyed',
+            'source_unavailable',
+            true,
+            410,
+            undefined,
+            diagnostics,
+          )
+        }
+        if (error instanceof HttpError && isFirecrawlTransportFailure && error.status === 404) {
+          throw new HttpError(
+            'Firecrawl standalone browser endpoint is unavailable',
+            'source_unavailable',
+            true,
+            404,
+            undefined,
+            diagnostics,
+          )
+        }
+        if (error instanceof HttpError && sessionId) {
           throw new HttpError(
             error.message,
             error.code,
@@ -506,17 +693,14 @@ export function createFirecrawlQojProvider(
         }
         throw error
       } finally {
-        if (jobId) {
+        if (sessionId) {
           try {
-            const cleanupPayload = await fetcher(
-              `${endpoint}/${encodeURIComponent(jobId)}/interact`,
-              {
-                method: 'DELETE',
-                timeoutMs: 15_000,
-                retries: 0,
-                headers: requestHeaders,
-              },
-            )
+            const cleanupPayload = await fetcher(`${endpoint}/${encodeURIComponent(sessionId)}`, {
+              method: 'DELETE',
+              timeoutMs: 15_000,
+              retries: 0,
+              headers: requestHeaders,
+            })
             assertFirecrawlSessionCleanupSucceeded(cleanupPayload)
             reportCleanupSafely('succeeded')
           } catch {
@@ -577,7 +761,7 @@ export function createQojAdapter(options: QojAdapterOptions = {}): PlatformAdapt
           { currentRating: null, maxRating: null, solvedCount },
           {
             sourceUpdatedAt: null,
-            sourceVersion: 'qoj-firecrawl-interact-v1',
+            sourceVersion: 'qoj-firecrawl-interact-v2',
             details: { provider: 'firecrawl', authMode: 'per_request_interact' },
           },
         )

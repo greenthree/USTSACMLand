@@ -25,3 +25,5 @@
 platform-account verification permission, and removal of direct Luogu checkpoint writes. A real
 third-party outage window was not induced, so this remains local behavioral evidence rather than
 completion of the ROADMAP production exercise.
+
+2026-07-24 已补充不访问第三方的受控生产组合演练，并在 2026-07-25 改为只定向领取夹具任务后复测，覆盖生产数据库、公开投影、夹具清理和 cron 持续可用；完整结果见 [`sync-platform-outage-production-2026-07-24.md`](./sync-platform-outage-production-2026-07-24.md)。

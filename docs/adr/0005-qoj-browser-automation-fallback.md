@@ -9,15 +9,16 @@ QOJ 没有满足当前需求的稳定公开题数 API，用户主页数据需要
 
 ## 决策
 
-主路径使用 Firecrawl `/interact` 临时浏览器：
+主路径使用 Firecrawl 独立 Browser Sandbox 临时浏览器：
 
-1. 每次同步以 `maxAge: 0` 创建新会话，不使用持久 profile。
+1. 每次同步通过 `POST /v2/interact` 创建独立会话，显式设置 `recordSession: false`、`streamWebView: false`，不使用持久 profile。
 2. 从 Supabase Function Secrets 读取专用 QOJ 服务账号。
-3. 填写登录表单并确认 `Logout` 登录态。
+3. 通过 `POST /v2/interact/{sessionId}/execute` 打开登录页、填写表单并确认 `Logout` 登录态。
 4. 在同一会话打开目标用户主页，读取并去重 Accepted problems。
-5. 在 `finally` 中主动结束会话。
+5. 在 `finally` 中通过 `DELETE /v2/interact/{sessionId}` 主动结束会话。
+6. 浏览器导航异常只保留 `timeout` 或 `navigation_error` 分类，不持久化原始错误正文、目标账号、页面 URL 或会话 ID。
 
-QOJ 同步不自动重试。失败保留最后成功题数，并记录 `auth_expired`、`rate_limited`、`schema_changed`、`timeout` 等结构化错误以及脱敏阶段信息。
+QOJ 可恢复失败与其他平台一致，最多进入一次持久队列重试；凭据错误、结构变化和权限拒绝不重试。每个 attempt 只创建并提交一次临时浏览器任务，页面跳转期间的 DOM 观察可以在同一执行中短暂等待，但不得重新提交登录表单或创建第二个上游请求。失败保留最后成功题数，并记录 `auth_expired`、`rate_limited`、`schema_changed`、`timeout` 等结构化错误以及脱敏阶段信息。重试状态机与幂等边界以 ADR 0008 为准。
 
 ## 一级备用：管理员手工统计
 
@@ -29,9 +30,9 @@ QOJ 同步不自动重试。失败保留最后成功题数，并记录 `auth_exp
 
 满足以下任一条件时，评估部署独立 Playwright/Chromium Worker：
 
-- 连续计划批次因 Firecrawl 产品限制无法完成。
+- 连续计划批次因 Firecrawl Browser Sandbox 产品限制无法完成。
 - Firecrawl 成本或数据保留策略不再符合项目要求。
-- QOJ 登录流程需要 Firecrawl `/interact` 无法表达的长期交互。
+- QOJ 登录流程需要 Firecrawl Browser Sandbox 无法表达的长期交互。
 
 独立 Worker 必须：
 
