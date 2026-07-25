@@ -28,7 +28,7 @@
 
 数据库备份的文件范围、加密参数、Secret 配置和隔离恢复步骤见 [数据库备份与恢复方案](./backup-and-recovery.md)。当前 Artifact 同时包含数据库快照和该快照精确引用的私有 `webchat-images` 对象，但不包含其他 Storage Bucket、Edge Function Secrets 或第三方凭据。Storage 失败时整个任务失败，不得发布数据库-only 的部分 Artifact。
 
-WebChat 图片功能正式部署前，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 必须保持缺失或为 `false`，避免十分钟定时任务调用尚未部署的 migration/RPC。只有图片 migration、`webchat-attachment` 与 `webchat-image-cleanup` 函数均已部署，并完成一次受控 `workflow_dispatch` 清理烟测后，才可将该变量设为 `true`；回滚图片功能时先关闭变量，再回滚入口和函数。
+WebChat 图片数据库 migration、`webchat-attachment` 与 `webchat-image-cleanup` 已在默认关闭状态部署。仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍必须保持缺失或为 `false`；只有完成受控 `workflow_dispatch` 清理烟测、真实对象删除/恢复验收并决定开放图片入口后，才可将该变量设为 `true`。回滚图片功能时先关闭前端、视觉模型和定时清理开关，再处理函数或数据库兼容变更；不得直接回滚已被备份与注销流程引用的表结构。
 
 视觉能力使用 `CHAT_VISION_ENABLED` 与 `CHAT_VISION_MODEL` 双重服务端门禁。后者必须与
 管理员后台当前运行时模型完全一致；更换模型会让图片请求立即返回
@@ -142,7 +142,7 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 部署后执行受控烟测：
 
 0. 先运行 `npm run check:supabase-readiness` 严格验收；任何待部署 migration、缺失函数、错误 JWT/import map 或函数边界都会阻塞后续 Pages 发布。
-   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和八个函数部署后的版本号。
+   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和十个函数部署后的版本号。
 
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。

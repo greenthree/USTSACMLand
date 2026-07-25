@@ -47,6 +47,20 @@ describe('production security boundary audit', () => {
   })
 
   it('requires every production identity and cleanup check', () => {
+    expect(requiredSecurityChecks).toEqual(
+      expect.arrayContaining([
+        'anonymousAttachmentGatewayDenied',
+        'anonymousImageCleanupGatewayDenied',
+        'memberImageCleanupDenied',
+        'memberImageUploadSafelyDisabled',
+        'imageBucketPrivate',
+        'imageStorageAccountingConsistent',
+        'imageUploadsPaused',
+        'zeroFixtureImageAttachments',
+        'zeroFixtureImageObjects',
+        'zeroFixtureImageDeletionQueue',
+      ]),
+    )
     const complete = Object.fromEntries(requiredSecurityChecks.map((name) => [name, true]))
     expect(() => assertSecurityChecks(complete)).not.toThrow()
     expect(() =>

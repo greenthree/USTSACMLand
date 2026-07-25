@@ -1,5 +1,9 @@
 # WebChat 图片安全基础本地证据（2026-07-23）
 
+> 本文记录 2026-07-23 的上线前本地状态。图片安全基础随后已在默认关闭状态部署到
+> 生产，最新边界见
+> [`webchat-image-foundation-production-2026-07-25.md`](./webchat-image-foundation-production-2026-07-25.md)。
+
 日期：2026-07-23（Asia/Shanghai）
 
 ## 范围
