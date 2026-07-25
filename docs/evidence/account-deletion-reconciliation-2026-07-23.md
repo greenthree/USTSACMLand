@@ -54,10 +54,10 @@ Supabase/Postgres 并发规则用于保持固定锁顺序、缩短真实写事�
 - 并发检查器 Vitest：7/7 通过。
 - ESLint、Prettier、生产构建和 `git diff --check`：通过。
 
-## 未完成边界
+## 后续生产复核
 
 - 生产 Storage 所有权阻断和受控约束 `409` 已使用随机临时成员验收；清理对象后第二次注销成功且所有临时状态归零，见 [`account-deletion-storage-fence-production-2026-07-23.md`](./account-deletion-storage-fence-production-2026-07-23.md)。
-- 生产传输层响应丢失仍需在不会误删真实成员的受控临时账号上复核。
-- 注销恢复 Token 仍需收敛为只授权目标仓库 Variables 读写的 fine-grained Token。
+- 生产最终 RPC 响应丢失已使用一次性 Secret 门控的临时包装器和随机普通成员复核；正式对账返回成功且无临时状态残留，见 [`account-deletion-response-loss-production-2026-07-25.md`](./account-deletion-response-loss-production-2026-07-25.md)。
+- 注销恢复 Token 已收敛为只授权目标仓库 Variables 读写的 Fine-grained Token，见 [`account-deletion-fine-grained-token-production-2026-07-25.md`](./account-deletion-fine-grained-token-production-2026-07-25.md)。
 
-因此 ROADMAP 的注销边界条目继续保持未完成。
+至此，ROADMAP 的注销边界条目所列生产边界均已有对应证据。
