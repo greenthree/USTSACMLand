@@ -156,6 +156,33 @@ test('pasting an image adds it to the composer and sends it with text', async ({
   await expect(page.locator('.assistant-message-user').getByAltText('用户上传的图片')).toBeVisible()
 })
 
+test('keyboard users can add and remove a draft image', async ({ page, request }) => {
+  await openAsMember(page)
+  const addButton = page.getByRole('button', { name: '添加图片' })
+  await addButton.focus()
+  await expect(addButton).toBeFocused()
+
+  const chooserPromise = page.waitForEvent('filechooser')
+  await addButton.press('Enter')
+  const chooser = await chooserPromise
+  expect(chooser.isMultiple()).toBe(false)
+  await chooser.setFiles({ name: 'keyboard.png', mimeType: 'image/png', buffer: tinyPng })
+
+  await expect(page.getByText('已上传，等待发送', { exact: true })).toBeVisible()
+  const removeButton = page.getByRole('button', { name: '移除图片' })
+  await removeButton.focus()
+  await expect(removeButton).toBeFocused()
+  await removeButton.press('Enter')
+
+  await expect(page.getByRole('button', { name: '移除图片' })).toHaveCount(0)
+  await expect(page.getByText('已上传，等待发送', { exact: true })).toHaveCount(0)
+  await expect
+    .poll(
+      async () => (await (await request.get(`${mockBaseUrl}/debug`)).json()).attachmentRemovalCount,
+    )
+    .toBe(1)
+})
+
 test('the fifth image is rejected before upload and blocks sending until removed', async ({
   page,
   request,
