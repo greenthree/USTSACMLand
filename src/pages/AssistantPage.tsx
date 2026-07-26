@@ -29,6 +29,7 @@ export function AssistantPage() {
 
   return (
     <div className="assistant-page">
+      <h1 className="sr-only">AI 学习助手</h1>
       <section className="assistant-quota" aria-label="AI 助手累计额度" aria-busy={usageLoading}>
         <div className="assistant-quota-heading">
           <Gauge size={20} aria-hidden="true" />

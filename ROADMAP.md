@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-07-25（Asia/Shanghai）
+最后更新：2026-07-26（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -79,7 +79,8 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [ ] 使用脱敏请求 ID 在中转站后台确认 GPT-5.6 实际渠道、上游模型和缓存字段透传，解决偶发 `cached_tokens=0` 的渠道差异；验证请求不得自动重试。2026-07-25 单次生产探针确认当前运行时已配置为 `grok-4.5`，中转站响应模型为 `grok-4.5-build-free`，第二轮命中 2,432 个输入 Token，证明当前模型的缓存 Usage 可以透传且探针没有自动重试；但这不能替代 GPT-5.6 的具体渠道后台核对，因此本项保持未完成。证据见 `docs/evidence/webchat-current-model-cache-channel-2026-07-25.md`。
 - [x] 使用真实队员完成一轮生产验证，逐项核对姓名、专业、平台绑定、Rating、题数、同步时间和数据状态；私有账号页、公开成员详情、六个平台绑定与 freshness、独立榜单重算均一致，Codeforces 与 AtCoder 官方公开接口复核也完全匹配。证据见 [`docs/evidence/real-member-production-validation-2026-07-26.md`](./docs/evidence/real-member-production-validation-2026-07-26.md)。
-- [ ] 完成人工屏幕阅读器验收，以及真实认证账号的桌面、移动端和键盘流程复核。
+- [x] 使用真实认证成员完成 `/account`、`/assistant`、`/training-goals`、`/daily-problem` 和 `/rankings` 的桌面端、390px 移动端、刷新保持、页面级横向溢出、地标、跳转链接、交互控件名称和静态焦点结构复核；五个路由均保持登录、无页面级横向溢出且控制台无 warning/error。证据见 [`docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md`](./docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md)。
+- [ ] 使用真实浏览器完成 Tab / Shift+Tab 焦点顺序与焦点可见性验收，并由人工使用屏幕阅读器复核主要流程。内置浏览器外壳会截留 Tab，Windows 浏览器控制又因 URL 安全策略能力不足而中止，因此静态 DOM 与 Accessibility Tree 结果不能替代本项。
 
 ### P2：发布治理
 
@@ -124,7 +125,8 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 使用成功同步快照计算目标进度，失败同步不能推进或倒退目标，题数回退需要明确标记。
 - [x] 在成员端提供创建、编辑、完成和归档目标的交互页面，并处理空状态、过期目标和无平台绑定状态。
 - [x] 管理员默认不得修改成员目标；如将来需要队内指导权限，必须单独设计授权和审计，不在第一版默认开放。
-- [ ] 完成真实生产成员的创建、编辑、完成、归档和个人数据导出烟测，并在可用的本地 Supabase 环境重跑数据库权限测试；当前自动化和浏览器证据见 `docs/evidence/training-goals-verification-2026-07-22.md`。
+- [x] 使用真实生产成员完成训练目标创建、编辑、刷新恢复、归档和个人数据导出生成烟测；临时目标归档后进行中数量恢复为 0，历史数量由 1 增至 2，没有留下进行中夹具。证据见 `docs/evidence/training-goals-verification-2026-07-22.md`。
+- [ ] 使用成功同步快照使真实目标达到阈值并完成“确认完成”流程；在可用的本地 Supabase 环境重跑训练目标数据库权限测试。2026-07-26 本地 Docker 引擎不可用，因此不能把已有 pgTAP 文件或历史 CI 结果描述为本轮本地复跑。
 
 ### 推荐计划
 
