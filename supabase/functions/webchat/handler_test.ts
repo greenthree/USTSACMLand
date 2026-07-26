@@ -1036,6 +1036,37 @@ Deno.test('webchat releases only the pre-start claim when relay startup fails', 
   strictEqual(releases, 1)
 })
 
+Deno.test('webchat never releases a claim after upstream start is confirmed', async () => {
+  let finalizations = 0
+  let releases = 0
+  const response = await createWebChatHandler(
+    dependencies({
+      createServices: () =>
+        services({
+          async finalizeWebChatRequest(_userId, _requestId, _ownerToken, outcome, usage) {
+            strictEqual(outcome, 'upstream_unavailable')
+            strictEqual(usage, null)
+            finalizations += 1
+            return true
+          },
+          async releaseWebChatRequest() {
+            releases += 1
+            return true
+          },
+        }),
+      async startChat(options) {
+        strictEqual(await options.quotaLifecycle?.markStarted(), true)
+        strictEqual(await options.quotaLifecycle?.finalize('upstream_unavailable', null), true)
+        throw new WebChatUpstreamError(502, 'upstream_unavailable', '暂时不可用')
+      },
+    }),
+  )(request())
+
+  strictEqual(response.status, 502)
+  strictEqual(finalizations, 1)
+  strictEqual(releases, 0)
+})
+
 Deno.test(
   'webchat reports a rejected pre-start claim release without replacing the upstream error',
   async () => {

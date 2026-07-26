@@ -11,6 +11,7 @@ import Users from 'lucide-react/dist/esm/icons/users'
 import { Suspense } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { RouteLoading } from '../RouteLoading'
+import './admin.css'
 
 const adminItems = [
   { to: '/admin', label: '概览', icon: Gauge, end: true },

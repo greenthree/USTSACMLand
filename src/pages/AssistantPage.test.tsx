@@ -40,6 +40,7 @@ describe('AssistantPage member quota gate', () => {
     renderAssistantPage()
 
     expect(await screen.findByText('模拟 AI 对话工作台')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'AI 学习助手' })).toBeInTheDocument()
     expect(screen.queryByText('把卡住你的地方，')).not.toBeInTheDocument()
     const quota = screen.getByRole('region', { name: 'AI 助手累计额度' })
     expect(quota).toHaveTextContent('剩余请求')

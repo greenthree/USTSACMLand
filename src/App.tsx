@@ -5,10 +5,12 @@ import { RequireAdmin, RequireAuth } from './auth/RouteGuards'
 import { AppShell } from './components/AppShell'
 import { RouteAccessibility } from './components/RouteAccessibility'
 import { StandaloneRouteLoading } from './components/RouteLoading'
-import { AdminLayout } from './components/admin/AdminLayout'
 import { MembersDataProvider } from './data/MembersDataProvider'
 import { webChatUiEnabled } from './features/chat/chatAvailability'
 
+const AdminLayout = lazy(() =>
+  import('./components/admin/AdminLayout').then((module) => ({ default: module.AdminLayout })),
+)
 const AccountPage = lazy(() =>
   import('./pages/AccountPage').then((module) => ({ default: module.AccountPage })),
 )

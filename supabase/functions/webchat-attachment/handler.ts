@@ -92,6 +92,7 @@ export interface AttachmentServices {
 export interface AttachmentHandlerDependencies {
   enabled: boolean
   allowedOrigins: string
+  allowInsecureLoopbackPreviewUrls?: boolean
   previewTtlSeconds?: number
   normalizeImage(image: InspectedImage & { bytes: Uint8Array }): Promise<NormalizedAttachmentImage>
   createServices(): AttachmentServices
@@ -203,6 +204,26 @@ function normalizationError(error: ImageNormalizationError): ApiError {
   return new ApiError(status, error.code, messages[error.code])
 }
 
+function safePreviewUrl(value: string, allowInsecureLoopback: boolean): string {
+  if (value.length < 1 || value.length > 4_096) {
+    throw new Error('WebChat image preview URL is invalid')
+  }
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('WebChat image preview URL is invalid')
+  }
+  const loopbackHttp =
+    allowInsecureLoopback &&
+    url.protocol === 'http:' &&
+    (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
+  if ((url.protocol !== 'https:' && !loopbackHttp) || url.username || url.password || url.hash) {
+    throw new Error('WebChat image preview URL is invalid')
+  }
+  return url.toString()
+}
+
 async function reportSafely(
   dependencies: AttachmentHandlerDependencies,
   request: Request,
@@ -278,7 +299,10 @@ export function createAttachmentHandler(
       const action = await parseAttachmentRequest(request)
       if (action.action === 'preview') {
         const preview = await services.readPreview(user.id, action.attachmentId)
-        const previewUrl = await services.signPreview(preview.objectKey, previewTtlSeconds)
+        const previewUrl = safePreviewUrl(
+          await services.signPreview(preview.objectKey, previewTtlSeconds),
+          dependencies.allowInsecureLoopbackPreviewUrls === true,
+        )
         return respond({
           attachment: {
             id: preview.attachmentId,
@@ -324,7 +348,10 @@ export function createAttachmentHandler(
         }
         await services.uploadObject(reservation.objectKey, normalized.bytes)
         objectMayExist = true
-        const previewUrl = await services.signPreview(reservation.objectKey, previewTtlSeconds)
+        const previewUrl = safePreviewUrl(
+          await services.signPreview(reservation.objectKey, previewTtlSeconds),
+          dependencies.allowInsecureLoopbackPreviewUrls === true,
+        )
         const preview = await services.completeAttachment({
           userId: user.id,
           attachmentId: reservation.attachmentId,

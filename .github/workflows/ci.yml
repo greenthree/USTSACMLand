@@ -129,6 +129,9 @@ jobs:
       - name: Test account-deletion transaction fencing
         run: npm run check:account-deletion-concurrency
 
+      - name: Test referral transaction fencing and reward boundary
+        run: npm run check:referral-concurrency
+
       - name: Test single-platform outage isolation
         run: npm run check:sync-platform-outage
 

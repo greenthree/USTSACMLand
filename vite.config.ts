@@ -4,6 +4,16 @@ import react from '@vitejs/plugin-react-swc'
 export default defineConfig(({ mode }) => ({
   base: '/',
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
   ...(mode === 'e2e'
     ? {
         server: {

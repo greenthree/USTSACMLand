@@ -68,6 +68,8 @@
 | `MAX_BACKUP_ARTIFACT_BYTES` | 正整数；同时限制数据库快照引用的图片总字节数和最终加密 Artifact 大小，按可接受的 GitHub/Runner 容量设置 |
 | `MAX_STORAGE_OBJECTS`       | 非负整数；限制单次数据库快照可引用并备份的 `webchat-images` 对象数量                                    |
 
+2026-07-26 的生产配置为 `MAX_BACKUP_ARTIFACT_BYTES=3500000000`、`MAX_STORAGE_OBJECTS=10000`。它按 50 名成员、每人 64 MiB / 200 个对象的第一版账号级上限计算，并在最近一次 `348,362` 字节的真实加密备份基础上保留数据库与封装余量。手动运行和 Artifact 白名单证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./evidence/database-backup-capacity-guard-2026-07-26.md)。
+
 任一变量缺失或格式错误都会让备份在连接生产项目之前失败。调整上限前先估算 14 份完整密文的总占用，并记录调整原因；不要用无界大值掩盖异常对象增长。
 
 在 Supabase Function Secrets 另行配置：
@@ -112,6 +114,23 @@ rm -rf restored-backup ustsacmland-database-backup.tar.gz
 恢复只能面向新建的隔离 Supabase 测试项目。除非负责人明确批准事故恢复，禁止把演练导入生产项目。
 
 首次和季度例行演练优先使用仓库的手动 `Encrypted database restore drill` 工作流：
+
+维护者可使用 GitHub CLI 完成同一流程；需要 Actions 运行/Artifact 读取权限和
+`production-operations` Environment 审批：
+
+```powershell
+gh workflow run database-backup.yml --repo greenthree/USTSACMLand --ref main
+$backupRunId = gh run list --repo greenthree/USTSACMLand --workflow database-backup.yml --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $backupRunId --repo greenthree/USTSACMLand --exit-status
+gh run download $backupRunId --repo greenthree/USTSACMLand --dir ".artifacts\backup-$backupRunId"
+
+gh workflow run database-restore-drill.yml --repo greenthree/USTSACMLand --ref main -f backup_run_id=$backupRunId
+$restoreRunId = gh run list --repo greenthree/USTSACMLand --workflow database-restore-drill.yml --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId'
+gh run watch $restoreRunId --repo greenthree/USTSACMLand --exit-status
+gh run download $restoreRunId --repo greenthree/USTSACMLand --dir ".artifacts\restore-$restoreRunId"
+```
+
+完整权限登记、证据模板和清理要求见 [维护者交接与独立操作卡](./maintainer-handoff.md)。
 
 1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。恢复演练优先使用 Schema v2；历史 Schema v1 Artifact 仍可用于数据库恢复，但只接受固定的数据库-only 文件白名单，归档中出现任何 Storage 路径都会拒绝，报告也会明确标记 Storage 证据不可用。该兼容路径不能替代上线图片功能前的 Schema v2 Storage 恢复演练。
 2. 打开 Actions → `Encrypted database restore drill`，输入刚才的 run ID。恢复任务不会自动运行或自动重试。
@@ -162,4 +181,4 @@ psql \
 
 只有“最近备份存在”不能证明可恢复；必须以隔离项目成功登录和数据核对作为恢复验收证据。
 
-旧数据库-only 格式的首次真实演练 run、聚合行数、Auth/RLS、受控注销、清理结果和 RTO 边界见 [生产加密数据库隔离恢复演练证据](./evidence/database-restore-drill-2026-07-19.md)。该证据不覆盖 Schema v2 清单和 `webchat-images` 对象，Storage 版本上线前必须补充一次新的真实演练记录。
+旧数据库-only 格式的首次真实演练 run、聚合行数、Auth/RLS、受控注销、清理结果和 RTO 边界见 [生产加密数据库隔离恢复演练证据](./evidence/database-restore-drill-2026-07-19.md)。Schema v2 零对象恢复见 [WebChat 图片备份恢复证据](./evidence/webchat-image-backup-restore-2026-07-25.md)；图片正式开放前仍必须补充一次非空 `webchat-images` 对象贯通恢复记录。

@@ -4,6 +4,7 @@ import {
   assertSecurityChecks,
   collectSupabaseSecretValues,
   discoverJavascriptReferences,
+  isSafeOwnImageAttachmentExport,
   requiredSecurityChecks,
 } from './check-production-security-boundaries.mjs'
 
@@ -46,6 +47,60 @@ describe('production security boundary audit', () => {
     )
   })
 
+  it('accepts only bounded own image metadata without URLs or private identifiers', () => {
+    const safe = {
+      webchat: {
+        imageAttachments: {
+          count: 1,
+          items: [
+            {
+              mediaType: 'image/webp',
+              bytes: 154,
+              width: 3,
+              height: 2,
+              createdAt: '2026-07-26T00:00:00.000Z',
+              readyAt: '2026-07-26T00:00:01.000Z',
+              attachedAt: '2026-07-26T00:00:02.000Z',
+            },
+          ],
+        },
+      },
+    }
+    expect(
+      isSafeOwnImageAttachmentExport(safe, {
+        expectedCount: 1,
+        expectedBytes: 154,
+        expectedWidth: 3,
+        expectedHeight: 2,
+      }),
+    ).toBe(true)
+    expect(
+      isSafeOwnImageAttachmentExport(
+        { webchat: { imageAttachments: { count: 0, items: [] } } },
+        { expectedCount: 0 },
+      ),
+    ).toBe(true)
+
+    for (const leaked of [
+      { previewUrl: 'https://storage.example.test/signed' },
+      { objectKey: 'user/private/object.webp' },
+      { sha256: 'a'.repeat(64) },
+      { conversationId: 'private-conversation' },
+      { id: 'private-attachment' },
+    ]) {
+      const payload = structuredClone(safe)
+      Object.assign(payload.webchat.imageAttachments.items[0], leaked)
+      expect(
+        isSafeOwnImageAttachmentExport(payload, {
+          expectedCount: 1,
+          expectedBytes: 154,
+          expectedWidth: 3,
+          expectedHeight: 2,
+        }),
+      ).toBe(false)
+    }
+  })
+
   it('requires every production identity and cleanup check', () => {
     expect(requiredSecurityChecks).toEqual(
       expect.arrayContaining([
@@ -59,6 +114,7 @@ describe('production security boundary audit', () => {
         'imageObjectStoredPrivately',
         'imageOwnerHistoryRestored',
         'imageCrossMemberPreviewDenied',
+        'imagePersonalExportSafe',
         'imageSignedPreviewWorks',
         'imageMessageDeletionQueued',
         'imageCleanupDeletedObject',

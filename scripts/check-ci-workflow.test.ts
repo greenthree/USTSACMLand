@@ -121,6 +121,54 @@ describe('CI workflow', () => {
     ).toThrow(/checked-in verifier/)
   })
 
+  it('requires the referral fencing and concurrent tenth-reward check', () => {
+    expect(() =>
+      verifyCiWorkflow(
+        workflow.replace(
+          '      - name: Test referral transaction fencing and reward boundary\n        run: npm run check:referral-concurrency\n\n',
+          '',
+        ),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/referral guard, shutdown-fencing, and tenth-reward concurrency/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        {
+          ...packageJson,
+          scripts: {
+            ...packageJson.scripts,
+            'check:referral-concurrency': 'echo skipped',
+          },
+        },
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/referral concurrency check must use the checked-in verifier/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        {
+          ...packageJson,
+          scripts: {
+            ...packageJson.scripts,
+            'check:referral-concurrency:guard-isolation': 'echo skipped',
+          },
+        },
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/referral guard-isolation check must use the checked-in verifier/)
+  })
+
   it('requires the local single-platform outage integration check', () => {
     expect(() =>
       verifyCiWorkflow(

@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
 export const bundleBudget = {
-  entryRawBytes: 500 * 1024,
-  entryGzipBytes: 160 * 1024,
+  entryRawBytes: 280 * 1024,
+  entryGzipBytes: 96 * 1024,
+  entryCssRawBytes: 128 * 1024,
+  entryCssGzipBytes: 28 * 1024,
   requiredRouteChunks: [
     'HomePage-',
     'DailyProblemPage-',
@@ -61,6 +63,12 @@ function entryAssetName(html) {
   return basename(new URL(match[1], 'https://bundle.local/').pathname)
 }
 
+function entryCssName(html) {
+  const match = html.match(/<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+\.css)["']/i)
+  if (!match) return null
+  return basename(new URL(match[1], 'https://bundle.local/').pathname)
+}
+
 export function verifyBundleBudget({ html, assets, budget = bundleBudget }) {
   const entryName = entryAssetName(html)
   const entry = assets.get(entryName)
@@ -89,14 +97,34 @@ export function verifyBundleBudget({ html, assets, budget = bundleBudget }) {
     )
   }
 
-  return { entryName, entryRawBytes, entryGzipBytes }
+  let entryCssRawBytes = null
+  let entryCssGzipBytes = null
+  const cssName = entryCssName(html)
+  if (cssName) {
+    const entryCss = assets.get(cssName)
+    if (!entryCss) throw new Error(`Production entry stylesheet is missing: ${cssName}`)
+    entryCssRawBytes = entryCss.byteLength
+    entryCssGzipBytes = gzipSync(entryCss).byteLength
+    if (entryCssRawBytes > budget.entryCssRawBytes) {
+      throw new Error(
+        `Production entry stylesheet ${cssName} is ${formatKib(entryCssRawBytes)}; limit is ${formatKib(budget.entryCssRawBytes)}. Keep feature styles in lazily imported CSS files.`,
+      )
+    }
+    if (entryCssGzipBytes > budget.entryCssGzipBytes) {
+      throw new Error(
+        `Production entry stylesheet ${cssName} is ${formatKib(entryCssGzipBytes)} gzip; limit is ${formatKib(budget.entryCssGzipBytes)}.`,
+      )
+    }
+  }
+
+  return { entryName, entryRawBytes, entryGzipBytes, entryCssRawBytes, entryCssGzipBytes }
 }
 
 async function readAssets(assetsDirectory) {
   const names = await readdir(assetsDirectory)
   const entries = await Promise.all(
     names
-      .filter((name) => name.endsWith('.js'))
+      .filter((name) => name.endsWith('.js') || name.endsWith('.css'))
       .map(async (name) => [name, await readFile(join(assetsDirectory, name))]),
   )
   return new Map(entries)
@@ -110,8 +138,12 @@ async function main() {
   ])
   await verifyChatImportBoundary()
   const report = verifyBundleBudget({ html, assets })
+  const cssReport =
+    report.entryCssRawBytes === null
+      ? ''
+      : `; entry CSS ${formatKib(report.entryCssRawBytes)} raw / ${formatKib(report.entryCssGzipBytes)} gzip`
   console.log(
-    `Verified production bundle budget: ${report.entryName} ${formatKib(report.entryRawBytes)} raw / ${formatKib(report.entryGzipBytes)} gzip.`,
+    `Verified production bundle budget: ${report.entryName} ${formatKib(report.entryRawBytes)} raw / ${formatKib(report.entryGzipBytes)} gzip${cssReport}.`,
   )
 }
 

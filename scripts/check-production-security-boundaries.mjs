@@ -39,6 +39,7 @@ export const requiredSecurityChecks = [
   'imageObjectStoredPrivately',
   'imageOwnerHistoryRestored',
   'imageCrossMemberPreviewDenied',
+  'imagePersonalExportSafe',
   'imageSignedPreviewWorks',
   'imageMessageDeletionQueued',
   'imageCleanupDeletedObject',
@@ -134,6 +135,71 @@ export function assertNoBrowserSecretValues(source, secretValues) {
     throw new Error('A production browser asset contains a server-side API key pattern.')
   }
   return true
+}
+
+const safeImageExportFields = new Set([
+  'mediaType',
+  'bytes',
+  'width',
+  'height',
+  'createdAt',
+  'readyAt',
+  'attachedAt',
+  'deletedAt',
+])
+
+export function isSafeOwnImageAttachmentExport(
+  payload,
+  { expectedCount, expectedBytes = null, expectedWidth = null, expectedHeight = null },
+) {
+  const projection = payload?.webchat?.imageAttachments
+  if (
+    !projection ||
+    typeof projection !== 'object' ||
+    Array.isArray(projection) ||
+    !Number.isSafeInteger(projection.count) ||
+    projection.count !== expectedCount ||
+    !Array.isArray(projection.items) ||
+    projection.items.length !== expectedCount
+  ) {
+    return false
+  }
+
+  if (
+    /https?:\/\/|urn:ustsacm:webchat-attachment:|webchat-images|object[_-]?key|sha256|conversation[_-]?id|message[_-]?id|validation[_-]?owner|last[_-]?error/i.test(
+      JSON.stringify(projection),
+    )
+  ) {
+    return false
+  }
+
+  for (const item of projection.items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false
+    if (Object.keys(item).some((field) => !safeImageExportFields.has(field))) return false
+    if (
+      item.mediaType !== 'image/webp' ||
+      !Number.isSafeInteger(item.bytes) ||
+      item.bytes < 1 ||
+      !Number.isSafeInteger(item.width) ||
+      item.width < 1 ||
+      !Number.isSafeInteger(item.height) ||
+      item.height < 1 ||
+      typeof item.createdAt !== 'string' ||
+      typeof item.readyAt !== 'string' ||
+      typeof item.attachedAt !== 'string' ||
+      (item.deletedAt !== undefined && typeof item.deletedAt !== 'string')
+    ) {
+      return false
+    }
+  }
+
+  if (expectedCount === 0) return true
+  return projection.items.some(
+    (item) =>
+      (expectedBytes === null || item.bytes === expectedBytes) &&
+      (expectedWidth === null || item.width === expectedWidth) &&
+      (expectedHeight === null || item.height === expectedHeight),
+  )
 }
 
 export function assertSecurityChecks(results) {
@@ -767,6 +833,19 @@ select
       )
     results.imageCrossMemberPreviewDenied =
       !crossImagePreview.error && crossImagePreview.data?.length === 0
+
+    const ownerImageExport = await firstAdmin.rpc('export_own_data')
+    const crossMemberImageExport = await member.rpc('export_own_data')
+    results.imagePersonalExportSafe =
+      !ownerImageExport.error &&
+      !crossMemberImageExport.error &&
+      isSafeOwnImageAttachmentExport(ownerImageExport.data, {
+        expectedCount: 1,
+        expectedBytes: webpBytes.byteLength,
+        expectedWidth: 3,
+        expectedHeight: 2,
+      }) &&
+      isSafeOwnImageAttachmentExport(crossMemberImageExport.data, { expectedCount: 0 })
 
     const signedPreview = await admin.storage
       .from('webchat-images')

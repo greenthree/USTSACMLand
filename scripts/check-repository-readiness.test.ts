@@ -114,7 +114,7 @@ describe('repository readiness checker', () => {
         repository: 'greenthree/USTSACMLand',
         workflows: 5,
         actionSecrets: 6,
-        actionVariables: 1,
+        actionVariables: 3,
         actionsRetentionDays: 14,
         defaultBranchSha: '0123456789abcdef',
       },
@@ -147,6 +147,8 @@ describe('repository readiness checker', () => {
       expect.arrayContaining([
         'Actions Secret 未配置：BACKUP_ENCRYPTION_PASSPHRASE。',
         'Actions 变量未配置：BACKUP_RECOVERY_NOT_BEFORE。',
+        'Actions 变量未配置：MAX_BACKUP_ARTIFACT_BYTES。',
+        'Actions 变量未配置：MAX_STORAGE_OBJECTS。',
       ]),
     )
   })

@@ -8,6 +8,7 @@
 - [ ] 工作树只包含本次发布内容；临时截图、导出文件和根目录本地素材未被误纳入。
 - [ ] 数据库、Edge Functions、前端和配置的兼容顺序已明确。
 - [ ] 已记录最后一个可用的 Git 提交、Pages 部署和 Supabase migration 状态。
+- [ ] 发布人与复核人均已按 `docs/maintainer-handoff.md` 验证所需供应商权限；记录不包含账号标识或 Secret。
 
 ## 2. 本地与 CI 门禁
 
@@ -25,12 +26,13 @@
   npm run check:webchat-cache-probe-workflow
   npm run check:repository-readiness -- greenthree/USTSACMLand
   npm run check:supabase-preflight
+  npm run check:referral-concurrency
   npm test
   npx playwright install chromium firefox webkit
   npm run test:e2e
   npm run build
   npm run check:bundle
-  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
+  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
   npx --yes deno lint --config supabase/functions/deno.json supabase/functions
   npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
   git diff --check
@@ -39,14 +41,14 @@
 - [ ] GitHub `CI / verify`、`CI / database-security`、`Secret scan / gitleaks` 和部署后的 `production-ranking-audit` 全部通过。
 - [ ] Dependabot 没有尚未评估的高危更新；依赖升级已由测试和构建验证。
 - [ ] 构建日志、测试输出和 Actions artifact 不含 Secret 或成员私有资料。
-- [ ] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES` 与 `MAX_STORAGE_OBJECTS` 已按生产规模配置，Artifact 只包含 `.enc` 和 `.enc.sha256`，且密文内是 Schema v2 清单、8 个聚合行数及完整的引用图片对象，Storage 失败时没有发布数据库-only 的部分产物。
+- [x] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES=3500000000` 与 `MAX_STORAGE_OBJECTS=10000` 已按 50 名成员的账号级理论上限配置。运行 `30192826527` 成功，Artifact 下载核对只包含 `.enc` 和 `.enc.sha256`；工作流在上传前完成 Schema v2 清单、8 个聚合行数、完整引用图片对象、解密校验和明文清理，Storage 失败时不会发布 database-only 的部分产物。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./evidence/database-backup-capacity-guard-2026-07-26.md)。
 - [ ] 已按最近一次密文大小估算约 `14 × 单次加密快照大小` 的 Artifact 占用，并检查精确对象计划、逐对象下载耗时、Runner 磁盘和删除死信增长风险。
 
 ## 3. 数据库与权限
 
 - [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
 - [x] 推荐计划 migration 已验证：邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限。
-- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，真实邮件确认计奖与并发烟测仍待完成。
+- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，本地双连接验证器已覆盖事务围栏、第十次上限和响应丢失精确对账并纳入 CI，真实邮件确认计奖与受控生产并发烟测仍待完成。
 - [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
 - [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限、真实对象本人历史/跨成员拒绝/短时预览、消息删除清理、零残留和空队列 service-role 生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
@@ -112,7 +114,7 @@
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [x] 使用两个数据库连接验证最终 RPC 的行锁 fencing：本地 CI 已证明竞争请求在删除事务结束前持续阻塞，提交后只能观察到已消费租约；响应丢失的 Auth/Profile 双重对账与失败关闭测试已覆盖，旧 access JWT 的生产 RLS 边界已有证据。2026-07-25 的生产最终 RPC 响应丢失复核成功，恢复正式函数后的完整注销耗时为 `6502 ms`，证据见 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
 - [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
-- [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；演练完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、6 类孤儿、私有 Bucket 重建、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。旧 run `29656219433` 只覆盖数据库-only 格式，可作为历史基线但不能替代本项。
+- [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；演练完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、7 类孤儿、私有 Bucket 重建、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。旧 run `29656219433` 只覆盖 database-only 格式，可作为历史基线但不能替代本项。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
 - [ ] 已由项目负责人选择并加入 `LICENSE`；在此之前不得把源码描述为开源。
 - [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。
