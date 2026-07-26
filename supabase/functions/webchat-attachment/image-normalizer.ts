@@ -5,7 +5,6 @@ import jpegDecode, { init as initJpegDecode } from 'npm:@jsquash/jpeg@1.6.0/deco
 import pngDecode, { init as initPngDecode } from 'npm:@jsquash/png@3.1.1/decode.js'
 import webpDecode, { init as initWebpDecode } from 'npm:@jsquash/webp@1.5.0/decode.js'
 import webpEncode, { init as initWebpEncode } from 'npm:@jsquash/webp@1.5.0/encode.js'
-import { simd } from 'npm:wasm-feature-detect@1.8.0'
 import {
   type InspectedImage,
   inspectImage,
@@ -69,22 +68,16 @@ function fail(code: ImageNormalizationErrorCode): never {
   throw new ImageNormalizationError(code)
 }
 
-async function compileModule(specifier: string): Promise<WebAssembly.Module> {
-  const resolved = new URL(import.meta.resolve(specifier))
-  return WebAssembly.compile(await Deno.readFile(resolved))
+async function compileBundledModule(relativePath: string): Promise<WebAssembly.Module> {
+  return WebAssembly.compile(await Deno.readFile(new URL(relativePath, import.meta.url)))
 }
 
 async function loadDefaultCodecs(): Promise<ImageCodecRuntime> {
-  const hasSimd = await simd()
-  const webpEncoderWasm = hasSimd
-    ? 'npm:@jsquash/webp@1.5.0/codec/enc/webp_enc_simd.wasm'
-    : 'npm:@jsquash/webp@1.5.0/codec/enc/webp_enc.wasm'
-
   const [jpegDecoder, pngCodec, webpDecoder, webpEncoder] = await Promise.all([
-    compileModule('npm:@jsquash/jpeg@1.6.0/codec/dec/mozjpeg_dec.wasm'),
-    compileModule('npm:@jsquash/png@3.1.1/codec/pkg/squoosh_png_bg.wasm'),
-    compileModule('npm:@jsquash/webp@1.5.0/codec/dec/webp_dec.wasm'),
-    compileModule(webpEncoderWasm),
+    compileBundledModule('./codecs/mozjpeg_dec.wasm'),
+    compileBundledModule('./codecs/squoosh_png_bg.wasm'),
+    compileBundledModule('./codecs/webp_dec.wasm'),
+    compileBundledModule('./codecs/webp_enc.wasm'),
   ])
 
   await Promise.all([

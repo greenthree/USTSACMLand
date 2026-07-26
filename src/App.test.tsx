@@ -154,7 +154,7 @@ describe('route authorization', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'USTS ACM Land' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /USTS ACM Land/ })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'AI 助手' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /把卡住你的地方/ })).not.toBeInTheDocument()
   })

@@ -200,6 +200,23 @@ export async function startWebChat(
   const safetyId = await safetyIdentifier(options.userId)
   const cacheKey = await promptCacheKey(config.model, config.promptVersion)
   const cacheOptions = promptCacheOptions(config.model)
+  // Build and validate the complete payload before crossing the database
+  // fence that marks an upstream request as started. Local image URL or
+  // serialization failures can then release the untouched claim instead of
+  // being conservatively charged as unknown upstream usage.
+  const requestBody = JSON.stringify({
+    model: config.model,
+    instructions: config.systemPrompt,
+    input: responsesInput(options.messages),
+    max_output_tokens: config.maxOutputTokens,
+    tools: [],
+    tool_choice: 'none',
+    prompt_cache_key: cacheKey,
+    ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
+    safety_identifier: safetyId,
+    store: false,
+    stream: true,
+  })
   const abortController = new AbortController()
   const abortFromRequest = () => abortController.abort(options.requestSignal?.reason)
   if (options.requestSignal?.aborted) abortFromRequest()
@@ -209,15 +226,12 @@ export async function startWebChat(
     })
   }
 
-  const timeout = setTimeout(
-    () => abortController.abort(new DOMException('Upstream timed out', 'TimeoutError')),
-    config.timeoutMs,
-  )
+  let timeout: ReturnType<typeof setTimeout> | null = null
   let cleanedUp = false
   const cleanup = () => {
     if (cleanedUp) return
     cleanedUp = true
-    clearTimeout(timeout)
+    if (timeout !== null) clearTimeout(timeout)
     options.requestSignal?.removeEventListener('abort', abortFromRequest)
   }
 
@@ -237,6 +251,11 @@ export async function startWebChat(
     }
   }
 
+  if (abortController.signal.aborted) {
+    cleanup()
+    throw new WebChatUpstreamError(499, 'request_aborted', '请求已取消')
+  }
+
   if (options.quotaLifecycle) {
     let markedStarted: boolean
     try {
@@ -251,6 +270,11 @@ export async function startWebChat(
     }
   }
 
+  timeout = setTimeout(
+    () => abortController.abort(new DOMException('Upstream timed out', 'TimeoutError')),
+    config.timeoutMs,
+  )
+
   let upstream: Response
   try {
     upstream = await fetcher(endpoint, {
@@ -260,19 +284,7 @@ export async function startWebChat(
         'content-type': 'application/json',
         ...(options.requestId ? { 'x-request-id': options.requestId } : {}),
       },
-      body: JSON.stringify({
-        model: config.model,
-        instructions: config.systemPrompt,
-        input: responsesInput(options.messages),
-        max_output_tokens: config.maxOutputTokens,
-        tools: [],
-        tool_choice: 'none',
-        prompt_cache_key: cacheKey,
-        ...(cacheOptions ? { prompt_cache_options: cacheOptions } : {}),
-        safety_identifier: safetyId,
-        store: false,
-        stream: true,
-      }),
+      body: requestBody,
       redirect: 'error',
       signal: abortController.signal,
     })

@@ -183,7 +183,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts supabase/functions/firecrawl-config/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -312,14 +312,14 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 
 ## 当前限制与下一步
 
-1. 保持推荐计划全局暂停；启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛后，再进行真实计奖、双连接并发围栏、移动端/键盘/无障碍和回滚验收。
-2. 使用已录入的生产 Firecrawl Key 完成额度、启用、轮换/冷却和牛客/QOJ 真实烟测。
-3. 使用已录入的注销恢复下限 GitHub Token，完成成功注销、Storage/约束 `409`、双连接 fencing、旧 JWT RLS 和响应丢失对账。
-4. 完成 AI 助手真实队员生产验证和人工可访问性验收。
-5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围。
-6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0` 并完成 Cloudflare 自定义域名、DNS/CDN 和 TLS 的发布验收。
+1. 保持推荐计划全局暂停；启用真实邮箱确认并完成 Turnstile、Auth 限流和直连注册防护后，再进行真实计奖与受控生产并发验收。
+2. 为 WebChat 图片输入配置并验收真实视觉模型、真实图片 Usage、开放态异常路径、定时清理和非空对象恢复，再依次开启三层开关。
+3. 使用 GPT-5.6 时在中转站后台核对实际渠道、上游模型和缓存字段，不用当前 `grok-4.5` 的证据替代。
+4. 完成真实浏览器 Tab/Shift+Tab 和人工屏幕阅读器验收。
+5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
+6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare 指纹资源缓存、Purge、证书和 DNS 回滚验收。
 
-视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，WebChat 图片输入边界见 [图片输入 v1 契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
+视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，维护权交接见 [维护者交接与独立操作卡](./docs/maintainer-handoff.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，WebChat 图片输入边界见 [图片输入 v1 契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 
 ## 许可证与归属
 

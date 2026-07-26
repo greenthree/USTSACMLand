@@ -72,3 +72,29 @@ Deno.test('runtime alert payload never sends messages, stacks, or member identit
   strictEqual(body.includes('memberId'), false)
   strictEqual(body.includes('email'), false)
 })
+
+Deno.test('image runtime alerts omit filenames, signed URLs, and image content', () => {
+  const sensitiveError = new Error(
+    'private-name.png https://signed.example.test/image.webp?token=secret data:image/png;base64,AAAA',
+  )
+  const alert = runtimeErrorAlert(
+    'webchat-attachment',
+    new Request('https://project.supabase.co/functions/v1/webchat-attachment', {
+      headers: { 'x-request-id': 'image-request-1' },
+    }),
+    sensitiveError,
+    () => new Date('2026-07-26T04:00:00.000Z'),
+  )
+  const serialized = JSON.stringify(alert)
+
+  deepStrictEqual(alert, {
+    surface: 'webchat-attachment',
+    category: 'unexpected_error',
+    occurredAt: '2026-07-26T04:00:00.000Z',
+    requestId: 'image-request-1',
+  })
+  strictEqual(serialized.includes('private-name.png'), false)
+  strictEqual(serialized.includes('signed.example.test'), false)
+  strictEqual(serialized.includes('token=secret'), false)
+  strictEqual(serialized.includes('data:image'), false)
+})

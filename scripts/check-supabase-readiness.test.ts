@@ -2,6 +2,7 @@ import {
   evaluateSupabaseReadiness,
   expectedEdgeFunctions,
   requiredFunctionSecrets,
+  serviceOnlyEdgeFunctions,
 } from './check-supabase-readiness.mjs'
 
 function createReadyState() {
@@ -45,20 +46,29 @@ function createReadyState() {
     anonRestAuditError: null,
     functionBoundaryAudit: {
       allowedOrigin: 'https://ustsacm.fun',
-      probes: expectedEdgeFunctions.map((functionName) => ({
-        functionName,
-        allowed: {
-          status: 200,
-          allowOrigin: 'https://ustsacm.fun',
-          vary: 'Origin, Access-Control-Request-Headers',
-        },
-        hostile: {
-          status: 200,
-          allowOrigin: null,
-          vary: 'Origin',
-        },
-        getStatus: 401,
-      })),
+      probes: expectedEdgeFunctions.map((functionName) =>
+        serviceOnlyEdgeFunctions.includes(functionName)
+          ? {
+              functionName,
+              allowed: { status: 405, allowOrigin: null, vary: null },
+              hostile: { status: 405, allowOrigin: null, vary: null },
+              getStatus: 405,
+            }
+          : {
+              functionName,
+              allowed: {
+                status: 200,
+                allowOrigin: 'https://ustsacm.fun',
+                vary: 'Origin, Access-Control-Request-Headers',
+              },
+              hostile: {
+                status: 403,
+                allowOrigin: null,
+                vary: 'Origin',
+              },
+              getStatus: 401,
+            },
+      ),
     },
     functionBoundaryAuditError: null,
     queueSchedulerHealth: {
@@ -93,7 +103,7 @@ describe('Supabase production readiness checker', () => {
         projectStatus: 'ACTIVE_HEALTHY',
         migrations: 1,
         pendingMigrations: 0,
-        functions: 4,
+        functions: 10,
         lintFindings: 0,
         authEmailReady: true,
         anonRestReady: true,
@@ -192,6 +202,35 @@ describe('Supabase production readiness checker', () => {
         '生产环境缺少 Edge Function：delete-account。',
         'Edge Function sync-member 未启用 JWT 验证。',
         'Edge Function sync-stats 未使用仓库 import map。',
+      ]),
+    )
+  })
+
+  it('fails when either WebChat image Edge Function is missing', () => {
+    const state = createReadyState()
+    state.functions = state.functions.filter(
+      (fn) => !['webchat-attachment', 'webchat-image-cleanup'].includes(fn.slug),
+    )
+
+    expect(evaluateSupabaseReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        '生产环境缺少 Edge Function：webchat-attachment。',
+        '生产环境缺少 Edge Function：webchat-image-cleanup。',
+      ]),
+    )
+  })
+
+  it('requires JWT and the repository import map on WebChat image functions', () => {
+    const state = createReadyState()
+    const attachment = state.functions.find((fn) => fn.slug === 'webchat-attachment')
+    const cleanup = state.functions.find((fn) => fn.slug === 'webchat-image-cleanup')
+    attachment.verifyJwt = false
+    cleanup.importMap = false
+
+    expect(evaluateSupabaseReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        'Edge Function webchat-attachment 未启用 JWT 验证。',
+        'Edge Function webchat-image-cleanup 未使用仓库 import map。',
       ]),
     )
   })
@@ -305,6 +344,24 @@ describe('Supabase production readiness checker', () => {
     expect(report.summary.functionBoundaryReady).toBe(false)
   })
 
+  it('requires service-only functions to reject every browser origin', () => {
+    const state = createReadyState()
+    const cleanup = state.functionBoundaryAudit.probes.find(
+      (probe) => probe.functionName === 'webchat-image-cleanup',
+    )
+    cleanup.allowed = {
+      status: 200,
+      allowOrigin: 'https://ustsacm.fun',
+      vary: 'Origin',
+    }
+
+    const report = evaluateSupabaseReadiness(state)
+    expect(report.errors).toContain(
+      'Edge Function webchat-image-cleanup 意外向浏览器 Origin 开放。',
+    )
+    expect(report.summary.functionBoundaryReady).toBe(false)
+  })
+
   it('fails closed when an expected Edge Function has no boundary probe', () => {
     const state = createReadyState()
     state.functionBoundaryAudit.probes = state.functionBoundaryAudit.probes.filter(
@@ -313,6 +370,17 @@ describe('Supabase production readiness checker', () => {
 
     expect(evaluateSupabaseReadiness(state).errors).toContain(
       'Edge Function delete-account 未取得 CORS 与方法边界探测结果。',
+    )
+  })
+
+  it('fails closed when a WebChat image function has no boundary probe', () => {
+    const state = createReadyState()
+    state.functionBoundaryAudit.probes = state.functionBoundaryAudit.probes.filter(
+      (probe) => probe.functionName !== 'webchat-attachment',
+    )
+
+    expect(evaluateSupabaseReadiness(state).errors).toContain(
+      'Edge Function webchat-attachment 未取得 CORS 与方法边界探测结果。',
     )
   })
 

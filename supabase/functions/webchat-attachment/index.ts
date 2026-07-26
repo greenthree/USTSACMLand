@@ -11,6 +11,11 @@ import {
 } from './database.ts'
 import { createAttachmentHandler } from './handler.ts'
 import { normalizeImage } from './image-normalizer.ts'
+import {
+  isInsecureLoopbackOrigin,
+  parsePreviewOrigin,
+  rewritePreviewUrl,
+} from './preview-origin.ts'
 
 const BUCKET = 'webchat-images'
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -28,6 +33,22 @@ function requiredEnv(name: string): string {
   return value
 }
 
+function usesLocalSupabase(): boolean {
+  const value = Deno.env.get('SUPABASE_URL')?.trim()
+  if (!value) return false
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === 'http:' &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
+    )
+  } catch {
+    return false
+  }
+}
+
+const previewOrigin = parsePreviewOrigin(Deno.env.get('CHAT_IMAGE_PREVIEW_ORIGIN'))
+
 function databaseError(error: { code?: string; message?: string }): never {
   return mapAttachmentDatabaseError(error)
 }
@@ -41,6 +62,8 @@ function boundedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Res
 const handler = createAttachmentHandler({
   enabled: Deno.env.get('CHAT_IMAGE_INPUT_ENABLED')?.trim().toLowerCase() === 'true',
   allowedOrigins: Deno.env.get('CHAT_ALLOWED_ORIGINS')?.trim() || DEFAULT_ALLOWED_ORIGINS,
+  allowInsecureLoopbackPreviewUrls:
+    usesLocalSupabase() || (previewOrigin !== null && isInsecureLoopbackOrigin(previewOrigin)),
   previewTtlSeconds: 120,
   normalizeImage(image) {
     return normalizeImage(image.bytes, image.mediaType)
@@ -160,7 +183,7 @@ const handler = createAttachmentHandler({
         if (error || !data?.signedUrl) {
           throw new Error('Could not create WebChat image preview')
         }
-        return data.signedUrl
+        return rewritePreviewUrl(data.signedUrl, previewOrigin)
       },
     }
   },

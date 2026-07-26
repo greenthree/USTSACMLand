@@ -463,6 +463,23 @@ export function verifyCiWorkflow(
   }
   requireMatch(
     workflow,
+    /- name: Test referral transaction fencing and reward boundary\s+run: npm run check:referral-concurrency/,
+    'Database CI must execute the real referral guard, shutdown-fencing, and tenth-reward concurrency check.',
+  )
+  if (
+    packageJson.scripts?.['check:referral-concurrency'] !==
+    'node scripts/check-referral-concurrency.mjs'
+  ) {
+    throw new Error('The referral concurrency check must use the checked-in verifier.')
+  }
+  if (
+    packageJson.scripts?.['check:referral-concurrency:guard-isolation'] !==
+    'node scripts/check-referral-concurrency.mjs --guard-isolation-only'
+  ) {
+    throw new Error('The referral guard-isolation check must use the checked-in verifier.')
+  }
+  requireMatch(
+    workflow,
     /database-security:[\s\S]*?- name: Set up Deno for database integration checks\s+uses: denoland\/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed[\s\S]*?deno-version: v2\.x/,
     'Database CI must install the pinned Deno runtime used by the local outage integration check.',
   )

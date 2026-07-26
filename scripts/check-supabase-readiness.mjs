@@ -16,7 +16,17 @@ export const expectedEdgeFunctions = [
   'sync-stats',
   'delete-account',
   'change-password',
+  'webchat',
+  'webchat-attachment',
+  'webchat-image-cleanup',
+  'webchat-config',
+  'webchat-cache-probe',
+  'firecrawl-config',
 ]
+
+export const serviceOnlyEdgeFunctions = ['webchat-image-cleanup', 'webchat-cache-probe']
+
+const serviceOnlyEdgeFunctionSet = new Set(serviceOnlyEdgeFunctions)
 
 export const requiredFunctionSecrets = [
   'SUPABASE_URL',
@@ -79,15 +89,22 @@ function headerContainsOrigin(value) {
   )
 }
 
-function isFunctionBoundaryProbeReady(probe, allowedOrigin) {
+function isFunctionBoundaryProbeReady(probe, allowedOrigin, functionName) {
+  if (!probe || ![401, 403, 405].includes(probe.getStatus)) return false
+  if (serviceOnlyEdgeFunctionSet.has(functionName)) {
+    return Boolean(
+      [401, 403, 405].includes(probe.allowed.status) &&
+      probe.allowed.allowOrigin === null &&
+      [401, 403, 405].includes(probe.hostile.status) &&
+      probe.hostile.allowOrigin === null,
+    )
+  }
   return Boolean(
-    probe &&
     probe.allowed.status === 200 &&
     probe.allowed.allowOrigin === allowedOrigin &&
     headerContainsOrigin(probe.allowed.vary) &&
-    probe.hostile.status === 200 &&
-    probe.hostile.allowOrigin === null &&
-    [401, 405].includes(probe.getStatus),
+    [200, 401, 403, 405].includes(probe.hostile.status) &&
+    probe.hostile.allowOrigin === null,
   )
 }
 
@@ -278,17 +295,31 @@ export function evaluateSupabaseReadiness(state, options = {}) {
         errors.push(`Edge Function ${functionName} 未取得 CORS 与方法边界探测结果。`)
         continue
       }
-      if (
-        probe.allowed.status !== 200 ||
-        probe.allowed.allowOrigin !== state.functionBoundaryAudit.allowedOrigin ||
-        !headerContainsOrigin(probe.allowed.vary)
-      ) {
-        errors.push(`Edge Function ${probe.functionName} 未正确允许正式站点 Origin。`)
+      if (serviceOnlyEdgeFunctionSet.has(functionName)) {
+        if (
+          ![401, 403, 405].includes(probe.allowed.status) ||
+          probe.allowed.allowOrigin !== null ||
+          ![401, 403, 405].includes(probe.hostile.status) ||
+          probe.hostile.allowOrigin !== null
+        ) {
+          errors.push(`Edge Function ${probe.functionName} 意外向浏览器 Origin 开放。`)
+        }
+      } else {
+        if (
+          probe.allowed.status !== 200 ||
+          probe.allowed.allowOrigin !== state.functionBoundaryAudit.allowedOrigin ||
+          !headerContainsOrigin(probe.allowed.vary)
+        ) {
+          errors.push(`Edge Function ${probe.functionName} 未正确允许正式站点 Origin。`)
+        }
+        if (
+          ![200, 401, 403, 405].includes(probe.hostile.status) ||
+          probe.hostile.allowOrigin !== null
+        ) {
+          errors.push(`Edge Function ${probe.functionName} 未正确拒绝恶意 CORS Origin。`)
+        }
       }
-      if (probe.hostile.status !== 200 || probe.hostile.allowOrigin !== null) {
-        errors.push(`Edge Function ${probe.functionName} 未正确拒绝恶意 CORS Origin。`)
-      }
-      if (![401, 405].includes(probe.getStatus)) {
+      if (![401, 403, 405].includes(probe.getStatus)) {
         errors.push(
           `Edge Function ${probe.functionName} 匿名 GET 返回 HTTP ${probe.getStatus}，未体现认证/方法边界。`,
         )
@@ -333,6 +364,7 @@ export function evaluateSupabaseReadiness(state, options = {}) {
           isFunctionBoundaryProbeReady(
             state.functionBoundaryAudit.probes.find((probe) => probe.functionName === functionName),
             state.functionBoundaryAudit.allowedOrigin,
+            functionName,
           ),
         ),
       ),

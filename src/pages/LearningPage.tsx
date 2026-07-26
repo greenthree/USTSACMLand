@@ -14,6 +14,7 @@ import Route from 'lucide-react/dist/esm/icons/route'
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles'
 import TimerReset from 'lucide-react/dist/esm/icons/timer-reset'
 import UsersRound from 'lucide-react/dist/esm/icons/users-round'
+import './learning.css'
 
 interface LearningStage {
   id: string

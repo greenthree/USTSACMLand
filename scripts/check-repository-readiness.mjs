@@ -20,7 +20,11 @@ export const requiredActionSecrets = [
   'BACKUP_ENCRYPTION_PASSPHRASE',
 ]
 
-export const requiredActionVariables = ['BACKUP_RECOVERY_NOT_BEFORE']
+export const requiredActionVariables = [
+  'BACKUP_RECOVERY_NOT_BEFORE',
+  'MAX_BACKUP_ARTIFACT_BYTES',
+  'MAX_STORAGE_OBJECTS',
+]
 
 // GitHub's ruleset API stores the check-run names, not the UI's
 // "workflow / job" labels.

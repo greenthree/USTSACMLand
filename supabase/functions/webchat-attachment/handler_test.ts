@@ -70,7 +70,10 @@ function jsonRequest(action: 'preview' | 'remove'): Request {
   })
 }
 
-function harness(overrides: Partial<AttachmentServices> = {}) {
+function harness(
+  overrides: Partial<AttachmentServices> = {},
+  dependencyOverrides: Partial<AttachmentHandlerDependencies> = {},
+) {
   const calls: string[] = []
   const services: AttachmentServices = {
     getUser: async () => ({ id: 'user-1' }),
@@ -143,6 +146,7 @@ function harness(overrides: Partial<AttachmentServices> = {}) {
     reportUnexpectedError: async () => {
       calls.push('reported')
     },
+    ...dependencyOverrides,
   }
   return { handler: createAttachmentHandler(dependencies), calls, dependencies }
 }
@@ -234,6 +238,50 @@ Deno.test('rolls back before completion when the initial preview cannot be signe
   strictEqual(response.status, 500)
   strictEqual(completed, false)
   strictEqual(calls.join(','), 'validating,renewed,uploaded,signed,object-deleted,failed,reported')
+})
+
+Deno.test('rejects unsafe signed preview URLs without reflecting private values', async () => {
+  for (const previewUrl of [
+    'http://attacker.example/private.webp?token=secret',
+    'https://user:password@signed.example.test/private.webp?token=secret',
+    'https://signed.example.test/private.webp?token=secret#leak',
+  ]) {
+    const { handler } = harness({
+      signPreview: async () => previewUrl,
+    })
+    const response = await handler(jsonRequest('preview'))
+    const body = JSON.stringify(await response.json())
+    strictEqual(response.status, 500)
+    strictEqual(body.includes(previewUrl), false)
+    strictEqual(body.includes('token=secret'), false)
+    strictEqual(body.includes('password'), false)
+  }
+})
+
+Deno.test('allows loopback HTTP preview URLs only for local development', async () => {
+  const { handler } = harness(
+    {
+      signPreview: async () =>
+        'http://127.0.0.1:54321/storage/v1/object/sign/webchat-images/local.webp?token=local',
+    },
+    { allowInsecureLoopbackPreviewUrls: true },
+  )
+  const response = await handler(jsonRequest('preview'))
+  const body = await response.json()
+  strictEqual(response.status, 200)
+  strictEqual(
+    body.attachment.previewUrl,
+    'http://127.0.0.1:54321/storage/v1/object/sign/webchat-images/local.webp?token=local',
+  )
+})
+
+Deno.test('rejects loopback HTTP preview URLs when local development is not enabled', async () => {
+  const { handler } = harness({
+    signPreview: async () =>
+      'http://127.0.0.1:54321/storage/v1/object/sign/webchat-images/local.webp?token=local',
+  })
+  const response = await handler(jsonRequest('preview'))
+  strictEqual(response.status, 500)
 })
 
 Deno.test(

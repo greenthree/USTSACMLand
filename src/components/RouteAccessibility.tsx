@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
 const SITE_TITLE = 'USTS ACM Land'
+const SITE_ORIGIN = 'https://ustsacm.fun'
 
 function pageTitle(pathname: string): string {
   if (pathname === '/') return '苏州科技大学 ACM 集训队官网'
@@ -38,6 +39,9 @@ export function RouteAccessibility() {
 
   useEffect(() => {
     document.title = pathname === '/' ? `${SITE_TITLE} | ${title}` : `${title} | ${SITE_TITLE}`
+    const canonicalUrl = pathname === '/' ? `${SITE_ORIGIN}/` : `${SITE_ORIGIN}${pathname}`
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', canonicalUrl)
+    document.querySelector('meta[property="og:url"]')?.setAttribute('content', canonicalUrl)
     if (previousPathname.current === pathname) return
 
     previousPathname.current = pathname

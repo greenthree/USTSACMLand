@@ -89,6 +89,7 @@ verify_jwt = true
 
 [functions.webchat-attachment]
 verify_jwt = true
+static_files = ["./functions/webchat-attachment/codecs/*.wasm"]
 
 [functions.webchat-image-cleanup]
 verify_jwt = true

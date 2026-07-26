@@ -22,6 +22,27 @@ export const solvedPlatforms: SolvedPlatform[] = [
 export const ratingRankingViews: RankingView[] = ['overall', ...ratingPlatforms]
 export const solvedRankingViews: RankingView[] = ['overall', ...solvedPlatforms]
 
+// 首页“线上公开赛”的展示顺序是有意排布的（国际平台在前），与 solvedPlatforms 的顺序无关。
+export const openContestPlatforms: readonly SolvedPlatform[] = [
+  'codeforces',
+  'atcoder',
+  'nowcoder',
+  'luogu',
+  'qoj',
+]
+
+export const platformMetricLabels: Record<Platform, string> = Object.fromEntries(
+  (Object.keys(platformLabels) as Platform[]).map((platform) => [
+    platform,
+    [
+      (ratingPlatforms as readonly Platform[]).includes(platform) && 'Rating',
+      (solvedPlatforms as readonly Platform[]).includes(platform) && '通过题数',
+    ]
+      .filter(Boolean)
+      .join(' / '),
+  ]),
+) as Record<Platform, string>
+
 export const rankingViewLabels: Record<RankingView, string> = {
   overall: '总榜',
   ...platformLabels,

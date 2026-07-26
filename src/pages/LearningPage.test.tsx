@@ -123,7 +123,9 @@ describe('LearningPage', () => {
 
     await user.click(screen.getByRole('tab', { name: /第 2 周/ }))
     expect(screen.getByRole('tabpanel')).toHaveTextContent('补齐程序基本结构')
-    await user.click(screen.getByRole('checkbox', { name: '掌握数组与字符串' }))
+    // 自绘 checkbox：input 隐藏且 pointer-events:none，真实点击落在包裹它的 label 上
+    await user.click(screen.getByText('掌握数组与字符串'))
+    expect(screen.getByRole('checkbox', { name: '掌握数组与字符串' })).toBeChecked()
     expect(screen.getByRole('progressbar', { name: '四周学习进度' })).toHaveAttribute(
       'aria-valuenow',
       '8',

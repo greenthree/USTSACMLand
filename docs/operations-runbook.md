@@ -1,6 +1,6 @@
 # 生产运维手册
 
-本文供 USTS ACM Land 的项目维护者使用，覆盖部署、验证、回滚、凭据轮换、数据源修复和管理员交接。所有命令均在仓库根目录执行；示例中的项目引用、邮箱和 URL 必须替换为当前生产配置，禁止把真实 Secret 写入命令历史、工单、截图或 Git。
+本文供 USTS ACM Land 的项目维护者使用，覆盖部署、验证、回滚、凭据轮换、数据源修复和管理员交接。新维护者应先按 [维护者交接与独立操作卡](./maintainer-handoff.md) 完成权限准入、同步巡检、备份恢复、轮换和回滚演练。所有命令均在仓库根目录执行；示例中的项目引用、邮箱和 URL 必须替换为当前生产配置，禁止把真实 Secret 写入命令历史、工单、截图或 Git。
 
 ## 1. 权限与职责
 
@@ -61,7 +61,7 @@ WebChat 图片数据库 migration、`webchat-attachment` 与 `webchat-image-clea
    npx playwright install chromium firefox webkit
    npm run test:e2e
    npm run build
-   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-config/index.ts
+   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
    npx --yes deno lint --config supabase/functions/deno.json supabase/functions
    npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
    git diff --check
@@ -85,7 +85,7 @@ npm run check:supabase-preflight
 
 该命令退出码为 `1` 时不得继续发布。先处理缺失 Secret、远端独有 migration、项目健康、权限或 schema lint 等真正的前置阻塞；待部署 migration 与函数本身会保留为 warning。
 
-2026-07-17 的生产核对确认 45 个 migration 已全部应用，`sync-member`、`sync-stats`、`delete-account`、`change-password`、`webchat-config` 与 `webchat` 六个函数均为 ACTIVE。WebChat 使用仓库 import map 部署，服务端与数据库请求开关已对显式授权账号开放；已授权账号的 localhost `/assistant` 能读取当前模型 `gpt-5.6-sol` 和本人额度，完成流式回复与 Usage 结算，模型自报与页面显示一致且 console 无错误。2026-07-18 已通过仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` 启用生产 Pages 客户端入口，未登录路由保护和已授权账号工作台验证通过，证据见 `docs/evidence/webchat-pages-entry-production-2026-07-18.md`。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。
+2026-07-26 的生产只读核对确认 71 个 migration 已全部应用，十个 Edge Function 均为 ACTIVE、启用 JWT 验证并使用仓库 import map；浏览器函数的正式 Origin 与后台专用函数的拒绝浏览器边界均通过。AI 助手页面必须以管理员当前运行时配置为权威，文档不固定模型名称；当次页面显示 `grok-4.5`，此前 GPT-5.6 的渠道验收记录不能代表当前配置。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./evidence/supabase-ten-function-readiness-2026-07-26.md) 与 [`docs/evidence/webchat-current-model-cache-channel-2026-07-25.md`](./evidence/webchat-current-model-cache-channel-2026-07-25.md)。
 
 先核对本地与远端 migration，不直接在生产 SQL Editor 手工粘贴仓库 migration：
 
@@ -190,6 +190,9 @@ git worktree add ..\ustsacmland-rollback <known-good-commit>
 Set-Location ..\ustsacmland-rollback
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password `
   --use-api --import-map supabase/functions/deno.json
+npx --yes supabase@2.109.1 functions deploy firecrawl-config webchat webchat-attachment webchat-image-cleanup webchat-config webchat-cache-probe `
+  --use-api --import-map supabase/functions/deno.json
+npm run check:supabase-readiness
 ```
 
 完成后回到主工作区并删除临时 worktree。若旧函数不兼容新 Schema，不回滚函数，改为从主分支发布最小修复版本。
@@ -203,27 +206,27 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-accoun
 - 已发生数据破坏：立即暂停同步和管理写入，记录时间窗口，评估 Supabase PITR/备份恢复。
 - 只有整库灾难恢复才考虑使用备份；必须先用 GitHub 当前 `BACKUP_RECOVERY_NOT_BEFORE` 运行恢复下限校验，再核对 Auth、业务表、审计匿名化和私有 `webchat-images` 对象。校验失败时禁止恢复旧备份。
 
-恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、8 个聚合行数、6 类孤儿关系、Storage 数量/字节/哈希、匿名访问拒绝和抽样结果。2026-07-19 的旧演练只覆盖数据库-only 格式；Storage 版本发布前必须使用 Schema v2 Artifact 完成新的真实演练。
+恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、8 个聚合行数、7 类孤儿关系、Storage 数量/字节/哈希、匿名访问拒绝和抽样结果。Schema v2 的零图片对象恢复已经通过，但图片正式开放前仍必须使用包含真实非空图片对象的 Artifact 完成贯通演练；零对象结果不能替代。
 
 ## 5. 凭据轮换
 
 通用顺序是“创建新值 → 更新目标 Secret → 部署/重启消费者 → 烟测 → 撤销旧值”。不能先撤销旧值再开始配置。
 
-生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 与 `DELETION_RECOVERY_GITHUB_TOKEN` 已配置；维护端单调前推并回读恢复下限后，真实注销、函数读取恢复下限与残留清理烟测已通过。当前可用凭据权限偏宽，仍需轮换为只授权目标仓库 Variables 读写的 fine-grained Token，并在不倒退现有恢复下限的前提下复测 Edge 自主写入。Secret 审计工具只读取名称，不输出真实值或摘要。
+生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 与 `DELETION_RECOVERY_GITHUB_TOKEN` 已配置，Token 已收敛为只授权目标仓库 Variables 读写的 fine-grained Token；维护端单调前推并回读恢复下限、Edge 自主写入、真实注销与残留清理烟测均已通过。Secret 审计工具只读取名称，不输出真实值或摘要。
 
-| 凭据                      | 存放位置                                       | 轮换后验证                                                                                   |
-| ------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Firecrawl API Key         | Supabase Function Secrets                      | 牛客回退一次、QOJ 登录健康检查一次、用量面板正常                                             |
-| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试                |
-| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新        | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                  |
-| 同步队列调度 Token        | Supabase Function Secret + Vault               | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                     |
-| Supabase access token     | GitHub Actions/维护者本机安全存储              | migration list 与函数部署只访问目标项目                                                      |
-| Supabase service role key | Edge/GitHub 受控 Secret                        | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                                     |
-| WebChat 中转站 Key        | GitHub Actions（验收）+ Supabase Vault（运行） | 手动兼容性烟测、后台轮换、禁用态函数边界和成员生产验证；前端包、配置读取与审计中均不存在该值 |
-| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器              | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI                                        |
-| 数据库备份加密口令        | GitHub Actions Secret、密码管理器              | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验                                          |
-| 注销恢复下限 GitHub Token | Supabase Function Secret                       | 仅 Variables write；受控注销前后变量单调前移且不含身份信息                                   |
-| 管理员密码                | Supabase Auth                                  | 新密码登录、旧会话按策略失效、恢复邮箱可用                                                   |
+| 凭据                      | 存放位置                                                | 轮换后验证                                                                                   |
+| ------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Firecrawl API Key         | 管理后台私有 Vault Key 池；Function Secret 仅为兼容回退 | 逐 Key 健康/额度、受控冷却轮换、牛客回退和 QOJ 登录会话清理                                  |
+| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                         | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试                |
+| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新                 | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                  |
+| 同步队列调度 Token        | Supabase Function Secret + Vault                        | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                     |
+| Supabase access token     | GitHub Actions/维护者本机安全存储                       | migration list 与函数部署只访问目标项目                                                      |
+| Supabase service role key | Edge/GitHub 受控 Secret                                 | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                                     |
+| WebChat 中转站 Key        | GitHub Actions（验收）+ Supabase Vault（运行）          | 手动兼容性烟测、后台轮换、禁用态函数边界和成员生产验证；前端包、配置读取与审计中均不存在该值 |
+| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器                       | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI                                        |
+| 数据库备份加密口令        | GitHub Actions Secret、密码管理器                       | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验                                          |
+| 注销恢复下限 GitHub Token | Supabase Function Secret                                | 仅 Variables write；受控注销前后变量单调前移且不含身份信息                                   |
+| 管理员密码                | Supabase Auth                                           | 新密码登录、旧会话按策略失效、恢复邮箱可用                                                   |
 
 轮换后搜索近期日志只能检查字段名或错误码，禁止搜索并输出 Secret 本身。若凭据疑似泄露，先撤销、再调查影响范围；不要继续使用旧值“观察是否被滥用”。
 

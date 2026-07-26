@@ -1,5 +1,5 @@
 // deno-lint-ignore-file require-await
-import { deepStrictEqual, match, strictEqual, throws } from 'node:assert/strict'
+import { deepStrictEqual, match, rejects, strictEqual, throws } from 'node:assert/strict'
 import {
   promptCacheKey,
   promptCacheOptions,
@@ -145,6 +145,53 @@ Deno.test(
   },
 )
 
+Deno.test('webchat validates image payloads before marking the upstream claim', async () => {
+  let marks = 0
+  let fetches = 0
+  let finalizations = 0
+
+  await rejects(
+    () =>
+      startWebChat(
+        config(async () => ((fetches += 1), sse([]))),
+        {
+          messages: [
+            {
+              id: 'user-image',
+              role: 'user',
+              text: '请看图',
+              images: [
+                {
+                  attachmentId: '22222222-2222-4222-8222-222222222222',
+                  mediaType: 'image/webp',
+                  url: 'http://insecure.example.test/private-image.webp',
+                  width: 640,
+                  height: 480,
+                },
+              ],
+            },
+          ],
+          userId: 'user-1',
+          quotaLifecycle: {
+            async markStarted() {
+              marks += 1
+              return true
+            },
+            async finalize() {
+              finalizations += 1
+              return true
+            },
+          },
+        },
+      ),
+    /image URL is invalid/,
+  )
+
+  strictEqual(marks, 0)
+  strictEqual(fetches, 0)
+  strictEqual(finalizations, 0)
+})
+
 Deno.test(
   'webchat uses the relay-compatible implicit cache policy and plain messages',
   async () => {
@@ -230,6 +277,106 @@ Deno.test(
     deepStrictEqual(events, ['mark', 'fetch', 'finalize'])
   },
 )
+
+Deno.test(
+  'webchat settles image requests from trusted upstream usage without retrying',
+  async () => {
+    let fetchCount = 0
+    const settlements: Array<{ outcome: string; usage: unknown }> = []
+    const response = await startWebChat(
+      config(async (_input, init) => {
+        fetchCount += 1
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+        deepStrictEqual(body.input, [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: '分析图片' },
+              {
+                type: 'input_image',
+                image_url: 'https://signed.example.test/private-image?token=opaque',
+                detail: 'high',
+              },
+            ],
+          },
+        ])
+        return sse([{ type: 'response.completed', response: { usage } }])
+      }),
+      {
+        messages: [
+          {
+            id: 'user-image',
+            role: 'user',
+            text: '分析图片',
+            images: [
+              {
+                attachmentId: '22222222-2222-4222-8222-222222222222',
+                mediaType: 'image/webp',
+                url: 'https://signed.example.test/private-image?token=opaque',
+                width: 640,
+                height: 480,
+              },
+            ],
+          },
+        ],
+        userId: 'user-1',
+        quotaLifecycle: {
+          async markStarted() {
+            return true
+          },
+          async finalize(outcome, settledUsage) {
+            settlements.push({ outcome, usage: settledUsage })
+            return true
+          },
+        },
+      },
+    )
+
+    await response.text()
+    strictEqual(fetchCount, 1)
+    deepStrictEqual(settlements, [
+      {
+        outcome: 'completed',
+        usage: {
+          inputTokens: 37,
+          outputTokens: 11,
+          totalTokens: 48,
+          cachedInputTokens: null,
+          cacheWriteTokens: null,
+        },
+      },
+    ])
+  },
+)
+
+Deno.test('webchat starts the upstream timeout only after the claim fence', async () => {
+  let fetchSignalWasAborted = true
+  const response = await startWebChat(
+    {
+      ...config(async (_input, init) => {
+        fetchSignalWasAborted = init?.signal?.aborted ?? true
+        return sse([{ type: 'response.completed', response: { usage } }])
+      }),
+      timeoutMs: 50,
+    },
+    {
+      messages,
+      userId: 'user-1',
+      quotaLifecycle: {
+        async markStarted() {
+          await new Promise((resolve) => setTimeout(resolve, 75))
+          return true
+        },
+        async finalize() {
+          return true
+        },
+      },
+    },
+  )
+
+  await response.text()
+  strictEqual(fetchSignalWasAborted, false)
+})
 
 Deno.test(
   'webchat keeps legacy implicit request shape for older and custom relay models',

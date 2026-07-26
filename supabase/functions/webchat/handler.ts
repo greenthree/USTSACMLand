@@ -412,6 +412,7 @@ export function createWebChatHandler(
         throw quotaError(claim)
       }
 
+      let claimStartConfirmed = false
       try {
         const messages = await resolveImageMessages(
           body.messages,
@@ -427,8 +428,15 @@ export function createWebChatHandler(
             requestSignal: request.signal,
             requestId: currentRequestId,
             quotaLifecycle: {
-              markStarted: () =>
-                services.markWebChatRequestStarted(user.id, currentRequestId, ownerToken),
+              markStarted: async () => {
+                const started = await services.markWebChatRequestStarted(
+                  user.id,
+                  currentRequestId,
+                  ownerToken,
+                )
+                if (started) claimStartConfirmed = true
+                return started
+              },
               finalize: (outcome, usage) =>
                 services.finalizeWebChatRequest(
                   user.id,
@@ -445,22 +453,24 @@ export function createWebChatHandler(
         )
         return streamResponse(response, request, dependencies.allowedOrigins, currentRequestId)
       } catch (error) {
-        try {
-          const released = await services.releaseWebChatRequest(
-            user.id,
-            currentRequestId,
-            ownerToken,
-            'start_failed_before_upstream',
-          )
-          if (!released) {
-            await reportSafely(
-              dependencies,
-              request,
-              new Error('WebChat pre-start claim release was not applied.'),
+        if (!claimStartConfirmed) {
+          try {
+            const released = await services.releaseWebChatRequest(
+              user.id,
+              currentRequestId,
+              ownerToken,
+              'start_failed_before_upstream',
             )
+            if (!released) {
+              await reportSafely(
+                dependencies,
+                request,
+                new Error('WebChat pre-start claim release was not applied.'),
+              )
+            }
+          } catch (releaseError) {
+            await reportSafely(dependencies, request, releaseError)
           }
-        } catch (releaseError) {
-          await reportSafely(dependencies, request, releaseError)
         }
         throw error
       }
