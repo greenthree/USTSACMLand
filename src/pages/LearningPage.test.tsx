@@ -130,13 +130,72 @@ describe('LearningPage', () => {
       'aria-valuenow',
       '8',
     )
-    expect(localStorage.getItem('usts-acm-land-learning-progress:v1')).toBe('["1-0"]')
+    expect(screen.getByRole('tab', { name: /第 2 周/ })).toHaveTextContent('1/3')
+    expect(localStorage.getItem('usts-acm-land-learning-progress:v2')).toBe(
+      '["1:掌握数组与字符串"]',
+    )
 
     await user.click(screen.getByRole('button', { name: /基础题型/ }))
-    expect(screen.getByLabelText('基础题型知识点')).toBeInTheDocument()
-    expect(screen.queryByLabelText('环境与语法知识点')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('基础题型知识点')).toBeVisible()
+    // 手风琴内容常驻 DOM（aria-controls 引用保持有效），收起时以 hidden 隐藏
+    expect(screen.getByLabelText('环境与语法知识点')).not.toBeVisible()
 
     unmount()
+  }, 10_000)
+
+  it('switches week tabs with arrow keys and reopens stage one from the closing link', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/learning']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: /新手学习引导/ }, { timeout: 5000 })
+
+    // APG tabs：方向键 + Home/End 切换并聚焦
+    await user.click(screen.getByRole('tab', { name: /第 1 周/ }))
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('补齐程序基本结构')
+    expect(screen.getByRole('tab', { name: /第 2 周/ })).toHaveFocus()
+    expect(screen.getByRole('link', { name: '去牛客完成入门练习（新窗口打开）' })).toHaveAttribute(
+      'href',
+      'https://www.nowcoder.com/problem/tracker#/problems',
+    )
+    await user.keyboard('{End}')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('完成第一次比赛')
+    expect(
+      screen.getByRole('link', { name: '查看 Codeforces 近期比赛（新窗口打开）' }),
+    ).toHaveAttribute('href', 'https://codeforces.com/contests')
+    await user.keyboard('{Home}')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('搭好 C++/Python 环境')
+
+    // 打开其他阶段后，「返回阶段一」应重新展开阶段一（副标题避开起点选项「想开始参加比赛」）
+    await user.click(screen.getByRole('button', { name: /从会做题，到在有限时间里做出选择/ }))
+    expect(screen.getByLabelText('环境与语法知识点')).not.toBeVisible()
+    await user.click(screen.getByRole('link', { name: '返回阶段一' }))
+    expect(screen.getByLabelText('环境与语法知识点')).toBeVisible()
+  }, 10_000)
+
+  it('migrates v1 index-based progress to v2 task keys and drops stale entries', async () => {
+    localStorage.setItem('usts-acm-land-learning-progress:v1', '["0-1","0-1","3-2","9-9"]')
+    render(
+      <MemoryRouter initialEntries={['/learning']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: /新手学习引导/ }, { timeout: 5000 })
+    expect(screen.getByRole('checkbox', { name: '完成输入输出与判断练习' })).toBeChecked()
+    expect(screen.getByRole('progressbar', { name: '四周学习进度' })).toHaveAttribute(
+      'aria-valuenow',
+      '17',
+    )
+    expect(JSON.parse(localStorage.getItem('usts-acm-land-learning-progress:v2') ?? '[]')).toEqual([
+      '0:完成输入输出与判断练习',
+      '3:补题并写下失败原因',
+    ])
+    expect(localStorage.getItem('usts-acm-land-learning-progress:v1')).toBeNull()
   }, 10_000)
 
   it('is linked from the primary navigation and returns focus on client-side navigation', async () => {
