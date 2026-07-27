@@ -185,3 +185,57 @@ test('public pages do not create page-level horizontal overflow', async ({ page 
       .toBe(true)
   }
 })
+
+test('learning roadmap keeps the expanded stage inside an iPad-width viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 820, height: 1180 })
+  await page.goto('/learning#learning-roadmap')
+
+  const expandedStage = page.locator('.learning-stage.is-open')
+  await expect(expandedStage).toBeVisible()
+  await expect(expandedStage.locator('.learning-stage-notes')).toBeVisible()
+
+  const layout = await page.evaluate(() => {
+    const notes = document.querySelector<HTMLElement>(
+      '.learning-stage.is-open .learning-stage-notes',
+    )
+    const rect = notes?.getBoundingClientRect()
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      pageWidth: document.documentElement.scrollWidth,
+      notesLeft: rect?.left ?? -1,
+      notesRight: rect?.right ?? Number.POSITIVE_INFINITY,
+    }
+  })
+
+  expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewportWidth + 1)
+  expect(layout.notesLeft).toBeGreaterThanOrEqual(0)
+  expect(layout.notesRight).toBeLessThanOrEqual(layout.viewportWidth + 1)
+})
+
+test('learning mobile chapter navigation keeps the current section visible', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/learning')
+
+  const communityLink = page.locator('a[href="#learning-community"]')
+  await communityLink.click()
+  await expect(page).toHaveURL(/#learning-community$/)
+  await expect(communityLink).toHaveAttribute('aria-current', 'true')
+
+  const visibility = await page.evaluate(() => {
+    const nav = document.querySelector<HTMLElement>('.learning-jump-nav')
+    const current = nav?.querySelector<HTMLElement>('a[aria-current="true"]')
+    const navRect = nav?.getBoundingClientRect()
+    const currentRect = current?.getBoundingClientRect()
+    return {
+      currentLeft: currentRect?.left ?? -1,
+      currentRight: currentRect?.right ?? Number.POSITIVE_INFINITY,
+      navLeft: navRect?.left ?? 0,
+      navRight: navRect?.right ?? 0,
+    }
+  })
+
+  expect(visibility.currentLeft).toBeGreaterThanOrEqual(visibility.navLeft - 1)
+  expect(visibility.currentRight).toBeLessThanOrEqual(visibility.navRight + 1)
+})

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right'
 import BookMarked from 'lucide-react/dist/esm/icons/book-marked'
 import Check from 'lucide-react/dist/esm/icons/check'
@@ -30,7 +31,9 @@ interface LearningStage {
 
 type StartLevel = 'beginner' | 'syntax' | 'contest'
 
-const LEARNING_PROGRESS_KEY = 'usts-acm-land-learning-progress:v1'
+// v2：任务键为「周序号:任务文案」，调整文案只会重置对应任务；v1（纯索引键）读取时自动迁移
+const LEARNING_PROGRESS_KEY = 'usts-acm-land-learning-progress:v2'
+const LEGACY_LEARNING_PROGRESS_KEY = 'usts-acm-land-learning-progress:v1'
 
 const learningStages: LearningStage[] = [
   {
@@ -143,9 +146,57 @@ const firstFourWeeks = [
   },
 ]
 
-const weekActions: Record<number, { label: string; href: string } | undefined> = {
-  0: { label: '一键配置 C++/Python 环境', href: 'https://ab.algoux.cn/' },
+const weekActions: { label: string; href: string }[] = [
+  { label: '一键配置 C++/Python 环境', href: 'https://ab.algoux.cn/' },
+  { label: '去牛客完成入门练习', href: 'https://www.nowcoder.com/problem/tracker#/problems' },
+  { label: '打开洛谷题单广场', href: 'https://www.luogu.com.cn/training/list' },
+  { label: '查看 Codeforces 近期比赛', href: 'https://codeforces.com/contests' },
+]
+
+const totalTasks = firstFourWeeks.reduce((sum, week) => sum + week.tasks.length, 0)
+
+const taskIdOf = (weekIndex: number, task: string) => `${weekIndex}:${task}`
+
+const validTaskIds = new Set(
+  firstFourWeeks.flatMap((week, weekIndex) => week.tasks.map((task) => taskIdOf(weekIndex, task))),
+)
+
+// v1 索引键 → v2 文案键；越界或已删除的任务直接丢弃
+function migrateLegacyProgress(stored: string[]): string[] {
+  return stored.flatMap((legacyId) => {
+    const [weekIndex, taskIndex] = legacyId.split('-').map(Number)
+    const task = firstFourWeeks[weekIndex]?.tasks[taskIndex]
+    return task === undefined ? [] : [taskIdOf(weekIndex, task)]
+  })
 }
+
+function readStoredProgress(): string[] {
+  try {
+    const stored = localStorage.getItem(LEARNING_PROGRESS_KEY)
+    if (stored) {
+      return Array.from(
+        new Set((JSON.parse(stored) as string[]).filter((id) => validTaskIds.has(id))),
+      )
+    }
+    const legacy = localStorage.getItem(LEGACY_LEARNING_PROGRESS_KEY)
+    if (legacy) {
+      return Array.from(new Set(migrateLegacyProgress(JSON.parse(legacy) as string[])))
+    }
+  } catch {
+    // 存储不可用或内容损坏时从零开始
+  }
+  return []
+}
+
+const learningChapters = [
+  { id: 'learning-first-month', index: '01', label: '四周计划' },
+  { id: 'learning-platforms', index: '02', label: '练习平台' },
+  { id: 'learning-roadmap', index: '03', label: '进阶路线' },
+  { id: 'learning-topics', index: '04', label: '知识地图' },
+  { id: 'learning-rhythm', index: '05', label: '训练节奏' },
+  { id: 'learning-resources', index: '06', label: '开放资源' },
+  { id: 'learning-community', index: '07', label: '竞赛圈子' },
+]
 
 const beginnerPlatforms = [
   {
@@ -259,25 +310,71 @@ export function LearningPage() {
   const [startLevel, setStartLevel] = useState<StartLevel>('beginner')
   const [activeWeek, setActiveWeek] = useState(0)
   const [openStage, setOpenStage] = useState('stage-foundation')
-  const [completedTasks, setCompletedTasks] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem(LEARNING_PROGRESS_KEY)
-      return stored ? (JSON.parse(stored) as string[]) : []
-    } catch {
-      return []
-    }
-  })
+  const [currentChapter, setCurrentChapter] = useState(learningChapters[0].id)
+  const [completedTasks, setCompletedTasks] = useState<string[]>(readStoredProgress)
+  const weekTabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const chapterLinkRefs = useRef<(HTMLAnchorElement | null)[]>([])
+  const jumpNavRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(LEARNING_PROGRESS_KEY, JSON.stringify(completedTasks))
+    try {
+      localStorage.setItem(LEARNING_PROGRESS_KEY, JSON.stringify(completedTasks))
+      localStorage.removeItem(LEGACY_LEARNING_PROGRESS_KEY)
+    } catch {
+      // 隐私模式等场景下存储不可写，进度只保留在内存中
+    }
   }, [completedTasks])
+
+  // 章节导航 scrollspy：当前节 = 顶端越过阈值线（sticky 偏移下缘）的最后一节
+  useEffect(() => {
+    let frame = 0
+    const update = () => {
+      frame = 0
+      let current = learningChapters[0].id
+      for (const chapter of learningChapters) {
+        const section = document.getElementById(chapter.id)
+        if (section && section.getBoundingClientRect().top <= 170) current = chapter.id
+      }
+      const scroller = document.scrollingElement
+      // 触底时尾节太短够不到阈值线，直接视为当前
+      if (scroller && window.innerHeight + scroller.scrollTop >= scroller.scrollHeight - 2) {
+        current = learningChapters[learningChapters.length - 1].id
+      }
+      setCurrentChapter(current)
+    }
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      cancelAnimationFrame(frame)
+    }
+  }, [])
+
+  // 移动端目录为横向滚动条，自动把 scrollspy 的当前项收回可视范围。
+  useEffect(() => {
+    if (!window.matchMedia?.('(max-width: 780px)').matches) return
+    const index = learningChapters.findIndex((chapter) => chapter.id === currentChapter)
+    const nav = jumpNavRef.current
+    const link = chapterLinkRefs.current[index]
+    if (!nav || !link) return
+    const left = Math.max(0, link.offsetLeft - (nav.clientWidth - link.offsetWidth) / 2)
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (typeof nav.scrollTo === 'function') {
+      nav.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' })
+    } else {
+      nav.scrollLeft = left
+    }
+  }, [currentChapter])
 
   const recommendedPlatform = useMemo(
     () => beginnerPlatforms.find((platform) => platform.id === startLevel) ?? beginnerPlatforms[0],
     [startLevel],
   )
-  const selectedWeek = firstFourWeeks[activeWeek]
-  const totalTasks = firstFourWeeks.reduce((sum, week) => sum + week.tasks.length, 0)
   const progress = Math.round((completedTasks.length / totalTasks) * 100)
 
   function toggleTask(taskId: string) {
@@ -286,11 +383,46 @@ export function LearningPage() {
     )
   }
 
+  // APG tabs 键盘约定：左右方向键 + Home/End 移动并激活
+  function handleWeekTabKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, index: number) {
+    const count = firstFourWeeks.length
+    const target =
+      event.key === 'ArrowRight'
+        ? (index + 1) % count
+        : event.key === 'ArrowLeft'
+          ? (index + count - 1) % count
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? count - 1
+              : null
+    if (target === null) return
+    event.preventDefault()
+    setActiveWeek(target)
+    weekTabRefs.current[target]?.focus()
+  }
+
+  function scrollToSection(event: ReactMouseEvent<HTMLAnchorElement>, id: string) {
+    const section = document.getElementById(id)
+    if (!section || typeof section.scrollIntoView !== 'function') return
+    event.preventDefault()
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    section.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    history.replaceState(null, '', `#${id}`)
+  }
+
   return (
     <div className="learning-page">
       <section className="learning-hero" aria-labelledby="learning-title">
         <div className="learning-hero-copy">
-          <p className="learning-kicker">USTS ACM INTERACTIVE PATH · START</p>
+          <div className="learning-kicker-row">
+            <p className="learning-kicker">USTS ACM INTERACTIVE PATH · START</p>
+            <span className="learning-kicker-meta" aria-hidden="true">
+              {String(learningStages.length).padStart(2, '0')} STAGES ·{' '}
+              {String(totalTasks).padStart(2, '0')} TASKS ·{' '}
+              {String(learningChapters.length).padStart(2, '0')} SECTIONS
+            </span>
+          </div>
           <h1 id="learning-title">
             新手学习引导
             <span>从第一行代码，到第一次团队赛</span>
@@ -318,11 +450,10 @@ export function LearningPage() {
                 type="button"
                 className={startLevel === platform.id ? 'is-selected' : ''}
                 aria-pressed={startLevel === platform.id}
-                aria-label={platform.cue}
                 onClick={() => setStartLevel(platform.id)}
                 key={platform.id}
               >
-                <span>{platform.order}</span>
+                <span aria-hidden="true">{platform.order}</span>
                 {platform.cue}
               </button>
             ))}
@@ -347,29 +478,23 @@ export function LearningPage() {
       </section>
 
       <div className="learning-guide-shell">
-        <nav className="learning-jump-nav" aria-label="学习页章节">
+        <nav className="learning-jump-nav" aria-label="学习页章节" ref={jumpNavRef}>
           <p>学习路径</p>
-          <a href="#learning-first-month">
-            <span>01</span>四周计划
-          </a>
-          <a href="#learning-platforms">
-            <span>02</span>练习平台
-          </a>
-          <a href="#learning-roadmap">
-            <span>03</span>进阶路线
-          </a>
-          <a href="#learning-topics">
-            <span>04</span>知识地图
-          </a>
-          <a href="#learning-rhythm">
-            <span>05</span>训练节奏
-          </a>
-          <a href="#learning-resources">
-            <span>06</span>开放资源
-          </a>
-          <a href="#learning-community">
-            <span>07</span>竞赛圈子
-          </a>
+          {learningChapters.map((chapter, index) => (
+            <a
+              href={`#${chapter.id}`}
+              className={currentChapter === chapter.id ? 'is-current' : ''}
+              aria-current={currentChapter === chapter.id ? 'true' : undefined}
+              onClick={(event) => scrollToSection(event, chapter.id)}
+              ref={(element) => {
+                chapterLinkRefs.current[index] = element
+              }}
+              key={chapter.id}
+            >
+              <span>{chapter.index}</span>
+              {chapter.label}
+            </a>
+          ))}
           <small>按顺序浏览，随时回到当前阶段。</small>
         </nav>
 
@@ -410,73 +535,97 @@ export function LearningPage() {
                 </button>
               </div>
               <div className="learning-week-tabs" role="tablist" aria-label="选择计划周次">
-                {firstFourWeeks.map((week, index) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeWeek === index}
-                    aria-controls={`learning-week-panel-${index}`}
-                    id={`learning-week-tab-${index}`}
-                    className={activeWeek === index ? 'is-active' : ''}
-                    onClick={() => setActiveWeek(index)}
+                {firstFourWeeks.map((week, index) => {
+                  const doneCount = week.tasks.filter((task) =>
+                    completedTasks.includes(taskIdOf(index, task)),
+                  ).length
+                  return (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeWeek === index}
+                      aria-controls={`learning-week-panel-${index}`}
+                      id={`learning-week-tab-${index}`}
+                      className={activeWeek === index ? 'is-active' : ''}
+                      tabIndex={activeWeek === index ? 0 : -1}
+                      onClick={() => setActiveWeek(index)}
+                      onKeyDown={(event) => handleWeekTabKeyDown(event, index)}
+                      ref={(el) => {
+                        weekTabRefs.current[index] = el
+                      }}
+                      key={week.week}
+                    >
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                      <strong>{week.week}</strong>
+                      <small>{week.focus}</small>
+                      <span
+                        className={`learning-week-tab-count${
+                          doneCount === week.tasks.length ? ' is-done' : ''
+                        }`}
+                      >
+                        {doneCount === week.tasks.length ? (
+                          <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+                        ) : null}
+                        {doneCount}/{week.tasks.length}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {firstFourWeeks.map((week, index) => {
+                const action = weekActions[index]
+                return (
+                  <div
+                    className="learning-week-panel"
+                    role="tabpanel"
+                    id={`learning-week-panel-${index}`}
+                    aria-labelledby={`learning-week-tab-${index}`}
+                    hidden={activeWeek !== index}
                     key={week.week}
                   >
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <strong>{week.week}</strong>
-                    <small>{week.focus}</small>
-                  </button>
-                ))}
-              </div>
-              <div
-                className="learning-week-panel"
-                role="tabpanel"
-                id={`learning-week-panel-${activeWeek}`}
-                aria-labelledby={`learning-week-tab-${activeWeek}`}
-              >
-                <div className="learning-week-summary">
-                  <span>本周目标</span>
-                  <h3>{selectedWeek.focus}</h3>
-                  <p>{selectedWeek.detail}</p>
-                  <strong>
-                    <Flag size={15} aria-hidden="true" />
-                    {selectedWeek.outcome}
-                  </strong>
-                  {weekActions[activeWeek] ? (
-                    <a
-                      className="learning-week-action"
-                      href={weekActions[activeWeek]?.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${weekActions[activeWeek]?.label}（新窗口打开）`}
-                    >
-                      {weekActions[activeWeek]?.label}
-                      <ArrowUpRight size={15} aria-hidden="true" />
-                    </a>
-                  ) : null}
-                </div>
-                <div
-                  className="learning-week-checklist"
-                  aria-label={`${selectedWeek.week}任务清单`}
-                >
-                  <span>完成后勾选</span>
-                  {selectedWeek.tasks.map((task, taskIndex) => {
-                    const taskId = `${activeWeek}-${taskIndex}`
-                    return (
-                      <label key={taskId}>
-                        <input
-                          type="checkbox"
-                          checked={completedTasks.includes(taskId)}
-                          onChange={() => toggleTask(taskId)}
-                        />
-                        <span>
-                          <Check size={14} aria-hidden="true" />
-                        </span>
-                        {task}
-                      </label>
-                    )
-                  })}
-                </div>
-              </div>
+                    <div className="learning-week-summary">
+                      <span>本周目标</span>
+                      <h3>{week.focus}</h3>
+                      <p>{week.detail}</p>
+                      <strong>
+                        <Flag size={15} aria-hidden="true" />
+                        {week.outcome}
+                      </strong>
+                      {action ? (
+                        <a
+                          className="learning-week-action"
+                          href={action.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`${action.label}（新窗口打开）`}
+                        >
+                          {action.label}
+                          <ArrowUpRight size={15} aria-hidden="true" />
+                        </a>
+                      ) : null}
+                    </div>
+                    <div className="learning-week-checklist" aria-label={`${week.week}任务清单`}>
+                      <span>完成后勾选</span>
+                      {week.tasks.map((task) => {
+                        const taskId = taskIdOf(index, task)
+                        return (
+                          <label key={taskId}>
+                            <input
+                              type="checkbox"
+                              checked={completedTasks.includes(taskId)}
+                              onChange={() => toggleTask(taskId)}
+                            />
+                            <span>
+                              <Check size={14} aria-hidden="true" />
+                            </span>
+                            {task}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
               <aside className="learning-plan-tip">
                 <Lightbulb size={18} aria-hidden="true" />
                 <p>
@@ -569,37 +718,39 @@ export function LearningPage() {
                     </div>
                     <ChevronDown size={20} aria-hidden="true" />
                   </button>
-                  {openStage === stage.id ? (
-                    <div className="learning-stage-content" id={`${stage.id}-content`}>
-                      <div className="learning-stage-main">
-                        <p className="learning-stage-description">{stage.description}</p>
-                        <ul className="learning-topic-tags" aria-label={`${stage.title}知识点`}>
-                          {stage.topics.map((topic) => (
-                            <li key={topic}>{topic}</li>
+                  <div
+                    className="learning-stage-content"
+                    id={`${stage.id}-content`}
+                    hidden={openStage !== stage.id}
+                  >
+                    <div className="learning-stage-main">
+                      <p className="learning-stage-description">{stage.description}</p>
+                      <ul className="learning-topic-tags" aria-label={`${stage.title}知识点`}>
+                        {stage.topics.map((topic) => (
+                          <li key={topic}>{topic}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="learning-stage-notes">
+                      <div>
+                        <Repeat2 size={18} aria-hidden="true" />
+                        <h4>怎么练</h4>
+                        <p>{stage.practice}</p>
+                      </div>
+                      <div>
+                        <Flag size={18} aria-hidden="true" />
+                        <h4>进入下一阶段前</h4>
+                        <ul>
+                          {stage.checkpoint.map((item) => (
+                            <li key={item}>
+                              <Check size={13} aria-hidden="true" />
+                              {item}
+                            </li>
                           ))}
                         </ul>
                       </div>
-                      <div className="learning-stage-notes">
-                        <div>
-                          <Repeat2 size={18} aria-hidden="true" />
-                          <h4>怎么练</h4>
-                          <p>{stage.practice}</p>
-                        </div>
-                        <div>
-                          <Flag size={18} aria-hidden="true" />
-                          <h4>进入下一阶段前</h4>
-                          <ul>
-                            {stage.checkpoint.map((item) => (
-                              <li key={item}>
-                                <Check size={13} aria-hidden="true" />
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
                     </div>
-                  ) : null}
+                  </div>
                 </article>
               ))}
             </div>
@@ -704,7 +855,15 @@ export function LearningPage() {
                 <p>不知道从哪一题开始？</p>
                 <h2>从阶段一选一道短题，今天就完成第一次“读题—实现—复盘”。</h2>
               </div>
-              <a href="#stage-foundation">返回阶段一</a>
+              <a
+                href="#stage-foundation"
+                onClick={(event) => {
+                  setOpenStage('stage-foundation')
+                  scrollToSection(event, 'stage-foundation')
+                }}
+              >
+                返回阶段一
+              </a>
             </div>
           </section>
 
