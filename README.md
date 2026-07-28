@@ -314,10 +314,9 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 
 1. 保持推荐计划全局暂停；启用真实邮箱确认并完成 Turnstile、Auth 限流和直连注册防护后，再进行真实计奖与受控生产并发验收。
 2. 为 WebChat 图片输入配置并验收真实视觉模型、真实图片 Usage、开放态异常路径、定时清理和非空对象恢复，再依次开启三层开关。
-3. 使用 GPT-5.6 时在中转站后台核对实际渠道、上游模型和缓存字段，不用当前 `grok-4.5` 的证据替代。
-4. 完成真实浏览器 Tab/Shift+Tab 和人工屏幕阅读器验收。
-5. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
-6. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare 指纹资源缓存、Purge、证书和 DNS 回滚验收。
+3. 完成真实浏览器 Tab/Shift+Tab 和人工屏幕阅读器验收。
+4. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
+5. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare 指纹资源缓存、Purge、证书和 DNS 回滚验收。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，维护权交接见 [维护者交接与独立操作卡](./docs/maintainer-handoff.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，WebChat 图片输入边界见 [图片输入 v1 契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 

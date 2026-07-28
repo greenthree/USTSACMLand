@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-07-26（Asia/Shanghai）
+最后更新：2026-07-28（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -34,7 +34,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - 连续活跃天数。
 - 比赛提醒、群机器人播报、战队训练计划和移动端原生应用。
 
-个人数据导出已经上线，不属于待开发功能。AI 学习助手已经上线，其未完成项属于生产观察和渠道验收，不是新的用户功能。
+个人数据导出和 AI 学习助手已经上线，不属于待开发功能。AI 图片输入仍按发布后功能单独验收。
 
 ## 2. 当前生产基线
 
@@ -77,16 +77,15 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 ### P1：生产验证
 
-- [ ] 使用脱敏请求 ID 在中转站后台确认 GPT-5.6 实际渠道、上游模型和缓存字段透传，解决偶发 `cached_tokens=0` 的渠道差异；验证请求不得自动重试。2026-07-25 单次生产探针确认当前运行时已配置为 `grok-4.5`，中转站响应模型为 `grok-4.5-build-free`，第二轮命中 2,432 个输入 Token，证明当前模型的缓存 Usage 可以透传且探针没有自动重试；但这不能替代 GPT-5.6 的具体渠道后台核对，因此本项保持未完成。证据见 `docs/evidence/webchat-current-model-cache-channel-2026-07-25.md`。
 - [x] 使用真实队员完成一轮生产验证，逐项核对姓名、专业、平台绑定、Rating、题数、同步时间和数据状态；私有账号页、公开成员详情、六个平台绑定与 freshness、独立榜单重算均一致，Codeforces 与 AtCoder 官方公开接口复核也完全匹配。证据见 [`docs/evidence/real-member-production-validation-2026-07-26.md`](./docs/evidence/real-member-production-validation-2026-07-26.md)。
 - [x] 使用真实认证成员完成 `/account`、`/assistant`、`/training-goals`、`/daily-problem` 和 `/rankings` 的桌面端、390px 移动端、刷新保持、页面级横向溢出、地标、跳转链接、交互控件名称和静态焦点结构复核；五个路由均保持登录、无页面级横向溢出且控制台无 warning/error。证据见 [`docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md`](./docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md)。
-- [ ] 使用真实浏览器完成 Tab / Shift+Tab 焦点顺序与焦点可见性验收，并由人工使用屏幕阅读器复核主要流程。内置浏览器外壳会截留 Tab，Windows 浏览器控制又因 URL 安全策略能力不足而中止，因此静态 DOM 与 Accessibility Tree 结果不能替代本项。
+- [ ] 使用真实浏览器完成 Tab / Shift+Tab 焦点顺序与焦点可见性验收，并由人工使用屏幕阅读器复核主要流程。2026-07-28 Chrome 已完成生产首页、新手入门、榜单、登录和注册页的桌面端前向/反向焦点检查，跳转链接、表单和筛选控件均可见且控制台无警告或错误；390px 验收发现移动导航展开后下一次 Tab 会跳过导航项，已在本地修复为展开后聚焦“首页”、随后 Tab 到“学习”、Escape 关闭后焦点返回菜单按钮，并通过专项测试与真实渲染复验。仍需部署后复验该修复、检查认证后主要路由，并由人工完成屏幕阅读器验收，因此保持未完成。证据见 [`docs/evidence/keyboard-focus-browser-2026-07-28.md`](./docs/evidence/keyboard-focus-browser-2026-07-28.md)。
 
 ### P2：发布治理
 
 - [ ] 由项目负责人确定源码许可证并添加 `LICENSE`；确定前不把项目描述为开源。
 - [ ] 确认同步状态巡检、数据库备份、凭据轮换、回滚和管理员交接文档均可由其他维护者执行。2026-07-26 已新增单一入口 [`docs/maintainer-handoff.md`](./docs/maintainer-handoff.md)，补齐权限登记、固定巡检阈值、GitHub CLI 备份/恢复、逐类凭据消费者与回滚、十函数回滚和脱敏交接模板；仓库就绪检查也开始强制要求备份大小与 Storage 对象上限变量。生产变量已按 50 名成员理论上限配置，手动备份运行 `30192826527` 成功并完成密文 Artifact 白名单核对。仍需一名非原维护者实际完成六项独立演练并签署复核，不能用原维护者本轮执行替代，因此保持未完成。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./docs/evidence/database-backup-capacity-guard-2026-07-26.md)。
-- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。
+- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-28 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 587 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试和生产构建；Supabase preflight 确认 71 个 migration、10 个 Edge Function、21 个函数 Secret、队列和函数边界正常，但因生产仍自动确认邮箱且未启用服务端 CAPTCHA 而按设计阻止发布，Cloudflare 指纹资源长期缓存也尚未通过。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
 
@@ -94,7 +93,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [x] 确定并购买正式域名 `ustsacm.fun`，将 DNS 托管到 Cloudflare。
 - [x] 在 GitHub Pages 配置并验证自定义域名，Cloudflare DNS 通过 CNAME Flattening 指向 `greenthree.github.io`。
-- [ ] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。当前域名、跳转、SPA 深链和缓存头证据见 `docs/evidence/cloudflare-domain-verification-2026-07-22.md`；指纹资源长期缓存仍待配置或确认。
+- [ ] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。当前域名、跳转、SPA 深链和缓存头证据见 `docs/evidence/cloudflare-domain-verification-2026-07-22.md`。2026-07-28 已新增可复跑的 `npm run check:cloudflare-domain` 发布门禁，覆盖裸域 HTTPS、`www`/旧 Pages 跳转、SPA 回退、HTML 短缓存和指纹资源一年 `immutable` + 二次边缘命中；公网复验已观察到指纹资源 `CF-Cache-Status: HIT`，但浏览器缓存仍为 `max-age=14400` 且缺少 `immutable`，待 Cloudflare 控制台完成 `/assets/*` 缓存与响应头规则后复验，因此保持未完成。
 - [x] 更新 Supabase Auth Site URL、允许的重定向地址、Edge Function CORS 和生产前端 Origin 白名单。
 - [ ] 验证首页、深链刷新、登录、真实邮箱找回密码、账号页、AI 助手、个人数据导出和后台入口在新域名下正常工作。2026-07-26 已使用真实管理员登录态只读复核 `/account`、`/assistant` 和 `/admin`，确认会话恢复、个人数据导出入口、AI 当前模型与累计额度、后台权限和推荐计划关闭状态正常；首页、深链与真实邮箱找回已有既有生产证据。仍缺完整个人数据文件下载复验，以及与本节绑定的 Cloudflare 缓存清理、证书/DNS 回滚验收，因此复合条目保持未完成。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md)。
 - [ ] 确认 `greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，并按运行手册验证 DNS、缓存清理、证书和回滚步骤。旧地址自动跳转已通过只读核对，缓存清理、证书和回滚演练仍未完成。
@@ -115,7 +114,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [ ] 图片输入沿用 WebChat 的单次请求 claim、累计请求上限和累计 Token 上限；服务端按可解释的保守值预留图片 Token，成功后以中转站真实 usage 结算，上游启动前失败释放预留，上游启动后无法取得 usage 时把预留转入未知用量，付费请求仍禁止自动重试。本地已完成最坏尺寸图片预留、真实 usage 解析、未知用量结算和单次 fetch 门禁；本轮进一步保证图片请求体校验发生在上游围栏前、超时从围栏后计时，且围栏确认后不再尝试释放 claim。四个核心专项文件 67 项、完整 WebChat Edge Function 目录 79 项均为 0 失败，仍待真实中转站图片 usage 生产烟测，因此不提前勾选。证据见 [`docs/evidence/webchat-image-relay-quota-local-2026-07-26.md`](./docs/evidence/webchat-image-relay-quota-local-2026-07-26.md)。
 - [ ] 在开放态附件流程中完成上传、签名预览、发送和刷新恢复；删除会话时清理全部对象，个人数据导出只包含本人附件清单与必要元数据，不泄露长期可访问 URL。2026-07-26 已在默认关闭的生产安全烟测中使用随机临时成员和真实私有 WebP 验证：本人导出仅含媒体类型、字节、尺寸和生命周期时间，另一成员附件计数为 0，且导出不含签名 URL、对象路径、哈希、附件/会话/消息标识；消息删除、对象清理、附件/队列物理清理和账号注销后零残留均通过。仍缺向成员开放后的完整客户端发送与刷新恢复流程，因此不提前勾选。证据见 [`docs/evidence/webchat-image-foundation-production-2026-07-25.md`](./docs/evidence/webchat-image-foundation-production-2026-07-25.md)。
 - [ ] 在开放态附件流程中复核服务端文件签名、解码、像素上限和 EXIF 移除；确认图片内容、签名 URL 和原始文件名不进入日志、审计或错误消息，并验收上传失败、过期对象和孤儿对象的清理路径。本地生产实现已完成 fail-closed 签名 URL 校验、显式静态 WASM 部署打包和本地预览 origin 安全重写；真实 JPEG/PNG/WebP 规范化、JPEG EXIF 方向与元数据清理、伪造格式拒绝、日志脱敏、上传回滚和删除队列共 129 项专项测试通过。真实 Supabase Edge Runtime PNG→WebP、签名预览、历史恢复、零重试删除、Storage 对账及测试账号零残留烟测也已通过。仍缺生产开放态异常路径验收，因此不提前勾选。证据见 [`docs/evidence/webchat-image-attachment-security-local-2026-07-26.md`](./docs/evidence/webchat-image-attachment-security-local-2026-07-26.md)。
-- [ ] 图片功能全线开启前增加全站每小时上传数量/字节预算、总 Storage 容量上限和并发熔断，并完成匿名注册滥用防护；账号级限额不能作为批量注册攻击下的唯一成本边界。全站数量/字节预算、Storage 容量预留、跨实例 validation lease 熔断、删除确认后释放和漂移自动暂停已实现并通过干净数据库验证；Turnstile token 客户端、Pages 默认关闭门禁和 Supabase Auth 就绪检查已实现。2026-07-26 生产只读检查已覆盖全部十个 Edge Function 且函数边界通过，但 Auth 仍为邮箱自动确认且服务端 CAPTCHA 未开启；仍待生产 Auth Secret、真实邮箱确认、限流和直连注册烟测，因此不提前勾选。证据见 [`docs/evidence/registration-abuse-foundation-2026-07-23.md`](./docs/evidence/registration-abuse-foundation-2026-07-23.md) 与 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./docs/evidence/supabase-ten-function-readiness-2026-07-26.md)。
+- [ ] 图片功能全线开启前增加全站每小时上传数量/字节预算、总 Storage 容量上限和并发熔断，并完成匿名注册滥用防护；账号级限额不能作为批量注册攻击下的唯一成本边界。全站数量/字节预算、Storage 容量预留、跨实例 validation lease 熔断、删除确认后释放和漂移自动暂停已实现并通过干净数据库验证；Turnstile token 客户端、Pages 默认关闭门禁和 Supabase Auth 就绪检查已实现。2026-07-28 生产只读盘点确认 Auth 仍为邮箱自动确认且服务端 CAPTCHA 未开启，Cloudflare 账户没有 Turnstile Widget，GitHub 也没有 `VITE_REGISTRATION_TURNSTILE_ENABLED` 与 `VITE_TURNSTILE_SITE_KEY`；仍待创建 Widget、配置 Supabase Auth Secret、真实邮箱确认、限流和直连注册烟测，因此不提前勾选。证据见 [`docs/evidence/registration-abuse-foundation-2026-07-23.md`](./docs/evidence/registration-abuse-foundation-2026-07-23.md)、[`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./docs/evidence/supabase-ten-function-readiness-2026-07-26.md) 与 [`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md)。
 - [ ] 补齐开放态粘贴、选择、预览、移除、发送、刷新恢复、模型不兼容、超限、上游前失败释放、上游后未知用量保守结算、移动端和无障碍自动化；完成真实视觉模型烟测及受控非空对象备份恢复贯通演练。2026-07-26 本地完整 WebChat 矩阵为 95 项：75 通过、20 项按项目能力设计跳过；已覆盖图片选择、粘贴、私有 URN、刷新预览、四张上限、键盘操作、390px 无溢出和 axe。图片附件、清理、协议、额度与监控专项现为 129 项通过；全量 Edge Function 为 462 项通过、0 失败、1 项按环境忽略，并覆盖真实编解码、真实 Edge Runtime 上传/预览/清理、围栏前校验、真实 usage 结算、单次 fetch、围栏后超时和启动后禁止释放。仍缺生产开放态、真实视觉模型、用量结算故障和非空备份恢复验收。
 
 ### 训练目标
