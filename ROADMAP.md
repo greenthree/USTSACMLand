@@ -79,7 +79,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [x] 使用真实队员完成一轮生产验证，逐项核对姓名、专业、平台绑定、Rating、题数、同步时间和数据状态；私有账号页、公开成员详情、六个平台绑定与 freshness、独立榜单重算均一致，Codeforces 与 AtCoder 官方公开接口复核也完全匹配。证据见 [`docs/evidence/real-member-production-validation-2026-07-26.md`](./docs/evidence/real-member-production-validation-2026-07-26.md)。
 - [x] 使用真实认证成员完成 `/account`、`/assistant`、`/training-goals`、`/daily-problem` 和 `/rankings` 的桌面端、390px 移动端、刷新保持、页面级横向溢出、地标、跳转链接、交互控件名称和静态焦点结构复核；五个路由均保持登录、无页面级横向溢出且控制台无 warning/error。证据见 [`docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md`](./docs/evidence/authenticated-responsive-accessibility-production-2026-07-26.md)。
-- [ ] 使用真实浏览器完成 Tab / Shift+Tab 焦点顺序与焦点可见性验收，并由人工使用屏幕阅读器复核主要流程。2026-07-28 Chrome 已完成生产首页、新手入门、榜单、登录和注册页的桌面端前向/反向焦点检查，跳转链接、表单和筛选控件均可见且控制台无警告或错误；390px 验收发现移动导航展开后下一次 Tab 会跳过导航项，已在本地修复为展开后聚焦“首页”、随后 Tab 到“学习”、Escape 关闭后焦点返回菜单按钮，并通过专项测试与真实渲染复验。仍需部署后复验该修复、检查认证后主要路由，并由人工完成屏幕阅读器验收，因此保持未完成。证据见 [`docs/evidence/keyboard-focus-browser-2026-07-28.md`](./docs/evidence/keyboard-focus-browser-2026-07-28.md)。
+- [ ] 使用真实浏览器完成 Tab / Shift+Tab 焦点顺序与焦点可见性验收，并由人工使用屏幕阅读器复核主要流程。2026-07-28 Chrome 已完成生产首页、新手入门、榜单、登录和注册页的桌面端前向/反向焦点检查，跳转链接、表单和筛选控件均可见且控制台无警告或错误；390px 验收发现移动导航展开后下一次 Tab 会跳过导航项，修复已随 PR #126 部署，正式域名复验确认展开后聚焦“首页”、Escape 关闭后焦点返回菜单按钮且控制台无警告或错误，“首页 → 学习”Tab 步进由提交前 Chrome 实测和自动化断言覆盖。仍需检查认证后主要路由，并由人工完成屏幕阅读器验收，因此保持未完成。证据见 [`docs/evidence/keyboard-focus-browser-2026-07-28.md`](./docs/evidence/keyboard-focus-browser-2026-07-28.md)。
 
 ### P2：发布治理
 
