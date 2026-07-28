@@ -61,6 +61,11 @@ export function AppShell() {
   }, [open, openGroup])
 
   useEffect(() => {
+    if (!open) return
+    navigationRef.current?.querySelector<HTMLElement>('a[href], button:not([disabled])')?.focus()
+  }, [open])
+
+  useEffect(() => {
     if (openGroup === null) return undefined
 
     function closeOutsideNavigation(event: PointerEvent) {

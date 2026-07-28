@@ -235,6 +235,12 @@ describe('route authorization', () => {
       'aria-expanded',
       'true',
     )
+    const navigation = screen.getByRole('navigation', { name: '主导航' })
+    const homeLink = within(navigation).getByRole('link', { name: '首页' })
+    await waitFor(() => expect(homeLink).toHaveFocus())
+
+    await user.tab()
+    expect(within(navigation).getByRole('button', { name: '学习' })).toHaveFocus()
 
     await user.keyboard('{Escape}')
     expect(screen.getByRole('button', { name: '打开导航' })).toHaveAttribute(

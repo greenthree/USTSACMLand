@@ -33,3 +33,23 @@
 - 推荐计划当前为全线关闭。打开“开启推荐计划”确认界面后，页面要求填写变更原因并勾选全站影响确认，确认按钮默认禁用；随后取消并确认对话框消失，没有提交配置变更。
 
 本轮没有下载个人数据文件、修改账号资料、切换推荐计划或写入生产数据。首页、SPA 深链、账号页、AI 助手和后台入口已有生产证据；真实邮箱找回密码已有独立生产证据。Cloudflare 复合条目仍缺缓存清理、证书/DNS 回滚和静态资源长期缓存配置，因此继续保持未完成。
+
+## 2026-07-28 缓存门禁补充核对
+
+仓库新增可复跑的只读门禁：
+
+```powershell
+npm run check:cloudflare-domain
+```
+
+门禁覆盖裸域 HTTP、`www` 和旧 GitHub Pages 地址跳转，首页、`index.html`、`404.html` 与 `/rankings` 深链的 SPA 文档和短缓存，以及首页实际引用的指纹 JavaScript 资源。连续两次读取当前生产资源后得到：
+
+```json
+{
+  "htmlMaxAge": 600,
+  "assetMaxAge": 14400,
+  "assetCacheStatus": "HIT"
+}
+```
+
+域名、跳转、SPA 文档、HTML 十分钟缓存和 Cloudflare 边缘命中均符合预期；指纹资源仍因浏览器缓存只有 4 小时且响应头缺少 `immutable` 而被门禁拒绝。待 Cloudflare 为 `/assets/*` 部署一年期缓存规则与 `Cache-Control: public, max-age=31536000, immutable` 响应头后重新执行同一命令，只有门禁通过后才可勾选对应 ROADMAP 条目。
