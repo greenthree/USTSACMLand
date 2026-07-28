@@ -29,7 +29,7 @@ USTSACMLand 继续由 GitHub Pages 托管静态文件，Cloudflare 负责权威 
 
 ## 验收
 
-依次验证：首页、`/rankings` 深链刷新、登录、注册、真实邮箱找回密码、账号页、AI 助手、个人数据导出和管理员后台。最后确认 `https://greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，GitHub Pages 发布后的生产榜单审计也以 `https://ustsacm.fun/` 为目标。
+先运行 `npm run check:cloudflare-domain`，确认 HTTP、`www` 和旧 GitHub Pages 地址均跳转到裸域，首页、`index.html`、`404.html` 与 `/rankings` 深链返回同一 SPA，HTML 最长缓存不超过一小时，指纹资源包含 `max-age=31536000, immutable` 且第二次读取为 `CF-Cache-Status: HIT`。然后依次验证：首页、`/rankings` 深链刷新、登录、注册、真实邮箱找回密码、账号页、AI 助手、个人数据导出和管理员后台。GitHub Pages 发布后的生产榜单审计也以 `https://ustsacm.fun/` 为目标。
 
 ## 回滚
 

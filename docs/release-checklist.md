@@ -21,6 +21,7 @@
   npm run check:ci-workflow
   npm run check:sync-workflow
   npm run check:backup-workflow
+  npm run check:cloudflare-domain
   npm run check:restore-drill-workflow
   npm run check:webchat-relay-workflow
   npm run check:webchat-cache-probe-workflow
