@@ -85,7 +85,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [ ] 由项目负责人确定源码许可证并添加 `LICENSE`；确定前不把项目描述为开源。
 - [ ] 确认同步状态巡检、数据库备份、凭据轮换、回滚和管理员交接文档均可由其他维护者执行。2026-07-26 已新增单一入口 [`docs/maintainer-handoff.md`](./docs/maintainer-handoff.md)，补齐权限登记、固定巡检阈值、GitHub CLI 备份/恢复、逐类凭据消费者与回滚、十函数回滚和脱敏交接模板；仓库就绪检查也开始强制要求备份大小与 Storage 对象上限变量。生产变量已按 50 名成员理论上限配置，手动备份运行 `30192826527` 成功并完成密文 Artifact 白名单核对。仍需一名非原维护者实际完成六项独立演练并签署复核，不能用原维护者本轮执行替代，因此保持未完成。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./docs/evidence/database-backup-capacity-guard-2026-07-26.md)。
-- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-28 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 587 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试和生产构建；Supabase preflight 确认 71 个 migration、10 个 Edge Function、21 个函数 Secret、队列和函数边界正常，但因生产仍自动确认邮箱且未启用服务端 CAPTCHA 而按设计阻止发布，Cloudflare 指纹资源长期缓存也尚未通过。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)。
+- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-28 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 587 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase preflight 确认 71 个 migration、10 个 Edge Function、21 个函数 Secret、队列和函数边界正常，但因生产仍自动确认邮箱且未启用服务端 CAPTCHA 而按设计阻止发布。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
 
@@ -93,7 +93,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [x] 确定并购买正式域名 `ustsacm.fun`，将 DNS 托管到 Cloudflare。
 - [x] 在 GitHub Pages 配置并验证自定义域名，Cloudflare DNS 通过 CNAME Flattening 指向 `greenthree.github.io`。
-- [ ] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。当前域名、跳转、SPA 深链和缓存头证据见 `docs/evidence/cloudflare-domain-verification-2026-07-22.md`。2026-07-28 已新增可复跑的 `npm run check:cloudflare-domain` 发布门禁，覆盖裸域 HTTPS、`www`/旧 Pages 跳转、SPA 回退、HTML 短缓存和指纹资源一年 `immutable` + 二次边缘命中；公网复验已观察到指纹资源 `CF-Cache-Status: HIT`，但浏览器缓存仍为 `max-age=14400` 且缺少 `immutable`，待 Cloudflare 控制台完成 `/assets/*` 缓存与响应头规则后复验，因此保持未完成。
+- [x] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。2026-07-28 已为 `/assets/*` 部署一年期 Edge/Browser TTL 与浏览器可见的 `public, max-age=31536000, immutable` 指令；`npm run check:cloudflare-domain` 确认裸域 HTTPS、`www`/旧 Pages 跳转、SPA 回退、HTML `max-age=600`、指纹资源 `max-age=31536000` + `immutable` 和二次 `CF-Cache-Status: HIT` 全部通过。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md)。
 - [x] 更新 Supabase Auth Site URL、允许的重定向地址、Edge Function CORS 和生产前端 Origin 白名单。
 - [ ] 验证首页、深链刷新、登录、真实邮箱找回密码、账号页、AI 助手、个人数据导出和后台入口在新域名下正常工作。2026-07-26 已使用真实管理员登录态只读复核 `/account`、`/assistant` 和 `/admin`，确认会话恢复、个人数据导出入口、AI 当前模型与累计额度、后台权限和推荐计划关闭状态正常；首页、深链与真实邮箱找回已有既有生产证据。仍缺完整个人数据文件下载复验，以及与本节绑定的 Cloudflare 缓存清理、证书/DNS 回滚验收，因此复合条目保持未完成。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md)。
 - [ ] 确认 `greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，并按运行手册验证 DNS、缓存清理、证书和回滚步骤。旧地址自动跳转已通过只读核对，缓存清理、证书和回滚演练仍未完成。
