@@ -1,6 +1,7 @@
 import {
   evaluateSupabaseReadiness,
   expectedEdgeFunctions,
+  isCaptchaProtectionProbeResponse,
   requiredFunctionSecrets,
   serviceOnlyEdgeFunctions,
 } from './check-supabase-readiness.mjs'
@@ -94,6 +95,16 @@ function createReadyState() {
 }
 
 describe('Supabase production readiness checker', () => {
+  it('recognizes the side-effect-free malformed-email CAPTCHA probe', () => {
+    expect(isCaptchaProtectionProbeResponse({ status: 400, code: 'captcha_failed' })).toBe(true)
+    expect(isCaptchaProtectionProbeResponse({ status: 400, code: 'email_address_invalid' })).toBe(
+      false,
+    )
+    expect(isCaptchaProtectionProbeResponse({ status: 429, code: 'over_request_rate_limit' })).toBe(
+      false,
+    )
+  })
+
   it('accepts a healthy project with migration parity and active functions', () => {
     expect(evaluateSupabaseReadiness(createReadyState())).toMatchObject({
       errors: [],

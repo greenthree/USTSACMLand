@@ -416,6 +416,42 @@ function runSupabaseJson(args, label) {
   }
 }
 
+export function isCaptchaProtectionProbeResponse(probe) {
+  return probe?.status === 400 && probe?.code === 'captcha_failed'
+}
+
+async function readCaptchaProtectionProbe(projectRef, apiKey) {
+  const response = await fetch(`https://${projectRef}.supabase.co/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      apikey: apiKey,
+      'content-type': 'application/json',
+      'user-agent': 'USTSACMLand-readiness-check/1.0',
+    },
+    body: JSON.stringify({
+      email: 'invalid',
+      password: 'ReadinessProbeAa!9',
+    }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  let code = null
+  try {
+    const body = await response.json()
+    code =
+      typeof body.error_code === 'string'
+        ? body.error_code
+        : typeof body.code === 'string'
+          ? body.code
+          : null
+  } catch {
+    code = null
+  }
+  if (response.status === 429 || response.status >= 500) {
+    throw new Error(`CAPTCHA 安全探针返回 HTTP ${response.status}`)
+  }
+  return { status: response.status, code }
+}
+
 async function readPublicAuthSettings(projectRef, apiKey) {
   const response = await fetch(`https://${projectRef}.supabase.co/auth/v1/settings`, {
     headers: {
@@ -426,12 +462,16 @@ async function readPublicAuthSettings(projectRef, apiKey) {
   })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const settings = await response.json()
+  const captchaEnabled =
+    typeof settings.captcha_enabled === 'boolean'
+      ? settings.captcha_enabled
+      : isCaptchaProtectionProbeResponse(await readCaptchaProtectionProbe(projectRef, apiKey))
   return {
     disableSignup: Boolean(settings.disable_signup),
     mailerAutoconfirm: Boolean(settings.mailer_autoconfirm),
     phoneAutoconfirm: Boolean(settings.phone_autoconfirm),
     emailProviderEnabled: Boolean(settings.external?.email),
-    captchaEnabled: Boolean(settings.captcha_enabled),
+    captchaEnabled,
   }
 }
 

@@ -42,25 +42,27 @@ git diff --check
 
 全仓库 `npm run format:check` 只被用户自有、未跟踪的 `docs/homepage-frontend-audit-2026-07.md` 格式拦截；本轮所有拟提交文件均已单独通过 Prettier。该未跟踪文档未被修改或纳入本轮范围。
 
-## Supabase 发布前检查
+## Supabase 注册防护与严格检查
+
+生产现已配置 Cloudflare Turnstile、真实邮箱确认和 Auth 限流。新版 Auth settings 不再公开 `captcha_enabled`，检查器改用“格式无效邮箱 + 无 token”的无副作用注册探针判断服务端 CAPTCHA，不会在 CAPTCHA 关闭时创建用户。
+
+以下两项均通过：
 
 ```powershell
 npm run check:supabase-preflight
+npm run check:supabase-readiness
 ```
 
-只读检查确认：
+检查确认：
 
 - 项目状态为 `ACTIVE_HEALTHY`；
 - 71 个 migration，0 个待部署；
 - 10 个 Edge Function；
 - 21 个函数 Secret 名称，0 个缺失；
 - 0 个 schema lint 发现；
-- 匿名 REST、函数边界和队列调度检查通过。
+- Auth email readiness、匿名 REST、函数边界和队列调度检查通过。
 
-检查器按设计返回失败并报告两个发布阻塞项：
-
-1. 生产 Auth 仍自动确认邮箱，无法证明注册者控制邮箱；
-2. 生产 Auth 未启用服务端 CAPTCHA，匿名请求可绕过网页直接调用注册接口。
+生产直连烟测确认无 token 与伪造 token 都返回 HTTP 400 / `captcha_failed`，没有创建账号。Pages 已用 Turnstile 变量重新部署，注册页验证前按钮禁用。
 
 同时报告 Supabase 未启用 PITR 且没有供应商物理备份；当前必须继续依赖已完成演练的仓库加密逻辑备份。
 
@@ -70,4 +72,4 @@ Cloudflare 控制台已为 `/assets/*` 部署一年期 Edge/Browser TTL 与浏�
 
 ## 结论
 
-代码、测试、构建、仓库结构和 Cloudflare 长期缓存门禁当前健康；生产注册滥用防护仍未完成，因此不得创建 `v1.0.0` 标签，`ROADMAP.md` 的最终发布条目继续保持未完成。
+代码、测试、构建、仓库结构、Cloudflare 长期缓存和注册服务端防护当前健康。仍缺全新真实邮箱的有效 Turnstile 注册、确认前登录拒绝、重复确认幂等和受控 `429` 恢复证据，因此暂不创建 `v1.0.0` 标签，相关 ROADMAP 条目继续保持未完成。
