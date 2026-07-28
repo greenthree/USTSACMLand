@@ -64,10 +64,10 @@ npm run check:supabase-preflight
 
 同时报告 Supabase 未启用 PITR 且没有供应商物理备份；当前必须继续依赖已完成演练的仓库加密逻辑备份。
 
-## 其他未通过门禁
+## Cloudflare 域名门禁
 
-`npm run check:cloudflare-domain` 已确认边缘缓存命中，但指纹资源仍为 `max-age=14400` 且缺少 `immutable`，等待 Cloudflare 控制台部署 `/assets/*` 缓存与响应头规则。
+Cloudflare 控制台已为 `/assets/*` 部署一年期 Edge/Browser TTL 与浏览器可见的 `public, max-age=31536000, immutable` 指令。重新运行 `npm run check:cloudflare-domain` 后，HTML 保持 `max-age=600`，指纹资源为 `max-age=31536000`、包含 `immutable` 且第二次读取为 `CF-Cache-Status: HIT`，门禁通过。完整证据见 [`cloudflare-domain-verification-2026-07-22.md`](./cloudflare-domain-verification-2026-07-22.md)。
 
 ## 结论
 
-代码、测试、构建和仓库结构门禁当前健康，但生产注册滥用防护和 Cloudflare 长期缓存仍未完成，因此不得创建 `v1.0.0` 标签，`ROADMAP.md` 对应条目继续保持未完成。
+代码、测试、构建、仓库结构和 Cloudflare 长期缓存门禁当前健康；生产注册滥用防护仍未完成，因此不得创建 `v1.0.0` 标签，`ROADMAP.md` 的最终发布条目继续保持未完成。
