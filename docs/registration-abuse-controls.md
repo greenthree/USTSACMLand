@@ -47,5 +47,7 @@ USTSACMLand 的注册入口直接使用 Supabase Auth。验证码必须同时由
   保存邮箱、密码、验证码 token 或 Turnstile Secret。
 
 严格检查 `npm run check:supabase-readiness` 要求生产同时满足：允许邮箱注册、关闭邮箱
-自动确认、启用邮箱 provider、启用服务端 CAPTCHA。生产配置完成前该检查失败属于预期，
-不得通过放宽检查器绕过。
+自动确认、启用邮箱 provider、启用服务端 CAPTCHA。若当前 Supabase Auth settings 不再
+公开 `captcha_enabled`，检查器使用格式无效邮箱发起无 token 探针：启用 CAPTCHA 时必须
+先返回 `captcha_failed`；未启用时只会进入邮箱格式校验，不会创建用户。生产配置完成前
+该检查失败属于预期，不得通过放宽检查器绕过。

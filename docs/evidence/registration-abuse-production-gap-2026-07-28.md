@@ -1,47 +1,73 @@
-# 注册滥用防护生产配置缺口 — 2026-07-28
+# 注册滥用防护生产配置进展 — 2026-07-28
 
 ## 结论
 
-客户端、构建门禁和 Supabase 就绪检查已经具备，但生产 Turnstile 与真实邮箱确认尚未配置，当前不能安全开启推荐计划或 WebChat 图片输入。
+Cloudflare Turnstile、Supabase 服务端 CAPTCHA、真实邮箱确认、Auth 限流和 GitHub Pages 客户端门禁已经配置并部署。无 token 与伪造 token 的直连注册均被生产 Supabase Auth 拒绝，严格就绪检查通过。
 
-## 只读证据
+推荐计划和 WebChat 图片功能继续关闭。完整发布验收仍缺“全新真实邮箱 + 有效 Turnstile token”的确认邮件、确认前登录拒绝、重复确认幂等和受控 `429` 恢复烟测，因此相关 ROADMAP 条目暂不勾选。
 
-### Supabase Auth
-
-`npm run check:supabase-preflight` 确认项目、71 个 migration、10 个 Edge Function、21 个函数 Secret、匿名 REST、函数边界和队列调度均正常，同时返回：
-
-- `mailer_autoconfirm=true`：注册后自动确认邮箱；
-- `captcha_enabled=false`：服务端不要求 CAPTCHA。
-
-因此攻击者仍可绕过网页，直接调用 Supabase Auth 注册接口。
+## 已完成配置
 
 ### Cloudflare Turnstile
 
-使用已登录的 Cloudflare 控制台只读打开账户 Turnstile 页面。页面只显示“手动添加小部件”和“使用 Spin 设置”，没有任何已有 Widget 列表或可复用 Site Key；本轮没有点击创建按钮或修改配置。
+- 创建 Managed Widget：`USTSACMLand 注册防护`；
+- 正式客户端使用公开 Site Key，私有 Secret 未写入仓库、GitHub、数据库、文档或聊天；
+- Widget 允许 `ustsacm.fun`。`www.ustsacm.fun` 在应用加载前重定向到主域名，因此 Turnstile 实际执行主机名仍为 `ustsacm.fun`；
+- 预清除保持关闭。
 
-### GitHub Pages 构建变量
+### Supabase Auth
+
+生产实际状态：
+
+- 允许邮箱注册；
+- `mailer_autoconfirm=false`，首次登录前必须确认邮箱；
+- 邮箱 provider 已启用；
+- CAPTCHA provider 为 Cloudflare Turnstile，服务端 Secret 已配置；
+- 推荐计划与 WebChat 图片功能的独立开关未开启。
+
+控制台首次保存 CAPTCHA 连续返回 `500`。随后使用 Supabase 官方 CLI 配置接口提交 Auth 配置；Secret 仅从已登录 Cloudflare 页面进入进程内存，CLI 输出只显示哈希，不保存明文。提交后 Auth 公共端点确认注册与邮箱确认状态已实际生效。
+
+### Auth 限流
+
+- 邮件发送：2 封/小时（Free 项目控制台锁定）；
+- token 验证：30 次/5 分钟/IP；
+- 注册与登录：30 次/5 分钟/IP。
+
+校园网络可能共享公网 IP，后续 `429` 烟测应使用受控窗口，不能为了测试长期降低生产阈值。
+
+### GitHub Pages
+
+仓库 Actions Variables 已配置：
+
+- `VITE_REGISTRATION_TURNSTILE_ENABLED=true`；
+- `VITE_TURNSTILE_SITE_KEY` 为公开 Site Key。
+
+重跑主分支 CI `30333025157`（attempt 2）成功，随后 Pages 部署 `30336988068` 成功。生产 `/register` 已显示 Cloudflare Turnstile，验证完成前注册按钮保持禁用。
+
+## 已完成烟测
+
+直接请求生产 `/auth/v1/signup`：
+
+| 场景               | HTTP | error_code       | 结果       |
+| ------------------ | ---: | ---------------- | ---------- |
+| 不带 CAPTCHA token |  400 | `captcha_failed` | 未创建账号 |
+| 伪造 token         |  400 | `captcha_failed` | 未创建账号 |
+
+新版 `/auth/v1/settings` 不再返回 `captcha_enabled`。就绪检查器已改为使用“格式无效邮箱 + 无 token”的无副作用探针：启用 CAPTCHA 时先返回 `captcha_failed`；未启用时只会返回邮箱格式错误，不会创建用户。对应单元测试 20 项通过。
 
 ```powershell
-gh variable list --repo greenthree/USTSACMLand --json name,updatedAt
-gh secret list --repo greenthree/USTSACMLand --json name,updatedAt
+npm run check:supabase-preflight
+npm run check:supabase-readiness
 ```
 
-仅核对名称和更新时间，不读取 Secret 值。当前仓库没有：
+两项检查均通过，结果为 71 个 migration、0 pending、10 个 Edge Function、21 个函数 Secret 名称且 0 缺失、0 schema lint，Auth email、匿名 REST、函数边界和队列调度均为 ready。Supabase 仍无 PITR/供应商物理备份，继续依赖已演练的加密逻辑备份。
 
-- `VITE_REGISTRATION_TURNSTILE_ENABLED`；
-- `VITE_TURNSTILE_SITE_KEY`。
+## 剩余发布证据
 
-代码和部署工作流会在变量缺失时保持 Turnstile 默认关闭；即使前端变量开启，Turnstile Secret 也必须只配置到 Supabase Auth CAPTCHA，不能写入 GitHub 或前端。
-
-## 后续生产顺序
-
-1. 在切换窗口内临时禁止 Auth 新用户注册；
-2. 创建 Cloudflare Managed Turnstile Widget，允许 `ustsacm.fun` 与 `www.ustsacm.fun`；
-3. 在 Supabase Auth 关闭邮箱自动确认、启用真实确认邮件；
-4. 在 Supabase Auth 选择 Turnstile、写入私有 Secret 并启用 CAPTCHA；
-5. 配置并记录 Auth 注册、邮件和 token 验证限流；
-6. 写入两个 GitHub Actions Variables，部署 Pages；
-7. 恢复注册，执行无 token、伪 token、有效 token、邮件确认、重复确认和 `429` 恢复烟测；
-8. 重跑 `npm run check:supabase-readiness`，只有严格门禁通过后才能解除相关安全暂停。
+1. 使用一个尚未注册且可接收邮件的真实邮箱完成 Turnstile 注册；
+2. 验证注册响应不立即创建会话，确认前登录失败；
+3. 打开确认邮件并验证首次确认生效、重复确认不重复发奖；
+4. 在不污染成员数据的受控窗口验证 `429` 阈值与窗口恢复；
+5. 完成后更新发布门禁并决定是否解除推荐计划安全暂停；WebChat 图片仍需自身开放态验收。
 
 详细操作与失败关闭要求见 [`docs/registration-abuse-controls.md`](../registration-abuse-controls.md)。
