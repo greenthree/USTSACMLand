@@ -4,7 +4,7 @@
 
 Cloudflare Turnstile、Supabase 服务端 CAPTCHA、真实邮箱确认、Auth 限流和 GitHub Pages 客户端门禁已经配置并部署。无 token 与伪造 token 的直连注册均被生产 Supabase Auth 拒绝，严格就绪检查通过。2026-07-29 又使用可接收邮件的全新地址完成有效 Turnstile 注册、确认前登录拒绝、真实邮件确认、确认链接重复打开和确认后密码登录烟测。
 
-推荐计划和 WebChat 图片功能继续关闭。完整发布验收仍缺可复现的受控 `429` 阈值/窗口恢复证据和本轮临时账号清理；限流操作可能短暂影响同一公网 IP 下的正常认证，执行前必须取得项目负责人确认并选择低风险窗口。
+推荐计划和 WebChat 图片功能继续关闭。本轮临时账号已经通过正式自助注销完成清理，并对 Auth、Profile 和关联数据做了零行复核。完整发布验收仍缺可复现的受控 `429` 阈值/窗口恢复证据；限流操作可能短暂影响同一公网 IP 下的正常认证，执行前必须取得项目负责人确认并选择低风险窗口。
 
 ## 已完成配置
 
@@ -65,8 +65,7 @@ npm run check:supabase-readiness
 ## 剩余发布证据
 
 1. 在不污染成员数据且不影响正常成员认证的受控窗口验证 `429` 阈值与窗口恢复；
-2. 删除本轮临时测试账号，并核对 Auth、Profile 与关联数据完成受控清理；
-3. 完成后更新发布门禁。推荐计划和 WebChat 图片功能继续保持关闭，不因注册防护通过而恢复开发或开放。
+2. 完成后更新发布门禁。推荐计划和 WebChat 图片功能继续保持关闭，不因注册防护通过而恢复开发或开放。
 
 详细操作与失败关闭要求见 [`docs/registration-abuse-controls.md`](../registration-abuse-controls.md)。
 
@@ -79,7 +78,7 @@ npm run check:supabase-readiness
 
 因此本轮只证明生产 CAPTCHA 失败关闭、正常凭据拒绝和 30 次安全上限，不把它记作 `429` 恢复通过，也没有为制造结果而降低生产阈值或继续加压。Supabase 控制台再次确认当前登录/注册突发容量为 30 次/5 分钟、等效补充速率为 360 次/小时。
 
-本轮临时普通成员已经确认邮箱并完成密码登录。随后尝试从 Supabase Dashboard 直接删除时，数据库事务删除围栏按设计拒绝了未经过恢复下限租约的 Auth 删除；账号与 Profile 保持一致，没有出现半删除。由于 Free 项目邮件额度为 2 封/小时，本轮两封确认邮件占满额度，正式密码恢复/自助注销需要等邮件窗口释放后继续，当前仍保持发布阻塞且不使用临时后门绕过。
+本轮临时普通成员已经确认邮箱并完成密码登录。随后尝试从 Supabase Dashboard 直接删除时，数据库事务删除围栏按设计拒绝了未经过恢复下限租约的 Auth 删除；账号与 Profile 保持一致，没有出现半删除。邮件窗口恢复后通过正式密码恢复重新取得账号控制权，没有使用临时后门绕过。
 
 ## 2026-07-29 真实邮件注册烟测
 
@@ -93,3 +92,19 @@ npm run check:supabase-readiness
 6. 推荐计划保持关闭，注册页没有邀请码或奖励信息；全程没有开启 WebChat、图片输入或推荐计划。
 
 生产控制台没有阻断认证的应用错误。确认链接建立会话时观察到一条 Supabase 客户端时钟偏差 warning，随后密码登录和账号页均正常；该 warning 不包含凭据或成员信息，后续发布观察继续留意主机时钟同步。
+
+## 2026-07-29 自助注销修复与清理
+
+生产启用全局 Turnstile 后，`change-password` 与 `delete-account` 最初仍在 Edge Function 内直接调用 `signInWithPassword` 复核当前密码，却没有传入 CAPTCHA token。相同密码可以在正式登录页成功，但服务端复核会被 Auth CAPTCHA 拒绝，并被旧逻辑误映射为“当前密码错误”。
+
+本轮修复为修改密码和注销分别增加独立、一次性的 Turnstile token：
+
+1. 两个操作使用彼此隔离的控件和 reset key，token 未就绪时提交按钮保持禁用；
+2. 每次成功、远端失败或本地校验失败后立即清空 token 并重置控件；
+3. AuthContext 把 token 放入 Edge Function 请求体；请求解析拒绝缺失、空白和超长 token；
+4. Edge Function 使用 `signInWithPassword({ email, password, options: { captchaToken } })` 复核密码；
+5. `change-password` 与 `delete-account` 已部署，前端经 PR #132 合并并由 GitHub Pages 成功发布。
+
+正式域名烟测中，注销确认区显示独立安全验证，完成验证、输入密码并明确确认后只提交一次注销请求。恢复下限记录和事务删除完成后页面跳转到登录页；使用同一邮箱和密码重新登录返回标准 `Invalid login credentials`。
+
+随后在 Supabase SQL Editor 使用脱敏用户 ID 运行只读聚合查询，以下项目均为 0：Auth 用户、Profile、平台绑定、同步任务与运行、平台统计与快照、每日一题完成和评论、训练目标、管理员限流桶、WebChat 访问/额度/日用量/请求/会话、图片上传状态与附件、推荐码与绑定、审计日志。旧 JWT 对 REST 的只读查询也统一返回 `401`，确认会话已失效。查询和文档均未记录邮箱、密码、JWT、Turnstile token、确认 token或用户 UUID。
