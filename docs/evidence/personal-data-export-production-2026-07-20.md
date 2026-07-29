@@ -39,3 +39,15 @@
 ## 结论与剩余范围
 
 个人数据导出子项已完成生产发布与真实成员验收，可在 ROADMAP 中单独标记为完成。其父项仍包含尚未实现的“训练目标”和“连续活跃天数”，因此父项继续保持未完成。
+
+## 2026-07-29 正式域名复验
+
+使用项目负责人已登录的生产管理员会话，在 `https://ustsacm.fun/account` 再次执行完整文件下载：
+
+1. 页面成功生成带 UTC 时间的 `usts-acm-land-personal-data_*.json`，浏览器下载目录出现对应文件；
+2. 文件大小为 335,637 字节，可完整解析为 JSON；
+3. 顶层包含当前版本的 `account`、`profile`、`platformAccounts`、`platformStats`、`statSnapshots`、`syncHistory`、`dailyProblem`、`trainingGoals`、`referral`、`webchat`、`schemaVersion` 与 `exportedAt`；
+4. 递归扫描密码、登录令牌、service role、API Key、Cookie、CSRF、CAPTCHA / Turnstile token 和授权标头等敏感键，命中数为 `0`；
+5. 下载文件只保留在执行复验的本机下载目录，没有复制到仓库、终端输出、截图或 CI Artifact。
+
+因此个人数据导出已在正式自定义域名下完成实际下载复验，不再是 Cloudflare 域名验收的待办项。

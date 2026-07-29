@@ -96,8 +96,8 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 在 GitHub Pages 配置并验证自定义域名，Cloudflare DNS 通过 CNAME Flattening 指向 `greenthree.github.io`。
 - [x] 配置 Cloudflare TLS、强制 HTTPS、合理的缓存规则和静态资源长期缓存；`index.html` 与 SPA `404.html` 不使用会阻碍发布生效的长期缓存。2026-07-28 已为 `/assets/*` 部署一年期 Edge/Browser TTL 与浏览器可见的 `public, max-age=31536000, immutable` 指令；`npm run check:cloudflare-domain` 确认裸域 HTTPS、`www`/旧 Pages 跳转、SPA 回退、HTML `max-age=600`、指纹资源 `max-age=31536000` + `immutable` 和二次 `CF-Cache-Status: HIT` 全部通过。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md)。
 - [x] 更新 Supabase Auth Site URL、允许的重定向地址、Edge Function CORS 和生产前端 Origin 白名单。
-- [ ] 验证首页、深链刷新、登录、真实邮箱找回密码、账号页、个人数据导出和后台入口在新域名下正常工作。2026-07-26 已使用真实管理员登录态只读复核 `/account` 和 `/admin`，确认会话恢复、个人数据导出入口和后台权限正常；首页、深链与真实邮箱找回已有既有生产证据。仍缺完整个人数据文件下载复验，以及与本节绑定的 Cloudflare 缓存清理、证书/DNS 回滚验收，因此复合条目保持未完成。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md)。
-- [ ] 确认 `greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，并按运行手册验证 DNS、缓存清理、证书和回滚步骤。旧地址自动跳转已通过只读核对，缓存清理、证书和回滚演练仍未完成。
+- [x] 验证首页、深链刷新、登录、真实邮箱找回密码、账号页、个人数据导出和后台入口在新域名下正常工作。2026-07-26 已使用真实管理员登录态复核 `/account` 与 `/admin`；2026-07-29 又完成受控 HTML 缓存清理、旧地址跳转、TLS/DNS 基线和完整个人数据文件下载复验。下载文件可解析为版本化 JSON，敏感键扫描为零且没有进入仓库或 CI Artifact。证据见 [`docs/evidence/cloudflare-domain-verification-2026-07-22.md`](./docs/evidence/cloudflare-domain-verification-2026-07-22.md) 与 [`docs/evidence/personal-data-export-production-2026-07-20.md`](./docs/evidence/personal-data-export-production-2026-07-20.md)。
+- [ ] 确认 `greenthree.github.io/USTSACMLand/` 自动跳转到正式域名，并按运行手册验证 DNS、缓存清理、证书和回滚步骤。2026-07-29 已再次用真实 Chrome 验证旧地址跳转，完成四个 SPA 文档的受控 URL 清理，核对根域/`www` 已代理 CNAME、`Full (strict)` 与当前有效证书；实际切换 DNS only 或移除 GitHub Pages 自定义域名会改变生产流量路径，仍待明确维护窗口执行回滚演练。
 - [ ] Cloudflare 接入稳定后更新 README、隐私说明、运维文档和所有公开链接。
 
 ## 5. 已暂停并归档的遗留模块

@@ -80,3 +80,35 @@ npm run check:cloudflare-domain
 ```
 
 因此域名跳转、SPA fallback、HTML 短缓存、指纹资源一年浏览器缓存、`immutable` 和二次边缘命中均已通过自动门禁，`ROADMAP.md` 中对应 Cloudflare TLS、HTTPS 与缓存规则条目可以标记为完成。缓存清理、证书异常和 DNS 回滚演练仍属于后续复合运维验收，不由本条缓存配置替代。
+
+## 2026-07-29 缓存清理与 TLS / DNS 基线复验
+
+使用已登录的 Cloudflare 控制台执行一次受控的按 URL 清理，仅清除以下 SPA 文档缓存，没有清除 `/assets/*` 指纹资源：
+
+```text
+https://ustsacm.fun/
+https://ustsacm.fun/index.html
+https://ustsacm.fun/404.html
+https://ustsacm.fun/rankings
+```
+
+Cloudflare 明确返回“已成功收到清除请求，并将在 5 秒内生效”。清理生效后重新请求首页两次，均返回 `200`、`Cache-Control: max-age=600`；HTML 当前按 Cloudflare 策略显示为 `CF-Cache-Status: DYNAMIC`。随后重新运行：
+
+```powershell
+npm run check:cloudflare-domain
+```
+
+门禁再次通过，首页引用的当前指纹资源为 `/assets/index-D-zgxtCR.js`，Browser TTL 仍为一年、包含 `immutable`，第二次读取为 `CF-Cache-Status: HIT`。这证明受控清理不会破坏正式域名、跳转、SPA 文档和长期指纹资源缓存契约。
+
+同一轮只读复验确认：
+
+- `ustsacm.fun` 为指向 `greenthree.github.io` 的已代理 CNAME；
+- `www.ustsacm.fun` 为指向 `ustsacm.fun` 的已代理 CNAME；
+- GitHub Pages 域名验证 TXT 记录仍存在且保持 DNS only；
+- Cloudflare SSL/TLS 当前模式为 `Full (strict)`；
+- 生产边缘证书主体为 `ustsacm.fun`，SAN 同时覆盖 `ustsacm.fun` 与 `*.ustsacm.fun`，签发方为 Google Trust Services，当前有效期为 2026-07-20 至 2026-10-18；
+- 真实 Chrome 再次访问 `https://greenthree.github.io/USTSACMLand/` 后落到 `https://ustsacm.fun/`。
+
+本轮没有切换根域或 `www` 的代理状态，也没有删除 GitHub Pages 自定义域名。实际 DNS only / GitHub Pages 自定义域名回滚会短暂改变生产流量路径，应在明确维护窗口和项目负责人再次确认后执行。
+
+同日使用已登录的生产管理员会话在 `https://ustsacm.fun/account` 完成个人数据文件实际下载：页面返回成功状态，下载文件可解析为版本化 JSON，包含本人账号、平台、同步、每日一题、训练目标、推荐计划遗留数据和私有 WebChat 历史；敏感键递归扫描命中数为 `0`，文件没有进入仓库或 CI Artifact。详细脱敏记录见 [`personal-data-export-production-2026-07-20.md`](./personal-data-export-production-2026-07-20.md)。因此新域名下的首页、深链、认证、账号页、个人数据导出和后台入口复合验收已完成；只剩独立的 DNS / 自定义域名回滚演练保持未完成。

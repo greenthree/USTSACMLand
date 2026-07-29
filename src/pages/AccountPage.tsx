@@ -864,19 +864,6 @@ export function AccountPage() {
               </datalist>
             </label>
           </div>
-          {captchaConfig.enabled && captchaConfig.siteKey ? (
-            <RegistrationTurnstile
-              siteKey={captchaConfig.siteKey}
-              resetKey={passwordCaptchaResetKey}
-              onTokenChange={setPasswordCaptchaToken}
-              ariaLabel="修改密码安全验证"
-            />
-          ) : null}
-          {captchaConfig.configurationError ? (
-            <p className="form-error" role="alert">
-              {captchaConfig.configurationError}
-            </p>
-          ) : null}
         </fieldset>
 
         <fieldset className="form-section" disabled={loadingProfile}>
@@ -1085,6 +1072,19 @@ export function AccountPage() {
               />
             </label>
           </div>
+          {captchaConfig.enabled && captchaConfig.siteKey ? (
+            <RegistrationTurnstile
+              siteKey={captchaConfig.siteKey}
+              resetKey={passwordCaptchaResetKey}
+              onTokenChange={setPasswordCaptchaToken}
+              ariaLabel="修改密码安全验证"
+            />
+          ) : null}
+          {captchaConfig.configurationError ? (
+            <p className="form-error" role="alert">
+              {captchaConfig.configurationError}
+            </p>
+          ) : null}
           {passwordNotice ? (
             <p
               className={`form-${passwordNoticeKind} account-password-notice`}
