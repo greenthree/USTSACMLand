@@ -24,9 +24,13 @@ export interface AuthContextValue {
     captchaToken?: string,
   ) => Promise<boolean>
   signIn: (email: string, password: string, captchaToken?: string) => Promise<void>
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+    captchaToken?: string,
+  ) => Promise<void>
   completePasswordRecovery: (newPassword: string) => Promise<void>
-  deleteAccount: (currentPassword: string) => Promise<void>
+  deleteAccount: (currentPassword: string, captchaToken?: string) => Promise<void>
   signOut: () => Promise<void>
 }
 

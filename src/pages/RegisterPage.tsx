@@ -1,4 +1,5 @@
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
+import MailCheck from 'lucide-react/dist/esm/icons/mail-check'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
@@ -24,7 +25,7 @@ export function RegisterPage() {
   const [referralCode, setReferralCode] = useState(() =>
     normalizeReferralCode(searchParams.get('invite') ?? ''),
   )
-  const [message, setMessage] = useState('')
+  const [confirmationEmail, setConfirmationEmail] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [captchaToken, setCaptchaToken] = useState('')
@@ -65,7 +66,7 @@ export function RegisterPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
-    setMessage('')
+    setConfirmationEmail('')
     setSubmitting(true)
     let captchaSubmitted = false
 
@@ -98,7 +99,12 @@ export function RegisterPage() {
         navigate('/account', { replace: true })
         return
       }
-      setMessage('账号已创建，但当前认证配置仍要求邮箱验证；验证后即可登录。')
+      const submittedEmail = email.trim()
+      setFullName('')
+      setEmail('')
+      setPassword('')
+      setReferralCode('')
+      setConfirmationEmail(submittedEmail)
     } catch (signUpError) {
       setError(signUpError instanceof Error ? signUpError.message : '注册失败，请稍后重试。')
     } finally {
@@ -114,106 +120,126 @@ export function RegisterPage() {
     <main id="main-content" className="auth-page" tabIndex={-1}>
       <AuthContextPanel mode="register" />
       <section className="auth-form-section">
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <div>
-            <h2>创建账号</h2>
-            <p>注册后直接填写竞赛账号和其他成员资料。</p>
-          </div>
-          <label>
-            <span>姓名</span>
-            <input
-              type="text"
-              autoComplete="name"
-              maxLength={64}
-              required
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>邮箱</span>
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <label>
-            <span id="register-password-label">密码</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              aria-labelledby="register-password-label"
-              aria-describedby="register-password-help"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <small id="register-password-help">至少 8 位，不要与其他网站共用。</small>
-          </label>
-          {referralProgramState === 'enabled' ? (
+        {confirmationEmail ? (
+          <section className="auth-form auth-confirmation" aria-labelledby="confirmation-title">
+            <div className="auth-confirmation-icon" aria-hidden="true">
+              <MailCheck size={24} strokeWidth={1.8} />
+            </div>
+            <div>
+              <p className="auth-confirmation-kicker">账号已创建</p>
+              <h2 id="confirmation-title">查收确认邮件</h2>
+            </div>
+            <div className="form-success auth-confirmation-address" role="status">
+              <span>确认邮件已发送至</span>
+              <strong>{confirmationEmail}</strong>
+            </div>
+            <p className="auth-confirmation-copy">
+              请前往邮箱，打开邮件中的确认链接。完成确认后即可返回登录。
+            </p>
+            <Link className="primary-button full-button" to="/login">
+              返回登录
+            </Link>
+            <p className="auth-legal">
+              需要了解数据使用方式？<Link to="/privacy">查看隐私说明</Link>
+            </p>
+          </section>
+        ) : (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <div>
+              <h2>创建账号</h2>
+              <p>注册后直接填写竞赛账号和其他成员资料。</p>
+            </div>
             <label>
-              <span id="register-referral-label">邀请码（选填）</span>
+              <span>姓名</span>
               <input
                 type="text"
-                autoCapitalize="characters"
-                autoComplete="off"
-                maxLength={referralCodeLength}
-                spellCheck={false}
-                aria-labelledby="register-referral-label"
-                aria-describedby="register-referral-help"
-                value={referralCode}
-                onChange={(event) => setReferralCode(normalizeReferralCode(event.target.value))}
+                autoComplete="name"
+                maxLength={64}
+                required
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
               />
-              <small id="register-referral-help">通过成员分享链接进入时会自动填写。</small>
             </label>
-          ) : null}
-          {captchaConfig.enabled && captchaConfig.siteKey ? (
-            <RegistrationTurnstile
-              siteKey={captchaConfig.siteKey}
-              resetKey={captchaResetKey}
-              onTokenChange={setCaptchaToken}
-            />
-          ) : null}
-          {captchaConfig.configurationError ? (
-            <p className="form-error" role="alert">
-              {captchaConfig.configurationError}
+            <label>
+              <span>邮箱</span>
+              <input
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </label>
+            <label>
+              <span id="register-password-label">密码</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                aria-labelledby="register-password-label"
+                aria-describedby="register-password-help"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <small id="register-password-help">至少 8 位，不要与其他网站共用。</small>
+            </label>
+            {referralProgramState === 'enabled' ? (
+              <label>
+                <span id="register-referral-label">邀请码（选填）</span>
+                <input
+                  type="text"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  maxLength={referralCodeLength}
+                  spellCheck={false}
+                  aria-labelledby="register-referral-label"
+                  aria-describedby="register-referral-help"
+                  value={referralCode}
+                  onChange={(event) => setReferralCode(normalizeReferralCode(event.target.value))}
+                />
+                <small id="register-referral-help">通过成员分享链接进入时会自动填写。</small>
+              </label>
+            ) : null}
+            {captchaConfig.enabled && captchaConfig.siteKey ? (
+              <RegistrationTurnstile
+                siteKey={captchaConfig.siteKey}
+                resetKey={captchaResetKey}
+                onTokenChange={setCaptchaToken}
+              />
+            ) : null}
+            {captchaConfig.configurationError ? (
+              <p className="form-error" role="alert">
+                {captchaConfig.configurationError}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <button
+              className="primary-button full-button"
+              type="submit"
+              disabled={
+                submitting ||
+                status === 'unavailable' ||
+                Boolean(user) ||
+                Boolean(captchaConfig.configurationError) ||
+                (captchaConfig.enabled && !captchaToken)
+              }
+            >
+              <UserPlus size={17} aria-hidden="true" />
+              {user ? '已登录' : submitting ? '注册中' : '注册'}
+            </button>
+            <p className="centered-link">
+              已有账号？<Link to="/login">返回登录</Link>
             </p>
-          ) : null}
-          {message ? (
-            <p className="form-success" role="status">
-              {message}
+            <p className="auth-legal">
+              注册前请阅读<Link to="/privacy">隐私说明</Link>
             </p>
-          ) : null}
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button
-            className="primary-button full-button"
-            type="submit"
-            disabled={
-              submitting ||
-              status === 'unavailable' ||
-              Boolean(user) ||
-              Boolean(captchaConfig.configurationError) ||
-              (captchaConfig.enabled && !captchaToken)
-            }
-          >
-            <UserPlus size={17} aria-hidden="true" />
-            {user ? '已登录' : submitting ? '注册中' : '注册'}
-          </button>
-          <p className="centered-link">
-            已有账号？<Link to="/login">返回登录</Link>
-          </p>
-          <p className="auth-legal">
-            注册前请阅读<Link to="/privacy">隐私说明</Link>
-          </p>
-        </form>
+          </form>
+        )}
       </section>
     </main>
   )

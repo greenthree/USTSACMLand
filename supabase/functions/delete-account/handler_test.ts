@@ -5,10 +5,14 @@ import { createDeleteAccountHandler, type DeleteAccountServices } from './handle
 const userId = '11111111-1111-4111-8111-111111111111'
 
 function request(body: unknown, authorization = 'Bearer member-token'): Request {
+  const requestBody =
+    body && typeof body === 'object' && !Array.isArray(body)
+      ? { captchaToken: 'verified-captcha-token', ...body }
+      : body
   return new Request('https://example.test/functions/v1/delete-account', {
     method: 'POST',
     headers: { authorization, 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   })
 }
 
@@ -162,9 +166,10 @@ Deno.test(
     let floorCount = 0
     let deletionCount = 0
     const response = await handler({
-      async verifyPassword(email, password) {
+      async verifyPassword(email, password, captchaToken) {
         strictEqual(email, 'member@example.test')
         strictEqual(password, 'password')
+        strictEqual(captchaToken, 'verified-captcha-token')
         return '22222222-2222-4222-8222-222222222222'
       },
       async deleteUserWithRecoveryFloor() {

@@ -3,6 +3,7 @@ export class ChangePasswordRequestError extends Error {}
 export interface ChangePasswordRequest {
   currentPassword: string
   newPassword: string
+  captchaToken: string
 }
 
 export function parseChangePasswordRequest(value: unknown): ChangePasswordRequest {
@@ -13,6 +14,7 @@ export function parseChangePasswordRequest(value: unknown): ChangePasswordReques
   const payload = value as Record<string, unknown>
   const currentPassword = payload.currentPassword
   const newPassword = payload.newPassword
+  const captchaToken = payload.captchaToken
   if (
     typeof currentPassword !== 'string' ||
     currentPassword.length < 1 ||
@@ -28,6 +30,9 @@ export function parseChangePasswordRequest(value: unknown): ChangePasswordReques
   if (newPassword === currentPassword) {
     throw new ChangePasswordRequestError('New password must differ from the current password')
   }
+  if (typeof captchaToken !== 'string' || captchaToken.length < 1 || captchaToken.length > 4096) {
+    throw new ChangePasswordRequestError('Captcha token must contain between 1 and 4096 characters')
+  }
 
-  return { currentPassword, newPassword }
+  return { currentPassword, newPassword, captchaToken }
 }

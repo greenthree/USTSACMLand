@@ -6,10 +6,12 @@ Deno.test('password change request preserves password whitespace', () => {
     parseChangePasswordRequest({
       currentPassword: ' old password ',
       newPassword: ' new password ',
+      captchaToken: ' verified-token ',
     }),
     {
       currentPassword: ' old password ',
       newPassword: ' new password ',
+      captchaToken: ' verified-token ',
     },
   )
 })
@@ -18,11 +20,18 @@ Deno.test('password change request rejects invalid lengths and password reuse', 
   for (const payload of [
     null,
     {},
-    { currentPassword: '', newPassword: 'new-password' },
-    { currentPassword: 'old-password', newPassword: 'short' },
-    { currentPassword: 'same-password', newPassword: 'same-password' },
-    { currentPassword: 'x'.repeat(257), newPassword: 'new-password' },
-    { currentPassword: 'old-password', newPassword: 'x'.repeat(257) },
+    { currentPassword: '', newPassword: 'new-password', captchaToken: 'token' },
+    { currentPassword: 'old-password', newPassword: 'short', captchaToken: 'token' },
+    { currentPassword: 'same-password', newPassword: 'same-password', captchaToken: 'token' },
+    { currentPassword: 'x'.repeat(257), newPassword: 'new-password', captchaToken: 'token' },
+    { currentPassword: 'old-password', newPassword: 'x'.repeat(257), captchaToken: 'token' },
+    { currentPassword: 'old-password', newPassword: 'new-password' },
+    { currentPassword: 'old-password', newPassword: 'new-password', captchaToken: '' },
+    {
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+      captchaToken: 'x'.repeat(4097),
+    },
   ]) {
     throws(() => parseChangePasswordRequest(payload), ChangePasswordRequestError)
   }

@@ -237,9 +237,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const changePassword = useCallback(
-    async (currentPassword: string, newPassword: string) => {
+    async (currentPassword: string, newPassword: string, captchaToken = '') => {
+      const normalizedCaptchaToken = captchaToken.trim()
+      const captchaConfig = getRegistrationCaptchaConfig()
       if (!user) throw new Error('请先登录后再修改密码。')
       if (newPassword.length < 8) throw new Error('新密码至少需要 8 位。')
+      if (captchaConfig.configurationError) throw new Error(captchaConfig.configurationError)
+      if (captchaConfig.enabled && !normalizedCaptchaToken) {
+        throw new Error('请先完成修改密码安全验证。')
+      }
 
       if (!supabase) {
         if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，密码修改暂不可用。')
@@ -247,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const { data, error } = await supabase.functions.invoke('change-password', {
-        body: { currentPassword, newPassword },
+        body: { currentPassword, newPassword, captchaToken: normalizedCaptchaToken },
       })
       currentPassword = ''
       newPassword = ''
@@ -265,9 +271,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const deleteAccount = useCallback(
-    async (currentPassword: string) => {
+    async (currentPassword: string, captchaToken = '') => {
+      const normalizedCaptchaToken = captchaToken.trim()
+      const captchaConfig = getRegistrationCaptchaConfig()
       if (!user) throw new Error('请先登录后再注销账号。')
       if (!currentPassword) throw new Error('请输入当前密码。')
+      if (captchaConfig.configurationError) throw new Error(captchaConfig.configurationError)
+      if (captchaConfig.enabled && !normalizedCaptchaToken) {
+        throw new Error('请先完成注销账号安全验证。')
+      }
 
       if (!supabase) {
         if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，账号注销暂不可用。')
@@ -279,7 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const { error } = await supabase.functions.invoke('delete-account', {
-        body: { currentPassword },
+        body: { currentPassword, captchaToken: normalizedCaptchaToken },
       })
       currentPassword = ''
       if (error) throw new Error(`账号注销失败：${error.message}`)

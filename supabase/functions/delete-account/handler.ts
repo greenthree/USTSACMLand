@@ -14,7 +14,7 @@ export interface DeletionUser {
 export interface DeleteAccountServices {
   getUser(token: string): Promise<DeletionUser | null>
   getProfileRole(userId: string): Promise<'member' | 'admin' | null>
-  verifyPassword(email: string, password: string): Promise<string | null>
+  verifyPassword(email: string, password: string, captchaToken: string): Promise<string | null>
   countActiveSyncJobs(userId: string): Promise<number>
   deleteUserWithRecoveryFloor(userId: string): Promise<SafeDeletionResult>
 }
@@ -52,6 +52,7 @@ export function createDeleteAccountHandler(
     }
 
     let currentPassword = ''
+    let captchaToken = ''
     try {
       const token = bearerToken(request)
       let body: unknown
@@ -61,7 +62,9 @@ export function createDeleteAccountHandler(
         throw new ApiError(400, 'Request body must be valid JSON')
       }
       try {
-        currentPassword = parseDeleteAccountRequest(body).currentPassword
+        const parsed = parseDeleteAccountRequest(body)
+        currentPassword = parsed.currentPassword
+        captchaToken = parsed.captchaToken
       } catch (error) {
         if (error instanceof DeleteAccountRequestError) {
           throw new ApiError(400, error.message)
@@ -86,8 +89,13 @@ export function createDeleteAccountHandler(
         throw new ApiError(403, 'Administrator accounts cannot use self-service deletion')
       }
 
-      const verifiedUserId = await services.verifyPassword(user.email, currentPassword)
+      const verifiedUserId = await services.verifyPassword(
+        user.email,
+        currentPassword,
+        captchaToken,
+      )
       currentPassword = ''
+      captchaToken = ''
       if (verifiedUserId !== user.id) {
         throw new ApiError(401, 'Current password is incorrect')
       }
@@ -128,6 +136,7 @@ export function createDeleteAccountHandler(
       return respond({ error: message }, status)
     } finally {
       currentPassword = ''
+      captchaToken = ''
     }
   }
 }

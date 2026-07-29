@@ -26,8 +26,12 @@ const handler = createChangePasswordHandler({
         if (error || !data.user) return null
         return { id: data.user.id, email: data.user.email ?? null }
       },
-      async verifyPassword(email: string, password: string) {
-        const { data, error } = await passwordClient.auth.signInWithPassword({ email, password })
+      async verifyPassword(email: string, password: string, captchaToken: string) {
+        const { data, error } = await passwordClient.auth.signInWithPassword({
+          email,
+          password,
+          options: { captchaToken },
+        })
         return error ? null : (data.user?.id ?? null)
       },
       async updatePassword(userId: string, password: string) {
