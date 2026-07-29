@@ -13,7 +13,7 @@ describe('registration CAPTCHA configuration', () => {
     expect(parseRegistrationCaptchaConfig('true', '  ')).toEqual({
       enabled: true,
       siteKey: '',
-      configurationError: '注册安全验证尚未配置完成，请联系管理员。',
+      configurationError: '账号安全验证尚未配置完成，请联系管理员。',
     })
   })
 
@@ -29,7 +29,7 @@ describe('registration CAPTCHA configuration', () => {
     expect(parseRegistrationCaptchaConfig('yes', 'site-key')).toEqual({
       enabled: false,
       siteKey: '',
-      configurationError: '注册安全验证配置无效，请联系管理员。',
+      configurationError: '账号安全验证配置无效，请联系管理员。',
     })
   })
 })

@@ -4,6 +4,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { consumePasswordChangeNotice } from '../auth/passwordChangeNotice'
 import { AuthContextPanel } from '../components/AuthContextPanel'
+import { RegistrationTurnstile } from '../components/RegistrationTurnstile'
+import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 import { hasSupabaseConfig } from '../lib/supabase'
 
 export function LoginPage() {
@@ -14,16 +16,29 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaResetKey, setCaptchaResetKey] = useState(0)
   const [passwordChangeNotice] = useState(consumePasswordChangeNotice)
   const passwordResetCompleted = searchParams.get('reset') === 'success'
+  const captchaConfig = getRegistrationCaptchaConfig()
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    if (captchaConfig.configurationError) {
+      setError(captchaConfig.configurationError)
+      return
+    }
+    if (captchaConfig.enabled && !captchaToken) {
+      setError('请先完成登录安全验证。')
+      return
+    }
     setSubmitting(true)
+    const captchaSubmitted = captchaConfig.enabled
 
     try {
-      await signIn(email, password)
+      if (captchaConfig.enabled) await signIn(email, password, captchaToken)
+      else await signIn(email, password)
       const requestedPath = searchParams.get('returnTo')
       const safePath = requestedPath?.startsWith('/') ? requestedPath : null
       navigate(
@@ -32,6 +47,10 @@ export function LoginPage() {
     } catch (signInError) {
       setSubmitting(false)
       setError(signInError instanceof Error ? signInError.message : '登录失败，请稍后重试。')
+      if (captchaSubmitted) {
+        setCaptchaToken('')
+        setCaptchaResetKey((current) => current + 1)
+      }
       return
     }
   }
@@ -71,6 +90,19 @@ export function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          {captchaConfig.enabled && captchaConfig.siteKey ? (
+            <RegistrationTurnstile
+              siteKey={captchaConfig.siteKey}
+              resetKey={captchaResetKey}
+              onTokenChange={setCaptchaToken}
+              ariaLabel="登录安全验证"
+            />
+          ) : null}
+          {captchaConfig.configurationError ? (
+            <p className="form-error" role="alert">
+              {captchaConfig.configurationError}
+            </p>
+          ) : null}
           {passwordResetCompleted ? (
             <p className="form-success" role="status">
               密码已重置，请使用新密码登录。
@@ -94,7 +126,13 @@ export function LoginPage() {
           <button
             className="primary-button full-button"
             type="submit"
-            disabled={submitting || status === 'unavailable' || Boolean(user)}
+            disabled={
+              submitting ||
+              status === 'unavailable' ||
+              Boolean(user) ||
+              Boolean(captchaConfig.configurationError) ||
+              (captchaConfig.enabled && !captchaToken)
+            }
           >
             <LogIn size={17} aria-hidden="true" />
             {user ? '已登录' : submitting ? '登录中' : '登录'}

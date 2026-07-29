@@ -64,12 +64,14 @@ interface RegistrationTurnstileProps {
   siteKey: string
   resetKey: number
   onTokenChange: (token: string) => void
+  ariaLabel?: string
 }
 
 export function RegistrationTurnstile({
   siteKey,
   resetKey,
   onTokenChange,
+  ariaLabel = '注册安全验证',
 }: RegistrationTurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const callbackRef = useRef(onTokenChange)
@@ -117,7 +119,7 @@ export function RegistrationTurnstile({
   }, [resetKey, siteKey])
 
   return (
-    <div className="registration-captcha" aria-label="注册安全验证">
+    <div className="registration-captcha" aria-label={ariaLabel}>
       <div ref={containerRef} />
       {loadError ? (
         <p className="registration-captcha-error" role="alert">

@@ -23,7 +23,7 @@ export interface AuthContextValue {
     referralCode?: string,
     captchaToken?: string,
   ) => Promise<boolean>
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string, captchaToken?: string) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   completePasswordRecovery: (newPassword: string) => Promise<void>
   deleteAccount: (currentPassword: string) => Promise<void>
