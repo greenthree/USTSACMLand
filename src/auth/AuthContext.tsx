@@ -142,7 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applySupabaseUser])
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, captchaToken = '') => {
+      const normalizedCaptchaToken = captchaToken.trim()
+      const captchaConfig = getRegistrationCaptchaConfig()
+      if (captchaConfig.configurationError) throw new Error(captchaConfig.configurationError)
+      if (captchaConfig.enabled && !normalizedCaptchaToken) {
+        throw new Error('请先完成登录安全验证。')
+      }
+
       if (!supabase) {
         if (!demoAuthEnabled) throw new Error('系统尚未配置 Supabase，登录暂不可用。')
         sessionStorage.setItem(demoSessionKey, email.trim())
@@ -151,7 +158,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        ...(captchaConfig.enabled ? { options: { captchaToken: normalizedCaptchaToken } } : {}),
+      })
       if (error) throw error
       clearPasswordRecoverySession()
       setIsPasswordRecovery(false)

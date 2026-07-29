@@ -85,7 +85,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [ ] 由项目负责人确定源码许可证并添加 `LICENSE`；确定前不把项目描述为开源。
 - [ ] 确认同步状态巡检、数据库备份、凭据轮换、回滚和管理员交接文档均可由其他维护者执行。2026-07-26 已新增单一入口 [`docs/maintainer-handoff.md`](./docs/maintainer-handoff.md)，补齐权限登记、固定巡检阈值、GitHub CLI 备份/恢复、逐类凭据消费者与回滚、十函数回滚和脱敏交接模板；仓库就绪检查也开始强制要求备份大小与 Storage 对象上限变量。生产变量已按 50 名成员理论上限配置，手动备份运行 `30192826527` 成功并完成密文 Artifact 白名单核对。仍需一名非原维护者实际完成六项独立演练并签署复核，不能用原维护者本轮执行替代，因此保持未完成。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./docs/evidence/database-backup-capacity-guard-2026-07-26.md)。
-- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-28 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 587 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase preflight 确认 71 个 migration、10 个 Edge Function、21 个函数 Secret、队列和函数边界正常，但因生产仍自动确认邮箱且未启用服务端 CAPTCHA 而按设计阻止发布。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)。
+- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-29 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 594 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase 已关闭邮箱自动确认并启用服务端 Turnstile CAPTCHA，preflight 与严格就绪检查均通过。仍缺全新真实邮箱的有效 token 注册、确认前登录拒绝、重复确认幂等、受控 `429` 恢复，以及许可证、非原维护者交接和人工屏幕阅读器验收，因此暂不创建标签。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md) 与 [`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md)。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
 

@@ -6,6 +6,7 @@ import { useAuth } from './authContextValue'
 const authMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
+  signInWithPassword: vi.fn(),
   signUp: vi.fn(),
   signOut: vi.fn(),
   updateUser: vi.fn(),
@@ -105,6 +106,20 @@ function CaptchaSignUpProbe() {
   )
 }
 
+function SignInProbe({ captchaToken }: { captchaToken?: string }) {
+  const { signIn } = useAuth()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        void signIn('test@example.com', 'password123', captchaToken).catch(() => undefined)
+      }
+    >
+      登录
+    </button>
+  )
+}
+
 function DeleteAccountProbe() {
   const { user, deleteAccount } = useAuth()
   return (
@@ -151,6 +166,15 @@ describe('AuthProvider registration metadata', () => {
     authMocks.onAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn() } },
     })
+    authMocks.signInWithPassword.mockReset().mockResolvedValue({
+      data: {
+        user: {
+          id: 'member-id',
+          email: 'test@example.com',
+        },
+      },
+      error: null,
+    })
     authMocks.signUp.mockReset()
     authMocks.signOut.mockReset().mockResolvedValue({ error: null })
     authMocks.updateUser.mockReset().mockResolvedValue({ error: null })
@@ -188,6 +212,40 @@ describe('AuthProvider registration metadata', () => {
         captchaToken: 'verified-turnstile-token',
       },
     })
+  })
+
+  it('passes a trimmed Turnstile token through password sign-in when protection is enabled', async () => {
+    vi.stubEnv('VITE_REGISTRATION_TURNSTILE_ENABLED', 'true')
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '1x00000000000000000000AA')
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <SignInProbe captchaToken=" verified-login-token " />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '登录' }))
+
+    expect(authMocks.signInWithPassword).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+      options: { captchaToken: 'verified-login-token' },
+    })
+  })
+
+  it('does not contact password sign-in without a token when protection is enabled', async () => {
+    vi.stubEnv('VITE_REGISTRATION_TURNSTILE_ENABLED', 'true')
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', '1x00000000000000000000AA')
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <SignInProbe />
+      </AuthProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: '登录' }))
+
+    expect(authMocks.signInWithPassword).not.toHaveBeenCalled()
   })
 
   it('does not contact Supabase Auth without a token when protection is enabled', async () => {

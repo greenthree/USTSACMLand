@@ -118,11 +118,11 @@ describe('RegisterPage', () => {
     captchaMocks.config.mockReturnValue({
       enabled: true,
       siteKey: '',
-      configurationError: '注册安全验证尚未配置完成，请联系管理员。',
+      configurationError: '账号安全验证尚未配置完成，请联系管理员。',
     })
     renderRegister(vi.fn())
 
-    expect(screen.getByRole('alert')).toHaveTextContent('注册安全验证尚未配置完成')
+    expect(screen.getByRole('alert')).toHaveTextContent('账号安全验证尚未配置完成')
     expect(screen.getByRole('button', { name: '注册' })).toBeDisabled()
     await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
   })

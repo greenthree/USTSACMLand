@@ -16,7 +16,7 @@ export function parseRegistrationCaptchaConfig(
     return {
       enabled: false,
       siteKey: '',
-      configurationError: '注册安全验证配置无效，请联系管理员。',
+      configurationError: '账号安全验证配置无效，请联系管理员。',
     }
   }
 
@@ -24,7 +24,7 @@ export function parseRegistrationCaptchaConfig(
     return {
       enabled: true,
       siteKey: '',
-      configurationError: '注册安全验证尚未配置完成，请联系管理员。',
+      configurationError: '账号安全验证尚未配置完成，请联系管理员。',
     }
   }
 
