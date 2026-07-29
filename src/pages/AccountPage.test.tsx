@@ -562,9 +562,18 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     await user.type(screen.getByLabelText('新密码'), 'new-password')
     await user.type(screen.getByLabelText('确认新密码'), 'new-password')
 
+    const captchaButton = screen.getByRole('button', { name: '完成修改密码安全验证' })
+    const passwordForm = screen.getByRole('heading', { name: '账号安全' }).closest('form')
+    const profileForm = screen.getByRole('heading', { name: '基本资料' }).closest('form')
+
+    expect(passwordForm).not.toBeNull()
+    expect(profileForm).not.toBeNull()
+    expect(captchaButton.closest('form')).toBe(passwordForm)
+    expect(captchaButton.closest('form')).not.toBe(profileForm)
+
     const submitButton = screen.getByRole('button', { name: '修改密码' })
     expect(submitButton).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: '完成修改密码安全验证' }))
+    await user.click(captchaButton)
     expect(submitButton).toBeEnabled()
     await user.click(submitButton)
 
