@@ -7,6 +7,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
 import { PlatformMark } from '../components/PlatformMark'
+import { RegistrationTurnstile } from '../components/RegistrationTurnstile'
 import {
   accountDraftHasConflict,
   accountDraftPlatforms,
@@ -26,6 +27,7 @@ import {
   validatePlatformAccounts,
 } from '../lib/platformAccounts'
 import { gradeOptions, majorSuggestions, normalizeGrade } from '../lib/profileFields'
+import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 import {
   buildDemoPersonalDataExport,
   downloadPersonalDataExport,
@@ -204,11 +206,15 @@ export function AccountPage() {
   const [passwordNotice, setPasswordNotice] = useState('')
   const [passwordNoticeKind, setPasswordNoticeKind] = useState<'success' | 'error'>('success')
   const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordCaptchaToken, setPasswordCaptchaToken] = useState('')
+  const [passwordCaptchaResetKey, setPasswordCaptchaResetKey] = useState(0)
   const [showDeletionConfirmation, setShowDeletionConfirmation] = useState(false)
   const [deletionPassword, setDeletionPassword] = useState('')
   const [deletionConfirmed, setDeletionConfirmed] = useState(false)
   const [deletionNotice, setDeletionNotice] = useState('')
   const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deletionCaptchaToken, setDeletionCaptchaToken] = useState('')
+  const [deletionCaptchaResetKey, setDeletionCaptchaResetKey] = useState(0)
   const [exportingData, setExportingData] = useState(false)
   const [exportNotice, setExportNotice] = useState('')
   const [exportNoticeKind, setExportNoticeKind] = useState<'success' | 'error'>('success')
@@ -219,6 +225,7 @@ export function AccountPage() {
   const [draftReady, setDraftReady] = useState(false)
   const baselineValuesRef = useRef<AccountFormValues | null>(null)
   const referralRequestIdRef = useRef(0)
+  const captchaConfig = getRegistrationCaptchaConfig()
 
   const selectableGrades =
     grade && !gradeOptions.includes(grade) ? [grade, ...gradeOptions] : gradeOptions
@@ -576,25 +583,49 @@ export function AccountPage() {
     event.preventDefault()
     setPasswordNotice('')
 
+    const resetPasswordCaptcha = () => {
+      setPasswordCaptchaToken('')
+      setPasswordCaptchaResetKey((current) => current + 1)
+    }
+
     if (newPassword.length < 8) {
       setPasswordNoticeKind('error')
       setPasswordNotice('新密码至少需要 8 位。')
+      resetPasswordCaptcha()
       return
     }
     if (newPassword !== confirmedPassword) {
       setPasswordNoticeKind('error')
       setPasswordNotice('两次输入的新密码不一致。')
+      resetPasswordCaptcha()
       return
     }
     if (newPassword === currentPassword) {
       setPasswordNoticeKind('error')
       setPasswordNotice('新密码不能与当前密码相同。')
+      resetPasswordCaptcha()
+      return
+    }
+    if (captchaConfig.configurationError) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice(captchaConfig.configurationError)
+      resetPasswordCaptcha()
+      return
+    }
+    if (captchaConfig.enabled && !passwordCaptchaToken) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice('请先完成修改密码安全验证。')
+      resetPasswordCaptcha()
       return
     }
 
     setChangingPassword(true)
     try {
-      await changePassword(currentPassword, newPassword)
+      if (captchaConfig.enabled) {
+        await changePassword(currentPassword, newPassword, passwordCaptchaToken)
+      } else {
+        await changePassword(currentPassword, newPassword)
+      }
       setCurrentPassword('')
       setNewPassword('')
       setConfirmedPassword('')
@@ -607,23 +638,38 @@ export function AccountPage() {
       setPasswordNoticeKind('error')
       setPasswordNotice(error instanceof Error ? error.message : '密码更新失败，请稍后重试。')
     } finally {
+      resetPasswordCaptcha()
       setChangingPassword(false)
     }
   }
 
   async function handleAccountDeletion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (user?.role !== 'member' || !deletionConfirmed || !deletionPassword) return
+    if (
+      user?.role !== 'member' ||
+      !deletionConfirmed ||
+      !deletionPassword ||
+      (captchaConfig.enabled && !deletionCaptchaToken)
+    ) {
+      return
+    }
 
     setDeletingAccount(true)
     setDeletionNotice('')
     try {
-      await deleteAccount(deletionPassword)
+      if (captchaConfig.enabled) {
+        await deleteAccount(deletionPassword, deletionCaptchaToken)
+      } else {
+        await deleteAccount(deletionPassword)
+      }
       if (userId) clearAccountDraft(userId)
     } catch (error) {
       setDeletionPassword('')
       setDeletionNotice(error instanceof Error ? error.message : '账号注销失败，请稍后重试。')
       setDeletingAccount(false)
+    } finally {
+      setDeletionCaptchaToken('')
+      setDeletionCaptchaResetKey((current) => current + 1)
     }
   }
 
@@ -818,6 +864,19 @@ export function AccountPage() {
               </datalist>
             </label>
           </div>
+          {captchaConfig.enabled && captchaConfig.siteKey ? (
+            <RegistrationTurnstile
+              siteKey={captchaConfig.siteKey}
+              resetKey={passwordCaptchaResetKey}
+              onTokenChange={setPasswordCaptchaToken}
+              ariaLabel="修改密码安全验证"
+            />
+          ) : null}
+          {captchaConfig.configurationError ? (
+            <p className="form-error" role="alert">
+              {captchaConfig.configurationError}
+            </p>
+          ) : null}
         </fieldset>
 
         <fieldset className="form-section" disabled={loadingProfile}>
@@ -1035,7 +1094,15 @@ export function AccountPage() {
             </p>
           ) : null}
           <div className="form-actions">
-            <button className="primary-button" type="submit" disabled={changingPassword}>
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={
+                changingPassword ||
+                Boolean(captchaConfig.configurationError) ||
+                (captchaConfig.enabled && !passwordCaptchaToken)
+              }
+            >
               <KeyRound size={17} aria-hidden="true" />
               {changingPassword ? '更新中' : '修改密码'}
             </button>
@@ -1078,6 +1145,19 @@ export function AccountPage() {
                 />
                 <span>我确认永久删除账号及全部训练数据，此操作无法撤销。</span>
               </label>
+              {captchaConfig.enabled && captchaConfig.siteKey ? (
+                <RegistrationTurnstile
+                  siteKey={captchaConfig.siteKey}
+                  resetKey={deletionCaptchaResetKey}
+                  onTokenChange={setDeletionCaptchaToken}
+                  ariaLabel="注销账号安全验证"
+                />
+              ) : null}
+              {captchaConfig.configurationError ? (
+                <p className="form-error" role="alert">
+                  {captchaConfig.configurationError}
+                </p>
+              ) : null}
               {deletionNotice ? (
                 <p className="form-error account-deletion-notice" role="alert">
                   {deletionNotice}
@@ -1093,6 +1173,8 @@ export function AccountPage() {
                     setDeletionPassword('')
                     setDeletionConfirmed(false)
                     setDeletionNotice('')
+                    setDeletionCaptchaToken('')
+                    setDeletionCaptchaResetKey((current) => current + 1)
                   }}
                 >
                   取消
@@ -1100,7 +1182,13 @@ export function AccountPage() {
                 <button
                   className="danger-button"
                   type="submit"
-                  disabled={deletingAccount || !deletionPassword || !deletionConfirmed}
+                  disabled={
+                    deletingAccount ||
+                    !deletionPassword ||
+                    !deletionConfirmed ||
+                    Boolean(captchaConfig.configurationError) ||
+                    (captchaConfig.enabled && !deletionCaptchaToken)
+                  }
                 >
                   <Trash2 size={17} aria-hidden="true" />
                   {deletingAccount ? '正在注销' : '永久注销账号'}

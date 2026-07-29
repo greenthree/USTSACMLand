@@ -144,7 +144,7 @@ describe('RegisterPage', () => {
     expect(await screen.findByRole('heading', { name: '我的资料' })).toBeInTheDocument()
   })
 
-  it('explains a legacy confirmation requirement when no session is returned', async () => {
+  it('replaces the registration form with email confirmation instructions', async () => {
     const user = userEvent.setup()
     const signUp = vi.fn().mockResolvedValue(false)
     renderRegister(signUp)
@@ -154,9 +154,16 @@ describe('RegisterPage', () => {
     await user.type(screen.getByLabelText('密码'), 'password123')
     await user.click(screen.getByRole('button', { name: '注册' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      '账号已创建，但当前认证配置仍要求邮箱验证；验证后即可登录。',
-    )
+    expect(await screen.findByRole('heading', { name: '查收确认邮件' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('确认邮件已发送至new@example.com')
+    expect(
+      screen.getByText('请前往邮箱，打开邮件中的确认链接。完成确认后即可返回登录。'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回登录' })).toHaveAttribute('href', '/login')
+    expect(screen.queryByRole('textbox', { name: '姓名' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '邮箱' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('密码')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '注册' })).not.toBeInTheDocument()
   })
 
   it('rejects a whitespace-only name before calling signup', async () => {

@@ -58,7 +58,7 @@ npm run check:supabase-readiness
 - 项目状态为 `ACTIVE_HEALTHY`；
 - 71 个 migration，0 个待部署；
 - 10 个 Edge Function；
-- 21 个函数 Secret 名称，0 个缺失；
+- 23 个函数 Secret 名称，0 个缺失；
 - 0 个 schema lint 发现；
 - Auth email readiness、匿名 REST、函数边界和队列调度检查通过。
 
@@ -72,4 +72,4 @@ Cloudflare 控制台已为 `/assets/*` 部署一年期 Edge/Browser TTL 与浏�
 
 ## 结论
 
-代码、测试、构建、仓库结构、Cloudflare 长期缓存和注册服务端防护当前健康。仍缺全新真实邮箱的有效 Turnstile 注册、确认前登录拒绝、重复确认幂等和受控 `429` 恢复证据，因此暂不创建 `v1.0.0` 标签，相关 ROADMAP 条目继续保持未完成。
+代码、测试、构建、仓库结构、Cloudflare 长期缓存和注册服务端防护当前健康。2026-07-29 已补齐全新真实邮箱的有效 Turnstile 注册、确认前登录拒绝、真实邮件确认、重复确认安全性和确认后密码登录证据。两组各不超过 30 次的受控生产限流检查均按安全上限停止，但分别因令牌桶持续补充和 CAPTCHA 层先行拒绝而没有出现 `429`，因此不能记作窗口恢复通过。仍缺可复现的受控 `429` 窗口恢复、测试账号清理、许可证和非原维护者交接，暂不创建 `v1.0.0` 标签，相关 ROADMAP 条目继续保持未完成。

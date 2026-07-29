@@ -123,7 +123,11 @@ function SignInProbe({ captchaToken }: { captchaToken?: string }) {
 function DeleteAccountProbe() {
   const { user, deleteAccount } = useAuth()
   return (
-    <button type="button" disabled={!user} onClick={() => void deleteAccount('current-password')}>
+    <button
+      type="button"
+      disabled={!user}
+      onClick={() => void deleteAccount('current-password', 'verified-deletion-token')}
+    >
       注销测试账号
     </button>
   )
@@ -135,7 +139,9 @@ function ChangePasswordProbe() {
     <button
       type="button"
       disabled={!user}
-      onClick={() => void changePassword('current-password', 'new-password')}
+      onClick={() =>
+        void changePassword('current-password', 'new-password', 'verified-password-token')
+      }
     >
       修改测试密码
     </button>
@@ -432,7 +438,10 @@ describe('AuthProvider registration metadata', () => {
 
     await waitFor(() =>
       expect(authMocks.invoke).toHaveBeenCalledWith('delete-account', {
-        body: { currentPassword: 'current-password' },
+        body: {
+          currentPassword: 'current-password',
+          captchaToken: 'verified-deletion-token',
+        },
       }),
     )
     expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' })
@@ -467,6 +476,7 @@ describe('AuthProvider registration metadata', () => {
         body: {
           currentPassword: 'current-password',
           newPassword: 'new-password',
+          captchaToken: 'verified-password-token',
         },
       }),
     )

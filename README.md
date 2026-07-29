@@ -315,9 +315,8 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 ## 当前限制与下一步
 
 1. 保持 WebChat 与推荐计划关闭，防止遗留入口、请求、图片上传或奖励流程被误开启；除关闭态安全修复外不再投入开发。
-2. 完成真实浏览器 Tab/Shift+Tab 和人工屏幕阅读器验收。
-3. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
-4. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare Purge、证书和 DNS 回滚验收。
+2. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
+3. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare Purge、证书和 DNS 回滚验收。人工屏幕阅读器验收不纳入本项目发布范围；现有键盘操作、语义结构和自动化可访问性回归继续保留。
 
 视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，维护权交接见 [维护者交接与独立操作卡](./docs/maintainer-handoff.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，遗留 WebChat 图片边界保留在 [图片输入 v1 历史契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 

@@ -8,7 +8,7 @@ export interface PasswordUser {
 
 export interface ChangePasswordServices {
   getUser(token: string): Promise<PasswordUser | null>
-  verifyPassword(email: string, password: string): Promise<string | null>
+  verifyPassword(email: string, password: string, captchaToken: string): Promise<string | null>
   updatePassword(userId: string, password: string): Promise<boolean>
   revokeSessions(token: string): Promise<boolean>
 }
@@ -47,6 +47,7 @@ export function createChangePasswordHandler(
 
     let currentPassword = ''
     let newPassword = ''
+    let captchaToken = ''
     try {
       const token = bearerToken(request)
       let body: unknown
@@ -60,6 +61,7 @@ export function createChangePasswordHandler(
         const parsed = parseChangePasswordRequest(body)
         currentPassword = parsed.currentPassword
         newPassword = parsed.newPassword
+        captchaToken = parsed.captchaToken
       } catch (error) {
         if (error instanceof ChangePasswordRequestError) {
           throw new ApiError(400, error.message)
@@ -76,7 +78,12 @@ export function createChangePasswordHandler(
         throw new ApiError(409, 'This account has no password email identity')
       }
 
-      const verifiedUserId = await services.verifyPassword(user.email, currentPassword)
+      const verifiedUserId = await services.verifyPassword(
+        user.email,
+        currentPassword,
+        captchaToken,
+      )
+      captchaToken = ''
       if (verifiedUserId !== user.id) {
         throw new ApiError(401, 'Current password is incorrect')
       }
@@ -110,6 +117,7 @@ export function createChangePasswordHandler(
     } finally {
       currentPassword = ''
       newPassword = ''
+      captchaToken = ''
     }
   }
 }

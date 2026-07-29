@@ -38,10 +38,11 @@ const handler = createDeleteAccountHandler({
         if (error) throw new Error('Could not load account deletion policy')
         return data?.role ?? null
       },
-      async verifyPassword(email: string, password: string) {
+      async verifyPassword(email: string, password: string, captchaToken: string) {
         const { data, error } = await passwordClient.auth.signInWithPassword({
           email,
           password,
+          options: { captchaToken },
         })
         return error ? null : (data.user?.id ?? null)
       },

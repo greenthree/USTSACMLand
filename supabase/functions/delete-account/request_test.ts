@@ -5,10 +5,14 @@ import {
   parseDeleteAccountRequest,
 } from './request.ts'
 
-Deno.test('account deletion request preserves the password without trimming it', () => {
-  deepStrictEqual(parseDeleteAccountRequest({ currentPassword: ' password ' }), {
-    currentPassword: ' password ',
-  })
+Deno.test('account deletion request preserves password and captcha whitespace', () => {
+  deepStrictEqual(
+    parseDeleteAccountRequest({ currentPassword: ' password ', captchaToken: ' token ' }),
+    {
+      currentPassword: ' password ',
+      captchaToken: ' token ',
+    },
+  )
 })
 
 Deno.test('account deletion request rejects missing and oversized passwords', () => {
@@ -16,9 +20,13 @@ Deno.test('account deletion request rejects missing and oversized passwords', ()
     null,
     {},
     { currentPassword: '' },
+    { currentPassword: 'password' },
+    { currentPassword: 'password', captchaToken: '' },
     {
       currentPassword: 'x'.repeat(257),
+      captchaToken: 'token',
     },
+    { currentPassword: 'password', captchaToken: 'x'.repeat(4097) },
   ]) {
     throws(() => parseDeleteAccountRequest(payload), DeleteAccountRequestError)
   }

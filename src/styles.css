@@ -3206,6 +3206,48 @@ main {
   border: 1px solid #c6e2d2;
 }
 
+.auth-confirmation {
+  align-items: flex-start;
+}
+
+.auth-confirmation-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--green-dark);
+  background: var(--green-soft);
+  border: 1px solid #c6e2d2;
+  border-radius: 8px;
+}
+
+.auth-confirmation-kicker {
+  margin-bottom: 4px !important;
+  color: var(--green-dark) !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-confirmation-address {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.auth-confirmation-address strong {
+  overflow-wrap: anywhere;
+  color: inherit;
+  font-size: 14px;
+}
+
+.auth-confirmation-copy {
+  color: var(--ink-soft) !important;
+  font-size: 14px !important;
+}
+
 .account-form {
   display: flex;
   flex-direction: column;

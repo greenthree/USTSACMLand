@@ -26,6 +26,14 @@ const referralMocks = vi.hoisted(() => ({
   fetch: vi.fn(),
 }))
 
+const captchaMocks = vi.hoisted(() => ({
+  config: {
+    enabled: false,
+    siteKey: '',
+    configurationError: null as string | null,
+  },
+}))
+
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: accountMocks.from,
@@ -42,6 +50,30 @@ vi.mock('../lib/personalDataExport', () => ({
 vi.mock('../lib/referrals', () => ({
   buildReferralRegistrationUrl: referralMocks.buildUrl,
   fetchOwnReferralSummary: referralMocks.fetch,
+}))
+
+vi.mock('../lib/registrationCaptcha', () => ({
+  getRegistrationCaptchaConfig: () => captchaMocks.config,
+}))
+
+vi.mock('../components/RegistrationTurnstile', () => ({
+  RegistrationTurnstile: ({
+    ariaLabel,
+    onTokenChange,
+    resetKey,
+  }: {
+    ariaLabel?: string
+    onTokenChange: (token: string) => void
+    resetKey: number
+  }) => (
+    <button
+      type="button"
+      data-reset-key={resetKey}
+      onClick={() => onTokenChange('verified-account-captcha-token')}
+    >
+      完成{ariaLabel ?? '安全验证'}
+    </button>
+  ),
 }))
 
 import { AccountPage } from './AccountPage'
@@ -114,6 +146,9 @@ describe('AccountPage XCPC ELO automatic matching', () => {
       rewardTokens: 2_000_000,
       available: true,
     })
+    captchaMocks.config.enabled = false
+    captchaMocks.config.siteKey = ''
+    captchaMocks.config.configurationError = null
 
     accountMocks.profileSingle.mockResolvedValue({
       data: {
@@ -515,6 +550,32 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(accountMocks.profileUpdate).not.toHaveBeenCalled()
   })
 
+  it('requires and consumes an independent captcha token when changing a password', async () => {
+    const user = userEvent.setup()
+    captchaMocks.config.enabled = true
+    captchaMocks.config.siteKey = 'account-test-site-key'
+    vi.mocked(authValue.changePassword).mockResolvedValue(undefined)
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.type(screen.getByLabelText('当前密码'), 'old-password')
+    await user.type(screen.getByLabelText('新密码'), 'new-password')
+    await user.type(screen.getByLabelText('确认新密码'), 'new-password')
+
+    const submitButton = screen.getByRole('button', { name: '修改密码' })
+    expect(submitButton).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '完成修改密码安全验证' }))
+    expect(submitButton).toBeEnabled()
+    await user.click(submitButton)
+
+    expect(authValue.changePassword).toHaveBeenCalledWith(
+      'old-password',
+      'new-password',
+      'verified-account-captcha-token',
+    )
+    await waitFor(() => expect(submitButton).toBeDisabled())
+  })
+
   it('rejects mismatched new passwords before calling auth', async () => {
     const user = userEvent.setup()
     renderAccountPage()
@@ -567,6 +628,34 @@ describe('AccountPage XCPC ELO automatic matching', () => {
 
     expect(authValue.deleteAccount).toHaveBeenCalledTimes(1)
     expect(authValue.deleteAccount).toHaveBeenCalledWith('current-password')
+  })
+
+  it('requires and consumes a separate captcha token before account deletion', async () => {
+    const user = userEvent.setup()
+    captchaMocks.config.enabled = true
+    captchaMocks.config.siteKey = 'account-test-site-key'
+    vi.mocked(authValue.deleteAccount).mockResolvedValue(undefined)
+    renderAccountPage()
+
+    await screen.findByDisplayValue('测试成员')
+    await user.click(screen.getByRole('button', { name: '注销账号' }))
+    await user.type(screen.getByLabelText('账号密码'), 'current-password')
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: '我确认永久删除账号及全部训练数据，此操作无法撤销。',
+      }),
+    )
+
+    const deleteButton = screen.getByRole('button', { name: '永久注销账号' })
+    expect(deleteButton).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '完成注销账号安全验证' }))
+    expect(deleteButton).toBeEnabled()
+    await user.click(deleteButton)
+
+    expect(authValue.deleteAccount).toHaveBeenCalledWith(
+      'current-password',
+      'verified-account-captcha-token',
+    )
   })
 
   it('clears the deletion password after a failed deletion attempt', async () => {
