@@ -8,6 +8,8 @@
 登记只写服务、角色、负责人和验证日期；敏感值只保存在组织批准的密码管理器或对应服务
 Secret 中。
 
+WebChat / AI 学习助手与推荐计划已退出产品范围。现有代码、migration、函数和私有数据结构保留，但生产必须保持关闭；本操作卡不再要求中转站、图片、邀请码、奖励或重开演练。维护者只需防止入口或服务被误开启，并维持遗留私有数据的 RLS、注销和备份边界。
+
 ## 完成标准
 
 ROADMAP 的“其他维护者可执行”条目只有在一名非原维护者独立完成并记录以下六项后才可
@@ -136,16 +138,16 @@ gh run download $restoreRunId --repo greenthree/USTSACMLand --dir ".artifacts\re
 通用顺序固定为：创建新值 → 更新所有消费者 → 受控烟测 → 确认回滚值仍可用 → 撤销旧值。
 不得先撤销旧值。
 
-| 凭据                  | 权威存储与消费者                                                             | 烟测                                                   | 回滚/撤销边界                                           |
-| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
-| Firecrawl Key         | 管理后台私有 Vault Key 池；`FIRECRAWL_API_KEY` 仅是无数据库 Key 时的兼容回退 | 逐 Key 健康/额度、牛客回退、QOJ 临时会话清理           | 新 Key 健康后禁用旧 Key，再由供应商撤销                 |
-| QOJ 密码              | QOJ 与 Supabase Function Secret                                              | 一次目标主页匹配；确认临时会话关闭                     | 新密码失败立即恢复旧 Secret，未验证前不撤销旧密码       |
-| 洛谷 Cookie/CSRF      | Supabase Function Secrets，成对更新                                          | UID 校验、P/B Accepted 增量同步                        | 任一项失败时成对恢复                                    |
-| 同步队列 Token        | Supabase Function Secret 与 Vault                                            | 暂停 cron、更新两处、手动调用和下一次 cron 2xx         | 两处未一致前不恢复 cron                                 |
-| Supabase service role | GitHub/Supabase 受控 Secret 消费者                                           | 同步、缓存探针、生产安全检查；浏览器分块无泄露         | 所有消费者切换并通过后撤销旧值                          |
-| WebChat 中转站 Key    | Supabase Vault；GitHub 只在手动兼容性验收时临时持有独立 Secret               | 兼容性、缓存探针、管理员暂停态和成员请求               | 先关闭数据库请求开关，再恢复旧 Vault 版本               |
-| 备份加密口令          | GitHub Environment Secret 与密码管理器                                       | 新备份 + 恢复演练                                      | 14 天内旧 Artifact 的旧口令必须保留到对应 Artifact 到期 |
-| 注销恢复 GitHub Token | Supabase Function Secret                                                     | `npm run check:recovery-token`、受控注销和变量单调前移 | 新 Token 验收完成后撤销旧 Token；不得降低恢复下限       |
+| 凭据                    | 权威存储与消费者                                                             | 烟测                                                   | 回滚/撤销边界                                           |
+| ----------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+| Firecrawl Key           | 管理后台私有 Vault Key 池；`FIRECRAWL_API_KEY` 仅是无数据库 Key 时的兼容回退 | 逐 Key 健康/额度、牛客回退、QOJ 临时会话清理           | 新 Key 健康后禁用旧 Key，再由供应商撤销                 |
+| QOJ 密码                | QOJ 与 Supabase Function Secret                                              | 一次目标主页匹配；确认临时会话关闭                     | 新密码失败立即恢复旧 Secret，未验证前不撤销旧密码       |
+| 洛谷 Cookie/CSRF        | Supabase Function Secrets，成对更新                                          | UID 校验、P/B Accepted 增量同步                        | 任一项失败时成对恢复                                    |
+| 同步队列 Token          | Supabase Function Secret 与 Vault                                            | 暂停 cron、更新两处、手动调用和下一次 cron 2xx         | 两处未一致前不恢复 cron                                 |
+| Supabase service role   | GitHub/Supabase 受控 Secret 消费者                                           | 同步、生产安全检查；浏览器分块无泄露                   | 所有消费者切换并通过后撤销旧值                          |
+| 遗留 WebChat 中转站 Key | Supabase Vault；不再复制到 GitHub 或前端                                     | 确认数据库、函数和前端入口均关闭                       | 无业务依赖后按批准流程删除；保留期间继续防止读取和回显  |
+| 备份加密口令            | GitHub Environment Secret 与密码管理器                                       | 新备份 + 恢复演练                                      | 14 天内旧 Artifact 的旧口令必须保留到对应 Artifact 到期 |
+| 注销恢复 GitHub Token   | Supabase Function Secret                                                     | `npm run check:recovery-token`、受控注销和变量单调前移 | 新 Token 验收完成后撤销旧 Token；不得降低恢复下限       |
 
 真实轮换必须记录变更人、第二复核人、消费者清单、烟测结果、旧值撤销时间和回滚判断，
 但不记录任何值或摘要。
@@ -157,7 +159,7 @@ gh run download $restoreRunId --repo greenthree/USTSACMLand --dir ".artifacts\re
 1. 记录故障提交、最后正常 SHA 和当前 Pages deployment URL。
 2. 使用 Git revert 创建 PR，不强推、不重写历史。
 3. 等待 `verify`、`database-security`、`gitleaks` 和 Pages 部署通过。
-4. 验证首页、深链、登录、账号页、AI 助手和后台入口。
+4. 验证首页、深链、登录、账号页和后台入口，并确认遗留 AI 助手与推荐计划入口不可见。
 5. Cloudflare 只 Purge HTML/必要路径，不清除指纹静态资源的长期缓存；保存脱敏 Purge 记录。
 
 ### Edge Functions
@@ -167,11 +169,11 @@ gh run download $restoreRunId --repo greenthree/USTSACMLand --dir ".artifacts\re
 ```powershell
 git worktree add ..\ustsacmland-rollback <known-good-commit>
 Set-Location ..\ustsacmland-rollback
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password firecrawl-config webchat webchat-attachment webchat-image-cleanup webchat-config webchat-cache-probe --use-api --import-map supabase/functions/deno.json
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password firecrawl-config --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```
 
-记录回滚前后十个函数版本。若旧函数不兼容当前 Schema，只能从主分支发布前向修复。
+记录回滚前后业务函数版本。遗留 WebChat 函数不随常规回滚重新部署；只有关闭态安全修复或 Schema 兼容确有需要时才从当前主分支部署，并在部署后复核全部开关仍关闭。若旧函数不兼容当前 Schema，只能从主分支发布前向修复。
 
 数据库 migration 不回写、不删除；已部署问题使用 corrective migration。整库恢复必须先通过
 `BACKUP_RECOVERY_NOT_BEFORE`，并在隔离环境验证 Auth、RLS、8 项行数、孤儿关系和非空
@@ -183,7 +185,7 @@ Storage 对象。
 
 1. 新管理员正常注册，验证密码找回和资料。
 2. 现任管理员在成员管理中提升角色，填写原因并二次确认。
-3. 新管理员只读打开成员、同步、审计、Firecrawl 和 WebChat 配置页。
+3. 新管理员只读打开成员、同步、审计、Firecrawl 和遗留 WebChat 配置页，确认 WebChat 与推荐计划保持关闭且这些入口只对管理员可见。
 4. 执行一项可撤销、低风险且有审计的操作，例如修改后立即恢复一条测试公告草稿。
 5. 运行 `npm run check:production-security` 验证角色变化、旧 JWT 和跨成员边界。
 6. 确认新管理员可用后再降级离任管理员；数据库必须拒绝移除最后一名启用管理员。

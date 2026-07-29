@@ -117,7 +117,7 @@ describe('route authorization', () => {
     expect(document.title).toBe('每日一题管理 | USTS ACM Land')
   })
 
-  it('exposes WebChat configuration to approved demo administrators', async () => {
+  it('keeps archived WebChat configuration available to approved administrators', async () => {
     sessionStorage.setItem(demoSessionKey, 'admin@example.edu.cn')
     render(
       <MemoryRouter initialEntries={['/admin/webchat']}>

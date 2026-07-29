@@ -1,5 +1,7 @@
 # 正式发布检查单
 
+> 产品范围说明：WebChat / AI 学习助手与推荐计划已停止开发并退出发布范围。其既有代码、migration、函数、测试和数据结构保留；下文相关历史记录不再阻塞 `v1.0.0`。发布时只需确认成员入口不可见、请求/图片/奖励流程关闭、服务端失败关闭，且遗留私有数据的 RLS、注销与备份边界没有回归。
+
 本检查单用于 USTS ACM Land 的候选版本、正式版本和紧急修复发布。每次发布复制一份到变更记录中填写，不在仓库中记录密码、Token、Cookie、成员私有资料或第三方原始响应。
 
 ## 1. 发布范围与责任人
@@ -48,18 +50,16 @@
 ## 3. 数据库与权限
 
 - [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
-- [x] 推荐计划 migration 已验证：邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限。
-- [ ] 推荐计划全局开关、邮箱确认后计奖、安全暂停和重开安全闸门 migration 已部署，并验证关闭期注册降级、重新开启不追补、管理员原因/版本/限流/审计、双连接事务围栏和生产回滚；当前 71 个 production migration 已部署，仓库当前 48 个 pgTAP 文件共 1205 项断言已在干净数据库通过，本地双连接验证器已覆盖事务围栏、第十次上限和响应丢失精确对账并纳入 CI，真实邮件确认计奖与受控生产并发烟测仍待完成。
-- [ ] 推荐计划保持全局暂停；`202607230003_referral_reopen_safety_gate.sql` 已单独部署并锁死未经运维解锁的重开。重新开放前必须启用真实邮箱确认，或完成 Turnstile、注册速率/设备/IP 风控及更强奖励资格门槛。不得把 `mailer_autoconfirm=true` 视为邮箱验证。
+- 历史记录：推荐计划 migration 曾验证邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限；模块现已关闭。
+- 遗留关闭检查：推荐计划全局开关与重开安全闸门保持关闭；不再进行真实计奖、重开或生产并发烟测。关闭期注册必须继续降级为普通注册，不展示或校验邀请码，也不发放奖励。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
-- [x] WebChat 图片 `202607230001`、`202607230004` migration 与附件/清理 Edge Function 已以默认关闭方式部署；私有 Bucket、全站暂停、函数权限、真实对象本人历史/跨成员拒绝/短时预览、消息删除清理、零残留和空队列 service-role 生产烟测通过。前端、视觉模型和仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍保持关闭，不能把安全基础部署视为图片功能上线。
-- [ ] 图片视觉烟测通过的模型与 `CHAT_VISION_MODEL` 完全一致；只开启 `CHAT_VISION_ENABLED` 不得放行图片，管理员更换运行时模型后必须验证图片请求恢复 `vision_not_enabled`。
-- [ ] 图片预览和模型读取签名 URL 的 TTL 均不超过 120 秒；日志、审计、错误响应和历史消息均不包含签名 URL。
+- 历史记录：WebChat 图片 migration 与附件/清理 Edge Function 曾以默认关闭方式部署并完成私有 Bucket、权限和对象生命周期烟测；这些安全实现继续保留，但不视为功能上线或后续待办。
+- 遗留关闭检查：`CHAT_VISION_ENABLED`、图片上传入口和清理调度保持关闭；不再配置或验收视觉模型。历史签名 URL、日志脱敏和对象归属安全测试继续保留。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
 - [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 55 项真实身份、即时交接、跨成员隐私、图片默认关闭与真实对象生命周期、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
-- [ ] 私有 `webchat-images` Bucket 只允许 WebP、单对象上限 4 MiB；匿名请求和匿名 bearer 请求均不能读取，数据库 `ready`/`attached` 引用与对象归属一致。
+- 遗留安全检查：私有 `webchat-images` Bucket 继续拒绝匿名读取，数据库引用、对象归属、注销清理和备份恢复边界不得回归。
 - [ ] 管理员 RPC 保留鉴权、乐观锁、审计和速率限制；清单与数据库目录中的全部 `admin_*` 函数一致，普通/停用成员无法调用 19 个入口，8 个 `_unlimited` 实现不可由浏览器角色执行。
 - [ ] 注销流程的目标绑定租约覆盖“取得 owner/target 租约 → 记录并确认 GitHub 恢复下限 → 续期并停止外部阶段心跳 → 最终 RPC 锁定租约/Profile → 同事务删除 Auth 用户与消费租约”完整临界区；业务级联与审计匿名化整体提交或回滚，管理员注销仍要求先交接权限。
 - [ ] 管理员提升/降级要求原因、乐观锁、速率限制和二次确认；并发操作也不能移除最后一名启用管理员。
@@ -69,7 +69,7 @@
 
 - [ ] 按“数据库 → Edge Functions → Pages”的顺序部署。
 - [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
-- [ ] 如本次发布 WebChat：`webchat-config`、`webchat` 与 `webchat-cache-probe` 使用仓库 import map 部署成功，`CHAT_ENABLED` 在受控启用前仍为 `false`。
+- 遗留关闭检查：除安全修复或 Schema 兼容需要外不再发布 `webchat-config`、`webchat`、`webchat-attachment`、`webchat-image-cleanup` 或 `webchat-cache-probe`；如必须维护，部署后 `CHAT_ENABLED` 与所有产品入口仍为关闭。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
 - [ ] 发布记录包含当前 Git SHA 与十个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
 - [ ] `npm run check:supabase-readiness` 确认十个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
@@ -89,18 +89,16 @@
 - [ ] 生产凭据轮换人、存放位置和回滚方式已记录；未把真实值复制到发布记录。
 - [ ] Firecrawl 用量、QOJ 登录、洛谷认证和 Supabase 配额均处于可用状态。
 - [ ] 使用与生产 `FIRECRAWL_API_KEY` 相同团队的维护者凭据运行 `firecrawl credit-usage --json --pretty`；剩余比例高于 25%，或已记录扩容/降耗措施。不得把 API Key 或完整凭据配置写入发布记录。
-- [ ] 如本次启用或更换 WebChat 中转站：手动 `WebChat relay compatibility` 工作流已通过非流式、Responses typed SSE、Usage 和 Abort 四项；下载的 14 天 Artifact 不含 Prompt、回复、请求 ID、Key 或明文主机，`CHAT_ENABLED` 在完成函数边界和额度复核前仍为 `false`。
-- [x] `npm run test:e2e:webchat` 已通过五浏览器矩阵；10 个独立页面回复不串流、10 路同时 HTTP 流全部完成、键盘停止触发 Abort、减少动画和移动端 axe 门禁均无回归。PR #57 与合并后的 main CI 均已实际通过。
-- [ ] `/admin/webchat` 已由当前有效管理员写入同一组 Base URL、模型与 Key，并设置全站北京时间每日请求/Token 预算；Key 仅存在 Supabase Vault，配置读取和审计只显示脱敏状态，首次配置、留空保留、轮换、预算更新、数据库暂停和版本冲突均已烟测。
-- [ ] `/admin/webchat` 当日请求数、已结算/预留 Token、剩余额度与北京时间重置时间和数据库聚合账本一致；请求/Token 阻断返回 `503` 且不重试，后台状态准确。
-- [ ] 在账号详情中按实际需要开启 AI 助手并逐人设置累计请求/Token 总限额；历史用量计入总限额且不会每日清零；无授权行、关闭授权、停用账号或角色不是成员/管理员均返回结构化 `403`，撤权或降额在数据库原子 claim 前立即生效。
-- [x] 已授权账号 `/assistant` 显示的当前模型、北京时间当日请求、已结算/预留 Token、剩余额度与服务端配置及私有账本一致；该模型进入同次请求的服务端系统提示词与额度指纹，账号无法读取他人额度、全站预算、中转站地址或 Key。2026-07-17/18 的 localhost 与 Pages 生产验证均通过。
-- [x] WebChat 启用顺序为 `CHAT_ENABLED=true` → 后台打开数据库请求开关 → GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED=true` → 触发下一次 Pages 构建；Pages run `29594758865` attempt 2 已通过配置校验、构建、部署与生产榜单审计。关闭时先关闭数据库请求开关，必要时同时恢复另外两层为 `false`。
+- 遗留关闭检查：不再启用、更换或验收 WebChat 中转站；不运行付费兼容性或缓存探针。若仍保存旧 Key，必须继续只存在 Vault 并按维护策略轮换或删除，不得进入前端和日志。
+- 历史记录：`npm run test:e2e:webchat` 曾通过五浏览器矩阵与并发、Abort、减少动画和移动端 axe 门禁；测试保留用于关闭态安全回归，不再推动功能开放。
+- 遗留关闭检查：管理员后台继续保留 WebChat 配置页，用于查看关闭状态和维护历史配置；任何管理操作都不得绕过三层关闭边界产生新请求、Token 预留或额度结算。历史账本继续保持私有且不可跨成员读取。
+- 历史记录：`/assistant` 的模型、额度和私有账本隔离曾通过本地与 Pages 验证；生产现保持关闭。
+- 关闭顺序：数据库请求开关、`CHAT_ENABLED`、`VITE_WEBCHAT_UI_ENABLED` 和 `VITE_WEBCHAT_IMAGE_INPUT_ENABLED` 全部保持 `false`。不再保留“启用顺序”作为发布操作。
 
 ## 6. 前端与可访问性烟测
 
 - [ ] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新。
-- [ ] 推荐计划页面入口、分享链接复制、注册邀请码预填和无邀请码注册已在桌面与移动端烟测；全局关闭、初始检查和状态查询失败时，普通注册页与成员账号页均不显示推荐计划名称、邀请码、奖励摘要或暂停提示。
+- 遗留关闭检查：普通注册页、成员账号页和主导航不展示推荐计划名称、邀请码、奖励摘要、AI 助手或暂停提示；管理员后台可继续显示遗留配置入口。关闭状态查询失败时成员端同样失败关闭。
 - [ ] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限。
 - [ ] 部署后的只读生产门禁拒绝演示回退，并用公开视图逐页复算全部成员在总榜与各平台榜的排序、总 Rating、总历史最高 Rating 和总题数。
 - [ ] 桌面、390px 移动端和至少一个宽屏视口无页面级横向溢出。
@@ -110,7 +108,7 @@
 ## 7. 法务、隐私与发布决定
 
 - [ ] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。
-- [ ] 如本次启用 WebChat：站内隐私页已说明消息转发对象、本站不保存对话正文及私有额度账本边界；负责人已核对并记录真实中转站和上游模型的留存、训练、删除与跨境政策，未确认前保持生产三层开关关闭。
+- 遗留隐私检查：生产不再向中转站或模型发送新消息；既有私有会话、额度账本和图片元数据仍按当前隐私页、注销和备份边界处理，直至数据自然清理或由成员删除。
 - [ ] 已在运维手册核验并填写 Supabase、GitHub Actions 和 Firecrawl 的实际保留窗口、负责人及删除/恢复限制。
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [x] 使用两个数据库连接验证最终 RPC 的行锁 fencing：本地 CI 已证明竞争请求在删除事务结束前持续阻塞，提交后只能观察到已消费租约；响应丢失的 Auth/Profile 双重对账与失败关闭测试已覆盖，旧 access JWT 的生产 RLS 边界已有证据。2026-07-25 的生产最终 RPC 响应丢失复核成功，恢复正式函数后的完整注销耗时为 `6502 ms`，证据见 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
