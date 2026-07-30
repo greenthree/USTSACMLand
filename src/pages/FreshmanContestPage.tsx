@@ -18,7 +18,7 @@ import { useRef, useState, type PointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import './freshman-contest.css'
 
-type ContestKind = 'freshman' | 'school'
+type ContestKind = 'freshman' | 'practice' | 'school'
 type DifficultyLevel = 'l1' | 'l2' | 'l3'
 
 interface DifficultyDefinition {
@@ -68,6 +68,13 @@ const freshmanTimeline = [
   { time: '01:00', title: '榜单封停', detail: '外部榜单不再显示其他选手的新结果。' },
   { time: '02:00', title: '比赛结束', detail: '停止提交，L3 答题卡进入人工阅卷。' },
   { time: '+1–3 天', title: '公布总榜', detail: '合并 OJ 与答题卡得分，发布最终成绩。' },
+]
+
+const practiceTimeline = [
+  { time: '00:00', title: '快速浏览', detail: '浏览三个梯级，先判断会写的题和可争取的测试点。' },
+  { time: '30–60 分钟', title: '完成 L1', detail: '按个人节奏完成会写的基础级题目，不把节点当作硬性截止。' },
+  { time: '第 2 小时', title: '推进 L2', detail: '集中完成会写的进阶级题目，继续积累确定得分。' },
+  { time: '剩余时间', title: '争取部分分', detail: '对准尚未通过的题目和测试点，逐步提高已有得分。' },
 ]
 
 const schoolTimeline = [
@@ -150,6 +157,87 @@ function FreshmanHero({ active }: ContestHeroProps) {
               <span>L3</span>
               <strong>05</strong>
               <small>思维题</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function PracticeHero({ active }: ContestHeroProps) {
+  const Heading = active ? 'h1' : 'h2'
+
+  return (
+    <article
+      id="contest-slide-practice"
+      className={`campus-contest-slide campus-contest-slide--practice${active ? ' is-active' : ''}`}
+      role="tabpanel"
+      aria-labelledby="contest-picker-practice"
+      aria-hidden={!active}
+    >
+      <div className="freshman-contest-hero-inner">
+        <div className="freshman-contest-hero-copy">
+          <div className="freshman-contest-kicker">
+            <span>USTS ACM / MARCH</span>
+            <span>面向全校学生</span>
+          </div>
+          <p className="freshman-contest-edition">团体程序设计天梯赛校内选拔</p>
+          <Heading id="practice-contest-title">练习赛</Heading>
+          <p className="freshman-contest-intro">
+            三小时，个人独立作答。练习赛模拟“中国高校计算机大赛——团体程序设计天梯赛”的题目结构与计分方式，并依据比赛成绩编排正式参赛队伍。
+          </p>
+          <div className="freshman-contest-hero-actions">
+            <a
+              className="freshman-contest-primary-action"
+              href="#contest-format"
+              tabIndex={active ? undefined : -1}
+            >
+              查看天梯赛模拟赛制
+              <ArrowRight size={17} aria-hidden="true" />
+            </a>
+            <Link
+              className="freshman-contest-secondary-action"
+              to="/learning"
+              tabIndex={active ? undefined : -1}
+            >
+              开始个人训练
+            </Link>
+          </div>
+        </div>
+
+        <div
+          className="freshman-contest-scoreboard campus-contest-practice-scoreboard"
+          aria-label="练习赛赛制概览"
+        >
+          <div className="freshman-contest-scoreboard-head">
+            <img src={contestLogoUrl} alt="USTS ACM" />
+            <span>LADDER TOURNAMENT</span>
+          </div>
+          <strong className="freshman-contest-clock">03:00:00</strong>
+          <div className="freshman-contest-scoreboard-meta">
+            <span>个人选拔赛</span>
+            <span>测试点计分</span>
+            <span>赛后队伍编排</span>
+          </div>
+          <div
+            className="freshman-contest-problem-strip campus-contest-ladder-strip"
+            aria-label="天梯赛三级题目结构"
+          >
+            <div>
+              <span>L1 / 基础级</span>
+              <strong>08</strong>
+              <small>满分 100</small>
+            </div>
+            <div>
+              <span>L2 / 进阶级</span>
+              <strong>04</strong>
+              <small>满分 100</small>
+            </div>
+            <div>
+              <span>L3 / 登顶级</span>
+              <strong>03</strong>
+              <small>满分 90</small>
             </div>
           </div>
         </div>
@@ -453,9 +541,22 @@ interface ContestTimelineProps {
   lead: string
   freezeTitle: string
   freezeDetail: string
+  noteLabel?: string
+  noteIcon?: 'freeze' | 'ladder'
+  title?: string
 }
 
-function ContestTimeline({ items, lead, freezeTitle, freezeDetail }: ContestTimelineProps) {
+function ContestTimeline({
+  items,
+  lead,
+  freezeTitle,
+  freezeDetail,
+  noteLabel = '最后一小时封榜',
+  noteIcon = 'freeze',
+  title = '从开场到最终榜',
+}: ContestTimelineProps) {
+  const NoteIcon = noteIcon === 'ladder' ? ListOrdered : Snowflake
+
   return (
     <section
       id="contest-timeline"
@@ -465,7 +566,7 @@ function ContestTimeline({ items, lead, freezeTitle, freezeDetail }: ContestTime
       <header className="freshman-contest-section-heading">
         <p>03 / TIMELINE</p>
         <div>
-          <h2 id="contest-timeline-title">从开场到最终榜</h2>
+          <h2 id="contest-timeline-title">{title}</h2>
           <p>{lead}</p>
         </div>
       </header>
@@ -484,9 +585,9 @@ function ContestTimeline({ items, lead, freezeTitle, freezeDetail }: ContestTime
       </ol>
 
       <div className="freshman-contest-freeze-note">
-        <Snowflake size={28} aria-hidden="true" />
+        <NoteIcon size={28} aria-hidden="true" />
         <div>
-          <p>最后一小时封榜</p>
+          <p>{noteLabel}</p>
           <h3>{freezeTitle}</h3>
         </div>
         <p>{freezeDetail}</p>
@@ -516,6 +617,193 @@ function ContestClosing({ kicker, title, detail, action }: ContestClosingProps) 
         <ArrowRight size={17} aria-hidden="true" />
       </Link>
     </section>
+  )
+}
+
+function PracticeContestDetails() {
+  return (
+    <>
+      <section
+        id="contest-format"
+        className="freshman-contest-section freshman-contest-format practice-contest-format"
+        aria-labelledby="contest-format-title"
+      >
+        <header className="freshman-contest-section-heading">
+          <p>01 / FORMAT</p>
+          <div>
+            <h2 id="contest-format-title">先独立完成比赛，再用成绩进入队伍</h2>
+            <p>
+              练习赛不预先组队，每位选手独立使用一台电脑完成同一套题。比赛模拟天梯赛的三级结构和测试点计分，赛后再依据个人表现编排正式参赛队伍。
+            </p>
+          </div>
+        </header>
+
+        <div className="practice-contest-ladder" aria-label="天梯赛三级赛题结构">
+          <article>
+            <span>L1</span>
+            <div>
+              <p>基础级</p>
+              <strong>8 题 / 100 分</strong>
+            </div>
+            <small>覆盖语法、数据处理与基础算法，是全队稳定得分的底座。</small>
+          </article>
+          <article>
+            <span>L2</span>
+            <div>
+              <p>进阶级</p>
+              <strong>4 题 / 100 分</strong>
+            </div>
+            <small>每题 25 分，进一步考查算法选择、复杂度与完整实现。</small>
+          </article>
+          <article>
+            <span>L3</span>
+            <div>
+              <p>登顶级</p>
+              <strong>3 题 / 90 分</strong>
+            </div>
+            <small>每题 30 分，留给已建立稳定基础、准备冲击高难题的选手。</small>
+          </article>
+        </div>
+
+        <div className="practice-contest-selection-band">
+          <UserRound size={25} aria-hidden="true" />
+          <div>
+            <span>QUALIFIER</span>
+            <strong>个人独立完成练习赛</strong>
+          </div>
+          <ArrowRight size={24} aria-hidden="true" />
+          <div>
+            <span>FORMATION</span>
+            <strong>依据成绩编排天梯赛队伍</strong>
+          </div>
+          <UsersRound size={27} aria-hidden="true" />
+        </div>
+      </section>
+
+      <section
+        id="contest-scoring"
+        className="freshman-contest-section freshman-contest-scoring"
+        aria-labelledby="contest-scoring-title"
+      >
+        <header className="freshman-contest-section-heading">
+          <p>02 / SCORE</p>
+          <div>
+            <h2 id="contest-scoring-title">每个测试点，都能留下有效得分</h2>
+            <p>
+              天梯赛不是只有通过整题才计分。程序通过多少测试点，就获得对应分数；可以反复提交并保留该题最高分，错误提交不扣分。
+            </p>
+          </div>
+        </header>
+
+        <div className="freshman-contest-ranking-grid practice-contest-scoring-grid">
+          <article>
+            <div className="freshman-contest-rule-icon">
+              <Code2 size={25} aria-hidden="true" />
+            </div>
+            <p>测试点计分</p>
+            <h3>先拿得到的分，再继续完善</h3>
+            <span>每题得分为通过测试点的分数之和，不必等到整题完全正确才产生有效成绩。</span>
+          </article>
+          <article>
+            <div className="freshman-contest-rule-icon">
+              <ListOrdered size={25} aria-hidden="true" />
+            </div>
+            <p>反复提交</p>
+            <h3>保留单题历史最高分</h3>
+            <span>
+              错误提交不增加罚时，也不扣除已有分数；根据反馈修正程序，逐步争取更多测试点。
+            </span>
+          </article>
+          <div className="freshman-contest-tiebreak">
+            <p>个人同分排序参考</p>
+            <ol>
+              <li>
+                <span>01</span>
+                <strong>更高梯级得分</strong>
+              </li>
+              <li>
+                <span>02</span>
+                <strong>高梯级完整解题数</strong>
+              </li>
+              <li>
+                <span>03</span>
+                <strong>最后提交更早</strong>
+              </li>
+            </ol>
+            <small>
+              练习赛将参考正式天梯赛的有效分与同分排序逻辑；校内选拔名额、入选分数线和最终排序办法以赛前通知为准。
+            </small>
+          </div>
+        </div>
+      </section>
+
+      <ContestTimeline
+        items={practiceTimeline}
+        lead="赛程模拟正式天梯赛的三小时节奏；比赛日期、签到与现场安排以校内赛前通知为准。"
+        freezeTitle="不与一次错误提交较劲，让总分持续向上。"
+        freezeDetail="阶段目标不是硬性截止：前 30–60 分钟完成会写的 L1，第 2 小时解决会写的 L2，剩余时间逐题检查未通过的测试点，争取更多部分分。"
+        noteLabel="模拟重点"
+        noteIcon="ladder"
+        title="三小时，分阶段向上攀登"
+      />
+
+      <section
+        id="contest-ready"
+        className="freshman-contest-section freshman-contest-ready"
+        aria-labelledby="contest-ready-title"
+      >
+        <header className="freshman-contest-section-heading">
+          <p>04 / READY</p>
+          <div>
+            <h2 id="contest-ready-title">先证明个人稳定性，再进入队伍编排</h2>
+            <p>选拔关注的不只是最高分，也关注基础题完成度、三小时节奏和独立解决问题的稳定性。</p>
+          </div>
+        </header>
+
+        <div className="freshman-contest-ready-grid">
+          <div>
+            <UserRound size={24} aria-hidden="true" />
+            <strong>独立作答</strong>
+            <p>每位选手使用独立设备完成比赛，不与他人讨论。</p>
+          </div>
+          <div>
+            <Code2 size={24} aria-hidden="true" />
+            <strong>理解部分分</strong>
+            <p>根据测试点反馈修正边界，让不完整方案也产生有效进展。</p>
+          </div>
+          <div>
+            <Timer size={24} aria-hidden="true" />
+            <strong>三小时节奏</strong>
+            <p>先稳定基础级，再根据剩余时间选择进阶或登顶题目。</p>
+          </div>
+          <div>
+            <Laptop size={24} aria-hidden="true" />
+            <strong>熟悉环境</strong>
+            <p>提前确认语言、编辑器与评测方式，具体设备要求以通知为准。</p>
+          </div>
+        </div>
+
+        <div className="freshman-contest-awards school-contest-selection practice-contest-selection">
+          <div className="freshman-contest-awards-heading">
+            <Award size={30} aria-hidden="true" />
+            <div>
+              <p>SELECTION</p>
+              <h3>代表学校参加团体程序设计天梯赛</h3>
+            </div>
+          </div>
+          <p>
+            练习赛用于选拔参加“中国高校计算机大赛——团体程序设计天梯赛”的选手。比赛结束后，集训队将结合总分、各梯级得分与稳定性编排正式参赛队伍；入选人数和递补规则以当年校内通知为准。
+          </p>
+        </div>
+      </section>
+
+      <ContestClosing
+        kicker="EARN YOUR PLACE"
+        title="先独立完成一场比赛，再用成绩进入合适的队伍。"
+        detail="赛后结合总分、梯级分布与稳定性编排天梯赛正式队伍。"
+        action="开始个人训练"
+      />
+    </>
   )
 }
 
@@ -678,6 +966,8 @@ export function FreshmanContestPage() {
   const [activeContest, setActiveContest] = useState<ContestKind>('freshman')
   const pointerStartX = useRef<number | null>(null)
   const freshmanActive = activeContest === 'freshman'
+  const practiceActive = activeContest === 'practice'
+  const schoolActive = activeContest === 'school'
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -689,8 +979,14 @@ export function FreshmanContestPage() {
     const distance = event.clientX - pointerStartX.current
     pointerStartX.current = null
     if (Math.abs(distance) < 48) return
-    setActiveContest((current) => (current === 'freshman' ? 'school' : 'freshman'))
+    setActiveContest((current) => moveContest(current, distance > 0 ? 1 : -1))
   }
+
+  const mobileSwipeHint = freshmanActive
+    ? '右划查看练习赛'
+    : practiceActive
+      ? '继续右划查看校赛'
+      : '左划返回练习赛'
 
   return (
     <div className={`freshman-contest-page is-${activeContest}`}>
@@ -705,14 +1001,15 @@ export function FreshmanContestPage() {
       >
         <p className="campus-contest-mobile-swipe-hint">
           <MoveHorizontal size={15} aria-hidden="true" />
-          {freshmanActive ? '右划查看校赛' : '右划返回新生赛'}
+          {mobileSwipeHint}
         </p>
         <div
           className="campus-contest-hero-track"
-          style={{ transform: schoolActiveTransform(activeContest) }}
+          style={{ transform: contestActiveTransform(activeContest) }}
         >
           <FreshmanHero active={freshmanActive} />
-          <SchoolHero active={!freshmanActive} />
+          <PracticeHero active={practiceActive} />
+          <SchoolHero active={schoolActive} />
         </div>
 
         <div className="campus-contest-picker-wrap">
@@ -730,14 +1027,26 @@ export function FreshmanContestPage() {
               <small>个人 · 创新积分制</small>
             </button>
             <button
+              id="contest-picker-practice"
+              type="button"
+              role="tab"
+              aria-controls="contest-slide-practice"
+              aria-selected={practiceActive}
+              onClick={() => setActiveContest('practice')}
+            >
+              <span>02</span>
+              <strong>练习赛</strong>
+              <small>个人 · 天梯模拟</small>
+            </button>
+            <button
               id="contest-picker-school"
               type="button"
               role="tab"
               aria-controls="contest-slide-school"
-              aria-selected={!freshmanActive}
+              aria-selected={schoolActive}
               onClick={() => setActiveContest('school')}
             >
-              <span>02</span>
+              <span>03</span>
               <strong>校赛</strong>
               <small>团队 · 传统 ACM</small>
             </button>
@@ -750,19 +1059,37 @@ export function FreshmanContestPage() {
       </section>
 
       <nav className="freshman-contest-jump-nav" aria-label="校内赛事页面导航">
-        <a href="#contest-format">{freshmanActive ? '赛题结构' : '传统赛制'}</a>
+        <a href="#contest-format">
+          {freshmanActive ? '赛题结构' : practiceActive ? '三级赛制' : '传统赛制'}
+        </a>
         <a href="#contest-scoring">计分排名</a>
         <a href="#contest-timeline">比赛进程</a>
-        <a href="#contest-ready">{freshmanActive ? '参赛准备' : '组队准备'}</a>
+        <a href="#contest-ready">
+          {freshmanActive ? '参赛准备' : practiceActive ? '选拔准备' : '组队准备'}
+        </a>
       </nav>
 
       <div className="campus-contest-content" aria-live="polite">
-        {freshmanActive ? <FreshmanContestDetails /> : <SchoolContestDetails />}
+        {freshmanActive ? (
+          <FreshmanContestDetails />
+        ) : practiceActive ? (
+          <PracticeContestDetails />
+        ) : (
+          <SchoolContestDetails />
+        )}
       </div>
     </div>
   )
 }
 
-function schoolActiveTransform(activeContest: ContestKind) {
-  return activeContest === 'school' ? 'translateX(-100%)' : 'translateX(0)'
+const contestOrder: ContestKind[] = ['freshman', 'practice', 'school']
+
+function moveContest(activeContest: ContestKind, direction: -1 | 1): ContestKind {
+  const currentIndex = contestOrder.indexOf(activeContest)
+  const nextIndex = Math.max(0, Math.min(contestOrder.length - 1, currentIndex + direction))
+  return contestOrder[nextIndex]
+}
+
+function contestActiveTransform(activeContest: ContestKind) {
+  return `translateX(-${contestOrder.indexOf(activeContest) * 100}%)`
 }

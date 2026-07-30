@@ -63,6 +63,26 @@
   pointer-events: none;
 }
 
+.campus-contest-slide--practice {
+  background: #14231c;
+}
+
+.campus-contest-slide--practice::before {
+  content: '15';
+  color: rgb(214 233 143 / 5%);
+}
+
+.campus-contest-slide--practice::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 12%;
+  width: 1px;
+  height: 100%;
+  background: linear-gradient(transparent, rgb(214 233 143 / 22%), transparent);
+  pointer-events: none;
+}
+
 .campus-contest-slide--school {
   background: #111b17;
 }
@@ -133,7 +153,7 @@
   bottom: 26px;
   left: 0;
   z-index: 4;
-  width: min(760px, calc(100% - 64px));
+  width: min(960px, calc(100% - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -143,7 +163,7 @@
 
 .campus-contest-picker {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 5px;
   background: rgb(4 13 8 / 82%);
   border: 1px solid rgb(255 255 255 / 18%);
@@ -180,6 +200,11 @@
   background: var(--contest-green-dark);
 }
 
+.is-practice .campus-contest-picker button[aria-selected='true'] {
+  color: var(--contest-dark);
+  background: #d6e98f;
+}
+
 .is-school .campus-contest-picker button[aria-selected='true'] {
   color: var(--contest-dark);
   background: var(--contest-gold);
@@ -194,6 +219,10 @@
 }
 
 .is-school .campus-contest-picker button[aria-selected='true'] > span {
+  color: var(--contest-green-dark);
+}
+
+.is-practice .campus-contest-picker button[aria-selected='true'] > span {
   color: var(--contest-green-dark);
 }
 
@@ -292,6 +321,20 @@
   background: #19231f;
   border-color: rgb(241 185 52 / 28%);
   box-shadow: 18px 18px 0 rgb(241 185 52 / 10%);
+}
+
+.campus-contest-practice-scoreboard {
+  background: #192b22;
+  border-color: rgb(214 233 143 / 28%);
+  box-shadow: 18px 18px 0 rgb(214 233 143 / 10%);
+}
+
+.campus-contest-practice-scoreboard .freshman-contest-problem-strip {
+  border-top-color: #d6e98f;
+}
+
+.campus-contest-ladder-strip strong {
+  color: #d6e98f;
 }
 
 .campus-contest-school-scoreboard .freshman-contest-problem-strip {
@@ -766,9 +809,17 @@
 
 .freshman-contest-timeline-list time {
   color: var(--contest-green-dark);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 28px;
-  font-weight: 800;
+  font-family:
+    'Microsoft YaHei UI',
+    'PingFang SC',
+    'Noto Sans CJK SC',
+    'Source Han Sans SC',
+    sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .freshman-contest-timeline-list h3 {
@@ -982,6 +1033,105 @@
 
 .campus-contest-content {
   min-height: 1200px;
+}
+
+.practice-contest-ladder {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--contest-line);
+  border-bottom: 1px solid var(--contest-line);
+}
+
+.practice-contest-ladder article {
+  min-height: 270px;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 30px;
+  border-right: 1px solid var(--contest-line);
+}
+
+.practice-contest-ladder article:first-child {
+  padding-left: 0;
+}
+
+.practice-contest-ladder article:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.practice-contest-ladder article > span {
+  color: var(--contest-green);
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif;
+  font-size: 54px;
+  line-height: 1;
+}
+
+.practice-contest-ladder article div {
+  display: grid;
+  gap: 7px;
+}
+
+.practice-contest-ladder article p {
+  margin: 0;
+  color: var(--contest-green-dark);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.practice-contest-ladder article strong {
+  font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif;
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.practice-contest-ladder article small {
+  color: var(--contest-muted);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.practice-contest-selection-band {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 20px;
+  padding: 25px 28px;
+  margin-top: 34px;
+  color: #fff;
+  background: var(--contest-green-dark);
+  border-left: 3px solid #d6e98f;
+}
+
+.practice-contest-selection-band > svg {
+  color: #d6e98f;
+}
+
+.practice-contest-selection-band > div {
+  display: grid;
+  gap: 5px;
+}
+
+.practice-contest-selection-band span {
+  color: #b9d2c3;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.practice-contest-selection-band strong {
+  font-size: 14px;
+}
+
+.practice-contest-scoring-grid .freshman-contest-tiebreak {
+  border-left-color: #d6e98f;
+}
+
+.practice-contest-selection {
+  border-top-color: #d6e98f;
 }
 
 .school-contest-team-console {
@@ -1258,6 +1408,18 @@
     padding-right: 0;
   }
 
+  .practice-contest-ladder article {
+    padding-inline: 22px;
+  }
+
+  .practice-contest-ladder article:first-child {
+    padding-left: 0;
+  }
+
+  .practice-contest-ladder article:last-child {
+    padding-right: 0;
+  }
+
   .freshman-contest-section {
     padding: 76px 28px;
   }
@@ -1385,6 +1547,7 @@
 
   .campus-contest-picker button small {
     font-size: 10px;
+    line-height: 1.25;
   }
 
   .freshman-contest-intro {
@@ -1507,7 +1670,7 @@
   }
 
   .freshman-contest-timeline-list time {
-    font-size: 22px;
+    font-size: 21px;
   }
 
   .freshman-contest-timeline-list li > div {
@@ -1566,6 +1729,60 @@
     grid-column: auto;
     width: 100%;
     justify-content: center;
+  }
+
+  .practice-contest-ladder {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-contest-ladder article,
+  .practice-contest-ladder article:first-child,
+  .practice-contest-ladder article:last-child {
+    min-height: 0;
+    padding: 26px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--contest-line);
+  }
+
+  .practice-contest-ladder article:last-child {
+    border-bottom: 0;
+  }
+
+  .practice-contest-ladder article > span {
+    font-size: 44px;
+  }
+
+  .practice-contest-selection-band {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 16px;
+    padding: 22px 18px;
+  }
+
+  .practice-contest-selection-band > svg:nth-of-type(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .practice-contest-selection-band > div:nth-of-type(1) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .practice-contest-selection-band > svg:nth-of-type(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
+  .practice-contest-selection-band > div:nth-of-type(2) {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .practice-contest-selection-band > svg:nth-of-type(3) {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .school-contest-team-console,

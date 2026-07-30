@@ -71,7 +71,45 @@ describe('FreshmanContestPage', () => {
     expect(screen.getByLabelText('传统 ACM 罚时公式')).toHaveTextContent('错误提交数 × 20 分钟')
   })
 
-  it('supports horizontal swipe between the two contest covers', () => {
+  it('uses the ladder-style practice contest as an individual qualifier', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/contests']}>
+        <FreshmanContestPage />
+      </MemoryRouter>,
+    )
+
+    const practiceContestTab = screen.getByRole('tab', { name: /练习赛/ })
+    await user.click(practiceContestTab)
+
+    expect(practiceContestTab).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: '练习赛', level: 1 })).toBeInTheDocument()
+    expect(screen.getByLabelText('练习赛赛制概览')).toHaveTextContent('03:00:00')
+    expect(screen.getByLabelText('练习赛赛制概览')).toHaveTextContent('个人选拔赛')
+    expect(screen.getByLabelText('练习赛赛制概览')).toHaveTextContent('赛后队伍编排')
+    expect(screen.getByLabelText('天梯赛三级赛题结构')).toHaveTextContent('8 题 / 100 分')
+    expect(screen.getByLabelText('天梯赛三级赛题结构')).toHaveTextContent('4 题 / 100 分')
+    expect(screen.getByLabelText('天梯赛三级赛题结构')).toHaveTextContent('3 题 / 90 分')
+    expect(
+      screen.getByRole('heading', { name: '每个测试点，都能留下有效得分' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('30–60 分钟')).toBeInTheDocument()
+    expect(screen.getByText('第 2 小时')).toBeInTheDocument()
+    expect(screen.getByText('剩余时间')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: '不与一次错误提交较劲，让总分持续向上。' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/阶段目标不是硬性截止/)).toHaveTextContent(
+      '前 30–60 分钟完成会写的 L1，第 2 小时解决会写的 L2',
+    )
+    expect(
+      screen.getByText(/选拔参加“中国高校计算机大赛——团体程序设计天梯赛”的选手/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('依据成绩编排天梯赛队伍')).toBeInTheDocument()
+    expect(screen.queryByText('团队累计成绩')).not.toBeInTheDocument()
+  })
+
+  it('supports horizontal swipe across all three contest covers', () => {
     render(
       <MemoryRouter initialEntries={['/contests']}>
         <FreshmanContestPage />
@@ -82,7 +120,18 @@ describe('FreshmanContestPage', () => {
     fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
     fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
 
+    expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: '练习赛', level: 1 })).toBeInTheDocument()
+
+    fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
+
     expect(screen.getByRole('tab', { name: /校赛/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
+
+    fireEvent.pointerDown(contestHero, { clientX: 180, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 80, pointerType: 'touch' })
+
+    expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
   })
 })
