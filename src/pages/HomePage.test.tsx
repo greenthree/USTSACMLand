@@ -125,6 +125,7 @@ describe('HomePage', () => {
 
     expect(screen.getByRole('heading', { name: '在比赛中找到下一段训练' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新生赛' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '了解新生赛' })).toHaveAttribute('href', '/contests')
     expect(screen.getByRole('heading', { name: '练习赛' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '校赛' })).toBeInTheDocument()
     expect(screen.getByText(/每场比赛中表现优异的选手，都有机会加入集训队/)).toBeInTheDocument()

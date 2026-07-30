@@ -192,6 +192,10 @@ describe('route authorization', () => {
 
     const navigation = await screen.findByRole('navigation', { name: '主导航' })
     expect(within(navigation).getByRole('link', { name: '榜单' })).toHaveClass('active')
+    expect(within(navigation).getByRole('link', { name: '赛事' })).toHaveAttribute(
+      'href',
+      '/contests',
+    )
 
     await user.click(within(navigation).getByRole('button', { name: '学习' }))
     const learningGroup = within(navigation).getByRole('group', { name: '学习导航' })
