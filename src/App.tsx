@@ -22,6 +22,11 @@ const ForgotPasswordPage = lazy(() =>
     default: module.ForgotPasswordPage,
   })),
 )
+const FreshmanContestPage = lazy(() =>
+  import('./pages/FreshmanContestPage').then((module) => ({
+    default: module.FreshmanContestPage,
+  })),
+)
 const HomePage = lazy(() =>
   import('./pages/HomePage').then((module) => ({ default: module.HomePage })),
 )
@@ -135,6 +140,8 @@ export default function App() {
               <Route path="members/:memberId" element={<MemberPage />} />
             </Route>
             <Route path="learning" element={<LearningPage />} />
+            <Route path="contests" element={<FreshmanContestPage />} />
+            <Route path="freshman-contest" element={<Navigate replace to="/contests" />} />
             <Route path="daily-problem" element={<DailyProblemPage />} />
             <Route path="daily-problem/:date" element={<DailyProblemPage />} />
             <Route

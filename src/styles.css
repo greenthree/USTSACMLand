@@ -1743,6 +1743,23 @@ main {
   font-weight: 800;
 }
 
+.home-join-detail-link {
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  margin-top: 8px;
+  color: var(--green-dark);
+  border-bottom: 1px solid currentcolor;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.home-join-detail-link:hover {
+  color: var(--green);
+}
+
 .home-join-note {
   margin: 40px 0 0;
   padding: 20px 22px;

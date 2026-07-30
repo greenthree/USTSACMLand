@@ -5,6 +5,7 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out'
 import Menu from 'lucide-react/dist/esm/icons/menu'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
 import Target from 'lucide-react/dist/esm/icons/target'
+import Trophy from 'lucide-react/dist/esm/icons/trophy'
 import UserRound from 'lucide-react/dist/esm/icons/user-round'
 import X from 'lucide-react/dist/esm/icons/x'
 import { Suspense, useEffect, useRef, useState } from 'react'
@@ -148,6 +149,10 @@ export function AppShell() {
                 </div>
               ) : null}
             </div>
+            <NavLink className="primary-nav-link" to="/contests" onClick={closeNavigation}>
+              <Trophy size={15} aria-hidden="true" />
+              赛事
+            </NavLink>
             <NavLink className="primary-nav-link" to="/rankings" onClick={closeNavigation}>
               榜单
             </NavLink>

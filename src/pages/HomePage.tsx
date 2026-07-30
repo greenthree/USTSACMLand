@@ -947,6 +947,10 @@ export function HomePage() {
                 <h3>新生赛</h3>
                 <p className="home-join-target">面向新生</p>
                 <p>选拔新生进入集训队，开始更高强度、更系统的算法训练。</p>
+                <Link className="home-join-detail-link" to="/contests">
+                  了解新生赛
+                  <ArrowRight size={15} aria-hidden="true" />
+                </Link>
               </div>
             </article>
             <article>
