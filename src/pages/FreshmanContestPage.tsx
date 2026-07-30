@@ -72,9 +72,17 @@ const freshmanTimeline = [
 
 const practiceTimeline = [
   { time: '00:00', title: '快速浏览', detail: '浏览三个梯级，先判断会写的题和可争取的测试点。' },
-  { time: '30–60 分钟', title: '完成 L1', detail: '按个人节奏完成会写的基础级题目，不把节点当作硬性截止。' },
+  {
+    time: '30–60 分钟',
+    title: '完成 L1',
+    detail: '按个人节奏完成会写的基础级题目，不把节点当作硬性截止。',
+  },
   { time: '第 2 小时', title: '推进 L2', detail: '集中完成会写的进阶级题目，继续积累确定得分。' },
-  { time: '剩余时间', title: '争取部分分', detail: '对准尚未通过的题目和测试点，逐步提高已有得分。' },
+  {
+    time: '剩余时间',
+    title: '争取部分分',
+    detail: '对准尚未通过的题目和测试点，逐步提高已有得分。',
+  },
 ]
 
 const schoolTimeline = [

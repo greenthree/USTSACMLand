@@ -810,11 +810,7 @@
 .freshman-contest-timeline-list time {
   color: var(--contest-green-dark);
   font-family:
-    'Microsoft YaHei UI',
-    'PingFang SC',
-    'Noto Sans CJK SC',
-    'Source Han Sans SC',
-    sans-serif;
+    'Microsoft YaHei UI', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
   font-size: 26px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
