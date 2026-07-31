@@ -43,6 +43,22 @@ describe('WebChat production cache probe workflow', () => {
     ).toThrow(/SUPABASE_PROJECT_REF|only from Supabase Vault/)
   })
 
+  it('rejects secret-bearing runs outside the protected production environment', () => {
+    expect(() =>
+      verifyWebChatCacheProbeWorkflow(
+        workflow.replace(
+          /[ ]{4}if: github\.repository == 'greenthree\/USTSACMLand' && github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)\r?\n/,
+          '',
+        ),
+      ),
+    ).toThrow(/canonical repository default branch/)
+    expect(() =>
+      verifyWebChatCacheProbeWorkflow(
+        workflow.replace(/[ ]{4}environment:\r?\n[ ]{6}name: production-operations\r?\n/, ''),
+      ),
+    ).toThrow(/protected production-operations environment/)
+  })
+
   it('rejects credentials on command lines and unsafe artifact uploads', () => {
     expect(() =>
       verifyWebChatCacheProbeWorkflow(

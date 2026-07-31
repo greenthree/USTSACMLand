@@ -132,6 +132,9 @@ jobs:
       - name: Test referral transaction fencing and reward boundary
         run: npm run check:referral-concurrency
 
+      - name: Test training-goal active quota concurrency
+        run: npm run check:training-goal-concurrency
+
       - name: Test single-platform outage isolation
         run: npm run check:sync-platform-outage
 

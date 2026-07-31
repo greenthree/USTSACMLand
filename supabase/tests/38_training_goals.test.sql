@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(31);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -208,6 +208,14 @@ select ok(
       'EXECUTE'
     ),
   'anonymous visitors cannot invoke private training goal RPCs'
+);
+
+select matches(
+  pg_catalog.pg_get_functiondef(
+    'public.create_own_training_goal(text,public.training_goal_metric,public.platform_name,integer,date)'::regprocedure
+  ),
+  'pg_advisory_xact_lock[[:space:]]*\([[:space:]]*pg_catalog\.hashtextextended[[:space:]]*\([[:space:]]*''public\.training_goals\.active:''[[:space:]]*\|\|[[:space:]]*actor_id::text',
+  'training goal creation serializes the per-member active-goal quota check'
 );
 
 select ok(

@@ -49,13 +49,13 @@
 
 ## 3. 数据库与权限
 
-- [x] 所有新 migration 已在空库 CI 中按时间顺序应用并通过 pgTAP。
+- [x] 所有新 migration 已在本地空库中按时间顺序应用并通过 pgTAP；`202607310001_training_goal_quota_concurrency.sql`、48 个测试文件、1206 项断言及真实双连接上限检查均已通过，且 CI 已强制执行同一检查。证据见 [`docs/evidence/training-goal-concurrency-local-2026-07-31.md`](./evidence/training-goal-concurrency-local-2026-07-31.md)。
 - 历史记录：推荐计划 migration 曾验证邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限；模块现已关闭。
 - 遗留关闭检查：推荐计划全局开关与重开安全闸门保持关闭；不再进行真实计奖、重开或生产并发烟测。关闭期注册必须继续降级为普通注册，不展示或校验邀请码，也不发放奖励。
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
 - 历史记录：WebChat 图片 migration 与附件/清理 Edge Function 曾以默认关闭方式部署并完成私有 Bucket、权限和对象生命周期烟测；这些安全实现继续保留，但不视为功能上线或后续待办。
 - 遗留关闭检查：`CHAT_VISION_ENABLED`、图片上传入口和清理调度保持关闭；不再配置或验收视觉模型。历史签名 URL、日志脱敏和对象归属安全测试继续保留。
-- [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
+- [ ] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
 - [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 55 项真实身份、即时交接、跨成员隐私、图片默认关闭与真实对象生命周期、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
@@ -82,6 +82,9 @@
 ## 5. 凭据与外部服务
 
 - [x] 生产首页递归发现的 64 个 JavaScript 分块均不含当前 service-role/secret Key 值、Fine-grained GitHub Token 或常见服务端 API Key 形态；公开 Supabase Key 继续作为允许的浏览器配置，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
+- [x] `sync-stats.yml` 仅允许正式仓库默认分支运行，并绑定 `production-operations`；
+      `SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只存在于该 Environment，仓库级和
+      组织级同名 Secret 副本均已删除，Environment 部署分支限制为默认分支。
 - [ ] 洛谷 Cookie/CSRF、QOJ 服务账号和 Firecrawl key 均来自可独立轮换的生产 Secret。
 - [ ] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
 - [ ] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。

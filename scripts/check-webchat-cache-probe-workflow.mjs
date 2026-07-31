@@ -11,6 +11,16 @@ function requireMatch(source, pattern, message) {
 export function verifyWebChatCacheProbeWorkflow(workflow) {
   requireMatch(
     workflow,
+    /if:\s*github\.repository == 'greenthree\/USTSACMLand' && github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)/,
+    'Production cache probe must reject secret-bearing runs outside the canonical repository default branch.',
+  )
+  requireMatch(
+    workflow,
+    /environment:\s*\r?\n\s+name:\s*production-operations/,
+    'Production cache probe must release Supabase secrets only through the protected production-operations environment.',
+  )
+  requireMatch(
+    workflow,
     /^\s{2}workflow_dispatch:\s*$/m,
     'Production cache probe must require a controlled manual dispatch.',
   )

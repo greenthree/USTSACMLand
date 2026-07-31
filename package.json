@@ -15,6 +15,7 @@
     "check:account-deletion-concurrency": "node scripts/check-account-deletion-concurrency.mjs",
     "check:referral-concurrency": "node scripts/check-referral-concurrency.mjs",
     "check:referral-concurrency:guard-isolation": "node scripts/check-referral-concurrency.mjs --guard-isolation-only",
+    "check:training-goal-concurrency": "node scripts/check-training-goal-concurrency.mjs",
     "check:sync-platform-outage": "node scripts/check-sync-platform-outage.mjs",
     "check:sync-platform-outage:production": "node scripts/check-sync-platform-outage.mjs --production",
     "check:qoj-firecrawl-challenge": "deno run --allow-env=FIRECRAWL_API_KEY --allow-net=api.firecrawl.dev --config supabase/functions/deno.json scripts/check-qoj-firecrawl-challenge.ts",
