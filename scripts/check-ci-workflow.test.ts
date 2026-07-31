@@ -39,8 +39,8 @@ describe('CI workflow', () => {
       ),
     ).toEqual({
       fileCount: 48,
-      assertionCount: 1205,
-      releaseMigrationCount: 53,
+      assertionCount: 1206,
+      releaseMigrationCount: 54,
     })
   })
 
@@ -167,6 +167,38 @@ describe('CI workflow', () => {
         supabaseConfig,
       ),
     ).toThrow(/referral guard-isolation check must use the checked-in verifier/)
+  })
+
+  it('requires the training-goal active quota concurrency check', () => {
+    expect(() =>
+      verifyCiWorkflow(
+        workflow.replace(
+          '      - name: Test training-goal active quota concurrency\n        run: npm run check:training-goal-concurrency\n\n',
+          '',
+        ),
+        packageJson,
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/training-goal active quota concurrency/)
+    expect(() =>
+      verifyCiWorkflow(
+        workflow,
+        {
+          ...packageJson,
+          scripts: {
+            ...packageJson.scripts,
+            'check:training-goal-concurrency': 'echo skipped',
+          },
+        },
+        pgTapFiles,
+        migrationFiles,
+        deployWorkflow,
+        supabaseConfig,
+      ),
+    ).toThrow(/training-goal concurrency check must use the checked-in verifier/)
   })
 
   it('requires the local single-platform outage integration check', () => {
@@ -729,6 +761,7 @@ describe('CI workflow', () => {
       '202607230005_sync_job_platform_isolation.sql',
       '202607230006_sync_worker_service_role_permissions.sql',
       '202607230007_account_deletion_storage_fence.sql',
+      '202607310001_training_goal_quota_concurrency.sql',
     ]) {
       expect(() =>
         verifyCiWorkflow(

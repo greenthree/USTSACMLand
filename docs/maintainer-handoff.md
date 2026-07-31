@@ -58,6 +58,9 @@ migration、十个函数、Function Secret 名称、匿名 REST、函数边界�
 以下能力必须在服务控制台中人工验证并记录，仓库脚本不能代替：
 
 - 谁能批准 `production-operations`；
+- `production-operations` 仅允许默认分支部署，`SUPABASE_PROJECT_REF` 与
+  `SUPABASE_SERVICE_ROLE_KEY` 只保存为该 Environment 的 Secret，仓库级或组织级同名
+  Secret 副本已经删除；
 - 谁能手动运行 Actions 和下载 Artifact；
 - 谁能读取备份解密口令；
 - 谁能修改 Supabase Auth、Function Secrets 和数据库；
@@ -86,6 +89,10 @@ gh run list --repo greenthree/USTSACMLand --workflow sync-stats.yml --branch mai
 ```powershell
 gh workflow run sync-stats.yml --repo greenthree/USTSACMLand --ref main -f scope=queue
 ```
+
+`sync-stats.yml` 的计划任务和手动任务都只能在正式仓库默认分支运行，并通过
+`production-operations` 读取生产 Supabase Secret。不要为了让分支任务通过而重新创建
+仓库级或组织级 `SUPABASE_SERVICE_ROLE_KEY`；否则分支工作流可绕过 Environment 边界。
 
 ### 通过条件
 

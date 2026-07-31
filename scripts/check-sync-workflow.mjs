@@ -12,6 +12,19 @@ if (!/options:\s*[\s\S]*?- queue/.test(workflow)) {
   throw new Error('The synchronization workflow must retain a manual queue recovery scope.')
 }
 
+const defaultBranchGuard =
+  "if: github.repository == 'greenthree/USTSACMLand' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+if (!workflow.includes(defaultBranchGuard)) {
+  throw new Error(
+    'The synchronization workflow must reject secret-bearing runs outside the canonical repository default branch.',
+  )
+}
+if (!/environment:\s*\n\s+name:\s+production-operations/.test(workflow)) {
+  throw new Error(
+    'The synchronization workflow must release production secrets only through the protected production-operations environment.',
+  )
+}
+
 const forbiddenRetryFlags = [
   { label: '--retry', pattern: /--retry(?:[=\s]|$)/ },
   { label: '--retry-all-errors', pattern: /--retry-all-errors/ },
@@ -60,5 +73,5 @@ if (/\.error\.message/.test(workflow)) {
 }
 
 console.log(
-  'Verified single-dispatch pagination, durable queue retry ownership, and sanitized summary logging.',
+  'Verified protected default-branch secret release, single-dispatch pagination, durable queue retry ownership, and sanitized summary logging.',
 )

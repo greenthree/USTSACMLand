@@ -41,8 +41,11 @@ concurrency:
 
 jobs:
   trigger:
+    if: github.repository == 'greenthree/USTSACMLand' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment:
+      name: production-operations
     env:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

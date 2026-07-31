@@ -68,6 +68,7 @@ const requiredReleaseMigrations = [
   '202607230005_sync_job_platform_isolation.sql',
   '202607230006_sync_worker_service_role_permissions.sql',
   '202607230007_account_deletion_storage_fence.sql',
+  '202607310001_training_goal_quota_concurrency.sql',
 ]
 
 function requireMatch(source, pattern, message) {
@@ -477,6 +478,17 @@ export function verifyCiWorkflow(
     'node scripts/check-referral-concurrency.mjs --guard-isolation-only'
   ) {
     throw new Error('The referral guard-isolation check must use the checked-in verifier.')
+  }
+  requireMatch(
+    workflow,
+    /- name: Test training-goal active quota concurrency\s+run: npm run check:training-goal-concurrency/,
+    'Database CI must execute the real training-goal active quota concurrency check.',
+  )
+  if (
+    packageJson.scripts?.['check:training-goal-concurrency'] !==
+    'node scripts/check-training-goal-concurrency.mjs'
+  ) {
+    throw new Error('The training-goal concurrency check must use the checked-in verifier.')
   }
   requireMatch(
     workflow,
