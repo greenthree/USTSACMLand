@@ -133,7 +133,8 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 管理员默认不得修改成员目标；如将来需要队内指导权限，必须单独设计授权和审计，不在第一版默认开放。
 - [x] 使用真实生产成员完成训练目标创建、编辑、刷新恢复、归档和个人数据导出生成烟测；临时目标归档后进行中数量恢复为 0，历史数量由 1 增至 2，没有留下进行中夹具。证据见 `docs/evidence/training-goals-verification-2026-07-22.md`。
 - [x] 实现并在本地空库验证 `202607310001_training_goal_quota_concurrency.sql`：成员级事务 advisory lock 串行化“计数 → 插入”临界区；真实双连接从 19 个进行中目标并发创建时，第二个请求等待锁后收到原有额度错误，最终保持 20 个目标且夹具零残留。该检查已纳入 CI 必跑门禁，证据见 [`docs/evidence/training-goal-concurrency-local-2026-07-31.md`](./docs/evidence/training-goal-concurrency-local-2026-07-31.md)。
-- [ ] 将 `202607310001_training_goal_quota_concurrency.sql` 部署到生产，并在不篡改生产成员数据的前提下完成 migration 一致性与普通创建流程烟测。
+- [x] 将 `202607310001_training_goal_quota_concurrency.sql` 部署到生产；部署前 `migration list --linked` 仅显示该项缺失，`db push --dry-run` 仅计划该 migration，部署后本地与远端版本完全一致。证据见 [`docs/evidence/training-goal-concurrency-production-2026-07-31.md`](./docs/evidence/training-goal-concurrency-production-2026-07-31.md)。
+- [ ] 在不篡改生产成员数据的前提下完成普通成员创建训练目标流程烟测。
 - [ ] 使用成功同步快照使真实目标达到阈值并完成“确认完成”流程。2026-07-26 已在本地 Supabase 重新执行 `supabase/tests/38_training_goals.test.sql`，30 项 pgTAP 全部通过，覆盖成功同步快照达标、显式完成、重复完成拒绝、RLS、乐观锁、归档、导出和注销级联；生产只读核对显示当前账号 0 个进行中目标、2 个均为 0% 的已归档目标，因此仍缺自然训练进度达标后的生产 UI“确认完成”证据，未通过篡改生产统计制造达标。证据见 `docs/evidence/training-goals-verification-2026-07-22.md`。
 
 ## 7. 推荐计划历史记录
