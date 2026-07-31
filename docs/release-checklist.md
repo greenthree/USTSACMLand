@@ -55,7 +55,7 @@
 - [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
 - 历史记录：WebChat 图片 migration 与附件/清理 Edge Function 曾以默认关闭方式部署并完成私有 Bucket、权限和对象生命周期烟测；这些安全实现继续保留，但不视为功能上线或后续待办。
 - 遗留关闭检查：`CHAT_VISION_ENABLED`、图片上传入口和清理调度保持关闭；不再配置或验收视觉模型。历史签名 URL、日志脱敏和对象归属安全测试继续保留。
-- [ ] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含本次 migration。
+- [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含 `202607310001_training_goal_quota_concurrency.sql`；正式应用后再次核对本地与远端版本完全一致。证据见 [`docs/evidence/training-goal-concurrency-production-2026-07-31.md`](./evidence/training-goal-concurrency-production-2026-07-31.md)。
 - [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 55 项真实身份、即时交接、跨成员隐私、图片默认关闭与真实对象生命周期、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
 - [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
