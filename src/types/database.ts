@@ -935,6 +935,8 @@ export type Database = {
       }
       public_members: {
         Row: {
+          avatar_path: string | null
+          avatar_updated_at: string | null
           created_at: string | null
           full_name: string | null
           grade: string | null
@@ -943,6 +945,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          avatar_path?: string | null
+          avatar_updated_at?: string | null
           created_at?: string | null
           full_name?: string | null
           grade?: string | null
@@ -951,6 +955,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          avatar_path?: string | null
+          avatar_updated_at?: string | null
           created_at?: string | null
           full_name?: string | null
           grade?: string | null

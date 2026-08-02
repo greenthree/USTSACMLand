@@ -11,8 +11,10 @@ const memberMocks = vi.hoisted(() => ({
   updateProfile: vi.fn(),
 }))
 
+const avatarMocks = vi.hoisted(() => ({ invoke: vi.fn() }))
+
 vi.mock('../../lib/supabase', () => ({
-  supabase: { rpc: vi.fn() },
+  supabase: { rpc: vi.fn(), functions: { invoke: avatarMocks.invoke } },
 }))
 
 vi.mock('../../lib/adminMembers', () => ({
@@ -77,6 +79,7 @@ describe('AdminMembersPage with Supabase configured', () => {
     memberMocks.setSuspension.mockReset()
     memberMocks.setRole.mockReset()
     memberMocks.updateProfile.mockReset()
+    avatarMocks.invoke.mockReset().mockResolvedValue({ data: { updated: true }, error: null })
     memberMocks.setRole.mockResolvedValue('2026-07-13T12:00:00Z')
     memberMocks.fetchMembers.mockResolvedValue([activeMember, suspendedMember])
   })
@@ -250,6 +253,9 @@ describe('AdminMembersPage with Supabase configured', () => {
     expect(within(row).getByText('25级')).toBeInTheDocument()
     expect(within(row).getByText('人工智能')).toBeInTheDocument()
     expect(within(row).getByText('不公开')).toBeInTheDocument()
+    expect(avatarMocks.invoke).toHaveBeenCalledWith('sync-avatar', {
+      body: { memberId: 'member-1' },
+    })
     expect(screen.getByRole('status')).toHaveTextContent('更新成员 的资料已更新。')
   })
 

@@ -78,6 +78,13 @@ verify_jwt = true
 [functions.sync-stats]
 verify_jwt = true
 
+[functions.sync-avatar]
+verify_jwt = true
+static_files = ["./functions/webchat-attachment/codecs/*.wasm"]
+
+[functions.member-avatar]
+verify_jwt = false
+
 [functions.delete-account]
 verify_jwt = true
 

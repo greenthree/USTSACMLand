@@ -3,12 +3,15 @@ import { loadPublicMembersFromClient } from './publicMembers'
 const memberCount = 501
 const memberRows = Array.from({ length: memberCount }, (_, index) => {
   const suffix = String(index + 1).padStart(4, '0')
+  const id = `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`
   return {
-    id: `member-${suffix}`,
+    id,
     full_name: `成员${suffix}`,
     major: '计算机科学与技术',
     grade: '24级',
     created_at: '2026-07-01T00:00:00Z',
+    avatar_path: index === 0 ? `member/${id}/avatar.webp` : null,
+    avatar_updated_at: index === 0 ? '2026-08-02T00:00:00Z' : null,
   }
 })
 const accountRows = memberRows.map((member) => ({
@@ -109,15 +112,19 @@ describe('loadPublicMembersFromClient', () => {
 
     const members = await loadPublicMembersFromClient(
       client as unknown as Parameters<typeof loadPublicMembersFromClient>[0],
+      'https://project.supabase.co',
     )
 
     expect(members).toHaveLength(memberCount)
+    expect(members[0].avatarUrl).toBe(
+      'https://project.supabase.co/functions/v1/member-avatar?memberId=00000000-0000-4000-8000-000000000001&v=2026-08-02T00%3A00%3A00Z',
+    )
     expect(members.at(-1)).toMatchObject({
-      id: 'member-0501',
+      id: '00000000-0000-4000-8000-000000000501',
       name: '成员0501',
       stats: {
         codeforces: {
-          externalId: 'handle-member-0501',
+          externalId: 'handle-00000000-0000-4000-8000-000000000501',
           rating: 1700,
           previousRating: 1600,
           peakRating: 1800,

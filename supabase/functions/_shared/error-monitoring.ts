@@ -7,6 +7,8 @@ import {
 export type RuntimeErrorSurface =
   | 'sync-member'
   | 'sync-stats'
+  | 'sync-avatar'
+  | 'member-avatar'
   | 'delete-account'
   | 'change-password'
   | 'webchat'

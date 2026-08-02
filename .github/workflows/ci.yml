@@ -83,6 +83,8 @@ jobs:
           deno check --config supabase/functions/deno.json
           supabase/functions/sync-member/index.ts
           supabase/functions/sync-stats/index.ts
+          supabase/functions/sync-avatar/index.ts
+          supabase/functions/member-avatar/index.ts
           supabase/functions/delete-account/index.ts
           supabase/functions/change-password/index.ts
           supabase/functions/webchat/index.ts

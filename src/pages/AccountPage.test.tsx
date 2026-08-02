@@ -164,7 +164,7 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     accountMocks.profileUpdate.mockImplementation(() => ({ eq: accountMocks.profileUpdateEq }))
     accountMocks.accountsUpsert.mockResolvedValue({ error: null })
     accountMocks.accountsDeleteIn.mockResolvedValue({ error: null })
-    accountMocks.invoke.mockResolvedValue({ error: null })
+    accountMocks.invoke.mockResolvedValue({ data: { updated: true }, error: null })
     personalExportMocks.fetch.mockResolvedValue({ schemaVersion: 1 })
     personalExportMocks.download.mockReturnValue(
       'usts-acm-land-personal-data_2026-07-19_05-06-07-890Z.json',
@@ -489,6 +489,30 @@ describe('AccountPage XCPC ELO automatic matching', () => {
       grade: '23级',
     })
     expect(loadAccountDraft('member-1')).toBeNull()
+  })
+
+  it('synchronizes the private QQ avatar after saving a changed QQ number', async () => {
+    const user = userEvent.setup()
+    renderAccountPage()
+
+    const qqInput = await screen.findByRole('textbox', { name: 'QQ 号' })
+    await user.clear(qqInput)
+    await user.type(qqInput, '87654321')
+    accountMocks.profileSingle.mockResolvedValueOnce({
+      data: {
+        full_name: '测试成员',
+        qq: '87654321',
+        major: '计算机科学与技术',
+        grade: '24级',
+      },
+      error: null,
+    })
+    await user.click(screen.getByRole('button', { name: '保存资料' }))
+
+    await waitFor(() =>
+      expect(accountMocks.invoke).toHaveBeenCalledWith('sync-avatar', { body: {} }),
+    )
+    expect(accountMocks.profileUpdate).toHaveBeenCalledWith({ qq: '87654321' })
   })
 
   it('restores unsaved fields after the page is remounted', async () => {

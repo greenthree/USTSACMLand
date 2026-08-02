@@ -12,6 +12,7 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 | [牛客竞赛](https://ac.nowcoder.com/)                              | 成员填写的数字 UID                                                   | 当前/最高 Rating、唯一通过题数                             | 优先直接查询；仅遇到反自动化响应时把目标公开页面交给 Firecrawl 回退                                                |
 | [AtCoder](https://atcoder.jp/)                                    | 成员填写的 Username                                                  | 当前/最高 Rating、账号存在状态                             | Rating 来自 AtCoder 公开页面/JSON，不发送本站私有资料                                                              |
 | [AtCoder Problems API](https://kenkoooo.com/atcoder/atcoder-api/) | AtCoder Username                                                     | `user/ac_rank` 返回的 Accepted 题数 `count`                | 由独立社区服务提供，与 AtCoder 官方是不同服务                                                                      |
+| [腾讯 QQ 头像](https://q1.qlogo.cn/)                              | 成员填写的 QQ 号，仅由服务端发送                                     | 100px 头像，经校验和转码后缓存为 WebP                      | 浏览器只请求含成员 UUID 的本站代理；原始 QQ、上游 URL 和私有对象路径不进入公开页面                                 |
 | [XCPC ELO](https://zzzzzzyt.github.io/xcpc-elo/)                  | 通常只请求公开数据集 URL；匹配时使用站内姓名和固定学校“苏州科技大学” | 当前/历史最高 ELO、稳定来源 ID，以及我校选手的精简共享缓存 | 必须“姓名 + 学校”唯一命中；同校同名时拒绝自动绑定                                                                  |
 | [洛谷](https://www.luogu.com.cn/)                                 | 成员填写的数字 UID；服务端另使用专用洛谷账号的 Cookie/CSRF           | 账号存在状态、Accepted 记录 ID 与仅 `P`/`B` 题号的去重集合 | 成员不提供 Cookie；凭据只存 Supabase Function Secrets，不经过 Firecrawl                                            |
 | [QOJ](https://qoj.ac/)                                            | 成员填写的 Username；临时浏览器登录还会使用独立 QOJ 服务账号         | 目标主页的唯一 Accepted 题数和结构化同步状态               | 每个 attempt 创建不录制、不开直播的临时 Firecrawl 会话并主动结束；可恢复失败最多一次队列重试                       |
@@ -21,6 +22,7 @@ USTS ACM Land 使用成员提供的平台标识查询公开竞赛数据，并通
 
 - 公开资料包括姓名、年级、专业、已验证的平台账号、Rating、通过题数和更新时间。
 - 邮箱、QQ、认证会话、同步错误详情和管理审计不进入公开榜单。
+- QQ 头像缓存保存在私有 `member-avatars` Bucket；公开成员视图只暴露版本标识，读取代理每次重新确认成员仍处于公开启用状态。
 - 成功同步保存当前统计和必要的历史快照；失败保留最后成功值，不会把统计清零。
 - 洛谷额外保存私有增量边界和去重题号集合；XCPC ELO 只缓存“苏州科技大学”选手的精简记录。
 - QOJ 和牛客 Firecrawl 日志只在本站保存结构化错误；QOJ 不保存会话 ID、目标 URL、第三方页面正文或服务账号密码。

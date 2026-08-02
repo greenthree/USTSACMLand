@@ -61,7 +61,7 @@ WebChat 图片数据库 migration、`webchat-attachment` 与 `webchat-image-clea
    npx playwright install chromium firefox webkit
    npm run test:e2e
    npm run build
-   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
+   npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/sync-avatar/index.ts supabase/functions/member-avatar/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
    npx --yes deno lint --config supabase/functions/deno.json supabase/functions
    npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
    git diff --check
@@ -125,7 +125,7 @@ npm run check:production-security
 显式使用仓库 import map：
 
 ```powershell
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password firecrawl-config `
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar member-avatar delete-account change-password firecrawl-config `
   --use-api --import-map supabase/functions/deno.json
 ```
 
@@ -142,14 +142,15 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 部署后执行受控烟测：
 
 0. 先运行 `npm run check:supabase-readiness` 严格验收；任何待部署 migration、缺失函数、错误 JWT/import map 或函数边界都会阻塞后续 Pages 发布。
-   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和十个函数部署后的版本号。
+   该检查是远端状态与黑盒边界验证，不能证明函数源码与当前 Git 提交逐字一致；发布记录还必须保存本次提交 SHA、部署时间和全部函数部署后的版本号。
 
 1. 用管理员账号同步一个测试成员的单个平台。
 2. 确认成功运行、快照、数据状态与审计记录一致。
 3. 连续触发达到限流阈值前停止；确认正常请求不会返回 429。
 4. 对 QOJ 做一次明确授权的健康检查；可恢复失败只允许数据库队列再执行一个 attempt，凭据或结构错误不得重试，每个 attempt 都必须关闭临时会话。
 5. 确认日志不含姓名、邮箱、QQ、平台账号、Cookie、Token 或第三方响应正文。
-6. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
+6. 头像 migration 和两个函数首次发布后，为所有已填写 QQ 的现有公开成员执行一次受控头像回填；确认直接 Storage URL 被拒绝、成员 UUID 代理返回 `image/webp`、隐藏成员后同一代理 URL 返回 `404`，无头像成员显示姓名末字。回填日志不得记录 QQ、成员 UUID、对象路径或上游响应正文。
+7. 在隔离或受控测试账号上验证注销失败语义：租约冲突、删除前续期失败及 GitHub 写入/确认失败均返回 `503` 且 Auth 用户仍存在；错误 owner、错误 target、过期租约、管理员、活动同步和 Storage 所有权阻塞均不得删除；最终 RPC 期间用第二连接尝试接管租约，确认其被行锁阻塞到删除事务提交/回滚；成功路径确认 Auth、Profile、绑定、统计、任务、成员头像目录与刷新会话清理，旧 access JWT 也无法通过依赖 live Profile 的 RLS/RPC 读取或写入私有业务数据。
 
 单平台停机的生产复核使用 `npm run check:sync-platform-outage:production`。该命令不会访问真实第三方平台，也不会暂停队列 cron 或调用全局 `claim_due_sync_jobs`：它先确认 Supabase CLI 唯一 linked 项目就是生产项目，再对随机临时成员运行一个失败平台和一个成功平台的两阶段组合演练。第二阶段只用同时限定临时 `profile_id`、`platform=codeforces`、`status=queued`、`attempt_count=1` 和 `max_attempts=2` 的管理 SQL 原子领取夹具任务，并把返回的唯一 job ID 交给测试。夹具 setup 从请求发出前就被视为必须清理，即使管理响应丢失也会执行清理和独立只读对账；最终必须确认临时 Auth/Profile/账号/统计/任务/运行/快照均为 0 且 cron 仍 active。不得删除这些检查、扩大 Deno 网络权限或改用真实平台请求制造停机。
 
@@ -188,7 +189,7 @@ WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 To
 ```powershell
 git worktree add ..\ustsacmland-rollback <known-good-commit>
 Set-Location ..\ustsacmland-rollback
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password `
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar member-avatar delete-account change-password `
   --use-api --import-map supabase/functions/deno.json
 npx --yes supabase@2.109.1 functions deploy firecrawl-config webchat webchat-attachment webchat-image-cleanup webchat-config webchat-cache-probe `
   --use-api --import-map supabase/functions/deno.json

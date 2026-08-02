@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { notifyRuntimeError, runtimeErrorAlert } from '../_shared/error-monitoring.ts'
 import { createDeleteAccountHandler } from './handler.ts'
+import { deleteAuthUserWithAvatarCleanup } from './avatar-cleanup.ts'
 import { createGitHubRecoveryFloorRecorder } from './recovery-floor.ts'
 import { withRecoveryFloorLease } from './recovery-lease.ts'
 import { deleteUserWithRecoveryFloor } from './safe-deletion.ts'
@@ -75,9 +76,52 @@ const handler = createDeleteAccountHandler({
               await recoveryFloor.record()
             },
             async deleteUser(targetUserId: string) {
-              return await deleteAuthUserWithRecoveryLease(
-                serviceClient,
-                recoveryOwnerToken,
+              return await deleteAuthUserWithAvatarCleanup(
+                {
+                  deleteAuthUser: (memberId) =>
+                    deleteAuthUserWithRecoveryLease(serviceClient, recoveryOwnerToken, memberId),
+                  async prepareAvatarDeletion(memberId) {
+                    const { data, error } = await serviceClient.rpc(
+                      'prepare_member_avatar_account_deletion',
+                      { requested_profile_id: memberId },
+                    )
+                    if (error) throw new Error('Could not prepare member avatar deletion')
+                    const row = Array.isArray(data) ? data[0] : null
+                    if (!row || typeof row.ready !== 'boolean') {
+                      throw new Error('Member avatar deletion preparation returned invalid data')
+                    }
+                    return { ready: row.ready }
+                  },
+                  async removeAvatarObjects(memberId) {
+                    const prefix = `member/${memberId}`
+                    for (let page = 0; page < 100; page += 1) {
+                      const { data, error } = await serviceClient.storage
+                        .from('member-avatars')
+                        .list(prefix, {
+                          limit: 100,
+                          offset: 0,
+                          sortBy: { column: 'name', order: 'asc' },
+                        })
+                      if (error) throw new Error('Could not list member avatars')
+                      const objectKeys = (data ?? [])
+                        .filter((item) => item.id !== null)
+                        .map((item) => `${prefix}/${item.name}`)
+                      if (objectKeys.length === 0) return
+                      const { error: removeError } = await serviceClient.storage
+                        .from('member-avatars')
+                        .remove(objectKeys)
+                      if (removeError) throw new Error('Could not remove member avatars')
+                    }
+                    throw new Error('Member avatar cleanup exceeded its bounded page limit')
+                  },
+                  async cancelAvatarDeletion(memberId) {
+                    const { error } = await serviceClient.rpc(
+                      'cancel_member_avatar_account_deletion',
+                      { requested_profile_id: memberId },
+                    )
+                    if (error) throw new Error('Could not cancel member avatar deletion')
+                  },
+                },
                 targetUserId,
               )
             },

@@ -34,6 +34,7 @@ export interface PlatformStat {
 export interface Member {
   id: string
   name: string
+  avatarUrl?: string | null
   major: string
   grade: string
   bio: string

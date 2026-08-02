@@ -3,6 +3,8 @@ import { mapPublicStatStatus } from '../lib/memberStats'
 import type { Database } from '../types/database'
 import { platforms, type Member, type Platform, type PlatformStat } from '../types/domain'
 import { buildProfilePlatformCursorFilter, collectCursorPages } from './cursorPagination'
+import { buildMemberAvatarUrl } from './memberAvatarUrl'
+import { supabaseUrl } from '../lib/supabase'
 
 interface PublicMemberRow {
   id: string
@@ -10,6 +12,8 @@ interface PublicMemberRow {
   major: string
   grade: string
   created_at: string
+  avatar_path: string | null
+  avatar_updated_at: string | null
 }
 
 interface PublicAccountRow {
@@ -44,6 +48,8 @@ function requirePublicMemberRows(
     major: string | null
     grade: string | null
     created_at: string | null
+    avatar_path: string | null
+    avatar_updated_at: string | null
   }>,
 ): PublicMemberRow[] {
   return rows.map((row) => {
@@ -56,8 +62,19 @@ function requirePublicMemberRows(
       major: row.major,
       grade: row.grade,
       created_at: row.created_at,
+      avatar_path: row.avatar_path,
+      avatar_updated_at: row.avatar_updated_at,
     }
   })
+}
+
+function publicAvatarUrl(
+  projectUrl: string | undefined,
+  memberId: string,
+  path: string | null,
+  updatedAt: string | null,
+): string | null {
+  return path ? buildMemberAvatarUrl(projectUrl, memberId, updatedAt) : null
 }
 
 function requirePublicAccountRows(
@@ -142,13 +159,14 @@ function emptyStat(platform: Platform): PlatformStat {
 
 export async function loadPublicMembersFromClient(
   client: SupabaseClient<Database>,
+  memberAvatarProjectUrl: string | undefined = supabaseUrl,
 ): Promise<Member[]> {
   const [memberRows, accountRows, statRows, ratingChangeResult] = await Promise.all([
     collectCursorPages<PublicMemberRow>(
       async (cursor) => {
         let query = client
           .from('public_members')
-          .select('id, full_name, major, grade, created_at')
+          .select('id, full_name, major, grade, created_at, avatar_path, avatar_updated_at')
           .order('id', { ascending: true })
           .limit(publicViewPageSize)
         if (cursor) query = query.gt('id', cursor.id)
@@ -250,6 +268,12 @@ export async function loadPublicMembersFromClient(
     return {
       id: profile.id,
       name: profile.full_name,
+      avatarUrl: publicAvatarUrl(
+        memberAvatarProjectUrl,
+        profile.id,
+        profile.avatar_path,
+        profile.avatar_updated_at,
+      ),
       major: profile.major,
       grade: profile.grade,
       bio: '',

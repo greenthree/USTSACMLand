@@ -29,6 +29,7 @@ import {
   updateAdminMemberProfile,
 } from '../../lib/adminMembers'
 import { formatDateTime } from '../../lib/format'
+import { syncMemberAvatar } from '../../lib/memberAvatar'
 import { gradeOptions, majorSuggestions } from '../../lib/profileFields'
 import { supabase } from '../../lib/supabase'
 import type {
@@ -354,6 +355,7 @@ export function AdminMembersPage() {
     setSavingEdit(true)
     setEditError('')
     try {
+      const qqChanged = normalizedValues.qq !== editingMember.qq
       const updatedAt = await updateAdminMemberProfile(
         editingMember.id,
         normalizedValues,
@@ -364,6 +366,20 @@ export function AdminMembersPage() {
           member.id === editingMember.id ? { ...member, ...normalizedValues, updatedAt } : member,
         ),
       )
+      if (qqChanged) {
+        try {
+          await syncMemberAvatar(editingMember.id)
+        } catch (error) {
+          setNoticeKind('error')
+          setNotice(
+            `${normalizedValues.name} 的资料已更新，但${
+              error instanceof Error ? error.message : '头像同步失败，请稍后重试。'
+            }`,
+          )
+          closeEditDialog()
+          return
+        }
+      }
       setNoticeKind('success')
       setNotice(`${normalizedValues.name} 的资料已更新。`)
       closeEditDialog()
