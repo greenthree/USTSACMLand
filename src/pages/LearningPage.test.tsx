@@ -103,6 +103,7 @@ describe('LearningPage', () => {
       'https://xcpc.link/',
     )
     expect(screen.getByRole('heading', { name: '融入竞赛圈子' })).toBeInTheDocument()
+    expect(screen.getByLabelText('集训队 QQ 群号 721375856')).toHaveTextContent('721375856')
     expect(
       screen.getByRole('link', { name: '查看 ACM 群组坐标汇总（新窗口打开）' }),
     ).toHaveAttribute('href', 'https://acmer.info/')

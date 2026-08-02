@@ -11,7 +11,7 @@ import {
 } from './rankings'
 
 describe('overall rankings', () => {
-  it('uses each platform independent top five as its rating benchmark', () => {
+  it('uses independent top-five benchmarks with soft platform coverage', () => {
     const benchmarks = calculateRatingBenchmarks(mockMembers)
 
     expect(benchmarks).toEqual({
@@ -21,7 +21,7 @@ describe('overall rankings', () => {
       xcpc_elo: 1678.2,
     })
     expect(calculateOverallRating(mockMembers[0], benchmarks)).toBeCloseTo(1752.41, 2)
-    expect(calculateOverallRating(mockMembers[5], benchmarks)).toBeCloseTo(921.23, 2)
+    expect(calculateOverallRating(mockMembers[5], benchmarks)).toBeCloseTo(1063.75, 2)
   })
 
   it('includes a low-Codeforces member when they rank in another platform top five', () => {

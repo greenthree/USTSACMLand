@@ -265,7 +265,7 @@ describe('RankingsPage', () => {
     await user.clear(search)
     await user.selectOptions(screen.getByRole('combobox', { name: '专业筛选' }), '通信工程')
     const filteredMember = await screen.findByRole('row', { name: /赵清和/ })
-    expect(within(filteredMember).getByText('921.23')).toBeInTheDocument()
+    expect(within(filteredMember).getByText('1,063.75')).toBeInTheDocument()
   })
 
   it('filters by grade together with the other conditions', async () => {

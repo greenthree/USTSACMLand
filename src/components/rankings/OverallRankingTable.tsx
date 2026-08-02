@@ -47,7 +47,11 @@ export function OverallRankingTable({
             <th className="major-column">专业</th>
             <th
               className="overall-column"
-              title={metric === 'rating' ? '400 × 各平台标准化 Rating 之和' : undefined}
+              title={
+                metric === 'rating'
+                  ? '1600 × 有效平台标准化 Rating 平均值 × 平台覆盖率平方根'
+                  : undefined
+              }
             >
               {metric === 'rating' ? '总 Rating' : '总通过题数'}
             </th>

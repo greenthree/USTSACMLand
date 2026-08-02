@@ -1645,12 +1645,59 @@ main {
   gap: clamp(52px, 7vw, 96px);
 }
 
+.home-join-intro {
+  display: grid;
+  align-content: start;
+  gap: 28px;
+}
+
 .home-join-lead {
   margin: 0;
   color: #454c45;
   font-family: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', serif;
   font-size: 17px;
   line-height: 1.9;
+}
+
+.home-join-group {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  padding-top: 20px;
+  border-top: 1px solid #b8beb7;
+}
+
+.home-join-group > svg {
+  margin-top: 2px;
+  color: var(--green);
+}
+
+.home-join-group > div {
+  min-width: 0;
+}
+
+.home-join-group span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--green-dark);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: var(--home-aux-font-size);
+  font-weight: 800;
+}
+
+.home-join-group strong {
+  display: block;
+  color: #171a17;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.home-join-group p {
+  margin: 9px 0 0;
+  color: #596159;
+  font-size: var(--home-body-font-size);
+  line-height: 1.7;
 }
 
 .home-join-events {

@@ -879,18 +879,29 @@ export function LearningPage() {
               </p>
             </div>
             <div className="learning-community-action">
-              <span>群组导航</span>
-              <strong>ACM 群组坐标汇总</strong>
-              <p>按兴趣挑选即可，不必一次加入很多群。</p>
-              <a
-                href="https://acmer.info/"
-                target="_blank"
-                rel="noreferrer"
-                aria-label="查看 ACM 群组坐标汇总（新窗口打开）"
-              >
-                查看群组汇总
-                <ArrowUpRight size={16} aria-hidden="true" />
-              </a>
+              <div className="learning-community-school">
+                <span>校内交流</span>
+                <strong>苏科大 ACM 集训队</strong>
+                <p>在 QQ 中搜索群号加入，获取训练与校内赛信息，也可以直接交流入门问题。</p>
+                <div className="learning-community-qq" aria-label="集训队 QQ 群号 721375856">
+                  <span>QQ 群</span>
+                  <strong>721375856</strong>
+                </div>
+              </div>
+              <div className="learning-community-directory">
+                <span>群组导航</span>
+                <strong>ACM 群组坐标汇总</strong>
+                <p>想认识更多学校和地区的选手，可以再按兴趣挑选，不必一次加入很多群。</p>
+                <a
+                  href="https://acmer.info/"
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="查看 ACM 群组坐标汇总（新窗口打开）"
+                >
+                  查看群组汇总
+                  <ArrowUpRight size={16} aria-hidden="true" />
+                </a>
+              </div>
             </div>
           </section>
         </div>
