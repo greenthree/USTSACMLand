@@ -41,6 +41,11 @@ describe('PrivacyPage', () => {
     expect(publicSection).toHaveTextContent('时间范围刷题增量')
     expect(publicSection).toHaveTextContent('邮箱、QQ、密码、登录令牌')
     expect(publicSection).toHaveTextContent('不进入公开榜单')
+    expect(publicSection).toHaveTextContent('头像公开地址只使用成员 UUID，不包含 QQ')
+
+    const thirdPartySection = screen.getByRole('heading', { name: '第三方服务' }).closest('section')
+    expect(thirdPartySection).toHaveTextContent('只有服务端会把 QQ 号发送给腾讯 QQ 头像接口')
+    expect(thirdPartySection).toHaveTextContent('私有存储中保留规范化 WebP 头像和不可逆来源摘要')
   })
 
   it('documents the target-free personal data export boundary', async () => {

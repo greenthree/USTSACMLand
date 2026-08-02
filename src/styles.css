@@ -2595,6 +2595,7 @@ main {
   border-radius: 6px;
   font-size: 14px;
   font-weight: 800;
+  object-fit: cover;
 }
 
 .external-account,

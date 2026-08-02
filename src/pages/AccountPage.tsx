@@ -19,6 +19,7 @@ import {
   type AccountFormValues,
 } from '../lib/accountDraft'
 import { platformLabels } from '../lib/platforms'
+import { syncMemberAvatar } from '../lib/memberAvatar'
 import {
   normalizePlatformAccountId,
   platformAccountSaveErrorMessage,
@@ -224,6 +225,7 @@ export function AccountPage() {
   const [copyNotice, setCopyNotice] = useState('')
   const [draftReady, setDraftReady] = useState(false)
   const baselineValuesRef = useRef<AccountFormValues | null>(null)
+  const avatarSyncRetryRef = useRef(false)
   const referralRequestIdRef = useRef(0)
   const captchaConfig = getRegistrationCaptchaConfig()
 
@@ -412,6 +414,8 @@ export function AccountPage() {
       ...normalizedAccounts,
     })
     const baseline = baselineValuesRef.current
+    const qqChanged = !baseline || submittedValues.qq !== baseline.qq
+    const shouldSyncAvatar = qqChanged || avatarSyncRetryRef.current
     setSaving(true)
     setNotice('')
     setNoticeKind('success')
@@ -519,6 +523,20 @@ export function AccountPage() {
       setAccountValidationErrors({ ...emptyValidationErrors })
       baselineValuesRef.current = savedValues
       clearAccountDraft(userId)
+      if (shouldSyncAvatar) {
+        try {
+          await syncMemberAvatar()
+          avatarSyncRetryRef.current = false
+        } catch (error) {
+          avatarSyncRetryRef.current = true
+          setSaving(false)
+          setNoticeKind('error')
+          setNotice(
+            `资料已保存，但${error instanceof Error ? error.message : '头像同步失败，请稍后重试。'}`,
+          )
+          return
+        }
+      }
     } else if (userId) {
       setName(submittedValues.name)
       setQq(submittedValues.qq)
@@ -724,7 +742,7 @@ export function AccountPage() {
       <section className="page-heading account-heading">
         <div>
           <h1>我的资料</h1>
-          <p>QQ 仅用于队内管理，不会展示在公开榜单。</p>
+          <p>QQ 不会直接公开；服务端会用它获取并缓存榜单头像。</p>
         </div>
         <div className="account-status">
           <span>{isDemo ? '本地演示资料' : '账号资料'}</span>

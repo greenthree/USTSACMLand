@@ -17,8 +17,8 @@
 - 资料页专业联想直接读取根目录 `专业目录.txt`，支持目录匹配与目录外专业自由输入。
 - `/account` 登录守卫、`/admin` 管理员角色守卫、会话态导航和退出。
 - 后台概览、成员管理与详情、当前筛选成员 CSV 导出、平台绑定维护、手工统计录入、平台账号验证、公告管理、同步中心、独立数据源健康页、Firecrawl 多 Key 凭据池和脱敏审计日志 CSV 导出；配置 Supabase 后均使用真实数据。
-- 8 张账号/榜单核心业务表、3 张每日题目学习表、2 张 XCPC ELO 私有缓存表、1 张注销恢复下限私有租约表、10 张 WebChat 私有配置/额度/账本/历史/探针表、枚举、约束、索引、触发器、公开视图、RLS、审计策略，以及不接受目标成员 ID 的本人数据导出 RPC。
-- `sync-member`、`sync-stats`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步或当前管理员。
+- 8 张账号/榜单核心业务表、3 张每日题目学习表、2 张 XCPC ELO 私有缓存表、2 张 QQ 头像私有缓存/租约表、1 张注销恢复下限私有租约表、10 张 WebChat 私有配置/额度/账本/历史/探针表、枚举、约束、索引、触发器、公开视图、RLS、审计策略，以及不接受目标成员 ID 的本人数据导出 RPC。
+- `sync-member`、`sync-stats`、`sync-avatar`、`member-avatar`、`change-password` 和 `delete-account` Edge Functions；同步入口支持成员、单平台、平台组和到期队列同步，QQ 头像由服务端规范化后存入私有 Bucket，公开代理只接受成员 UUID 并实时复核公开状态。改密与注销均在服务端复核当前密码，改密成功后全局撤销刷新会话并退出本设备，注销入口只允许当前普通成员删除本人，并由数据库最终守卫拒绝活动同步、残留头像或当前管理员。
 - 遗留 WebChat 安全 API、管理员配置、缓存探针和前端工作台代码仍在仓库中，相关数据库隐私、额度、注销与备份边界继续接受安全回归测试；该模块已停止产品开发，生产入口和请求开关保持关闭，不属于当前网站功能。
 - Codeforces、牛客、AtCoder、XCPC ELO、洛谷真实适配器；QOJ Firecrawl `/interact` 临时会话自动登录适配器和健康检查。
 - 六个平台均保存最小脱敏固定样本，并通过统一成功/失败结果契约测试；样本清单见 [`testdata/README.md`](./supabase/functions/_shared/adapters/testdata/README.md)。
@@ -185,7 +185,7 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 npm run build
 npm run check:bundle
-npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
+npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/sync-avatar/index.ts supabase/functions/member-avatar/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
 npx --yes deno lint --config supabase/functions/deno.json supabase/functions
 npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
 npm run test:db
@@ -297,7 +297,7 @@ npx --yes deno run \
 ```bash
 npm run check:supabase-preflight
 npx --yes supabase@2.109.1 db push --linked --include-all
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password \
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar member-avatar delete-account change-password \
   --use-api --import-map supabase/functions/deno.json
 npx --yes supabase@2.109.1 functions deploy firecrawl-config \
   --use-api --import-map supabase/functions/deno.json

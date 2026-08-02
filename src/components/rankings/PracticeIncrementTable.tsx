@@ -14,6 +14,7 @@ import {
 } from '../../lib/practiceIncrements'
 import type { SolvedPlatform } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
+import { MemberAvatar } from '../MemberAvatar'
 import { PlatformMark } from '../PlatformMark'
 
 interface PracticeIncrementTableProps {
@@ -30,7 +31,7 @@ function MemberCell({ item }: { item: PracticeIncrementMember }) {
   const { member } = item
   return (
     <Link className="member-cell" to={`/members/${member.id}`}>
-      <span className="member-avatar">{member.name.slice(-1)}</span>
+      <MemberAvatar name={member.name} avatarUrl={member.avatarUrl} />
       <span>
         <strong title={member.name}>{member.name}</strong>
         <small>{member.grade}</small>

@@ -42,7 +42,7 @@ export function PrivacyPage() {
         <p className="legal-kicker">USTS ACM Land</p>
         <h1>隐私说明</h1>
         <p>说明成员账号、公开榜单和第三方数据同步涉及的数据范围。</p>
-        <small>更新日期：2026 年 7 月 19 日</small>
+        <small>更新日期：2026 年 8 月 2 日</small>
       </header>
 
       <article className="legal-body">
@@ -58,7 +58,9 @@ export function PrivacyPage() {
         <section>
           <h2>公开范围</h2>
           <p>
-            注册后账号直接启用。姓名、年级和专业填写完整且成员保持公开状态时，已验证的平台账号、Rating、通过题数、数据更新时间，以及由成功历史快照计算的时间范围刷题增量会显示在公开页面。邮箱、QQ、密码、登录令牌、同步错误原文和后台审计详情不进入公开榜单。管理员停用成员后，其资料会从公开页面隐藏并停止同步，但现有账号和业务数据继续保留，直到恢复或永久注销。
+            注册后账号直接启用。姓名、年级和专业填写完整且成员保持公开状态时，已验证的平台账号、Rating、通过题数、数据更新时间、规范化头像，以及由成功历史快照计算的时间范围刷题增量会显示在公开页面。头像公开地址只使用成员
+            UUID，不包含
+            QQ。邮箱、QQ、密码、登录令牌、同步错误原文和后台审计详情不进入公开榜单。管理员停用成员后，其资料和头像会从公开页面隐藏并停止同步，但现有账号和业务数据继续保留，直到恢复或永久注销。
           </p>
         </section>
 
@@ -85,9 +87,11 @@ export function PrivacyPage() {
             GitHub Pages 托管静态前端，Supabase
             提供认证、数据库和服务端函数。同步时会使用成员填写的平台账号查询
             Codeforces、牛客、AtCoder、AtCoder Problems、XCPC ELO、洛谷和
-            QOJ；牛客反自动化回退查询和 QOJ 临时登录使用 Firecrawl。QOJ
-            登录会把专用服务账号和目标用户名发送给 Firecrawl，但不会发送成员邮箱、QQ
-            或本站密码。完整字段、认证方式和保留边界见
+            QOJ；牛客反自动化回退查询和 QOJ 临时登录使用 Firecrawl。成员填写或修改 QQ
+            后，只有服务端会把 QQ 号发送给腾讯 QQ
+            头像接口以获取头像；浏览器不会取得该请求地址，本站只在私有存储中保留规范化 WebP
+            头像和不可逆来源摘要。QOJ 登录会把专用服务账号和目标用户名发送给
+            Firecrawl，但不会发送成员邮箱、QQ 或本站密码。完整字段、认证方式和保留边界见
             <a
               href="https://github.com/greenthree/USTSACMLand/blob/main/docs/third-party-data-sources.md"
               target="_blank"

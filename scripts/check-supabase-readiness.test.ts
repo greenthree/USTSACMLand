@@ -2,6 +2,7 @@ import {
   evaluateSupabaseReadiness,
   expectedEdgeFunctions,
   isCaptchaProtectionProbeResponse,
+  publicAnonymousEdgeFunctions,
   requiredFunctionSecrets,
   serviceOnlyEdgeFunctions,
 } from './check-supabase-readiness.mjs'
@@ -21,7 +22,7 @@ function createReadyState() {
       slug,
       status: 'ACTIVE',
       version: 1,
-      verifyJwt: true,
+      verifyJwt: !publicAnonymousEdgeFunctions.includes(slug),
       importMap: true,
     })),
     dbLintResults: [],
@@ -48,27 +49,34 @@ function createReadyState() {
     functionBoundaryAudit: {
       allowedOrigin: 'https://ustsacm.fun',
       probes: expectedEdgeFunctions.map((functionName) =>
-        serviceOnlyEdgeFunctions.includes(functionName)
+        publicAnonymousEdgeFunctions.includes(functionName)
           ? {
               functionName,
-              allowed: { status: 405, allowOrigin: null, vary: null },
-              hostile: { status: 405, allowOrigin: null, vary: null },
-              getStatus: 405,
+              allowed: { status: 204, allowOrigin: '*', vary: null },
+              hostile: { status: 204, allowOrigin: '*', vary: null },
+              getStatus: 400,
             }
-          : {
-              functionName,
-              allowed: {
-                status: 200,
-                allowOrigin: 'https://ustsacm.fun',
-                vary: 'Origin, Access-Control-Request-Headers',
+          : serviceOnlyEdgeFunctions.includes(functionName)
+            ? {
+                functionName,
+                allowed: { status: 405, allowOrigin: null, vary: null },
+                hostile: { status: 405, allowOrigin: null, vary: null },
+                getStatus: 405,
+              }
+            : {
+                functionName,
+                allowed: {
+                  status: 200,
+                  allowOrigin: 'https://ustsacm.fun',
+                  vary: 'Origin, Access-Control-Request-Headers',
+                },
+                hostile: {
+                  status: 403,
+                  allowOrigin: null,
+                  vary: 'Origin',
+                },
+                getStatus: 401,
               },
-              hostile: {
-                status: 403,
-                allowOrigin: null,
-                vary: 'Origin',
-              },
-              getStatus: 401,
-            },
       ),
     },
     functionBoundaryAuditError: null,
@@ -114,7 +122,7 @@ describe('Supabase production readiness checker', () => {
         projectStatus: 'ACTIVE_HEALTHY',
         migrations: 1,
         pendingMigrations: 0,
-        functions: 10,
+        functions: 12,
         lintFindings: 0,
         authEmailReady: true,
         anonRestReady: true,
@@ -215,6 +223,28 @@ describe('Supabase production readiness checker', () => {
         'Edge Function sync-stats 未使用仓库 import map。',
       ]),
     )
+  })
+
+  it('requires the public avatar reader to stay anonymous with its explicit boundary', () => {
+    const state = createReadyState()
+    const avatarFunction = state.functions.find((fn) => fn.slug === 'member-avatar')
+    avatarFunction.verifyJwt = true
+    const avatarProbe = state.functionBoundaryAudit.probes.find(
+      (probe) => probe.functionName === 'member-avatar',
+    )
+    avatarProbe.hostile.allowOrigin = null
+    avatarProbe.getStatus = 200
+
+    const report = evaluateSupabaseReadiness(state)
+
+    expect(report.errors).toEqual(
+      expect.arrayContaining([
+        'Edge Function member-avatar 意外启用 JWT 验证。',
+        'Edge Function member-avatar 未保持公开头像读取边界。',
+        'Edge Function member-avatar 无参数匿名 GET 返回 HTTP 200，未体现公开头像参数边界。',
+      ]),
+    )
+    expect(report.summary.functionBoundaryReady).toBe(false)
   })
 
   it('fails when either WebChat image Edge Function is missing', () => {
@@ -338,10 +368,19 @@ describe('Supabase production readiness checker', () => {
 
   it('rejects incomplete or unsafe Edge Function CORS and method boundaries', () => {
     const state = createReadyState()
-    state.functionBoundaryAudit.probes[0].allowed.allowOrigin = '*'
-    state.functionBoundaryAudit.probes[0].allowed.vary = null
-    state.functionBoundaryAudit.probes[1].hostile.allowOrigin = 'https://attacker.example'
-    state.functionBoundaryAudit.probes[2].getStatus = 200
+    const syncMember = state.functionBoundaryAudit.probes.find(
+      (probe) => probe.functionName === 'sync-member',
+    )
+    const syncStats = state.functionBoundaryAudit.probes.find(
+      (probe) => probe.functionName === 'sync-stats',
+    )
+    const deleteAccount = state.functionBoundaryAudit.probes.find(
+      (probe) => probe.functionName === 'delete-account',
+    )
+    syncMember.allowed.allowOrigin = '*'
+    syncMember.allowed.vary = null
+    syncStats.hostile.allowOrigin = 'https://attacker.example'
+    deleteAccount.getStatus = 200
 
     const report = evaluateSupabaseReadiness(state)
 

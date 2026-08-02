@@ -14,6 +14,8 @@ const remediatedSchemaLintFunctions = new Set([
 export const expectedEdgeFunctions = [
   'sync-member',
   'sync-stats',
+  'sync-avatar',
+  'member-avatar',
   'delete-account',
   'change-password',
   'webchat',
@@ -25,8 +27,10 @@ export const expectedEdgeFunctions = [
 ]
 
 export const serviceOnlyEdgeFunctions = ['webchat-image-cleanup', 'webchat-cache-probe']
+export const publicAnonymousEdgeFunctions = ['member-avatar']
 
 const serviceOnlyEdgeFunctionSet = new Set(serviceOnlyEdgeFunctions)
+const publicAnonymousEdgeFunctionSet = new Set(publicAnonymousEdgeFunctions)
 
 export const requiredFunctionSecrets = [
   'SUPABASE_URL',
@@ -90,7 +94,17 @@ function headerContainsOrigin(value) {
 }
 
 function isFunctionBoundaryProbeReady(probe, allowedOrigin, functionName) {
-  if (!probe || ![401, 403, 405].includes(probe.getStatus)) return false
+  if (!probe) return false
+  if (publicAnonymousEdgeFunctionSet.has(functionName)) {
+    return Boolean(
+      probe.allowed.status === 204 &&
+      probe.allowed.allowOrigin === '*' &&
+      probe.hostile.status === 204 &&
+      probe.hostile.allowOrigin === '*' &&
+      probe.getStatus === 400,
+    )
+  }
+  if (![401, 403, 405].includes(probe.getStatus)) return false
   if (serviceOnlyEdgeFunctionSet.has(functionName)) {
     return Boolean(
       [401, 403, 405].includes(probe.allowed.status) &&
@@ -155,7 +169,11 @@ export function evaluateSupabaseReadiness(state, options = {}) {
       continue
     }
     if (fn.status !== 'ACTIVE') errors.push(`Edge Function ${slug} 状态为 ${fn.status}。`)
-    if (!fn.verifyJwt) errors.push(`Edge Function ${slug} 未启用 JWT 验证。`)
+    if (publicAnonymousEdgeFunctionSet.has(slug)) {
+      if (fn.verifyJwt) errors.push(`Edge Function ${slug} 意外启用 JWT 验证。`)
+    } else if (!fn.verifyJwt) {
+      errors.push(`Edge Function ${slug} 未启用 JWT 验证。`)
+    }
     if (!fn.importMap) errors.push(`Edge Function ${slug} 未使用仓库 import map。`)
   }
 
@@ -295,7 +313,16 @@ export function evaluateSupabaseReadiness(state, options = {}) {
         errors.push(`Edge Function ${functionName} 未取得 CORS 与方法边界探测结果。`)
         continue
       }
-      if (serviceOnlyEdgeFunctionSet.has(functionName)) {
+      if (publicAnonymousEdgeFunctionSet.has(functionName)) {
+        if (
+          probe.allowed.status !== 204 ||
+          probe.allowed.allowOrigin !== '*' ||
+          probe.hostile.status !== 204 ||
+          probe.hostile.allowOrigin !== '*'
+        ) {
+          errors.push(`Edge Function ${probe.functionName} 未保持公开头像读取边界。`)
+        }
+      } else if (serviceOnlyEdgeFunctionSet.has(functionName)) {
         if (
           ![401, 403, 405].includes(probe.allowed.status) ||
           probe.allowed.allowOrigin !== null ||
@@ -319,9 +346,15 @@ export function evaluateSupabaseReadiness(state, options = {}) {
           errors.push(`Edge Function ${probe.functionName} 未正确拒绝恶意 CORS Origin。`)
         }
       }
-      if (![401, 403, 405].includes(probe.getStatus)) {
+      if (
+        publicAnonymousEdgeFunctionSet.has(functionName)
+          ? probe.getStatus !== 400
+          : ![401, 403, 405].includes(probe.getStatus)
+      ) {
         errors.push(
-          `Edge Function ${probe.functionName} 匿名 GET 返回 HTTP ${probe.getStatus}，未体现认证/方法边界。`,
+          publicAnonymousEdgeFunctionSet.has(functionName)
+            ? `Edge Function ${probe.functionName} 无参数匿名 GET 返回 HTTP ${probe.getStatus}，未体现公开头像参数边界。`
+            : `Edge Function ${probe.functionName} 匿名 GET 返回 HTTP ${probe.getStatus}，未体现认证/方法边界。`,
         )
       }
     }

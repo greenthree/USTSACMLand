@@ -9,6 +9,7 @@ import {
 } from '../../lib/rankings'
 import type { Member } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
+import { MemberAvatar } from '../MemberAvatar'
 import { RankingChange } from '../RankingChange'
 import { RatingValue } from '../RatingValue'
 
@@ -81,7 +82,7 @@ export function OverallRankingTable({
                 </td>
                 <td className="member-column" data-label="成员">
                   <Link className="member-cell" to={`/members/${member.id}`}>
-                    <span className="member-avatar">{member.name.slice(-1)}</span>
+                    <MemberAvatar name={member.name} avatarUrl={member.avatarUrl} />
                     <span>
                       <strong title={member.name}>{member.name}</strong>
                       <small>{member.grade}</small>
