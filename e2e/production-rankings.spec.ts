@@ -238,13 +238,17 @@ test('production rankings match independent paginated reads of every public rank
   request,
 }) => {
   const observedViews = new Set<string>()
+  const observedReadOnlyRpcs = new Set<string>()
   const failedPublicResponses: Array<{ path: string; status: number }> = []
-  const forbiddenMethods: string[] = []
+  const forbiddenRequests: string[] = []
 
   await page.route(`${supabaseOrigin}/**`, async (route) => {
+    const url = new URL(route.request().url())
     const method = route.request().method()
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-      forbiddenMethods.push(method)
+    const isReadOnlyRatingChangeRpc =
+      method === 'POST' && url.pathname === '/rest/v1/rpc/get_public_rating_changes'
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !isReadOnlyRatingChangeRpc) {
+      forbiddenRequests.push(`${method} ${url.pathname}`)
       await route.abort()
       return
     }
@@ -252,10 +256,17 @@ test('production rankings match independent paginated reads of every public rank
   })
   page.on('response', (response) => {
     const url = new URL(response.url())
-    if (url.origin !== supabaseOrigin || !url.pathname.startsWith('/rest/v1/public_')) return
-    observedViews.add(url.pathname.slice('/rest/v1/'.length))
-    if (!response.ok())
+    if (url.origin !== supabaseOrigin) return
+    if (url.pathname.startsWith('/rest/v1/public_')) {
+      observedViews.add(url.pathname.slice('/rest/v1/'.length))
+    } else if (url.pathname === '/rest/v1/rpc/get_public_rating_changes') {
+      observedReadOnlyRpcs.add('get_public_rating_changes')
+    } else {
+      return
+    }
+    if (!response.ok()) {
       failedPublicResponses.push({ path: url.pathname, status: response.status() })
+    }
   })
 
   await page.goto('rankings')
@@ -297,7 +308,6 @@ test('production rankings match independent paginated reads of every public rank
 
   const members = buildMembers(memberRows, statRows)
   const currentBenchmarks = calculateBenchmarks(members, 'currentRating')
-  const peakBenchmarks = calculateBenchmarks(members, 'maxRating')
   expect(
     members.some(
       (member) => calculateOverallRating(member, currentBenchmarks, 'currentRating') !== null,
@@ -316,10 +326,8 @@ test('production rankings match independent paginated reads of every public rank
       members,
       (member) => calculateOverallRating(member, currentBenchmarks, 'currentRating'),
       formatDecimal,
-      (member) => calculateOverallRating(member, peakBenchmarks, 'maxRating'),
     ),
     '总 Rating',
-    '总历史最高 Rating',
   )
 
   for (const platform of ratingPlatforms) {
@@ -373,11 +381,12 @@ test('production rankings match independent paginated reads of every public rank
     )
   }
 
-  expect(forbiddenMethods, 'production audit must not issue Supabase mutations').toEqual([])
+  expect(forbiddenRequests, 'production audit must not issue Supabase mutations').toEqual([])
   expect(failedPublicResponses, 'all browser public-view requests should succeed').toEqual([])
   expect(observedViews).toEqual(
     new Set(['public_members', 'public_platform_accounts', 'public_platform_stats']),
   )
+  expect(observedReadOnlyRpcs).toEqual(new Set(['get_public_rating_changes']))
 
   const dimensions = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
