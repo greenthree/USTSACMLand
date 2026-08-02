@@ -4,19 +4,19 @@ import { platformLabels, ratingPlatforms, solvedPlatforms } from '../../lib/plat
 import { isRatingPlatform } from '../../lib/ratingTiers'
 import {
   calculateOverallRating,
-  calculateOverallPeakRating,
   calculateTotalSolved,
   type RatingBenchmarks,
 } from '../../lib/rankings'
 import type { Member } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
+import { RankingChange } from '../RankingChange'
 import { RatingValue } from '../RatingValue'
 
 interface OverallRankingTableProps {
   members: Member[]
   metric: 'rating' | 'solved'
   ratingBenchmarks: RatingBenchmarks
-  peakRatingBenchmarks: RatingBenchmarks
+  rankChanges: ReadonlyMap<string, number | null>
   rankOffset?: number
 }
 
@@ -28,7 +28,7 @@ export function OverallRankingTable({
   members,
   metric,
   ratingBenchmarks,
-  peakRatingBenchmarks,
+  rankChanges,
   rankOffset = 0,
 }: OverallRankingTableProps) {
   if (members.length === 0) {
@@ -57,8 +57,8 @@ export function OverallRankingTable({
               </th>
             ))}
             {metric === 'rating' ? (
-              <th className="number-column" title="400 × 各平台历史最高 Rating 标准化之和">
-                总历史最高 Rating
+              <th className="number-column change-column" title="与上一期总 Rating 排名相比">
+                名次变化
               </th>
             ) : null}
           </tr>
@@ -70,8 +70,6 @@ export function OverallRankingTable({
               metric === 'rating'
                 ? calculateOverallRating(member, ratingBenchmarks)
                 : calculateTotalSolved(member)
-            const peakOverallValue =
-              metric === 'rating' ? calculateOverallPeakRating(member, peakRatingBenchmarks) : null
             return (
               <tr key={member.id}>
                 <td data-label="排名">
@@ -117,11 +115,12 @@ export function OverallRankingTable({
                   )
                 })}
                 {metric === 'rating' ? (
-                  <td
-                    className="secondary-number peak-overall-column"
-                    data-label="总历史最高 Rating"
-                  >
-                    {formatDecimal(peakOverallValue)}
+                  <td className="secondary-number change-column" data-label="名次变化">
+                    <RankingChange
+                      value={rankChanges.get(member.id) ?? null}
+                      label="名次"
+                      unit="位"
+                    />
                   </td>
                 ) : null}
               </tr>

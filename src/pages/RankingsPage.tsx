@@ -20,7 +20,8 @@ import {
 } from '../lib/platforms'
 import {
   calculateOverallRating,
-  calculatePeakRatingBenchmarks,
+  calculateOverallRankChanges,
+  calculatePreviousRatingBenchmarks,
   calculateRatingBenchmarks,
   calculateTotalSolved,
 } from '../lib/rankings'
@@ -99,8 +100,8 @@ export function RankingsPage() {
   const metricPlatforms = mode === 'rating' ? ratingPlatforms : solvedPlatforms
   const incrementRankingActive = mode === 'solved' && practiceRangeMode !== 'lifetime'
   const ratingBenchmarks = useMemo(() => calculateRatingBenchmarks(sourceMembers), [sourceMembers])
-  const peakRatingBenchmarks = useMemo(
-    () => calculatePeakRatingBenchmarks(sourceMembers),
+  const previousRatingBenchmarks = useMemo(
+    () => calculatePreviousRatingBenchmarks(sourceMembers),
     [sourceMembers],
   )
 
@@ -194,6 +195,14 @@ export function RankingsPage() {
       return valueDifference === 0 ? left.name.localeCompare(right.name, 'zh-CN') : valueDifference
     })
   }, [filteredSourceMembers, mode, platform, ratingBenchmarks])
+
+  const overallRankChanges = useMemo(
+    () =>
+      mode === 'rating' && platform === 'overall'
+        ? calculateOverallRankChanges(currentMembers, ratingBenchmarks, previousRatingBenchmarks)
+        : new Map<string, number | null>(),
+    [currentMembers, mode, platform, previousRatingBenchmarks, ratingBenchmarks],
+  )
 
   const incrementMembers = useMemo(() => {
     if (!incrementRankingActive) return []
@@ -508,7 +517,7 @@ export function RankingsPage() {
               members={pagedCurrentMembers}
               metric={mode}
               ratingBenchmarks={ratingBenchmarks}
-              peakRatingBenchmarks={peakRatingBenchmarks}
+              rankChanges={overallRankChanges}
               rankOffset={rankOffset}
             />
           ) : (

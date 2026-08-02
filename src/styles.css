@@ -2343,6 +2343,11 @@ main {
     padding-left: 64px;
   }
 
+  .rating-ranking-table th.change-column,
+  .rating-ranking-table td.change-column {
+    padding-left: 24px;
+  }
+
   .overall-ranking-table,
   .overall-ranking-table thead,
   .overall-ranking-table tbody {
@@ -2359,7 +2364,7 @@ main {
     display: grid;
     grid-template-columns:
       72px 176px 188px minmax(0, 1.08fr) repeat(4, minmax(0, 1fr))
-      minmax(0, 1.2fr);
+      minmax(0, 0.86fr);
   }
 
   .overall-ranking-table th,
@@ -2627,6 +2632,36 @@ main {
 .secondary-number {
   color: var(--muted) !important;
   font-weight: 700;
+}
+
+.ranking-change {
+  min-width: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.ranking-change svg {
+  flex: 0 0 auto;
+  stroke-width: 2.4;
+}
+
+.ranking-change.is-up {
+  color: var(--green);
+}
+
+.ranking-change.is-down {
+  color: var(--red);
+}
+
+.ranking-change.is-flat,
+.ranking-change.is-unavailable {
+  color: var(--faint);
 }
 
 .rating-display {

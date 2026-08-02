@@ -6,6 +6,7 @@ import { isRatingPlatform } from '../../lib/ratingTiers'
 import type { Member, Platform } from '../../types/domain'
 import { EmptyState } from '../EmptyState'
 import { PlatformMark } from '../PlatformMark'
+import { RankingChange } from '../RankingChange'
 import { RatingValue } from '../RatingValue'
 import { StatusBadge } from '../StatusBadge'
 
@@ -39,6 +40,7 @@ export function RankingTable({ members, platform, metric, rankOffset = 0 }: Rank
             <th className="major-column">专业</th>
             <th className="account-column">{accountColumnLabel}</th>
             <th className="number-column">{metric === 'rating' ? '当前分' : '通过题数'}</th>
+            {metric === 'rating' ? <th className="number-column change-column">最近变化</th> : null}
             {metric === 'rating' ? <th className="number-column">历史最高</th> : null}
             <th className="status-column">数据状态</th>
           </tr>
@@ -98,6 +100,19 @@ export function RankingTable({ members, platform, metric, rankOffset = 0 }: Rank
                     formatInteger(current.solved)
                   )}
                 </td>
+                {metric === 'rating' ? (
+                  <td className="secondary-number change-column" data-label="最近变化">
+                    <RankingChange
+                      value={
+                        current.rating === null || current.previousRating === null
+                          ? null
+                          : current.rating - current.previousRating
+                      }
+                      label="最近一次 Rating"
+                      unit="分"
+                    />
+                  </td>
+                ) : null}
                 {metric === 'rating' ? (
                   <td className="secondary-number" data-label="历史最高">
                     {isRatingPlatform(platform) ? (
