@@ -881,9 +881,12 @@ export function LearningPage() {
             <div className="learning-community-action">
               <div className="learning-community-school">
                 <span>校内交流</span>
-                <strong>苏科大 ACM 集训队</strong>
+                <strong>USTS算法小白交流群</strong>
                 <p>在 QQ 中搜索群号加入，获取训练与校内赛信息，也可以直接交流入门问题。</p>
-                <div className="learning-community-qq" aria-label="集训队 QQ 群号 721375856">
+                <div
+                  className="learning-community-qq"
+                  aria-label="USTS算法小白交流群 QQ 群号 721375856"
+                >
                   <span>QQ 群</span>
                   <strong>721375856</strong>
                 </div>

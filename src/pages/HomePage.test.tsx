@@ -128,7 +128,9 @@ describe('HomePage', () => {
     expect(screen.getByRole('link', { name: '了解新生赛' })).toHaveAttribute('href', '/contests')
     expect(screen.getByRole('heading', { name: '练习赛' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '校赛' })).toBeInTheDocument()
-    expect(screen.getByLabelText('苏科大 ACM 集训队 QQ 群')).toHaveTextContent('QQ 群 721375856')
+    expect(screen.getByLabelText('USTS算法小白交流群')).toHaveTextContent(
+      'USTS算法小白交流群QQ 群 721375856',
+    )
     expect(screen.getByText(/每场比赛中表现优异的选手，都有机会加入集训队/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '创建成员账号' })).toHaveAttribute('href', '/register')
   }, 10_000)
