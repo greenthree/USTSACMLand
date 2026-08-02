@@ -65,6 +65,7 @@ const statRows: PublicStatRow[] = memberRows.flatMap((member, index) => [
 describe('production ranking oracle', () => {
   it('uses an independent top five for every current and peak Rating platform', () => {
     const members = buildMembers(memberRows, statRows)
+    const peakBenchmarks = calculateBenchmarks(members, 'maxRating')
 
     expect(calculateBenchmarks(members, 'currentRating')).toEqual({
       codeforces: 1800,
@@ -72,12 +73,13 @@ describe('production ranking oracle', () => {
       atcoder: 1400,
       xcpc_elo: 1650,
     })
-    expect(calculateBenchmarks(members, 'maxRating')).toEqual({
+    expect(peakBenchmarks).toEqual({
       codeforces: 1900,
       nowcoder: 1820,
       atcoder: 1450,
       xcpc_elo: 1750,
     })
+    expect(calculateOverallRating(members[5], peakBenchmarks, 'maxRating')).toBeCloseTo(1462.88, 2)
   })
 
   it('calculates, formats and sorts every aggregate without treating missing values as leaders', () => {

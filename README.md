@@ -28,7 +28,7 @@
 - 页面和后台模块按路由懒加载；登录、注册、隐私、账号和后台路由不再无条件读取公开榜单数据。
 - 未配置 Supabase 时，本地开发使用演示数据；生产构建缺少配置时认证功能失败关闭。
 
-Rating 总榜在每个 Rating 平台分别取当前分最高的 5 名成员，并计算其平均值 `X_k`。成员总 Rating 为 `400 × Σ(a_i,k / X_k)`；总历史最高 Rating 使用相同公式，但成员分数和平台前五平均值均改用历史最高 Rating。某平台不足 5 个有效 Rating 时使用全部有效数据，缺失平台贡献 0，两项总 Rating 均保留两位小数。刷题累计总榜为 CF、牛客、AtCoder、洛谷、QOJ 的已知通过题数之和，并同时展示各平台题数。刷题增量榜用区间开始前最后一次成功累计值作为基线，减去区间内最后一次成功累计值；失败同步和换绑前旧快照不参与，累计题数回退按 0 计并明确标记，缺少基线或区间内成功观测时不猜测增量。
+Rating 总榜在每个 Rating 平台分别取当前分最高的 5 名成员，并计算其平均值 `X_k`。设成员在 `m_i` 个平台拥有可计算的当前 Rating，则总 Rating 为 `1600 × (Σ(a_i,k / X_k) / m_i) × √(m_i / 4)`；平台覆盖率使用平方根进行柔性折算，四个平台齐全时与原线性公式一致，没有可计算平台时显示 `--`。某平台不足 5 个有效 Rating 时使用全部有效数据，总 Rating 保留两位小数。刷题累计总榜为 CF、牛客、AtCoder、洛谷、QOJ 的已知通过题数之和，并同时展示各平台题数。刷题增量榜用区间开始前最后一次成功累计值作为基线，减去区间内最后一次成功累计值；失败同步和换绑前旧快照不参与，累计题数回退按 0 计并明确标记，缺少基线或区间内成功观测时不猜测增量。
 
 ## 架构
 
@@ -191,7 +191,7 @@ npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.js
 npm run test:db
 ```
 
-`npm run test:e2e:production` 是部署后的只读榜单复算门禁，需要在环境中提供 `PRODUCTION_E2E_BASE_URL`、`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。它只读取公开视图，拒绝演示数据回退，并独立复算全部公开成员在总榜和各平台榜的排序、总 Rating、总历史最高 Rating 与总题数；Pages workflow 会在新版本部署完成后自动执行。
+`npm run test:e2e:production` 是部署后的只读榜单复算门禁，需要在环境中提供 `PRODUCTION_E2E_BASE_URL`、`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。它只读取公开视图和明确允许的只读 RPC，拒绝演示数据回退，并独立复算全部公开成员在总榜和各平台榜的排序、柔性平台覆盖总 Rating 与总题数；Pages workflow 会在新版本部署完成后自动执行。
 
 生产构建还会自动执行 bundle budget：入口 JS 必须不超过 500 KiB 原始体积和 160 KiB gzip，并保留首页、榜单、登录、账号、后台概览和同步中心的独立路由块。`npm run check:bundle` 可在已有 `dist` 上单独复核。
 

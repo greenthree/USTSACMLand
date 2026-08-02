@@ -90,15 +90,17 @@ export function calculateOverallRating(
   benchmarks: RatingBenchmarks,
   metric: RatingMetric,
 ): number | null {
-  if (!ratingPlatforms.some((platform) => member.stats[platform][metric] !== null)) return null
-
-  const normalizedSum = ratingPlatforms.reduce((sum, platform) => {
+  const normalizedRatings = ratingPlatforms.flatMap((platform) => {
     const value = member.stats[platform][metric]
     const benchmark = benchmarks[platform]
-    if (value === null || benchmark === null || benchmark <= 0) return sum
-    return sum + value / benchmark
-  }, 0)
-  return 400 * normalizedSum
+    return value === null || benchmark === null || benchmark <= 0 ? [] : [value / benchmark]
+  })
+  if (normalizedRatings.length === 0) return null
+
+  const normalizedAverage =
+    normalizedRatings.reduce((sum, rating) => sum + rating, 0) / normalizedRatings.length
+  const coverageFactor = Math.sqrt(normalizedRatings.length / ratingPlatforms.length)
+  return 400 * ratingPlatforms.length * normalizedAverage * coverageFactor
 }
 
 export function calculateTotalSolved(member: ProductionMember): number | null {

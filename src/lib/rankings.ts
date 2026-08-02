@@ -42,17 +42,17 @@ function calculateOverallRatingByMetric(
   benchmarks: RatingBenchmarks,
   metric: RatingMetric,
 ): number | null {
-  const hasMetric = ratingPlatforms.some((platform) => member.stats[platform][metric] !== null)
-  if (!hasMetric) return null
-
-  const normalizedSum = ratingPlatforms.reduce((sum, platform) => {
+  const normalizedRatings = ratingPlatforms.flatMap((platform) => {
     const rating = member.stats[platform][metric]
     const benchmark = benchmarks[platform]
-    if (rating === null || benchmark === null || benchmark <= 0) return sum
-    return sum + rating / benchmark
-  }, 0)
+    return rating === null || benchmark === null || benchmark <= 0 ? [] : [rating / benchmark]
+  })
+  if (normalizedRatings.length === 0) return null
 
-  return 400 * normalizedSum
+  const normalizedAverage =
+    normalizedRatings.reduce((sum, rating) => sum + rating, 0) / normalizedRatings.length
+  const coverageFactor = Math.sqrt(normalizedRatings.length / ratingPlatforms.length)
+  return 400 * ratingPlatforms.length * normalizedAverage * coverageFactor
 }
 
 export function calculateOverallRating(

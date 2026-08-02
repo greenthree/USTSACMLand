@@ -69,7 +69,8 @@
 .learning-start-result > small,
 .learning-week-summary > span,
 .learning-week-checklist > span,
-.learning-community-action > span {
+.learning-community-school > span,
+.learning-community-directory > span {
   margin: 0;
   color: var(--learning-green);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -280,7 +281,7 @@
 
 .learning-start-result > a,
 .learning-week-action,
-.learning-community-action > a {
+.learning-community-directory > a {
   display: inline-flex;
   gap: 7px;
   align-items: center;
@@ -301,7 +302,7 @@
 
 .learning-start-result > a:hover,
 .learning-week-action:hover,
-.learning-community-action > a:hover {
+.learning-community-directory > a:hover {
   color: var(--learning-green);
   background: transparent;
   transform: translateY(-1px);
@@ -1195,15 +1196,19 @@
 }
 
 .learning-community-action {
+  display: grid;
+  gap: 22px;
   padding-left: 22px;
   border-left: 1px solid var(--learning-line-strong);
 }
 
-.learning-community-action > span {
+.learning-community-school > span,
+.learning-community-directory > span {
   color: var(--learning-faint);
 }
 
-.learning-community-action > strong {
+.learning-community-school > strong,
+.learning-community-directory > strong {
   display: block;
   margin-top: 7px;
   font-family: Georgia, 'Noto Serif SC', 'Songti SC', serif;
@@ -1211,10 +1216,38 @@
   font-weight: 500;
 }
 
-.learning-community-action > p {
+.learning-community-school > p,
+.learning-community-directory > p {
   margin: 8px 0 15px;
   color: var(--learning-muted);
   line-height: 1.55;
+}
+
+.learning-community-qq {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 0;
+  border-top: 1px solid var(--learning-line);
+  border-bottom: 1px solid var(--learning-line);
+}
+
+.learning-community-qq span {
+  color: var(--learning-green);
+  font-size: var(--learning-aux-size);
+  font-weight: 800;
+}
+
+.learning-community-qq strong {
+  color: var(--learning-ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+}
+
+.learning-community-directory {
+  padding-top: 20px;
+  border-top: 1px solid var(--learning-line-strong);
 }
 
 @media (max-width: 1020px) {
