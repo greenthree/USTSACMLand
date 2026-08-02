@@ -941,12 +941,15 @@ export function HomePage() {
             <p className="home-join-lead">
               集训队每年通过三场面向不同人群的比赛选拔成员。无需提前加入，先来参加比赛，在真实题目和有限时间里展示自己的思路与潜力。
             </p>
-            <aside className="home-join-group" aria-label="苏科大 ACM 集训队 QQ 群">
+            <aside className="home-join-group" aria-label="USTS算法小白交流群">
               <MessagesSquare size={22} aria-hidden="true" />
               <div>
                 <span>校内交流入口</span>
-                <strong>QQ 群 721375856</strong>
-                <p>在 QQ 中搜索群号加入，获取训练安排与校内赛通知，也可以交流入门问题。</p>
+                <strong>USTS算法小白交流群</strong>
+                <p>
+                  QQ 群 721375856。在 QQ
+                  中搜索群号加入，获取训练安排与校内赛通知，也可以交流入门问题。
+                </p>
               </div>
             </aside>
           </div>
