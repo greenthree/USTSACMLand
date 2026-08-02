@@ -25,6 +25,7 @@ function stat(
     platform,
     externalId,
     rating,
+    previousRating: rating,
     peakRating,
     solved,
     status,

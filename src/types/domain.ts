@@ -24,6 +24,7 @@ export interface PlatformStat {
   platform: Platform
   externalId: string
   rating: number | null
+  previousRating: number | null
   peakRating: number | null
   solved: number | null
   status: SyncStatus

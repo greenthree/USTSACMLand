@@ -88,10 +88,16 @@ describe('RankingsPage', () => {
     )
     expect(screen.getByRole('tab', { name: '总榜' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('columnheader', { name: '总 Rating' })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: '总历史最高 Rating' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: '名次变化' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('columnheader', { name: '总历史最高 Rating' }),
+    ).not.toBeInTheDocument()
     const ratingLeader = screen.getByRole('row', { name: /周知行/ })
     expect(within(ratingLeader).getByText('1,752.41')).toBeInTheDocument()
-    expect(within(ratingLeader).getByText('1,771.35')).toBeInTheDocument()
+    expect(within(ratingLeader).getByLabelText('名次持平')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
+    expect(screen.getByRole('columnheader', { name: '最近变化' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '刷题榜' }))
     expect(screen.getByRole('heading', { name: '刷题榜' })).toBeInTheDocument()
@@ -128,6 +134,38 @@ describe('RankingsPage', () => {
     expect(screen.getByRole('columnheader', { name: '平台账号' })).toBeInTheDocument()
     expect(screen.getByText('MingYuanGu')).toBeInTheDocument()
   }, 10_000)
+
+  it('shows overall rank movement and latest platform Rating changes', async () => {
+    const user = userEvent.setup()
+    const members = structuredClone(mockMembers) as Member[]
+    for (const member of members) {
+      for (const stat of Object.values(member.stats)) stat.previousRating = stat.rating
+    }
+    for (const stat of Object.values(members[0].stats)) {
+      if (stat.rating !== null) stat.previousRating = 100
+    }
+    for (const stat of Object.values(members[1].stats)) {
+      if (stat.rating !== null) stat.previousRating = 3000
+    }
+
+    renderWithMembers(members)
+
+    const risingMember = screen.getByRole('row', { name: /周知行/ })
+    const fallingMember = screen.getByRole('row', { name: /顾明远/ })
+    expect(within(risingMember).getByLabelText('名次上升 5 位')).toHaveClass('is-up')
+    expect(within(fallingMember).getByLabelText('名次下降 1 位')).toHaveClass('is-down')
+
+    await user.click(screen.getByRole('tab', { name: 'Codeforces' }))
+
+    const platformRisingMember = screen.getByRole('row', { name: /周知行/ })
+    const platformFallingMember = screen.getByRole('row', { name: /顾明远/ })
+    expect(within(platformRisingMember).getByLabelText('最近一次 Rating上升 1,824 分')).toHaveClass(
+      'is-up',
+    )
+    expect(
+      within(platformFallingMember).getByLabelText('最近一次 Rating下降 1,184 分'),
+    ).toHaveClass('is-down')
+  })
 
   it('switches between cumulative, weekly, monthly and custom practice ranges', async () => {
     const user = userEvent.setup()

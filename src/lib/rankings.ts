@@ -3,7 +3,7 @@ import type { Member, RatingPlatform } from '../types/domain'
 
 export type RatingBenchmarks = Record<RatingPlatform, number | null>
 
-type RatingMetric = 'rating' | 'peakRating'
+type RatingMetric = 'rating' | 'peakRating' | 'previousRating'
 
 function calculateRatingBenchmarksByMetric(
   members: Member[],
@@ -31,6 +31,10 @@ export function calculateRatingBenchmarks(members: Member[]): RatingBenchmarks {
 
 export function calculatePeakRatingBenchmarks(members: Member[]): RatingBenchmarks {
   return calculateRatingBenchmarksByMetric(members, 'peakRating')
+}
+
+export function calculatePreviousRatingBenchmarks(members: Member[]): RatingBenchmarks {
+  return calculateRatingBenchmarksByMetric(members, 'previousRating')
 }
 
 function calculateOverallRatingByMetric(
@@ -63,6 +67,42 @@ export function calculateOverallPeakRating(
   benchmarks: RatingBenchmarks,
 ): number | null {
   return calculateOverallRatingByMetric(member, benchmarks, 'peakRating')
+}
+
+export function calculateOverallPreviousRating(
+  member: Member,
+  benchmarks: RatingBenchmarks,
+): number | null {
+  return calculateOverallRatingByMetric(member, benchmarks, 'previousRating')
+}
+
+export function calculateOverallRankChanges(
+  currentRankedMembers: Member[],
+  currentBenchmarks: RatingBenchmarks,
+  previousBenchmarks: RatingBenchmarks,
+): Map<string, number | null> {
+  const previousRankedMembers = currentRankedMembers
+    .filter((member) => calculateOverallPreviousRating(member, previousBenchmarks) !== null)
+    .sort((left, right) => {
+      const leftValue = calculateOverallPreviousRating(left, previousBenchmarks) ?? -1
+      const rightValue = calculateOverallPreviousRating(right, previousBenchmarks) ?? -1
+      const valueDifference = rightValue - leftValue
+      return valueDifference === 0 ? left.name.localeCompare(right.name, 'zh-CN') : valueDifference
+    })
+  const previousRanks = new Map(
+    previousRankedMembers.map((member, index) => [member.id, index + 1]),
+  )
+
+  return new Map(
+    currentRankedMembers.map((member, index) => {
+      const previousRank = previousRanks.get(member.id)
+      const currentValue = calculateOverallRating(member, currentBenchmarks)
+      return [
+        member.id,
+        previousRank === undefined || currentValue === null ? null : previousRank - (index + 1),
+      ]
+    }),
+  )
 }
 
 export function calculateTotalSolved(member: Member): number | null {

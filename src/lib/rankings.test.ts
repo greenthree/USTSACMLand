@@ -2,8 +2,10 @@ import { mockMembers } from '../data/mock'
 import type { Member } from '../types/domain'
 import {
   calculateOverallPeakRating,
+  calculateOverallRankChanges,
   calculateOverallRating,
   calculatePeakRatingBenchmarks,
+  calculatePreviousRatingBenchmarks,
   calculateRatingBenchmarks,
   calculateTotalSolved,
 } from './rankings'
@@ -46,6 +48,32 @@ describe('overall rankings', () => {
       xcpc_elo: 1714.6,
     })
     expect(calculateOverallPeakRating(mockMembers[0], benchmarks)).toBeCloseTo(1771.35, 2)
+  })
+
+  it('compares the current overall order with the previous-snapshot order', () => {
+    const members = structuredClone(mockMembers) as Member[]
+    for (const member of members) {
+      for (const stat of Object.values(member.stats)) stat.previousRating = stat.rating
+    }
+    for (const stat of Object.values(members[0].stats)) {
+      if (stat.rating !== null) stat.previousRating = 100
+    }
+    for (const stat of Object.values(members[1].stats)) {
+      if (stat.rating !== null) stat.previousRating = 3000
+    }
+
+    const currentBenchmarks = calculateRatingBenchmarks(members)
+    const previousBenchmarks = calculatePreviousRatingBenchmarks(members)
+    const currentOrder = [...members].sort((left, right) => {
+      const difference =
+        (calculateOverallRating(right, currentBenchmarks) ?? -1) -
+        (calculateOverallRating(left, currentBenchmarks) ?? -1)
+      return difference === 0 ? left.name.localeCompare(right.name, 'zh-CN') : difference
+    })
+    const changes = calculateOverallRankChanges(currentOrder, currentBenchmarks, previousBenchmarks)
+
+    expect(changes.get(members[0].id)).toBe(5)
+    expect(changes.get(members[1].id)).toBe(-1)
   })
 
   it('sums solved counts across the five supported platforms', () => {

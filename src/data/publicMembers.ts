@@ -28,6 +28,13 @@ interface PublicStatRow {
   last_success_at: string | null
 }
 
+interface PublicRatingChangeRow {
+  profile_id: string
+  platform: Platform
+  current_rating: number | null
+  previous_rating: number | null
+}
+
 const publicViewPageSize = 500
 
 function requirePublicMemberRows(
@@ -99,11 +106,33 @@ function requirePublicStatRows(
   })
 }
 
+function requirePublicRatingChangeRows(
+  rows: Array<{
+    profile_id: string | null
+    platform: Platform | null
+    current_rating: number | null
+    previous_rating: number | null
+  }>,
+): PublicRatingChangeRow[] {
+  return rows.map((row) => {
+    if (!row.profile_id || !row.platform) {
+      throw new Error('公开 Rating 变化接口返回了不完整记录')
+    }
+    return {
+      profile_id: row.profile_id,
+      platform: row.platform,
+      current_rating: row.current_rating,
+      previous_rating: row.previous_rating,
+    }
+  })
+}
+
 function emptyStat(platform: Platform): PlatformStat {
   return {
     platform,
     externalId: '',
     rating: null,
+    previousRating: null,
     peakRating: null,
     solved: null,
     status: 'missing',
@@ -114,7 +143,7 @@ function emptyStat(platform: Platform): PlatformStat {
 export async function loadPublicMembersFromClient(
   client: SupabaseClient<Database>,
 ): Promise<Member[]> {
-  const [memberRows, accountRows, statRows] = await Promise.all([
+  const [memberRows, accountRows, statRows, ratingChangeResult] = await Promise.all([
     collectCursorPages<PublicMemberRow>(
       async (cursor) => {
         let query = client
@@ -170,7 +199,11 @@ export async function loadPublicMembersFromClient(
       (row) => `${row.profile_id}:${row.platform}`,
       publicViewPageSize,
     ),
+    client.rpc('get_public_rating_changes'),
   ])
+
+  if (ratingChangeResult.error) throw new Error(ratingChangeResult.error.message)
+  const ratingChangeRows = requirePublicRatingChangeRows(ratingChangeResult.data ?? [])
 
   const accountsByMember = new Map<string, PublicAccountRow[]>()
   for (const account of accountRows) {
@@ -186,6 +219,13 @@ export async function loadPublicMembersFromClient(
     statsByMember.set(stat.profile_id, rows)
   }
 
+  const ratingChangesByMember = new Map<string, Map<Platform, PublicRatingChangeRow>>()
+  for (const change of ratingChangeRows) {
+    const rows = ratingChangesByMember.get(change.profile_id) ?? new Map()
+    rows.set(change.platform, change)
+    ratingChangesByMember.set(change.profile_id, rows)
+  }
+
   return memberRows.map((profile) => {
     const stats = Object.fromEntries(
       platforms.map((platform) => [platform, emptyStat(platform)]),
@@ -198,6 +238,8 @@ export async function loadPublicMembersFromClient(
       stats[item.platform] = {
         ...stats[item.platform],
         rating: item.current_rating,
+        previousRating:
+          ratingChangesByMember.get(profile.id)?.get(item.platform)?.previous_rating ?? null,
         peakRating: item.max_rating,
         solved: item.solved_count,
         status: mapPublicStatStatus(item.status, item.platform, item.last_success_at),

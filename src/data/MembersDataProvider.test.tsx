@@ -25,6 +25,14 @@ const statRows = memberRows.map((member, index) => ({
   status: 'fresh' as const,
   last_success_at: '2099-07-15T00:00:00Z',
 }))
+const ratingChangeRows = memberRows.map((member, index) => ({
+  profile_id: member.id,
+  platform: 'codeforces' as const,
+  current_rating: 1200 + index,
+  previous_rating: 1100 + index,
+  current_recorded_at: '2099-07-15T00:00:00Z',
+  previous_recorded_at: '2099-07-14T00:00:00Z',
+}))
 
 interface QueryLog {
   view: string
@@ -81,11 +89,22 @@ function createFakeClient(errorView?: string) {
     return builder
   }
 
-  return { client: { from }, logs }
+  function rpc(functionName: string) {
+    if (functionName !== 'get_public_rating_changes') {
+      return Promise.resolve({ data: null, error: { message: '未知 RPC' } })
+    }
+    return Promise.resolve(
+      errorView === functionName
+        ? { data: null, error: { message: 'Rating 变化读取失败' } }
+        : { data: ratingChangeRows, error: null },
+    )
+  }
+
+  return { client: { from, rpc }, logs }
 }
 
 describe('loadPublicMembersFromClient', () => {
-  it('loads and merges every ordered cursor page from all three public views', async () => {
+  it('loads and merges every ordered cursor page with the previous Rating snapshot', async () => {
     const { client, logs } = createFakeClient()
 
     const members = await loadPublicMembersFromClient(
@@ -100,6 +119,7 @@ describe('loadPublicMembersFromClient', () => {
         codeforces: {
           externalId: 'handle-member-0501',
           rating: 1700,
+          previousRating: 1600,
           peakRating: 1800,
           solved: 600,
         },
@@ -119,5 +139,15 @@ describe('loadPublicMembersFromClient', () => {
         client as unknown as Parameters<typeof loadPublicMembersFromClient>[0],
       ),
     ).rejects.toThrow('第二页读取失败')
+  })
+
+  it('rejects the public read when the bounded Rating change RPC fails', async () => {
+    const { client } = createFakeClient('get_public_rating_changes')
+
+    await expect(
+      loadPublicMembersFromClient(
+        client as unknown as Parameters<typeof loadPublicMembersFromClient>[0],
+      ),
+    ).rejects.toThrow('Rating 变化读取失败')
   })
 })

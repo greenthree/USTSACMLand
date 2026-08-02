@@ -2103,6 +2103,17 @@ export type Database = {
           solved_delta: number
         }[]
       }
+      get_public_rating_changes: {
+        Args: never
+        Returns: {
+          current_rating: number | null
+          current_recorded_at: string | null
+          platform: Database['public']['Enums']['platform_name']
+          previous_rating: number | null
+          previous_recorded_at: string | null
+          profile_id: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_trusted_profile_management_actor: {
         Args: { actor_auth_role: string; actor_session_user: unknown }
