@@ -8,13 +8,22 @@ import Laptop from 'lucide-react/dist/esm/icons/laptop'
 import ListOrdered from 'lucide-react/dist/esm/icons/list-ordered'
 import Monitor from 'lucide-react/dist/esm/icons/monitor'
 import MoveHorizontal from 'lucide-react/dist/esm/icons/move-horizontal'
+import Pause from 'lucide-react/dist/esm/icons/pause'
+import Play from 'lucide-react/dist/esm/icons/play'
 import Snowflake from 'lucide-react/dist/esm/icons/snowflake'
 import Timer from 'lucide-react/dist/esm/icons/timer'
 import Trophy from 'lucide-react/dist/esm/icons/trophy'
 import UserRound from 'lucide-react/dist/esm/icons/user-round'
 import UsersRound from 'lucide-react/dist/esm/icons/users-round'
 import Wifi from 'lucide-react/dist/esm/icons/wifi'
-import { useRef, useState, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { Link } from 'react-router-dom'
 import './freshman-contest.css'
 
@@ -91,6 +100,172 @@ const schoolTimeline = [
   { time: '05:00', title: '比赛结束', detail: '停止提交，裁判确认所有有效评测结果。' },
   { time: '赛后', title: '滚榜揭晓', detail: '从封榜前名次开始逐队揭晓，形成最终排名。' },
 ]
+
+type RollboardProblemState = 'ac' | 'wa' | 'pending' | 'empty'
+type RollboardRevealResult = Extract<RollboardProblemState, 'ac' | 'wa'>
+
+interface RollboardProblem {
+  label: string
+  state: RollboardProblemState
+  attempts?: number
+  submissionTime?: number
+  reveal?: RollboardRevealResult
+  penalty?: number
+}
+
+interface RollboardTeam {
+  id: string
+  team: string
+  solved: number
+  penalty: number
+  seed: number
+  problems: RollboardProblem[]
+}
+
+type RollboardProblemInput = Omit<RollboardProblem, 'label'>
+
+function createSchoolRollboardProblems(
+  teamSeed: number,
+  problemG: RollboardProblemInput,
+  problemK: RollboardProblemInput,
+): RollboardProblem[] {
+  const timeOffset = teamSeed * 3
+
+  // The original four demo problems occupy A, C, G and K after inserting eight new columns.
+  return [
+    { label: 'A', state: 'ac', attempts: 1, submissionTime: 18 + timeOffset },
+    { label: 'B', state: 'ac', attempts: 1, submissionTime: 36 + timeOffset },
+    { label: 'C', state: 'ac', attempts: 2, submissionTime: 62 + timeOffset },
+    { label: 'D', state: 'ac', attempts: 1, submissionTime: 89 + timeOffset },
+    { label: 'E', state: 'empty' },
+    { label: 'F', state: 'ac', attempts: 3, submissionTime: 126 + timeOffset },
+    { label: 'G', ...problemG },
+    { label: 'H', state: 'ac', attempts: 1, submissionTime: 169 + timeOffset },
+    { label: 'I', state: 'ac', attempts: 2, submissionTime: 203 + timeOffset },
+    { label: 'J', state: 'empty' },
+    { label: 'K', ...problemK },
+    { label: 'L', state: 'ac', attempts: 1, submissionTime: 246 + timeOffset },
+  ]
+}
+
+const schoolRollboardTeams: RollboardTeam[] = [
+  {
+    id: 'compass',
+    team: 'CF皇帝',
+    solved: 10,
+    penalty: 358,
+    seed: 1,
+    problems: createSchoolRollboardProblems(
+      1,
+      { state: 'ac', attempts: 2, submissionTime: 144 },
+      { state: 'ac', attempts: 1, submissionTime: 218 },
+    ),
+  },
+  {
+    id: 'recursion',
+    team: '零基础新生0队',
+    solved: 9,
+    penalty: 421,
+    seed: 2,
+    problems: createSchoolRollboardProblems(
+      2,
+      { state: 'ac', attempts: 2, submissionTime: 152 },
+      { state: 'pending', attempts: 2, submissionTime: 110, reveal: 'ac', penalty: 130 },
+    ),
+  },
+  {
+    id: 'last-page',
+    team: '春日影',
+    solved: 9,
+    penalty: 465,
+    seed: 3,
+    problems: createSchoolRollboardProblems(
+      3,
+      { state: 'ac', attempts: 1, submissionTime: 158 },
+      { state: 'pending', attempts: 1, submissionTime: 120, reveal: 'ac', penalty: 120 },
+    ),
+  },
+  {
+    id: 'one-shot',
+    team: '一路向南',
+    solved: 8,
+    penalty: 330,
+    seed: 4,
+    problems: createSchoolRollboardProblems(
+      4,
+      { state: 'pending', attempts: 1, submissionTime: 80, reveal: 'ac', penalty: 80 },
+      { state: 'pending', attempts: 3, submissionTime: 252, reveal: 'wa' },
+    ),
+  },
+  {
+    id: 'boundary',
+    team: '航电一队',
+    solved: 8,
+    penalty: 380,
+    seed: 5,
+    problems: createSchoolRollboardProblems(
+      5,
+      { state: 'pending', attempts: 2, submissionTime: 244, reveal: 'wa' },
+      { state: 'pending', attempts: 3, submissionTime: 130, reveal: 'ac', penalty: 170 },
+    ),
+  },
+]
+
+function cloneSchoolRollboardTeams(): RollboardTeam[] {
+  return schoolRollboardTeams.map((team) => ({
+    ...team,
+    problems: team.problems.map((problem) => ({ ...problem })),
+  }))
+}
+
+function rankSchoolRollboardTeams(teams: RollboardTeam[]) {
+  return [...teams].sort(
+    (left, right) =>
+      right.solved - left.solved || left.penalty - right.penalty || left.seed - right.seed,
+  )
+}
+
+function revealSchoolRollboardProblem(team: RollboardTeam, problemLabel: string): RollboardTeam {
+  const problem = team.problems.find((item) => item.label === problemLabel)
+  if (!problem?.reveal) return team
+  const reveal = problem.reveal
+
+  return {
+    ...team,
+    solved: team.solved + (reveal === 'ac' ? 1 : 0),
+    penalty: team.penalty + (reveal === 'ac' ? (problem.penalty ?? 0) : 0),
+    problems: team.problems.map((item) =>
+      item.label === problemLabel ? { ...item, state: reveal } : item,
+    ),
+  }
+}
+
+function completedSchoolRollboardTeams(): RollboardTeam[] {
+  return cloneSchoolRollboardTeams().map((team) =>
+    team.problems.reduce(
+      (current, problem) =>
+        problem.state === 'pending'
+          ? revealSchoolRollboardProblem(current, problem.label)
+          : current,
+      team,
+    ),
+  )
+}
+
+function formatRollboardSubmission(problem: RollboardProblem) {
+  if (problem.state === 'empty') return '-'
+
+  return `${Math.max(1, problem.attempts ?? 1)}/${problem.submissionTime ?? 0}`
+}
+
+function describeRollboardSubmission(problem: RollboardProblem) {
+  if (problem.state === 'empty') return `${problem.label} 题无提交`
+
+  const submission = `第 ${Math.max(1, problem.attempts ?? 1)} 次提交，开赛后第 ${problem.submissionTime ?? 0} 分钟`
+  return problem.state === 'ac'
+    ? `${problem.label} 题首次 AC：${submission}`
+    : `${problem.label} 题最后一次提交：${submission}`
+}
 
 const contestLogoUrl = `${import.meta.env.BASE_URL}ustsacm.png`
 
@@ -552,6 +727,7 @@ interface ContestTimelineProps {
   noteLabel?: string
   noteIcon?: 'freeze' | 'ladder'
   title?: string
+  children?: ReactNode
 }
 
 function ContestTimeline({
@@ -562,6 +738,7 @@ function ContestTimeline({
   noteLabel = '最后一小时封榜',
   noteIcon = 'freeze',
   title = '从开场到最终榜',
+  children,
 }: ContestTimelineProps) {
   const NoteIcon = noteIcon === 'ladder' ? ListOrdered : Snowflake
 
@@ -599,6 +776,165 @@ function ContestTimeline({
           <h3>{freezeTitle}</h3>
         </div>
         <p>{freezeDetail}</p>
+      </div>
+
+      {children}
+    </section>
+  )
+}
+
+function SchoolRollboard() {
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
+  const [teams, setTeams] = useState(() =>
+    reduceMotion ? completedSchoolRollboardTeams() : cloneSchoolRollboardTeams(),
+  )
+  const [paused, setPaused] = useState(false)
+  const [risingReveal, setRisingReveal] = useState<{
+    teamId: string
+    problemLabel: string
+  }>()
+  const toggleLabel = paused ? '继续滚榜动画' : '暂停滚榜动画'
+  const rankedTeams = rankSchoolRollboardTeams(teams)
+  const currentTeam = [...rankedTeams]
+    .reverse()
+    .find((team) => team.problems.some((problem) => problem.state === 'pending'))
+  const currentProblem = currentTeam?.problems.find((problem) => problem.state === 'pending')
+  const currentTeamId = currentTeam?.id
+  const currentProblemLabel = currentProblem?.label
+  const risingTeamId = risingReveal?.teamId
+  const risingTeam = risingTeamId ? teams.find((team) => team.id === risingTeamId) : undefined
+  const highlightedTeamId = risingTeamId ?? currentTeamId
+
+  useEffect(() => {
+    if (paused || reduceMotion || risingReveal) return undefined
+
+    const timer = window.setTimeout(
+      () => {
+        if (!currentTeamId || !currentProblemLabel) {
+          setRisingReveal(undefined)
+          setTeams(cloneSchoolRollboardTeams())
+          return
+        }
+
+        if (currentProblem?.reveal === 'ac') {
+          setRisingReveal({ teamId: currentTeamId, problemLabel: currentProblemLabel })
+        }
+
+        setTeams((current) =>
+          current.map((team) =>
+            team.id === currentTeamId
+              ? revealSchoolRollboardProblem(team, currentProblemLabel)
+              : team,
+          ),
+        )
+      },
+      currentTeamId ? 1350 : 2600,
+    )
+
+    return () => window.clearTimeout(timer)
+  }, [
+    currentProblem?.reveal,
+    currentProblemLabel,
+    currentTeamId,
+    paused,
+    reduceMotion,
+    risingReveal,
+  ])
+
+  useEffect(() => {
+    if (!risingReveal) return undefined
+
+    const timer = window.setTimeout(() => setRisingReveal(undefined), 1100)
+    return () => window.clearTimeout(timer)
+  }, [risingReveal])
+
+  return (
+    <section className={`school-rollboard${paused ? ' is-paused' : ''}`} aria-label="滚榜动画演示">
+      <header className="school-rollboard-intro">
+        <div>
+          <p>ROLLING / SIMULATION 01</p>
+          <h3>从最后一支待揭晓队伍开始</h3>
+          <span>
+            队伍按名次由下向上，题目按 A–L
+            从左到右揭晓；题格显示提交次数/提交时间（分钟），绿色记录首次
+            AC，红色与蓝色记录最后一次提交。
+          </span>
+        </div>
+        <button type="button" onClick={() => setPaused((current) => !current)} title={toggleLabel}>
+          {paused ? <Play size={16} aria-hidden="true" /> : <Pause size={16} aria-hidden="true" />}
+          <span>{paused ? '继续' : '暂停'}</span>
+          <span className="sr-only">滚榜动画</span>
+        </button>
+      </header>
+
+      <div
+        className="school-rollboard-frame"
+        role="img"
+        aria-label="模拟真实滚榜：从最低名次的待揭晓队伍开始，题格显示提交次数和提交时间，并在揭晓通过后重新排名"
+      >
+        <div className="school-rollboard-columns" aria-hidden="true">
+          <span>名次</span>
+          <span>队伍</span>
+          {schoolRollboardTeams[0].problems.map((problem) => (
+            <span key={problem.label} className="school-rollboard-problem-head">
+              {problem.label}
+            </span>
+          ))}
+          <span>AC</span>
+          <span className="school-rollboard-penalty">罚时</span>
+        </div>
+        <ol aria-hidden="true">
+          {teams.map((team) => {
+            const rank = rankedTeams.findIndex((rankedTeam) => rankedTeam.id === team.id)
+            const rowStyle = { '--rollboard-rank': rank } as CSSProperties
+
+            return (
+              <li
+                key={team.id}
+                className={`school-rollboard-row${team.id === highlightedTeamId ? ' is-current' : ''}${team.id === risingTeamId ? ' is-rising' : ''}`}
+                data-rollboard-team={team.id}
+                style={rowStyle}
+              >
+                <span className="school-rollboard-rank">{String(rank + 1).padStart(2, '0')}</span>
+                <strong>{team.team}</strong>
+                {team.problems.map((problem) => {
+                  const active =
+                    !risingReveal &&
+                    team.id === currentTeamId &&
+                    problem.label === currentProblemLabel
+
+                  return (
+                    <span
+                      key={problem.label}
+                      className={`school-rollboard-problem is-${problem.state}${active ? ' is-active' : ''}`}
+                      data-rollboard-problem={problem.label}
+                      title={describeRollboardSubmission(problem)}
+                    >
+                      {formatRollboardSubmission(problem)}
+                    </span>
+                  )
+                })}
+                <span className="school-rollboard-solved">
+                  {String(team.solved).padStart(2, '0')}
+                </span>
+                <span className="school-rollboard-penalty">{team.penalty}</span>
+              </li>
+            )
+          })}
+        </ol>
+        <footer aria-hidden="true">
+          <span className="school-rollboard-live-dot" />
+          从最低未揭晓队伍开始，逐题确认封榜提交
+          <span>
+            {risingReveal && risingTeam
+              ? `RISING / ${risingTeam.team} / ${risingReveal.problemLabel}`
+              : currentTeam && currentProblem
+                ? `CURRENT / ${currentTeam.team} / ${currentProblem.label}`
+                : 'FINAL / COMPLETE'}
+          </span>
+        </footer>
       </div>
     </section>
   )
@@ -908,7 +1244,9 @@ function SchoolContestDetails() {
         lead="赛程按传统五小时 ACM 模式展示，具体开赛时间、题量和现场安排以赛前通知为准。"
         freezeTitle="看不见结果，也要继续做出自己的判断。"
         freezeDetail="封榜后仍可正常提交并查看本队评测结果，但其他队伍的新结果不会公开。比赛结束后通过滚榜逐步揭晓封榜期间的提交，最终确定名次。"
-      />
+      >
+        <SchoolRollboard />
+      </ContestTimeline>
 
       <section
         id="contest-ready"
