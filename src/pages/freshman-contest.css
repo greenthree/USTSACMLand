@@ -1,15 +1,18 @@
 .freshman-contest-page {
-  --contest-paper: #f5f7f4;
-  --contest-paper-alt: #edf1ed;
-  --contest-ink: #17211b;
-  --contest-muted: #59655e;
-  --contest-line: #cbd4ce;
-  --contest-dark: #0b1912;
-  --contest-green: #16794b;
-  --contest-green-dark: #0f5b37;
-  --contest-accent: #b7dc3d;
+  --contest-paper: var(--surface-muted);
+  --contest-paper-alt: #eef2f0;
+  --contest-ink: var(--ink);
+  --contest-muted: var(--muted);
+  --contest-line: var(--line-strong);
+  --contest-dark: var(--nav);
+  --contest-green: var(--green);
+  --contest-green-dark: var(--green-dark);
+  --contest-accent: var(--nav-accent);
   --contest-gold: #f1b934;
+  --contest-practice-accent: #b7dc3d;
+  --contest-school-accent: #d8a62d;
   --contest-red: #ca3e31;
+  --contest-hero-height: var(--site-hero-height);
   min-height: 100vh;
   color: var(--contest-ink);
   background: var(--contest-paper);
@@ -22,17 +25,18 @@
 
 .freshman-contest-hero {
   position: relative;
-  min-height: 720px;
+  min-height: var(--contest-hero-height);
   overflow: hidden;
-  color: #fff;
+  color: #f4f7f5;
   background: var(--contest-dark);
   border-bottom: 3px solid var(--contest-accent);
+  isolation: isolate;
   touch-action: pan-y;
 }
 
 .campus-contest-hero-track {
   display: flex;
-  min-height: 720px;
+  min-height: var(--contest-hero-height);
   transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
@@ -40,7 +44,7 @@
 .campus-contest-slide {
   position: relative;
   min-width: 100%;
-  min-height: 720px;
+  min-height: var(--contest-hero-height);
   flex: 0 0 100%;
   overflow: hidden;
   background: var(--contest-dark);
@@ -63,54 +67,75 @@
   pointer-events: none;
 }
 
+.campus-contest-slide::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0 max(32px, calc((100% - 1320px) / 2));
+  border-right: 1px solid rgb(244 247 245 / 8%);
+  border-left: 1px solid rgb(244 247 245 / 8%);
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(33.333% - 1px),
+      rgb(244 247 245 / 7%) calc(33.333% - 1px),
+      rgb(244 247 245 / 7%) 33.333%,
+      transparent 33.333%
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(66.666% - 1px),
+      rgb(244 247 245 / 7%) calc(66.666% - 1px),
+      rgb(244 247 245 / 7%) 66.666%,
+      transparent 66.666%
+    );
+  pointer-events: none;
+}
+
 .campus-contest-slide--practice {
-  background: #14231c;
+  background: var(--contest-dark);
 }
 
 .campus-contest-slide--practice::before {
   content: '15';
-  color: rgb(214 233 143 / 5%);
-}
-
-.campus-contest-slide--practice::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 12%;
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(transparent, rgb(214 233 143 / 22%), transparent);
-  pointer-events: none;
+  color: rgb(183 220 61 / 5%);
 }
 
 .campus-contest-slide--school {
-  background: #111b17;
+  background: var(--contest-dark);
 }
 
 .campus-contest-slide--school::before {
   content: '05';
-  color: rgb(241 185 52 / 5%);
+  color: rgb(183 220 61 / 5%);
 }
 
-.campus-contest-slide--school::after {
-  content: '';
+.campus-contest-hero-corner {
   position: absolute;
-  inset: 34px;
-  border: 1px solid rgb(241 185 52 / 12%);
+  z-index: 5;
+  top: 28px;
+  right: max(32px, calc((100% - 1320px) / 2));
+  left: max(32px, calc((100% - 1320px) / 2));
+  display: flex;
+  justify-content: space-between;
+  color: #7f877f;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1;
   pointer-events: none;
 }
 
 .freshman-contest-hero-inner {
   position: relative;
   z-index: 1;
-  width: min(1240px, calc(100% - 64px));
-  min-height: 720px;
+  width: min(1320px, calc(100% - 64px));
+  min-height: var(--contest-hero-height);
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(390px, 0.82fr);
+  grid-template-columns: minmax(0, 1.12fr) minmax(400px, 0.7fr);
   align-items: center;
-  gap: 88px;
+  gap: clamp(48px, 7vw, 112px);
   margin: 0 auto;
-  padding: 70px 0 154px;
+  padding: 58px 0 138px;
 }
 
 .freshman-contest-hero-copy {
@@ -150,10 +175,10 @@
 .campus-contest-picker-wrap {
   position: absolute;
   right: 0;
-  bottom: 26px;
+  bottom: 24px;
   left: 0;
   z-index: 4;
-  width: min(960px, calc(100% - 64px));
+  width: min(1320px, calc(100% - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -164,30 +189,32 @@
 .campus-contest-picker {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 5px;
-  background: rgb(4 13 8 / 82%);
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 6px;
-  box-shadow: 0 14px 34px rgb(0 0 0 / 20%);
-  backdrop-filter: blur(14px);
+  padding: 0;
+  background: rgb(11 25 18 / 92%);
+  border-top: 1px solid rgb(244 247 245 / 18%);
+  border-bottom: 1px solid rgb(244 247 245 / 18%);
 }
 
 .campus-contest-picker button {
-  min-height: 58px;
+  min-height: 64px;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 10px;
-  padding: 8px 14px;
+  padding: 9px 16px;
   color: #93a198;
   background: transparent;
   border: 0;
-  border-radius: 3px;
+  border-right: 1px solid rgb(244 247 245 / 12%);
   text-align: left;
   transition:
     color 160ms ease,
     background 160ms ease;
+}
+
+.campus-contest-picker button:last-child {
+  border-right: 0;
 }
 
 .campus-contest-picker button:hover {
@@ -202,12 +229,12 @@
 
 .is-practice .campus-contest-picker button[aria-selected='true'] {
   color: var(--contest-dark);
-  background: #d6e98f;
+  background: var(--contest-practice-accent);
 }
 
 .is-school .campus-contest-picker button[aria-selected='true'] {
   color: var(--contest-dark);
-  background: var(--contest-gold);
+  background: var(--contest-school-accent);
 }
 
 .campus-contest-picker button > span {
@@ -287,13 +314,13 @@
 
 .freshman-contest-primary-action {
   color: #17211b;
-  background: var(--contest-gold);
-  border-color: var(--contest-gold);
+  background: var(--contest-accent);
+  border-color: var(--contest-accent);
 }
 
 .freshman-contest-primary-action:hover {
-  background: #ffd35e;
-  border-color: #ffd35e;
+  background: #c9ed50;
+  border-color: #c9ed50;
 }
 
 .freshman-contest-secondary-action {
@@ -310,31 +337,31 @@
 .freshman-contest-scoreboard {
   min-width: 0;
   padding: 26px;
-  background: #10261a;
+  background: #102119;
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 6px;
-  box-shadow: 18px 18px 0 rgb(183 220 61 / 10%);
+  box-shadow: 18px 18px 0 rgb(22 121 75 / 18%);
   animation: freshman-contest-rise 560ms 120ms ease-out both;
 }
 
 .campus-contest-school-scoreboard {
-  background: #19231f;
-  border-color: rgb(241 185 52 / 28%);
-  box-shadow: 18px 18px 0 rgb(241 185 52 / 10%);
+  background: #102119;
+  border-color: rgb(255 255 255 / 20%);
+  box-shadow: 18px 18px 0 rgb(22 121 75 / 18%);
 }
 
 .campus-contest-practice-scoreboard {
-  background: #192b22;
-  border-color: rgb(214 233 143 / 28%);
-  box-shadow: 18px 18px 0 rgb(214 233 143 / 10%);
+  background: #102119;
+  border-color: rgb(255 255 255 / 20%);
+  box-shadow: 18px 18px 0 rgb(22 121 75 / 18%);
 }
 
 .campus-contest-practice-scoreboard .freshman-contest-problem-strip {
-  border-top-color: #d6e98f;
+  border-top-color: var(--contest-accent);
 }
 
 .campus-contest-ladder-strip strong {
-  color: #d6e98f;
+  color: var(--contest-accent);
 }
 
 .campus-contest-school-scoreboard .freshman-contest-problem-strip {
@@ -342,7 +369,7 @@
 }
 
 .campus-contest-acm-strip strong {
-  color: var(--contest-gold);
+  color: var(--contest-accent);
   font-size: 24px;
 }
 
@@ -386,14 +413,14 @@
   padding: 6px 9px;
   color: #dbe5de;
   border: 1px solid rgb(255 255 255 / 18%);
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 11px;
 }
 
 .freshman-contest-problem-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 3px solid var(--contest-gold);
+  border-top: 3px solid var(--contest-accent);
 }
 
 .freshman-contest-problem-strip > div {
@@ -1622,6 +1649,16 @@
 }
 
 @media (max-width: 820px) {
+  .campus-contest-hero-corner {
+    top: 18px;
+    right: 28px;
+    left: 28px;
+  }
+
+  .campus-contest-hero-corner span:last-child {
+    display: none;
+  }
+
   .freshman-contest-hero-inner {
     grid-template-columns: 1fr;
     min-height: 0;
@@ -1770,6 +1807,14 @@
 }
 
 @media (max-width: 560px) {
+  .campus-contest-hero-corner {
+    display: none;
+  }
+
+  .campus-contest-slide::after {
+    inset: 0 20px;
+  }
+
   .freshman-contest-hero-inner {
     width: min(100% - 40px, 1240px);
     gap: 46px;

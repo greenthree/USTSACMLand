@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Link } from 'react-router-dom'
+import { VerdictTicker } from '../components/VerdictTicker'
 import './freshman-contest.css'
 
 type ContestKind = 'freshman' | 'practice' | 'school'
@@ -379,13 +380,15 @@ function PracticeHero({ active }: ContestHeroProps) {
               查看天梯赛模拟赛制
               <ArrowRight size={17} aria-hidden="true" />
             </a>
-            <Link
+            <a
               className="freshman-contest-secondary-action"
-              to="/learning"
+              href="https://usts.fun/training/20"
+              target="_blank"
+              rel="noreferrer"
               tabIndex={active ? undefined : -1}
             >
-              开始个人训练
-            </Link>
+              往届题目入口
+            </a>
           </div>
         </div>
 
@@ -461,13 +464,15 @@ function SchoolHero({ active }: ContestHeroProps) {
               查看传统 ACM 赛制
               <ArrowRight size={17} aria-hidden="true" />
             </a>
-            <Link
+            <a
               className="freshman-contest-secondary-action"
-              to="/learning"
+              href="https://usts.fun/training/21"
+              target="_blank"
+              rel="noreferrer"
               tabIndex={active ? undefined : -1}
             >
-              开始组队训练
-            </Link>
+              往届题目入口
+            </a>
           </div>
         </div>
 
@@ -1325,14 +1330,14 @@ export function FreshmanContestPage() {
     const distance = event.clientX - pointerStartX.current
     pointerStartX.current = null
     if (Math.abs(distance) < 48) return
-    setActiveContest((current) => moveContest(current, distance > 0 ? 1 : -1))
+    setActiveContest((current) => moveContest(current, distance < 0 ? 1 : -1))
   }
 
   const mobileSwipeHint = freshmanActive
-    ? '右划查看练习赛'
+    ? '左划查看练习赛'
     : practiceActive
-      ? '继续右划查看校赛'
-      : '左划返回练习赛'
+      ? '继续左划查看校赛'
+      : '右划返回练习赛'
 
   return (
     <div className={`freshman-contest-page is-${activeContest}`}>
@@ -1345,6 +1350,10 @@ export function FreshmanContestPage() {
           pointerStartX.current = null
         }}
       >
+        <div className="campus-contest-hero-corner" aria-hidden="true">
+          <span>USTS ACM / CAMPUS CONTESTS</span>
+          <span>DEC · MAR · APR / 03 EVENTS</span>
+        </div>
         <p className="campus-contest-mobile-swipe-hint">
           <MoveHorizontal size={15} aria-hidden="true" />
           {mobileSwipeHint}
@@ -1403,6 +1412,8 @@ export function FreshmanContestPage() {
           </p>
         </div>
       </section>
+
+      <VerdictTicker />
 
       <nav className="freshman-contest-jump-nav" aria-label="校内赛事页面导航">
         <a href="#contest-format">

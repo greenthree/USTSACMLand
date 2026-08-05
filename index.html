@@ -13,7 +13,7 @@
     <link rel="canonical" href="https://ustsacm.fun/" />
     <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%favicon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="%BASE_URL%favicon-192.png" />
-    <link rel="preload" as="image" href="%BASE_URL%icpc-foundation.png" fetchpriority="high" />
+    <!-- icpc-foundation.png 在 hero 里只是 3.5% 不透明度的装饰底纹（LCP 是文字），不做高优先级预加载 -->
 
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
@@ -61,6 +61,11 @@
       }
     </script>
     <title>USTS ACM Land | 苏州科技大学 ACM 集训队官网</title>
+    <!-- 自托管 Noto Serif SC（unicode-range 分片，浏览器只下载命中的分片）：从 public/ 独立引入，不占入口 CSS 门禁。
+         check-bundle-size.mjs 会跳过 public/ 静态样式表，只测量 bundle 入口 CSS。分片 CSS 内为绝对路径，
+         站点部署在域名根路径下使用。 -->
+    <link rel="stylesheet" href="%BASE_URL%fonts/noto-serif-sc/700.css" />
+    <link rel="stylesheet" href="%BASE_URL%fonts/noto-serif-sc/900.css" />
   </head>
   <body>
     <div id="root"></div>

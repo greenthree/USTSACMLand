@@ -121,7 +121,7 @@ const firstFourWeeks = [
     focus: '搭好 C++/Python 环境',
     detail: '完成输入输出、判断与循环，确保能独立编译、运行和提交代码。',
     outcome: '写出第一批可通过的程序',
-    tasks: ['配置 C++/Python 开发环境', '完成输入输出与判断练习', '独立提交 5 道短题'],
+    tasks: ['配置 C++/Python 开发环境', '完成输入输出与判断练习', '在牛客独立提交 5 道短题'],
   },
   {
     week: '第 2 周',
@@ -133,24 +133,38 @@ const firstFourWeeks = [
   {
     week: '第 3 周',
     focus: '接触第一批题型',
-    detail: '练习排序、枚举与模拟，开始洛谷入门题单。',
+    detail: '练习排序、枚举与模拟，开始一份适合自己的入门题单。',
     outcome: '从“写代码”转向“解问题”',
-    tasks: ['完成一个排序小专题', '各做 3 道枚举与模拟题', '开始洛谷入门题单'],
+    tasks: ['完成 10 道模拟题', '完成 5 道枚举题', '完成 10 道排序题'],
   },
   {
     week: '第 4 周',
     focus: '完成第一次比赛',
-    detail: '参加 Codeforces 新生赛；没有合适场次时，完成一次虚拟参赛。',
+    detail: '参加 Codeforces Div.4 或牛客周赛；没有合适场次时，选择往期比赛完成一次虚拟参赛。',
     outcome: '留下第一份赛后复盘',
-    tasks: ['熟悉比赛提交与罚时', '完成一场新手赛或虚拟赛', '补题并写下失败原因'],
+    tasks: [
+      '熟悉比赛提交与罚时',
+      '完成一场 Codeforces Div.4、牛客周赛或虚拟赛',
+      '补题并写下失败原因',
+    ],
   },
 ]
 
-const weekActions: { label: string; href: string }[] = [
-  { label: '一键配置 C++/Python 环境', href: 'https://ab.algoux.cn/' },
-  { label: '去牛客完成入门练习', href: 'https://www.nowcoder.com/problem/tracker#/problems' },
-  { label: '打开洛谷题单广场', href: 'https://www.luogu.com.cn/training/list' },
-  { label: '查看 Codeforces 近期比赛', href: 'https://codeforces.com/contests' },
+const weekActions: { label: string; href: string }[][] = [
+  [
+    { label: '一键配置 C++/Python 环境', href: 'https://ab.algoux.cn/' },
+    { label: '使用 CP Editor', href: 'https://cpeditor.org/zh/' },
+    { label: '去牛客完成入门练习', href: 'https://www.nowcoder.com/problem/tracker#/problems' },
+  ],
+  [{ label: '去牛客完成入门练习', href: 'https://www.nowcoder.com/problem/tracker#/problems' }],
+  [
+    { label: '继续在牛客练习', href: 'https://www.nowcoder.com/problem/tracker#/problems' },
+    { label: '改用洛谷题单', href: 'https://www.luogu.com.cn/training/list' },
+  ],
+  [
+    { label: '查看 Codeforces Div.4', href: 'https://codeforces.com/contests' },
+    { label: '查看牛客周赛', href: 'https://ac.nowcoder.com/acm/contest/vip-index' },
+  ],
 ]
 
 const totalTasks = firstFourWeeks.reduce((sum, week) => sum + week.tasks.length, 0)
@@ -573,7 +587,7 @@ export function LearningPage() {
                 })}
               </div>
               {firstFourWeeks.map((week, index) => {
-                const action = weekActions[index]
+                const actions = weekActions[index]
                 return (
                   <div
                     className="learning-week-panel"
@@ -591,17 +605,22 @@ export function LearningPage() {
                         <Flag size={15} aria-hidden="true" />
                         {week.outcome}
                       </strong>
-                      {action ? (
-                        <a
-                          className="learning-week-action"
-                          href={action.href}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`${action.label}（新窗口打开）`}
-                        >
-                          {action.label}
-                          <ArrowUpRight size={15} aria-hidden="true" />
-                        </a>
+                      {actions.length > 0 ? (
+                        <div className="learning-week-actions">
+                          {actions.map((action) => (
+                            <a
+                              className="learning-week-action"
+                              href={action.href}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`${action.label}（新窗口打开）`}
+                              key={action.label}
+                            >
+                              {action.label}
+                              <ArrowUpRight size={15} aria-hidden="true" />
+                            </a>
+                          ))}
+                        </div>
                       ) : null}
                     </div>
                     <div className="learning-week-checklist" aria-label={`${week.week}任务清单`}>
@@ -629,8 +648,15 @@ export function LearningPage() {
               <aside className="learning-plan-tip">
                 <Lightbulb size={18} aria-hidden="true" />
                 <p>
-                  <strong>卡住 30 分钟？</strong>
-                  先看提示，不直接抄答案；理解后关掉题解，重新独立写一遍。
+                  <span>
+                    <strong>卡住 30 分钟？</strong>
+                    先看提示，不直接抄答案；理解后关掉题解，重新独立写一遍。
+                  </span>
+                  <span>
+                    <strong>平台怎么选？</strong>
+                    前两周先在牛客完成入门练习；第 3
+                    周可继续使用牛客，也可改用洛谷，两者皆可，不要求前后选择一致。
+                  </span>
                 </p>
               </aside>
             </div>
@@ -642,8 +668,9 @@ export function LearningPage() {
               <div>
                 <h2>三个平台，不用一次全学</h2>
                 <p>
-                  根据你现在会什么选择入口。推荐顺序是牛客 → 洛谷 →
-                  Codeforces，但不需要“毕业”后才能使用下一个平台。
+                  前两周先使用牛客熟悉提交与基础语法；进入第 3
+                  周后，可以继续使用牛客，也可以改用洛谷。 准备参加线上比赛时，再开始使用
+                  Codeforces。
                 </p>
               </div>
             </header>
@@ -674,14 +701,17 @@ export function LearningPage() {
                 </article>
               ))}
             </div>
-            <div className="learning-platform-order" aria-label="推荐平台学习顺序">
-              <strong>建议顺序</strong>
+            <div className="learning-platform-order" aria-label="入门平台选择方式">
+              <strong>前两周</strong>
               <span>牛客</span>
               <i aria-hidden="true">→</i>
+              <strong>第 3 周</strong>
+              <span>牛客</span>
+              <i aria-hidden="true">或</i>
               <span>洛谷</span>
               <i aria-hidden="true">→</i>
               <span>Codeforces</span>
-              <p>循序渐进，打好基础，更快投入真实比赛。</p>
+              <p>第 3 周两者皆可，不要求与前两周选择一致。</p>
             </div>
           </section>
 

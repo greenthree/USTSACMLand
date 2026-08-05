@@ -22,7 +22,7 @@ const anonymousAuth: AuthContextValue = {
 }
 
 describe('HomePage with the web chat UI disabled', () => {
-  it('keeps the assistant card as a plan instead of a link', () => {
+  it('removes the retired assistant from the public resource list', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <AuthContext.Provider value={anonymousAuth}>
@@ -33,8 +33,11 @@ describe('HomePage with the web chat UI disabled', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('规划中')).toBeInTheDocument()
-    expect(screen.getByText(/计划接入大模型/)).toBeInTheDocument()
+    expect(screen.getByText('2 MODULES')).toBeInTheDocument()
+    expect(screen.queryByText('3 MODULES')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI 学习助手')).not.toBeInTheDocument()
+    expect(screen.queryByText('规划中')).not.toBeInTheDocument()
+    expect(screen.queryByText(/计划接入大模型/)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /AI 学习助手/ })).not.toBeInTheDocument()
   })
 })

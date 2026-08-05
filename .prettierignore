@@ -9,3 +9,5 @@ node_modules
 supabase/.temp
 supabase/.branches
 package-lock.json
+# 自托管字体分片 CSS 是 @fontsource 第三方产物，保持原样不做重排
+public/fonts
