@@ -52,7 +52,7 @@
 - [x] 所有新 migration 已在本地空库中按时间顺序应用并通过 pgTAP；`202607310001_training_goal_quota_concurrency.sql`、48 个测试文件、1206 项断言及真实双连接上限检查均已通过，且 CI 已强制执行同一检查。证据见 [`docs/evidence/training-goal-concurrency-local-2026-07-31.md`](./evidence/training-goal-concurrency-local-2026-07-31.md)。
 - 历史记录：推荐计划 migration 曾验证邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限；模块现已关闭。
 - 遗留关闭检查：推荐计划全局开关与重开安全闸门保持关闭；不再进行真实计奖、重开或生产并发烟测。关闭期注册必须继续降级为普通注册，不展示或校验邀请码，也不发放奖励。
-- [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。
+- [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。2026-08-04 的三次受控检查在临时降阈值并等待 30 秒后仍返回 `400 / invalid_credentials`，未触发 `429`；配置已恢复，门禁保持未完成。证据见 [`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./evidence/auth-rate-limit-recovery-production-2026-08-04.md)。
 - 历史记录：WebChat 图片 migration 与附件/清理 Edge Function 曾以默认关闭方式部署并完成私有 Bucket、权限和对象生命周期烟测；这些安全实现继续保留，但不视为功能上线或后续待办。
 - 遗留关闭检查：`CHAT_VISION_ENABLED`、图片上传入口和清理调度保持关闭；不再配置或验收视觉模型。历史签名 URL、日志脱敏和对象归属安全测试继续保留。
 - [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含 `202607310001_training_goal_quota_concurrency.sql`；正式应用后再次核对本地与远端版本完全一致。证据见 [`docs/evidence/training-goal-concurrency-production-2026-07-31.md`](./evidence/training-goal-concurrency-production-2026-07-31.md)。

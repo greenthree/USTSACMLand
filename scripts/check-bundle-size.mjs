@@ -63,10 +63,17 @@ function entryAssetName(html) {
   return basename(new URL(match[1], 'https://bundle.local/').pathname)
 }
 
-function entryCssName(html) {
-  const match = html.match(/<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+\.css)["']/i)
-  if (!match) return null
-  return basename(new URL(match[1], 'https://bundle.local/').pathname)
+function entryCssName(html, assets) {
+  // 取第一个能在 assets 里找到的 bundle 样式表；public/ 下的静态样式表（如自托管字体分片 CSS）
+  // 不是 bundle 产物、不占入口预算，跳过。
+  const pattern = /<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+\.css)["']/gi
+  let match = pattern.exec(html)
+  while (match) {
+    const name = basename(new URL(match[1], 'https://bundle.local/').pathname)
+    if (assets.has(name)) return name
+    match = pattern.exec(html)
+  }
+  return null
 }
 
 export function verifyBundleBudget({ html, assets, budget = bundleBudget }) {
@@ -99,7 +106,7 @@ export function verifyBundleBudget({ html, assets, budget = bundleBudget }) {
 
   let entryCssRawBytes = null
   let entryCssGzipBytes = null
-  const cssName = entryCssName(html)
+  const cssName = entryCssName(html, assets)
   if (cssName) {
     const entryCss = assets.get(cssName)
     if (!entryCss) throw new Error(`Production entry stylesheet is missing: ${cssName}`)

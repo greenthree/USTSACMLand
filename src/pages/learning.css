@@ -590,9 +590,15 @@
   font-size: 12px;
 }
 
+.learning-week-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 .learning-week-action {
   width: fit-content;
-  margin-top: 20px;
 }
 
 .learning-week-checklist {
@@ -674,6 +680,8 @@
 }
 
 .learning-plan-tip p {
+  display: grid;
+  gap: 4px;
   margin: 0;
   line-height: 1.65;
 }

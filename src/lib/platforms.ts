@@ -56,3 +56,12 @@ export const platformUrls: Record<Platform, (id: string) => string> = {
   luogu: (id) => `https://www.luogu.com.cn/user/${encodeURIComponent(id)}`,
   qoj: (id) => `https://qoj.ac/user/profile/${encodeURIComponent(id)}`,
 }
+
+// 首页“线上公开赛”平台入口：链到各平台的比赛/赛程页（新窗口打开）
+export const openContestPlatformUrls: Record<SolvedPlatform, string> = {
+  codeforces: 'https://codeforces.com/contests',
+  atcoder: 'https://atcoder.jp/contests/',
+  nowcoder: 'https://ac.nowcoder.com/acm/contest/vip-index',
+  luogu: 'https://www.luogu.com.cn/contest/list',
+  qoj: 'https://qoj.ac/contests',
+}

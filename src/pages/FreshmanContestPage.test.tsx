@@ -208,6 +208,10 @@ describe('FreshmanContestPage', () => {
     await user.click(screen.getByRole('button', { name: '暂停滚榜动画' }))
     expect(rollboard).toHaveClass('is-paused')
     expect(screen.getByRole('button', { name: '继续滚榜动画' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '往届题目入口' })).toHaveAttribute(
+      'href',
+      'https://usts.fun/training/21',
+    )
   })
 
   it('uses the ladder-style practice contest as an individual qualifier', async () => {
@@ -246,6 +250,11 @@ describe('FreshmanContestPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('依据成绩编排天梯赛队伍')).toBeInTheDocument()
     expect(screen.queryByText('团队累计成绩')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '往届题目入口' })).toHaveAttribute(
+      'href',
+      'https://usts.fun/training/20',
+    )
+    expect(screen.getByRole('link', { name: '往届题目入口' })).toHaveAttribute('target', '_blank')
   })
 
   it('supports horizontal swipe across all three contest covers', () => {
@@ -256,20 +265,20 @@ describe('FreshmanContestPage', () => {
     )
 
     const contestHero = screen.getByRole('region', { name: '校内赛事' })
-    fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
-    fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
+    fireEvent.pointerDown(contestHero, { clientX: 180, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 80, pointerType: 'touch' })
 
     expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { name: '练习赛', level: 1 })).toBeInTheDocument()
 
-    fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
-    fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
+    fireEvent.pointerDown(contestHero, { clientX: 180, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 80, pointerType: 'touch' })
 
     expect(screen.getByRole('tab', { name: /校赛/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
 
-    fireEvent.pointerDown(contestHero, { clientX: 180, pointerType: 'touch' })
-    fireEvent.pointerUp(contestHero, { clientX: 80, pointerType: 'touch' })
+    fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
 
     expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
   })

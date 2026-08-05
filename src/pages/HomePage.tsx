@@ -1,4 +1,5 @@
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
+import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right'
 import Activity from 'lucide-react/dist/esm/icons/activity'
 import BookOpenCheck from 'lucide-react/dist/esm/icons/book-open-check'
 import Braces from 'lucide-react/dist/esm/icons/braces'
@@ -11,14 +12,20 @@ import Terminal from 'lucide-react/dist/esm/icons/terminal'
 import Timer from 'lucide-react/dist/esm/icons/timer'
 import Trophy from 'lucide-react/dist/esm/icons/trophy'
 import Users from 'lucide-react/dist/esm/icons/users'
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { VerdictTicker } from '../components/VerdictTicker'
 import { useAuth } from '../auth/authContextValue'
 import { PlatformMark } from '../components/PlatformMark'
 import { useMembersData } from '../data/useMembersData'
 import { webChatUiEnabled } from '../features/chat/chatAvailability'
 import { formatInteger } from '../lib/format'
-import { openContestPlatforms, platformLabels, platformMetricLabels } from '../lib/platforms'
+import {
+  openContestPlatforms,
+  openContestPlatformUrls,
+  platformLabels,
+  platformMetricLabels,
+} from '../lib/platforms'
 import { calculateTotalSolved } from '../lib/rankings'
 
 const icpcLogoUrl = `${import.meta.env.BASE_URL}icpc-foundation.png`
@@ -169,45 +176,6 @@ const homeCompetitions: HomeCompetition[] = [
     type: '个人赛 · 全国',
   },
 ]
-
-interface VerdictEntry {
-  problem: string
-  verdict: string
-  tone?: 'ac' | 'wa'
-}
-
-const verdictStrip: VerdictEntry[] = [
-  { problem: 'A', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'B', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'C', verdict: 'Wrong Answer', tone: 'wa' },
-  { problem: 'C', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'D', verdict: 'Running' },
-  { problem: 'E', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'F', verdict: 'Pending' },
-  { problem: 'G', verdict: 'Time Limit', tone: 'wa' },
-  { problem: 'H', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'I', verdict: 'Pending' },
-  { problem: 'J', verdict: 'Accepted', tone: 'ac' },
-  { problem: 'K', verdict: 'Compiling' },
-]
-
-function VerdictStripSegment() {
-  return (
-    <>
-      {verdictStrip.map((entry, index) => (
-        <span key={index}>
-          {entry.problem}{' '}
-          {entry.tone ? (
-            <span className={`verdict-${entry.tone}`}>{entry.verdict}</span>
-          ) : (
-            entry.verdict
-          )}
-          {' · '}
-        </span>
-      ))}
-    </>
-  )
-}
 
 // 气球画框几何：viewBox 与运动边界的关系集中在此。
 const VIEW_W = 420
@@ -515,6 +483,67 @@ const HeroBalloons = memo(function HeroBalloons() {
   )
 })
 
+// 记分牌读数：滚入视口后一次性 count-up，只改 textContent、不碰 opacity（axe 门禁约束）；
+// prefers-reduced-motion 或无 IO 时直接落终值。tabular-nums 已就位，数字不抖动。
+const SCOREBOARD_COUNT_UP_MS = 900
+
+const ScoreboardValue = memo(function ScoreboardValue({
+  loading,
+  value,
+}: {
+  loading: boolean
+  value: number
+}) {
+  const ref = useRef<HTMLElement>(null)
+  const [display, setDisplay] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (loading) return undefined
+    const el = ref.current
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!el || reduceMotion || !('IntersectionObserver' in window)) {
+      setDisplay(null)
+      return undefined
+    }
+    let raf = 0
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        observer.disconnect()
+        const start = performance.now()
+        const tick = (now: number) => {
+          const progress = Math.min((now - start) / SCOREBOARD_COUNT_UP_MS, 1)
+          const eased = 1 - (1 - progress) ** 3
+          setDisplay(Math.round(value * eased))
+          if (progress < 1) raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+      },
+      { threshold: 0.4 },
+    )
+    observer.observe(el)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [loading, value])
+
+  return (
+    <strong ref={ref}>
+      {loading ? (
+        <>
+          <span aria-hidden="true">--</span>
+          <span className="sr-only">加载中</span>
+        </>
+      ) : (
+        formatInteger(display ?? value)
+      )}
+    </strong>
+  )
+})
+
 export function HomePage() {
   const { user } = useAuth()
   const { members, loading, error, demo } = useMembersData()
@@ -642,16 +671,14 @@ export function HomePage() {
         </div>
       </section>
 
-      <div className="home-letter-strip" aria-hidden="true">
-        <span className="home-letter-strip-inner">
-          <VerdictStripSegment />
-          <VerdictStripSegment />
-        </span>
-      </div>
+      <VerdictTicker />
 
       <section className="home-section acm-introduction" id="about-acm">
         <div className="home-section-heading">
           <p className="home-section-index">01 / 关于竞赛</p>
+          <span className="home-section-meta" aria-hidden="true">
+            MODE / TEAM×3
+          </span>
           <h2>ACM，不只是把题做出来</h2>
         </div>
         <div className="acm-introduction-body">
@@ -672,25 +699,34 @@ export function HomePage() {
               </div>
             </aside>
           </div>
-          <div className="acm-capability-list">
-            <article>
-              <span>01</span>
-              <Braces size={20} aria-hidden="true" />
-              <h3>算法与建模</h3>
-              <p>从图论、动态规划到数据结构，找到能在时空限制内运行的解法。</p>
-            </article>
-            <article>
-              <span>02</span>
-              <Users size={20} aria-hidden="true" />
-              <h3>协作与表达</h3>
-              <p>快速解释思路、分配题目，在同一台电脑上组织整个队伍的节奏。</p>
-            </article>
-            <article>
-              <span>03</span>
-              <Trophy size={20} aria-hidden="true" />
-              <h3>判断与韧性</h3>
-              <p>在罚时和失败提交的压力下复盘错误，决定何时坚持、何时换题。</p>
-            </article>
+          <div className="acm-capability-panel">
+            <div className="home-instrument-head" aria-hidden="true">
+              <span>
+                <Crosshair size={13} /> FIELD NOTE / 003 — CAPABILITY
+              </span>
+              <span>3 AXES</span>
+            </div>
+            <div className="acm-capability-list">
+              <article>
+                <span>01</span>
+                <Braces size={20} aria-hidden="true" />
+                <h3>算法与建模</h3>
+                <p>从图论、动态规划到数据结构，找到能在时空限制内运行的解法。</p>
+              </article>
+              <article>
+                <span>02</span>
+                <Users size={20} aria-hidden="true" />
+                <h3>协作与表达</h3>
+                <p>快速解释思路、分配题目，在同一台电脑上组织整个队伍的节奏。</p>
+              </article>
+              <article>
+                <span>03</span>
+                <Trophy size={20} aria-hidden="true" />
+                <h3>判断与韧性</h3>
+                <p>在罚时和失败提交的压力下复盘错误，决定何时坚持、何时换题。</p>
+              </article>
+            </div>
+            <p className="home-instrument-caption">同一台电脑，五小时，一支队伍。</p>
           </div>
         </div>
       </section>
@@ -701,6 +737,9 @@ export function HomePage() {
       >
         <div className="home-section-heading">
           <p className="home-section-index">02 / 赛事版图</p>
+          <span className="home-section-meta" aria-hidden="true">
+            CLASS / Ⅰ-B
+          </span>
           <h2 id="competition-overview-title">从省赛到世界赛，认识主要算法竞赛</h2>
           <div className="home-competition-marks" role="group" aria-label="ICPC 与 CCPC 赛事标志">
             <figure>
@@ -734,7 +773,7 @@ export function HomePage() {
             </p>
             <div className="home-competition-note">
               <p>
-                右侧所列赛事均属于我校认定的 <strong>Ⅰ乙比赛</strong>。ICPC、CCPC 与 JSCPC
+                以下赛事均属于我校认定的 <strong>Ⅰ乙比赛</strong>。ICPC、CCPC 与 JSCPC
                 是三个相互独立的赛事体系，并非同一赛事的不同级别。
               </p>
               <p>
@@ -770,6 +809,9 @@ export function HomePage() {
       >
         <div className="home-section-heading">
           <p className="home-section-index">03 / 线上公开赛</p>
+          <span className="home-section-meta" aria-hidden="true">
+            FREQ / 10+ WEEKLY
+          </span>
           <h2 id="open-contests-title">每一周，都有新的比赛可以参加</h2>
         </div>
         <div className="home-open-contests-body">
@@ -783,10 +825,18 @@ export function HomePage() {
             </p>
           </div>
           <div className="home-open-contests-panel">
-            <div className="home-open-contests-stat">
-              <strong>10+</strong>
-              <span>场公开赛 / 每周</span>
-              <small>免费开放，持续更新</small>
+            <div className="home-open-contests-counter">
+              <div className="home-instrument-head" aria-hidden="true">
+                <span>
+                  <Crosshair size={13} /> FIELD NOTE / 004 — OPEN CONTESTS
+                </span>
+                <span>WEEKLY</span>
+              </div>
+              <div className="home-open-contests-stat">
+                <strong>10+</strong>
+                <span>场公开赛 / 每周</span>
+                <small>免费开放，持续更新</small>
+              </div>
             </div>
             <div
               className="home-open-contests-platforms"
@@ -794,11 +844,20 @@ export function HomePage() {
               aria-label="主要线上公开赛平台"
             >
               {openContestPlatforms.map((platform, index) => (
-                <div key={platform} role="listitem">
+                <a
+                  key={platform}
+                  role="listitem"
+                  href={openContestPlatformUrls[platform]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <span>{String(index + 1).padStart(2, '0')}</span>
                   <PlatformMark platform={platform} />
-                  <small>公开赛与练习</small>
-                </div>
+                  <small>
+                    公开赛与练习
+                    <ArrowUpRight size={11} aria-hidden="true" />
+                  </small>
+                </a>
               ))}
             </div>
           </div>
@@ -808,55 +867,60 @@ export function HomePage() {
       <section className="home-section home-vision-section" aria-labelledby="home-vision-title">
         <div className="home-section-heading">
           <p className="home-section-index">04 / 学习资源</p>
+          <span className="home-section-meta" aria-hidden="true">
+            PATH / GUIDED
+          </span>
           <h2 id="home-vision-title">开放资源，帮新手走稳第一步</h2>
         </div>
         <div className="home-vision-body">
           <p>
             算法竞赛拥有丰富的在线训练资源，绝大多数免费向学习者开放。本网站将筛选其中适合入门的一部分，按知识点和训练阶段提供引导，减少资料筛选成本，帮助新手快速上手。
           </p>
-          <div className="home-vision-list" role="list" aria-label="学习功能">
-            <article role="listitem">
-              <BookOpenCheck size={21} aria-hidden="true" />
-              <div>
-                <h3>学习引导</h3>
-                <p>按知识点组织学习路线、资料与阶段目标。</p>
-              </div>
-              <Link to="/learning">
-                已上线<span className="sr-only">：新手学习引导</span>
-                <ArrowRight size={13} aria-hidden="true" />
-              </Link>
-            </article>
-            <article role="listitem">
-              <CalendarDays size={21} aria-hidden="true" />
-              <div>
-                <h3>每日一题</h3>
-                <p>提供稳定的日常练习入口与题目讨论。</p>
-              </div>
-              <Link to="/daily-problem">
-                已上线<span className="sr-only">：每日一题</span>
-                <ArrowRight size={13} aria-hidden="true" />
-              </Link>
-            </article>
-            <article role="listitem">
-              <MessagesSquare size={21} aria-hidden="true" />
-              <div>
-                <h3>AI 学习助手</h3>
-                <p>
-                  {webChatUiEnabled
-                    ? '在站内完成知识问答、代码讲解和训练复盘。'
-                    : '计划接入大模型，在站内完成知识问答、代码讲解和训练复盘。'}
-                </p>
-              </div>
-              {webChatUiEnabled ? (
-                <Link to="/assistant">
-                  {user ? '已上线' : '成员登录后可用'}
-                  <span className="sr-only">：AI 学习助手</span>
+          <div className="home-vision-panel">
+            <div className="home-instrument-head" aria-hidden="true">
+              <span>
+                <Crosshair size={13} /> FIELD NOTE / 005 — RESOURCES
+              </span>
+              <span>{webChatUiEnabled ? '3 MODULES' : '2 MODULES'}</span>
+            </div>
+            <div className="home-vision-list" role="list" aria-label="学习功能">
+              <article role="listitem">
+                <BookOpenCheck size={21} aria-hidden="true" />
+                <div>
+                  <h3>学习引导</h3>
+                  <p>按知识点组织学习路线、资料与阶段目标。</p>
+                </div>
+                <Link to="/learning" className="home-vision-chip is-live">
+                  已上线<span className="sr-only">：新手学习引导</span>
                   <ArrowRight size={13} aria-hidden="true" />
                 </Link>
-              ) : (
-                <span>规划中</span>
-              )}
-            </article>
+              </article>
+              <article role="listitem">
+                <CalendarDays size={21} aria-hidden="true" />
+                <div>
+                  <h3>每日一题</h3>
+                  <p>提供稳定的日常练习入口与题目讨论。</p>
+                </div>
+                <Link to="/daily-problem" className="home-vision-chip is-live">
+                  已上线<span className="sr-only">：每日一题</span>
+                  <ArrowRight size={13} aria-hidden="true" />
+                </Link>
+              </article>
+              {webChatUiEnabled ? (
+                <article role="listitem">
+                  <MessagesSquare size={21} aria-hidden="true" />
+                  <div>
+                    <h3>AI 学习助手</h3>
+                    <p>在站内完成知识问答、代码讲解和训练复盘。</p>
+                  </div>
+                  <Link to="/assistant" className="home-vision-chip is-live">
+                    {user ? '已上线' : '成员登录后可用'}
+                    <span className="sr-only">：AI 学习助手</span>
+                    <ArrowRight size={13} aria-hidden="true" />
+                  </Link>
+                </article>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -864,6 +928,9 @@ export function HomePage() {
       <section className="home-section home-platform-section" aria-labelledby="platform-title">
         <div className="home-section-heading">
           <p className="home-section-index">05 / 训练记录</p>
+          <span className="home-section-meta" aria-hidden="true">
+            SYNC / 2×DAILY
+          </span>
           <h2 id="platform-title">公开数据，是成长的一份记录</h2>
         </div>
         <div className="home-platform-context">
@@ -876,17 +943,11 @@ export function HomePage() {
             aria-label="公开数据概览"
             aria-busy={loading}
           >
+            <span className="home-scoreboard-head" aria-hidden="true">
+              <Crosshair size={12} /> FIELD NOTE / 002 — SCOREBOARD
+            </span>
             <span>
-              <strong>
-                {loading ? (
-                  <>
-                    <span aria-hidden="true">--</span>
-                    <span className="sr-only">加载中</span>
-                  </>
-                ) : (
-                  formatInteger(totalSolvedCount)
-                )}
-              </strong>
+              <ScoreboardValue loading={loading} value={totalSolvedCount} />
               <span className="home-balloon-dot" aria-hidden="true" /> 累计通过题数
             </span>
             {error ? null : (
@@ -934,6 +995,9 @@ export function HomePage() {
       <section className="home-section home-join-section" aria-labelledby="join-title">
         <div className="home-section-heading">
           <p className="home-section-index">06 / 加入我们</p>
+          <span className="home-section-meta" aria-hidden="true">
+            SELECT / 3 ROUNDS
+          </span>
           <h2 id="join-title">在比赛中找到下一段训练</h2>
         </div>
         <div className="home-join-body">
@@ -953,35 +1017,43 @@ export function HomePage() {
               </div>
             </aside>
           </div>
-          <div className="home-join-events">
-            <article>
-              <span className="home-join-month">12 月</span>
-              <div>
-                <h3>新生赛</h3>
-                <p className="home-join-target">面向新生</p>
-                <p>选拔新生进入集训队，开始更高强度、更系统的算法训练。</p>
-                <Link className="home-join-detail-link" to="/contests">
-                  了解新生赛
-                  <ArrowRight size={15} aria-hidden="true" />
-                </Link>
-              </div>
-            </article>
-            <article>
-              <span className="home-join-month">03 月</span>
-              <div>
-                <h3>练习赛</h3>
-                <p className="home-join-target">面向所有人</p>
-                <p>选拔代表学校参加天梯赛的选手，在团队协作中完成新的挑战。</p>
-              </div>
-            </article>
-            <article>
-              <span className="home-join-month">04 月</span>
-              <div>
-                <h3>校赛</h3>
-                <p className="home-join-target">面向所有人</p>
-                <p>选拔代表学校参加 JSCPC 的队伍，向更高水平的省级赛事出发。</p>
-              </div>
-            </article>
+          <div className="home-join-events-panel">
+            <div className="home-instrument-head" aria-hidden="true">
+              <span>
+                <Crosshair size={13} /> FIELD NOTE / 006 — SELECTION
+              </span>
+              <span>3 ROUNDS / YEAR</span>
+            </div>
+            <div className="home-join-events">
+              <article>
+                <span className="home-join-month">12 月</span>
+                <div>
+                  <h3>新生赛</h3>
+                  <p className="home-join-target">面向新生</p>
+                  <p>选拔新生进入集训队，开始更高强度、更系统的算法训练。</p>
+                  <Link className="home-join-detail-link" to="/contests">
+                    了解新生赛
+                    <ArrowRight size={15} aria-hidden="true" />
+                  </Link>
+                </div>
+              </article>
+              <article>
+                <span className="home-join-month">03 月</span>
+                <div>
+                  <h3>练习赛</h3>
+                  <p className="home-join-target">面向所有人</p>
+                  <p>选拔代表学校参加天梯赛的选手，在团队协作中完成新的挑战。</p>
+                </div>
+              </article>
+              <article>
+                <span className="home-join-month">04 月</span>
+                <div>
+                  <h3>校赛</h3>
+                  <p className="home-join-target">面向所有人</p>
+                  <p>选拔代表学校参加 JSCPC 的队伍，向更高水平的省级赛事出发。</p>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
         <p className="home-join-note">

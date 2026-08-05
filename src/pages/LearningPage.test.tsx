@@ -55,6 +55,10 @@ describe('LearningPage', () => {
     expect(
       screen.getByRole('link', { name: '一键配置 C++/Python 环境（新窗口打开）' }),
     ).toHaveAttribute('href', 'https://ab.algoux.cn/')
+    expect(screen.getByRole('link', { name: '使用 CP Editor（新窗口打开）' })).toHaveAttribute(
+      'href',
+      'https://cpeditor.org/zh/',
+    )
 
     for (const heading of ['环境与语法', '基础题型', '算法思维', '参加比赛', '准备三人团队赛']) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
@@ -70,8 +74,11 @@ describe('LearningPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '把训练组织成稳定循环' })).toBeInTheDocument()
 
-    expect(screen.getByLabelText('推荐平台学习顺序')).toHaveTextContent(
-      '建议顺序牛客→洛谷→Codeforces',
+    expect(screen.getByText('平台怎么选？').parentElement).toHaveTextContent(
+      '前两周先在牛客完成入门练习',
+    )
+    expect(screen.getByLabelText('入门平台选择方式')).toHaveTextContent(
+      '前两周牛客→第 3 周牛客或洛谷→Codeforces',
     )
     expect(screen.getByRole('link', { name: '进入牛客竞赛（新窗口打开）' })).toHaveAttribute(
       'href',
@@ -165,11 +172,30 @@ describe('LearningPage', () => {
       'href',
       'https://www.nowcoder.com/problem/tracker#/problems',
     )
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent(
+      '完成 10 道模拟题完成 5 道枚举题完成 10 道排序题',
+    )
+    expect(screen.getByRole('link', { name: '继续在牛客练习（新窗口打开）' })).toHaveAttribute(
+      'href',
+      'https://www.nowcoder.com/problem/tracker#/problems',
+    )
+    expect(screen.getByRole('link', { name: '改用洛谷题单（新窗口打开）' })).toHaveAttribute(
+      'href',
+      'https://www.luogu.com.cn/training/list',
+    )
     await user.keyboard('{End}')
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('完成第一次比赛')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('参加 Codeforces Div.4 或牛客周赛')
+    expect(screen.getByRole('tabpanel')).toHaveTextContent(
+      '完成一场 Codeforces Div.4、牛客周赛或虚拟赛',
+    )
     expect(
-      screen.getByRole('link', { name: '查看 Codeforces 近期比赛（新窗口打开）' }),
+      screen.getByRole('link', { name: '查看 Codeforces Div.4（新窗口打开）' }),
     ).toHaveAttribute('href', 'https://codeforces.com/contests')
+    expect(screen.getByRole('link', { name: '查看牛客周赛（新窗口打开）' })).toHaveAttribute(
+      'href',
+      'https://ac.nowcoder.com/acm/contest/vip-index',
+    )
     await user.keyboard('{Home}')
     expect(screen.getByRole('tabpanel')).toHaveTextContent('搭好 C++/Python 环境')
 
