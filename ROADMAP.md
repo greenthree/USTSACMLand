@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-07-29（Asia/Shanghai）
+最后更新：2026-08-09（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -40,7 +40,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ## 2. 当前生产基线
 
 - [x] GitHub Pages 已发布 React SPA，支持子路径资源、深链刷新和生产榜单审计。
-- [x] Supabase Auth、Postgres、RLS、十个 Edge Function 和 71 个生产 migration 已部署；十函数 JWT、import map、按用途区分的浏览器 CORS/后台拒绝边界及同步调度已通过生产只读检查。推荐计划因生产邮箱自动确认无法证明邮箱控制权而安全暂停，重开安全闸门已部署；WebChat 图片数据库与函数安全基础已部署，但前端入口、视觉模型和定时清理开关继续关闭。证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./docs/evidence/supabase-ten-function-readiness-2026-07-26.md)。
+- [x] Supabase Auth、Postgres、RLS、12 个 Edge Function 和 75 个生产 migration 已部署；除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，其余函数均启用 JWT 验证，12 个函数的 import map、浏览器 CORS/后台拒绝边界及同步调度已通过生产只读检查。推荐计划与 WebChat 成员入口继续关闭，遗留图片数据库与函数安全基础保留。证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./docs/evidence/supabase-ten-function-readiness-2026-07-26.md) 与 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
 - [x] 邮箱注册、密码登录、真实邮箱找回密码、修改密码和会话恢复流程可用。
 - [x] 成员资料、年级、专业联想、QQ、六个平台绑定和 XCPC ELO 姓名自动匹配已上线。
 - [x] Rating 榜、刷题榜、周榜、月榜和自定义时间范围增量榜已上线。
@@ -84,9 +84,9 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 ### P2：发布治理
 
-- [ ] 由项目负责人确定源码许可证并添加 `LICENSE`；确定前不把项目描述为开源。
-- [ ] 确认同步状态巡检、数据库备份、凭据轮换、回滚和管理员交接文档均可由其他维护者执行。2026-07-26 已新增单一入口 [`docs/maintainer-handoff.md`](./docs/maintainer-handoff.md)，补齐权限登记、固定巡检阈值、GitHub CLI 备份/恢复、逐类凭据消费者与回滚、十函数回滚和脱敏交接模板；仓库就绪检查也开始强制要求备份大小与 Storage 对象上限变量。生产变量已按 50 名成员理论上限配置，手动备份运行 `30192826527` 成功并完成密文 Artifact 白名单核对。仍需一名非原维护者实际完成六项独立演练并签署复核，不能用原维护者本轮执行替代，因此保持未完成。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./docs/evidence/database-backup-capacity-guard-2026-07-26.md)。
-- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-29 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 596 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase 已关闭邮箱自动确认并启用服务端 Turnstile CAPTCHA，preflight 与严格就绪检查均通过。全新真实邮箱的有效 token 注册、确认邮件、确认前登录拒绝、重复确认安全性、确认后密码登录和带独立 Turnstile 的自助注销已经完成；注销后的 Auth、Profile 及 19 类关联数据均为 0，再次登录返回标准凭据拒绝。两组各不超过 30 次的生产限流检查均安全停止但未触发 `429`。2026-08-04 又将登录/注册限额临时从 `30` 降至 `2`，等待 30 秒并严格限制为三次请求后仍只得到 `400 / invalid_credentials`；这表明动态降阈值没有立即收缩当前 IP 的旧令牌桶余额，配置已恢复为 `30`，不能把结果记作恢复通过。仍缺维护窗口内可复现的受控 `429` 窗口恢复、许可证和非原维护者交接，因此暂不创建标签。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)、[`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md) 与 [`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md)。
+- [x] 项目负责人已选择 Apache License 2.0（SPDX 标识符：`Apache-2.0`），维护 Agent 已加入根目录 `LICENSE`。该许可证仅覆盖项目原创源代码；学校、集训队、赛事标识、第三方素材、成员数据和平台数据仍保持独立授权边界。
+- [x] 确认同步巡检、数据库备份、凭据轮换、回滚和管理员操作可以由全新上下文 Agent 仅根据仓库文档冷启动执行。2026-08-09 全新上下文 Agent 完整阅读根契约与专项手册，在不触发生产写操作的前提下完成 GitHub/Supabase 冷启动核对、同步队列巡检、备份连续性检查及前端、Edge Function、数据库和 Cloudflare 回滚桌面推演；同时识别并修复仓库级 Secret 与 `production-operations` Environment Secret 的检查口径偏差。证据见 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
+- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-29 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 596 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase 已关闭邮箱自动确认并启用服务端 Turnstile CAPTCHA，preflight 与严格就绪检查均通过。全新真实邮箱的有效 token 注册、确认邮件、确认前登录拒绝、重复确认安全性、确认后密码登录和带独立 Turnstile 的自助注销已经完成；注销后的 Auth、Profile 及 19 类关联数据均为 0，再次登录返回标准凭据拒绝。两组各不超过 30 次的生产限流检查均安全停止但未触发 `429`。2026-08-04 又将登录/注册限额临时从 `30` 降至 `2`，等待 30 秒并严格限制为三次请求后仍只得到 `400 / invalid_credentials`；这表明动态降阈值没有立即收缩当前 IP 的旧令牌桶余额，配置已恢复为 `30`，不能把结果记作恢复通过。冷启动交接验收已于 2026-08-09 完成；仍缺维护窗口内可复现的受控 `429` 窗口恢复、当前 `main` Schema v2 备份恢复演练，以及 Supabase 日志与 Firecrawl 保留窗口核验，因此暂不创建标签。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)、[`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md)、[`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md) 与 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
 

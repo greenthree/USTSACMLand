@@ -53,13 +53,14 @@
 
 ## GitHub Actions Secrets
 
-在仓库 `Settings > Secrets and variables > Actions` 配置：
+在仓库 `Settings > Secrets and variables > Actions` 配置仓库级 Secret：
 
 | Secret                         | 要求                                                                           |
 | ------------------------------ | ------------------------------------------------------------------------------ |
 | `SUPABASE_ACCESS_TOKEN`        | Supabase 个人访问令牌；固定版本 CLI 仅用它链接目标项目并动态取得短期数据库登录 |
-| `SUPABASE_PROJECT_REF`         | 生产项目引用，用于把备份任务严格绑定到目标项目                                 |
 | `BACKUP_ENCRYPTION_PASSPHRASE` | 独立随机口令，至少 32 个字符；不得与数据库、GitHub、邮箱或平台账号密码复用     |
+
+`SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只配置在受保护的 `production-operations` Environment；该 Environment 只允许默认分支 `main`。备份工作流从该 Environment 取得项目引用，生产同步与只读探针同时使用项目引用和 service role key；仓库级和组织级不得保留同名副本。
 
 同一页面的 `Variables` 必须配置：
 
@@ -79,7 +80,7 @@
 | `DELETION_RECOVERY_REPOSITORY`   | 固定为目标 GitHub 仓库，如 `greenthree/USTSACMLand`                          |
 | `DELETION_RECOVERY_GITHUB_TOKEN` | Fine-grained PAT；只授权该仓库的 Variables write，不授予 Contents 等其他权限 |
 
-推荐使用密码管理器生成并保存备份口令，至少由两名授权负责人分别确认可访问。口令丢失等同于全部仓库备份不可恢复；口令泄露时必须立即轮换，并删除旧 Artifact。
+使用项目负责人控制的密码管理器生成并保存备份口令。项目已明确接受只有一名真人持有账号恢复能力的风险；口令丢失等同于全部仓库备份不可恢复，口令泄露时必须立即轮换，并删除旧 Artifact。
 
 ## 下载与本地完整性检查
 

@@ -4,6 +4,7 @@ import {
   expectedWorkflows,
   requiredActionSecrets,
   requiredActionVariables,
+  requiredProductionEnvironmentSecrets,
 } from './check-repository-readiness.mjs'
 
 function createReadyState() {
@@ -42,6 +43,15 @@ function createReadyState() {
       url: `https://github.test/actions/${workflow.name}`,
     })),
     actionSecrets: [...requiredActionSecrets],
+    productionEnvironment: {
+      name: 'production-operations',
+      secrets: [...requiredProductionEnvironmentSecrets],
+      deploymentBranchPolicy: {
+        customBranchPolicies: true,
+        protectedBranches: false,
+      },
+      branchPolicies: [{ name: 'main', type: 'branch' }],
+    },
     actionVariables: [...requiredActionVariables],
     actionsPermissions: {
       defaultWorkflowPermissions: 'read',
@@ -113,7 +123,8 @@ describe('repository readiness checker', () => {
       summary: {
         repository: 'greenthree/USTSACMLand',
         workflows: 5,
-        actionSecrets: 6,
+        actionSecrets: 4,
+        productionEnvironmentSecrets: 2,
         actionVariables: 3,
         actionsRetentionDays: 14,
         defaultBranchSha: '0123456789abcdef',
@@ -145,10 +156,25 @@ describe('repository readiness checker', () => {
 
     expect(evaluateRepositoryReadiness(state).errors).toEqual(
       expect.arrayContaining([
-        'Actions Secret 未配置：BACKUP_ENCRYPTION_PASSPHRASE。',
+        '仓库 Actions Secret 未配置：BACKUP_ENCRYPTION_PASSPHRASE。',
         'Actions 变量未配置：BACKUP_RECOVERY_NOT_BEFORE。',
         'Actions 变量未配置：MAX_BACKUP_ARTIFACT_BYTES。',
         'Actions 变量未配置：MAX_STORAGE_OBJECTS。',
+      ]),
+    )
+  })
+
+  it('requires production credentials only in the default-branch environment', () => {
+    const state = createReadyState()
+    state.productionEnvironment.secrets = state.productionEnvironment.secrets.filter(
+      (name) => name !== 'SUPABASE_SERVICE_ROLE_KEY',
+    )
+    state.productionEnvironment.branchPolicies = [{ name: 'release/*', type: 'branch' }]
+
+    expect(evaluateRepositoryReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        'production-operations Environment Secret 未配置：SUPABASE_SERVICE_ROLE_KEY。',
+        'production-operations Environment 必须只允许默认分支 main 部署。',
       ]),
     )
   })

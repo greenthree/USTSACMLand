@@ -4,13 +4,15 @@
 
 本检查单用于 USTS ACM Land 的候选版本、正式版本和紧急修复发布。每次发布复制一份到变更记录中填写，不在仓库中记录密码、Token、Cookie、成员私有资料或第三方原始响应。
 
+发布全过程由维护 Agent 按根目录 `agent.md` 执行并监控到终态。项目负责人只提供必要凭据输入以及发布决定或高风险批准，不负责运行命令、操作普通控制台步骤或等待 CI。
+
 ## 1. 发布范围与责任人
 
-- [ ] 已记录版本号、候选提交、变更摘要、发布人和复核人。
+- [ ] 已记录版本号、候选提交、变更摘要、项目负责人批准和执行 Agent/会话。
 - [ ] 工作树只包含本次发布内容；临时截图、导出文件和根目录本地素材未被误纳入。
 - [ ] 数据库、Edge Functions、前端和配置的兼容顺序已明确。
 - [ ] 已记录最后一个可用的 Git 提交、Pages 部署和 Supabase migration 状态。
-- [ ] 发布人与复核人均已按 `docs/maintainer-handoff.md` 验证所需供应商权限；记录不包含账号标识或 Secret。
+- [ ] 项目负责人已按 `docs/maintainer-handoff.md` 确认所需供应商权限与高风险操作范围；Agent 只使用当前授权会话，记录不包含账号标识或 Secret。
 
 ## 2. 本地与 CI 门禁
 
@@ -35,7 +37,7 @@
   npm run test:e2e
   npm run build
   npm run check:bundle
-  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
+  npx --yes deno check --config supabase/functions/deno.json supabase/functions/sync-member/index.ts supabase/functions/sync-stats/index.ts supabase/functions/sync-avatar/index.ts supabase/functions/member-avatar/index.ts supabase/functions/delete-account/index.ts supabase/functions/change-password/index.ts supabase/functions/firecrawl-config/index.ts supabase/functions/webchat/index.ts supabase/functions/webchat-attachment/index.ts supabase/functions/webchat-image-cleanup/index.ts supabase/functions/webchat-config/index.ts supabase/functions/webchat-cache-probe/index.ts
   npx --yes deno lint --config supabase/functions/deno.json supabase/functions
   npx --yes deno test --allow-read --allow-env --config supabase/functions/deno.json supabase/functions
   git diff --check
@@ -71,8 +73,8 @@
 - [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
 - 遗留关闭检查：除安全修复或 Schema 兼容需要外不再发布 `webchat-config`、`webchat`、`webchat-attachment`、`webchat-image-cleanup` 或 `webchat-cache-probe`；如必须维护，部署后 `CHAT_ENABLED` 与所有产品入口仍为关闭。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
-- [ ] 发布记录包含当前 Git SHA 与十个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
-- [ ] `npm run check:supabase-readiness` 确认十个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
+- [ ] 发布记录包含当前 Git SHA 与 12 个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
+- [ ] `npm run check:supabase-readiness` 确认 12 个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
 - [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
 - [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
 - [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
@@ -118,15 +120,15 @@
 - [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
 - [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；演练完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、7 类孤儿、私有 Bucket 重建、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。旧 run `29656219433` 只覆盖 database-only 格式，可作为历史基线但不能替代本项。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
-- [ ] 已由项目负责人选择并加入 `LICENSE`；在此之前不得把源码描述为开源。
+- [x] 项目负责人已选择 Apache License 2.0（SPDX 标识符：`Apache-2.0`），维护 Agent 已加入 `LICENSE`。该许可证仅覆盖项目原创源代码；学校、集训队、赛事标识、第三方素材、成员数据和平台数据仍保持独立授权边界。
 - [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。
 - [ ] 已观察至少一个完整日更批次；涉及 XCPC ELO/QOJ 时观察到下一个周二批次。
 - [ ] 所有阻塞问题已关闭，遗留非阻塞风险有负责人和后续日期。
 
 ## 8. 发布与观察
 
-- [ ] 复核人明确给出发布决定后，才创建带注释的 `v1.0.0`（或对应版本）标签。
+- [ ] 项目负责人明确给出发布决定后，才由执行 Agent 创建带注释的 `v1.0.0`（或对应版本）标签。
 - [ ] 标签指向已通过全部门禁并实际部署的提交，不在失败构建上移动或复用标签。
 - [ ] Pages、认证、后台、同步队列、同步失败状态和数据库指标在发布后观察窗口内正常。
 - [ ] 若出现故障，已按 [生产运维手册](./operations-runbook.md) 执行 Git revert、函数兼容回滚或数据库前向修复。
-- [ ] 发布记录包含验证证据、最终部署 ID、遗留风险和下一位维护者。
+- [ ] 发布记录包含验证证据、最终部署 ID、遗留风险和下一次 Agent 冷启动所需上下文。

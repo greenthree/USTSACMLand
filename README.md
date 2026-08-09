@@ -2,7 +2,7 @@
 
 苏州科技大学 ACM 集训队官网。项目使用 GitHub Pages 托管 React SPA，介绍算法竞赛、主要赛事、线上公开赛、学习资源和入队方式，并通过 Supabase 提供认证、Postgres、RLS 和 Edge Functions，展示队员在多个竞赛平台的 Rating 与刷题数据。
 
-> 当前状态：集训队官网、生产 Supabase、首管理员、十个 Edge Function 和 71 个 production migration 均已部署，前端由 GitHub Pages 发布并连接真实认证、榜单与管理接口。每日一题、讨论、训练目标、刷题增量榜和个人数据导出已上线；六个平台的可恢复同步失败统一最多自动重试一次。Firecrawl 多 Key、QOJ 独立 Browser Sandbox、真实邮箱找回密码、加密备份与隔离恢复、注销恢复下限围栏和细粒度 GitHub 凭据均已完成生产验收。WebChat / AI 学习助手与推荐计划已经退出产品范围并停止开发，生产入口、请求和奖励流程保持关闭；既有前端、Edge Function、数据库 migration、测试及安全实现仅作为遗留实现保留，不删除、不回滚，也不作为发布待办。主分支 CI、secret scan、Pages build/deploy、生产榜单审计和可复跑生产安全检查持续作为发布门禁。
+> 当前状态：集训队官网、生产 Supabase、首管理员、12 个 Edge Function 和 75 个 production migration 均已部署，前端由 GitHub Pages 发布并连接真实认证、榜单与管理接口。每日一题、讨论、训练目标、刷题增量榜和个人数据导出已上线；六个平台的可恢复同步失败统一最多自动重试一次。Firecrawl 多 Key、QOJ 独立 Browser Sandbox、真实邮箱找回密码、加密备份与隔离恢复、注销恢复下限围栏和细粒度 GitHub 凭据均已完成生产验收。WebChat / AI 学习助手与推荐计划已经退出产品范围并停止开发，生产入口、请求和奖励流程保持关闭；既有前端、Edge Function、数据库 migration、测试及安全实现仅作为遗留实现保留，不删除、不回滚，也不作为发布待办。主分支 CI、secret scan、Pages build/deploy、生产榜单审计和可复跑生产安全检查持续作为发布门禁。
 
 ## 已实现
 
@@ -223,15 +223,20 @@ Turnstile 私有 Secret 只配置在 Supabase Auth，真实邮箱确认、Auth �
 直连拒绝必须一起验收。完整启用与回滚顺序见
 [注册滥用防护](./docs/registration-abuse-controls.md)。
 
-GitHub Actions Secrets：
+GitHub 仓库级 Actions Secrets：
 
-- `SUPABASE_PROJECT_REF`
-- `SUPABASE_SERVICE_ROLE_KEY`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `SUPABASE_ACCESS_TOKEN`（仅供加密数据库备份；CLI 每次运行动态取得短期数据库登录，不保存长期数据库密码）
 - `BACKUP_ENCRYPTION_PASSPHRASE`（独立随机口令，至少 32 个字符）
 - 遗留 WebChat 兼容性工作流仍识别 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，但模块停止后不再运行付费协议、Abort 或缓存验收，也不再向 GitHub 新增或更新这三项 Secret。仍保留在 Supabase Vault 的生产配置不得复制到 `VITE_*`、前端、日志或发布记录。
+
+`production-operations` Environment Secrets：
+
+- `SUPABASE_PROJECT_REF`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+该 Environment 只允许默认分支 `main`，生产同步、备份、恢复和只读探针只能通过绑定该 Environment 的工作流取得上述名称对应的值；不得在仓库级或组织级创建同名副本。
 
 Supabase Function Secrets/配置：
 
@@ -290,7 +295,7 @@ npx --yes deno run \
 
 ## 部署
 
-生产 Supabase 项目已关联；截至 2026-07-25，仓库与生产均为 71 个 migration、0 项 pending，十个 Edge Function 均为 ACTIVE、启用 JWT 验证并使用仓库 import map。`webchat-attachment` 与 `webchat-image-cleanup` 已以默认关闭方式部署，推荐计划仍全局暂停。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 和 `db push --dry-run --include-all` 核对远端状态。函数部署需要显式传入 Deno import map：
+生产 Supabase 项目已关联；截至 2026-08-09，仓库与生产均为 75 个 migration、0 项 pending，12 个 Edge Function 均为 ACTIVE 并使用仓库 import map；除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，其余函数均启用 JWT 验证。`webchat-attachment` 与 `webchat-image-cleanup` 已以默认关闭方式部署，推荐计划仍全局暂停。仓库 migration 必须按时间顺序应用；部署前先使用 `supabase migration list --linked` 和 `db push --dry-run --include-all` 核对远端状态。函数部署需要显式传入 Deno import map：
 
 `202607140010_platform_account_canonicalization.sql` 会在修改数据前检查历史牛客/洛谷绑定：如果两个成员的 UID 只差前导零，或存在超过 20 位的旧 UID，migration 会带修复提示安全终止。管理员应先在成员管理中确认归属并改正或解绑冲突记录，再重新应用 migration；脚本不会自动选择账号所有者或删除成员数据。
 
@@ -315,11 +320,11 @@ Vite 生产 `base` 使用域名根路径 `/`，构建脚本会复制 `dist/index
 ## 当前限制与下一步
 
 1. 保持 WebChat 与推荐计划关闭，防止遗留入口、请求、图片上传或奖励流程被误开启；除关闭态安全修复外不再投入开发。
-2. 由项目负责人确定源码许可证和学校、集训队、赛事标识授权范围，并由第二名维护者按 [维护者交接操作卡](./docs/maintainer-handoff.md) 完成独立演练。
+2. 源代码采用 Apache License 2.0；学校、集训队和赛事标识的授权范围仍需单独确认。项目采用 Agent 全程维护模式，后续 Agent 先按根目录 [`agent.md`](./agent.md) 和 [Agent 维护交接手册](./docs/maintainer-handoff.md) 冷启动。项目负责人只提供 Agent 无法代替的凭据输入、账号持有人操作、法律/产品决定和高风险批准，并接受没有第二名真人维护者的单点风险。
 3. 按 [正式发布检查单](./docs/release-checklist.md) 创建 `v1.0.0`，补齐 Cloudflare Purge、证书和 DNS 回滚验收。人工屏幕阅读器验收不纳入本项目发布范围；现有键盘操作、语义结构和自动化可访问性回归继续保留。
 
-视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，维护权交接见 [维护者交接与独立操作卡](./docs/maintainer-handoff.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，遗留 WebChat 图片边界保留在 [图片输入 v1 历史契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
+Agent 的根级操作契约见 [`agent.md`](./agent.md)，视觉规范见 [docs/DESIGN.md](./docs/DESIGN.md)，架构取舍见 [docs/adr/](./docs/adr/README.md)，部署与故障处理见 [生产运维手册](./docs/operations-runbook.md)，具体维护操作卡见 [Agent 维护交接手册](./docs/maintainer-handoff.md)，数据恢复见 [数据库备份与恢复方案](./docs/backup-and-recovery.md)，遗留 WebChat 图片边界保留在 [图片输入 v1 历史契约](./docs/webchat-image-input-v1.md)，发布门禁见 [正式发布检查单](./docs/release-checklist.md)，详细进度见 [ROADMAP.md](./ROADMAP.md)。
 
 ## 许可证与归属
 
-许可证尚未确定；在补充 `LICENSE` 前，源码默认不授予复制、修改或再分发许可。数据处理说明见 [PRIVACY.md](./PRIVACY.md) 与 [第三方数据来源说明](./docs/third-party-data-sources.md)，漏洞报告方式见 [SECURITY.md](./SECURITY.md)。正式使用学校及 ACM 集训队相关标识前仍需确认授权范围。
+源代码按 Apache License 2.0（SPDX 标识符：`Apache-2.0`）发布，详见 [`LICENSE`](./LICENSE)。该许可证仅覆盖项目原创源代码，不自动授予学校、集训队或赛事名称与图形标识的使用权，也不覆盖第三方字体、图片、成员数据或平台数据；这些内容分别遵循其独立授权和数据处理边界。数据处理说明见 [PRIVACY.md](./PRIVACY.md) 与 [第三方数据来源说明](./docs/third-party-data-sources.md)，漏洞报告方式见 [SECURITY.md](./SECURITY.md)。
