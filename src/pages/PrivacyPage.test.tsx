@@ -18,19 +18,25 @@ describe('PrivacyPage', () => {
     })
   })
 
-  it('discloses WebChat relay processing, private history retention, and quota metadata', async () => {
+  it('discloses the closed WebChat boundary, private history retention, and quota metadata', async () => {
     render(<PrivacyPage />)
     await screen.findByRole('heading', { name: '推荐计划' })
 
-    const section = screen.getByRole('heading', { name: 'AI 学习助手' }).closest('section')
+    const section = screen.getByRole('heading', { name: '遗留 AI 学习助手数据' }).closest('section')
     expect(section).not.toBeNull()
+    expect(section).toHaveTextContent('已经退出当前产品范围')
+    expect(section).toHaveTextContent(
+      '不再把新的成员问题、会话上下文或固定学习助手指令发送给中转站及其上游模型',
+    )
     expect(section).toHaveTextContent('中转站及其上游模型')
-    expect(section).toHaveTextContent('Supabase 私有数据库中保存会话标题、成员问题和模型可见回复')
+    expect(section).toHaveTextContent(
+      '会话标题、成员问题和模型可见回复仍保存在 Supabase 私有数据库中',
+    )
     expect(section).toHaveTextContent('管理员默认也不能读取其他成员的对话正文')
     expect(section).toHaveTextContent('180 天后自动删除')
     expect(section).toHaveTextContent('不可逆内容指纹')
-    expect(section).toHaveTextContent('受管理员最终选择的服务和该服务政策约束')
-    expect(section).toHaveTextContent('持续核对真实中转站的数据政策')
+    expect(section).toHaveTextContent('受当时所选服务及其政策约束')
+    expect(section).toHaveTextContent('功能关闭后不再产生新的模型请求')
   })
 
   it('keeps credentials and private member fields outside the public ranking disclosure', async () => {

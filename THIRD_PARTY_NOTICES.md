@@ -1,13 +1,13 @@
 # 第三方素材与商标说明
 
-根目录 [`LICENSE`](./LICENSE) 只授予项目原创内容的 Apache License 2.0 权利。下列文件包含第三方字体、品牌标识或需要独立确认的视觉素材，不因根目录许可证获得额外授权。
+根目录 [`LICENSE`](./LICENSE) 授予项目原创源代码，以及未附带其他授权声明的原创文档和配置的 Apache License 2.0 权利。下列文件包含第三方字体、品牌标识或需要独立确认的视觉素材，不因根目录许可证获得额外授权。
 
 ## Noto Serif SC
 
 `public/fonts/noto-serif-sc/` 中的 Noto Serif SC 字体分片及其 CSS 派生文件依据 SIL Open Font License 1.1 使用。
 
 - 上游项目：[Noto CJK](https://github.com/notofonts/noto-cjk)
-- 字体许可证：[SIL Open Font License 1.1](https://scripts.sil.org/OFL)
+- 随字体分发的许可证：[SIL Open Font License 1.1](./public/fonts/noto-serif-sc/OFL.txt)
 - 字体名称和保留名称限制以其上游许可证为准。
 
 ## 品牌标识与图片
