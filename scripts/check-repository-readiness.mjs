@@ -42,7 +42,7 @@ const scheduledWorkflowMaxAgeHours = new Map([
 ])
 
 function asSet(values) {
-  return new Set(values.filter(Boolean))
+  return new Set((Array.isArray(values) ? values : []).filter(Boolean))
 }
 
 function targetsDefaultBranch(ruleset, defaultBranch) {
@@ -141,6 +141,22 @@ export function evaluateRepositoryReadiness(state) {
   for (const secret of requiredActionSecrets) {
     if (!actionSecrets.has(secret)) errors.push(`仓库 Actions Secret 未配置：${secret}。`)
   }
+  for (const secret of requiredProductionEnvironmentSecrets) {
+    if (actionSecrets.has(secret)) {
+      errors.push(
+        `${secret} 不得存在仓库 Actions Secret；请只配置在 ${productionEnvironmentName} Environment。`,
+      )
+    }
+  }
+
+  const organizationActionSecrets = asSet(state.organizationActionSecrets)
+  for (const secret of requiredProductionEnvironmentSecrets) {
+    if (organizationActionSecrets.has(secret)) {
+      errors.push(
+        `${secret} 不得存在组织级 Actions Secret；请只配置在 ${productionEnvironmentName} Environment。`,
+      )
+    }
+  }
 
   const productionEnvironment = state.productionEnvironment
   if (productionEnvironment?.name !== productionEnvironmentName) {
@@ -222,6 +238,7 @@ export function evaluateRepositoryReadiness(state) {
       workflows: state.workflows.length,
       actionSecrets: state.actionSecrets.length,
       productionEnvironmentSecrets: state.productionEnvironment?.secrets?.length ?? 0,
+      organizationActionSecrets: state.organizationActionSecrets?.length ?? 0,
       actionVariables: state.actionVariables.length,
       pagesUrl: state.pages.htmlUrl ?? null,
       actionsRetentionDays: state.actionsRetention?.days ?? null,
@@ -292,6 +309,8 @@ export function collectRepositoryReadinessState(repositoryName) {
   )
   const runResponse = runGhJson(['api', `${apiRoot}/actions/runs?per_page=100`], 'Actions 运行记录')
   const repositorySettings = runGhJson(['api', apiRoot], '仓库安全设置')
+  const organizationOwner =
+    repositorySettings.owner?.type === 'Organization' ? repositorySettings.owner.login : null
   const actionsPermissions = runGhJson(
     ['api', `${apiRoot}/actions/permissions/workflow`],
     'Actions 默认权限',
@@ -326,6 +345,12 @@ export function collectRepositoryReadinessState(repositoryName) {
     ],
     `${productionEnvironmentName} Environment 分支策略`,
   )
+  const organizationSecretsResponse = organizationOwner
+    ? runGhJson(
+        ['api', `orgs/${organizationOwner}/actions/secrets?per_page=100`],
+        '组织级 Actions Secret 名称',
+      )
+    : null
   const workflows = (workflowResponse.workflows ?? []).map((workflow) => {
     const expected = expectedWorkflows.find((item) => item.name === workflow.name)
     let contentMatches = false
@@ -388,6 +413,9 @@ export function collectRepositoryReadinessState(repositoryName) {
         type: policy.type,
       })),
     },
+    organizationActionSecrets: (organizationSecretsResponse?.secrets ?? [])
+      .map((secret) => secret.name)
+      .filter(Boolean),
     actionsPermissions: {
       defaultWorkflowPermissions: actionsPermissions.default_workflow_permissions,
       canApprovePullRequestReviews: actionsPermissions.can_approve_pull_request_reviews,
@@ -421,7 +449,7 @@ async function main() {
 
   console.log(`Repository readiness: ${report.summary.repository}`)
   console.log(
-    `Observed ${report.summary.workflows} workflows, ${report.summary.actionSecrets} repository Actions Secret names, ${report.summary.productionEnvironmentSecrets} ${productionEnvironmentName} Environment Secret names and ${report.summary.actionVariables} Actions variable names.`,
+    `Observed ${report.summary.workflows} workflows, ${report.summary.actionSecrets} repository Actions Secret names, ${report.summary.productionEnvironmentSecrets} ${productionEnvironmentName} Environment Secret names, ${report.summary.organizationActionSecrets} organization Actions Secret names and ${report.summary.actionVariables} Actions variable names.`,
   )
   console.log(`Actions default retention: ${report.summary.actionsRetentionDays} days.`)
   if (report.summary.pagesUrl) console.log(`Pages: ${report.summary.pagesUrl}`)

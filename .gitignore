@@ -19,6 +19,7 @@ coverage/
 .supabase/
 supabase/.temp/
 supabase/.branches/
+.claude/
 
 # Editor and operating system files
 .vscode/

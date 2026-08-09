@@ -43,6 +43,7 @@ function createReadyState() {
       url: `https://github.test/actions/${workflow.name}`,
     })),
     actionSecrets: [...requiredActionSecrets],
+    organizationActionSecrets: [],
     productionEnvironment: {
       name: 'production-operations',
       secrets: [...requiredProductionEnvironmentSecrets],
@@ -125,6 +126,7 @@ describe('repository readiness checker', () => {
         workflows: 5,
         actionSecrets: 4,
         productionEnvironmentSecrets: 2,
+        organizationActionSecrets: 0,
         actionVariables: 3,
         actionsRetentionDays: 14,
         defaultBranchSha: '0123456789abcdef',
@@ -175,6 +177,19 @@ describe('repository readiness checker', () => {
       expect.arrayContaining([
         'production-operations Environment Secret 未配置：SUPABASE_SERVICE_ROLE_KEY。',
         'production-operations Environment 必须只允许默认分支 main 部署。',
+      ]),
+    )
+  })
+
+  it('rejects production credentials copied to repository or organization secrets', () => {
+    const state = createReadyState()
+    state.actionSecrets.push('SUPABASE_PROJECT_REF')
+    state.organizationActionSecrets.push('SUPABASE_SERVICE_ROLE_KEY')
+
+    expect(evaluateRepositoryReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        'SUPABASE_PROJECT_REF 不得存在仓库 Actions Secret；请只配置在 production-operations Environment。',
+        'SUPABASE_SERVICE_ROLE_KEY 不得存在组织级 Actions Secret；请只配置在 production-operations Environment。',
       ]),
     )
   })

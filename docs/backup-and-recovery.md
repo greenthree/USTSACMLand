@@ -60,7 +60,7 @@
 | `SUPABASE_ACCESS_TOKEN`        | Supabase 个人访问令牌；固定版本 CLI 仅用它链接目标项目并动态取得短期数据库登录 |
 | `BACKUP_ENCRYPTION_PASSPHRASE` | 独立随机口令，至少 32 个字符；不得与数据库、GitHub、邮箱或平台账号密码复用     |
 
-`SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只配置在受保护的 `production-operations` Environment；该 Environment 只允许默认分支 `main`。备份工作流从该 Environment 取得项目引用，生产同步与只读探针同时使用项目引用和 service role key；仓库级和组织级不得保留同名副本。
+`SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只配置在受保护的 `production-operations` Environment；该 Environment 只允许默认分支 `main`。备份工作流从该 Environment 取得项目引用，生产同步与只读探针同时使用项目引用和 service role key；仓库级和组织级不得保留同名副本。当前 `greenthree/USTSACMLand` 属于个人账户，因此没有组织级 Secret 作用域；若仓库转移到 Organization，必须重新运行仓库就绪检查并核对组织级 Secret 名称。
 
 同一页面的 `Variables` 必须配置：
 

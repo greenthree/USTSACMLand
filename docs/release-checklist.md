@@ -70,7 +70,7 @@
 ## 4. Edge Functions 与同步
 
 - [ ] 按“数据库 → Edge Functions → Pages”的顺序部署。
-- [ ] `sync-member`、`sync-stats`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
+- [ ] `sync-member`、`sync-stats`、`sync-avatar`、`member-avatar`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
 - 遗留关闭检查：除安全修复或 Schema 兼容需要外不再发布 `webchat-config`、`webchat`、`webchat-attachment`、`webchat-image-cleanup` 或 `webchat-cache-probe`；如必须维护，部署后 `CHAT_ENABLED` 与所有产品入口仍为关闭。
 - [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
 - [ ] 发布记录包含当前 Git SHA 与 12 个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。

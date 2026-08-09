@@ -327,4 +327,4 @@ Agent 的根级操作契约见 [`agent.md`](./agent.md)，视觉规范见 [docs/
 
 ## 许可证与归属
 
-源代码按 Apache License 2.0（SPDX 标识符：`Apache-2.0`）发布，详见 [`LICENSE`](./LICENSE)。该许可证仅覆盖项目原创源代码，不自动授予学校、集训队或赛事名称与图形标识的使用权，也不覆盖第三方字体、图片、成员数据或平台数据；这些内容分别遵循其独立授权和数据处理边界。数据处理说明见 [PRIVACY.md](./PRIVACY.md) 与 [第三方数据来源说明](./docs/third-party-data-sources.md)，漏洞报告方式见 [SECURITY.md](./SECURITY.md)。
+项目原创源代码，以及未附带其他授权声明的原创文档和配置，按 Apache License 2.0（SPDX 标识符：`Apache-2.0`）发布，详见 [`LICENSE`](./LICENSE)。该许可证不自动授予学校、集训队或赛事名称与图形标识的使用权，也不覆盖第三方字体、图片、成员数据或平台数据；完整资产清单和独立授权边界见 [第三方素材与商标说明](./THIRD_PARTY_NOTICES.md)。数据处理说明见 [PRIVACY.md](./PRIVACY.md) 与 [第三方数据来源说明](./docs/third-party-data-sources.md)，漏洞报告方式见 [SECURITY.md](./SECURITY.md)。

@@ -224,7 +224,7 @@ Agent 只记录项目负责人批准时间、消费者清单、烟测、撤销�
 ```powershell
 git worktree add ..\ustsacmland-rollback <known-good-commit>
 Set-Location ..\ustsacmland-rollback
-npx --yes supabase@2.109.1 functions deploy sync-member sync-stats delete-account change-password firecrawl-config --use-api --import-map supabase/functions/deno.json
+npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar member-avatar delete-account change-password firecrawl-config --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```
 
