@@ -101,12 +101,12 @@ select ok(
     and pg_catalog.has_function_privilege(
       'service_role', 'public.read_webchat_relay_runtime_config()', 'EXECUTE'
     )
-    and pg_catalog.has_function_privilege(
+    and not pg_catalog.has_function_privilege(
       'service_role',
       'public.admin_update_webchat_relay_config(uuid,text,text,text,bigint,text,boolean,integer,bigint)',
       'EXECUTE'
     ),
-  'the service role can call the three bounded relay configuration RPCs'
+  'the service role can read redacted/runtime relay state but cannot mutate retired configuration'
 );
 
 select ok(
@@ -124,6 +124,11 @@ select ok(
   ),
   'all relay configuration RPCs are SECURITY DEFINER functions'
 );
+
+-- Exercise the retained writer inside this rolled-back test transaction only.
+grant execute on function public.admin_update_webchat_relay_config(
+  uuid, text, text, text, bigint, text, boolean, integer, bigint
+) to service_role;
 
 select ok(
   not exists (

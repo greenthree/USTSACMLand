@@ -79,7 +79,7 @@ select ok(
   pg_catalog.has_function_privilege(
     'authenticated', 'public.admin_get_webchat_member_access(uuid)', 'EXECUTE'
   )
-    and pg_catalog.has_function_privilege(
+    and not pg_catalog.has_function_privilege(
       'authenticated',
       'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)',
       'EXECUTE'
@@ -93,8 +93,13 @@ select ok(
     and not pg_catalog.has_function_privilege(
       'service_role', 'public.read_own_webchat_usage()', 'EXECUTE'
     ),
-  'authenticated browsers can reach only the admin and own-usage entry points'
+  'authenticated browsers retain read-only administration and own-usage entry points'
 );
+
+-- Exercise the retained administrator writer in this rolled-back test only.
+grant execute on function public.admin_update_webchat_member_access(
+  uuid, boolean, integer, bigint, bigint, text
+) to authenticated;
 
 select ok(
   pg_catalog.has_function_privilege(

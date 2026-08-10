@@ -1,5 +1,7 @@
 import {
   classifyGhFailure,
+  collectSecretNames,
+  describeProductionEnvironmentReadFailure,
   evaluateRepositoryReadiness,
   expectedWorkflows,
   requiredActionSecrets,
@@ -117,6 +119,25 @@ describe('repository readiness checker', () => {
     )
   })
 
+  it('collects every organization Secret name returned by paginated GitHub API responses', () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({ name: `SECRET_${index}` }))
+
+    expect(
+      collectSecretNames([
+        { secrets: firstPage },
+        { secrets: [{ name: 'SUPABASE_SERVICE_ROLE_KEY' }] },
+      ]),
+    ).toEqual([...firstPage.map((secret) => secret.name), 'SUPABASE_SERVICE_ROLE_KEY'])
+  })
+
+  it('explains an unavailable production environment without exposing the GitHub response', () => {
+    expect(
+      describeProductionEnvironmentReadFailure({ stderr: 'HTTP 404: environment not found' }),
+    ).toBe(
+      'production-operations Environment 不存在或当前 GitHub Token 无权读取；请创建该 Environment 并授予当前 Token Actions 读取权限。',
+    )
+  })
+
   it('accepts a repository that satisfies the release settings contract', () => {
     expect(evaluateRepositoryReadiness(createReadyState())).toMatchObject({
       errors: [],
@@ -178,6 +199,15 @@ describe('repository readiness checker', () => {
         'production-operations Environment Secret 未配置：SUPABASE_SERVICE_ROLE_KEY。',
         'production-operations Environment 必须只允许默认分支 main 部署。',
       ]),
+    )
+  })
+
+  it('fails closed with a specific blocker when the production environment is unavailable', () => {
+    const state = createReadyState()
+    state.productionEnvironment = null
+
+    expect(evaluateRepositoryReadiness(state).errors).toContain(
+      '缺少 production-operations Environment。',
     )
   })
 

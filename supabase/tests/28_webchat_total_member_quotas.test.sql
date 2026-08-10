@@ -228,6 +228,11 @@ select ok(
   'only the authorized cumulative claim wrapper is service-callable'
 );
 
+-- Exercise the retained administrator writer in this rolled-back test only.
+grant execute on function public.admin_update_webchat_member_access(
+  uuid, boolean, integer, bigint, bigint, text
+) to authenticated;
+
 update private.webchat_relay_config
 set
   base_url = 'https://relay.total-quota.example.test/v1',

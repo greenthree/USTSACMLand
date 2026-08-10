@@ -273,7 +273,30 @@ export function classifyGhFailure(error) {
   return 'GitHub CLI 返回未知错误'
 }
 
-function runGhJson(args, label) {
+function isGhNotFoundFailure(error) {
+  const stderr =
+    error && typeof error === 'object' && 'stderr' in error
+      ? Buffer.isBuffer(error.stderr)
+        ? error.stderr.toString('utf8')
+        : String(error.stderr ?? '')
+      : ''
+  const message = error instanceof Error ? error.message : ''
+  return /HTTP 404|not found/i.test(`${message}\n${stderr}`)
+}
+
+export function describeProductionEnvironmentReadFailure(error) {
+  if (isGhNotFoundFailure(error)) {
+    return `${productionEnvironmentName} Environment 不存在或当前 GitHub Token 无权读取；请创建该 Environment 并授予当前 Token Actions 读取权限。`
+  }
+  return `无法读取 ${productionEnvironmentName} Environment：${classifyGhFailure(error)}。`
+}
+
+export function collectSecretNames(response) {
+  const pages = Array.isArray(response) ? response : [response]
+  return pages.flatMap((page) => (page?.secrets ?? []).map((secret) => secret.name).filter(Boolean))
+}
+
+function runGhJson(args, label, options = {}) {
   try {
     const output = execFileSync('gh', args, {
       encoding: 'utf8',
@@ -283,6 +306,9 @@ function runGhJson(args, label) {
     })
     return output.trim() ? JSON.parse(output) : null
   } catch (error) {
+    if (options.failureMessage) {
+      throw new Error(options.failureMessage(error))
+    }
     throw new Error(`无法读取 ${label}：${classifyGhFailure(error)}。`)
   }
 }
@@ -290,6 +316,10 @@ function runGhJson(args, label) {
 function listNames(args, label) {
   const rows = runGhJson(args, label)
   return Array.isArray(rows) ? rows.map((row) => row.name).filter(Boolean) : []
+}
+
+function listPagedSecretNames(args, label) {
+  return collectSecretNames(runGhJson([...args, '--paginate', '--slurp'], label))
 }
 
 export function collectRepositoryReadinessState(repositoryName) {
@@ -333,6 +363,9 @@ export function collectRepositoryReadinessState(repositoryName) {
   const productionEnvironment = runGhJson(
     ['api', `${apiRoot}/environments/${productionEnvironmentName}`],
     `${productionEnvironmentName} Environment`,
+    {
+      failureMessage: describeProductionEnvironmentReadFailure,
+    },
   )
   const environmentSecretsResponse = runGhJson(
     ['api', `${apiRoot}/environments/${productionEnvironmentName}/secrets?per_page=100`],
@@ -346,11 +379,11 @@ export function collectRepositoryReadinessState(repositoryName) {
     `${productionEnvironmentName} Environment 分支策略`,
   )
   const organizationSecretsResponse = organizationOwner
-    ? runGhJson(
+    ? listPagedSecretNames(
         ['api', `orgs/${organizationOwner}/actions/secrets?per_page=100`],
         '组织级 Actions Secret 名称',
       )
-    : null
+    : []
   const workflows = (workflowResponse.workflows ?? []).map((workflow) => {
     const expected = expectedWorkflows.find((item) => item.name === workflow.name)
     let contentMatches = false
@@ -413,9 +446,7 @@ export function collectRepositoryReadinessState(repositoryName) {
         type: policy.type,
       })),
     },
-    organizationActionSecrets: (organizationSecretsResponse?.secrets ?? [])
-      .map((secret) => secret.name)
-      .filter(Boolean),
+    organizationActionSecrets: organizationSecretsResponse,
     actionsPermissions: {
       defaultWorkflowPermissions: actionsPermissions.default_workflow_permissions,
       canApprovePullRequestReviews: actionsPermissions.can_approve_pull_request_reviews,

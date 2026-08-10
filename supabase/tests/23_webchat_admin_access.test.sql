@@ -50,7 +50,7 @@ select ok(
   pg_catalog.has_function_privilege(
     'authenticated', 'public.admin_get_webchat_member_access(uuid)', 'EXECUTE'
   )
-    and pg_catalog.has_function_privilege(
+    and not pg_catalog.has_function_privilege(
       'authenticated',
       'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)',
       'EXECUTE'
@@ -64,8 +64,13 @@ select ok(
     and not pg_catalog.has_function_privilege(
       'service_role', 'public.read_own_webchat_usage()', 'EXECUTE'
     ),
-  'browser RPC grants remain limited to authenticated administration and self usage'
+  'browser RPC grants retain read-only WebChat administration and self usage'
 );
+
+-- Exercise the retained administrator writer in this rolled-back test only.
+grant execute on function public.admin_update_webchat_member_access(
+  uuid, boolean, integer, bigint, bigint, text
+) to authenticated;
 
 select ok(
   pg_catalog.has_function_privilege(

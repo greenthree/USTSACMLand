@@ -11,7 +11,6 @@ const memberDetailMocks = vi.hoisted(() => ({
   setAccountStatus: vi.fn(),
   triggerSync: vi.fn(),
   fetchWebChatAccess: vi.fn(),
-  updateWebChatAccess: vi.fn(),
 }))
 
 vi.mock('../../lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
@@ -34,7 +33,6 @@ vi.mock('../../lib/webChatMemberAccess', async () => {
   return {
     ...actual,
     fetchAdminWebChatMemberAccess: memberDetailMocks.fetchWebChatAccess,
-    updateAdminWebChatMemberAccess: memberDetailMocks.updateWebChatAccess,
   }
 })
 
@@ -70,13 +68,6 @@ describe('AdminMemberDetailPage', () => {
       version: 1,
       updatedAt: '2026-07-17T08:00:00Z',
     })
-    memberDetailMocks.updateWebChatAccess.mockResolvedValue({
-      enabled: true,
-      totalRequestLimit: 12,
-      totalTokenLimit: 50_000,
-      version: 2,
-      updatedAt: '2026-07-17T09:00:00Z',
-    })
   })
 
   it('shows the member profile, six platforms, and XCPC automatic matching boundary', async () => {
@@ -111,68 +102,22 @@ describe('AdminMemberDetailPage', () => {
     expect(await screen.findByText('牛客 账号已保存，等待验证。')).toBeInTheDocument()
   })
 
-  it('lets an administrator enable WebChat and set cumulative member limits', async () => {
-    const user = userEvent.setup()
+  it('shows WebChat access as a read-only historical record', async () => {
     renderPage()
     await screen.findByRole('heading', { name: '沈亦安' })
 
-    const enabled = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
-    const requestLimit = screen.getByRole('spinbutton', { name: /累计请求总上限/ })
-    const tokenLimit = screen.getByRole('spinbutton', { name: /累计 Token 总上限/ })
-    await user.click(enabled)
-    await user.clear(requestLimit)
-    await user.type(requestLimit, '12')
-    await user.clear(tokenLimit)
-    await user.type(tokenLimit, '50000')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '开放成员权限')
-    await user.click(screen.getByRole('button', { name: '保存 AI 助手配置' }))
-
-    expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
-      memberId: 'member-1',
-      enabled: true,
-      totalRequestLimit: 12,
-      totalTokenLimit: 50_000,
-      expectedVersion: 1,
-      reason: '开放成员权限',
-    })
-    expect(await screen.findByText('成员 AI 助手权限与额度已保存。')).toBeInTheDocument()
-    expect(screen.getByText('配置版本 v2')).toBeInTheDocument()
-  })
-
-  it('lets an administrator disable AI access without changing cumulative limits', async () => {
-    const user = userEvent.setup()
-    memberDetailMocks.fetchWebChatAccess.mockResolvedValue({
-      enabled: true,
-      totalRequestLimit: 12,
-      totalTokenLimit: 50_000,
-      version: 4,
-      updatedAt: '2026-07-17T08:00:00Z',
-    })
-    memberDetailMocks.updateWebChatAccess.mockResolvedValue({
-      enabled: false,
-      totalRequestLimit: 12,
-      totalTokenLimit: 50_000,
-      version: 5,
-      updatedAt: '2026-07-17T09:00:00Z',
-    })
-    renderPage()
-    await screen.findByRole('heading', { name: '沈亦安' })
-
-    const access = await screen.findByRole('checkbox', { name: /允许使用 AI 学习助手/ })
-    expect(access).toBeChecked()
-
-    await user.click(access)
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '关闭该账号权限')
-    await user.click(screen.getByRole('button', { name: '保存 AI 助手配置' }))
-
-    expect(memberDetailMocks.updateWebChatAccess).toHaveBeenCalledWith({
-      memberId: 'member-1',
-      enabled: false,
-      totalRequestLimit: 12,
-      totalTokenLimit: 50_000,
-      expectedVersion: 4,
-      reason: '关闭该账号权限',
-    })
+    const section = screen.getByRole('heading', { name: 'AI 助手历史授权' }).closest('section')
+    expect(section).not.toBeNull()
+    expect(within(section as HTMLElement).getByText('产品入口已关闭')).toBeInTheDocument()
+    expect(within(section as HTMLElement).getByText('已关闭')).toBeInTheDocument()
+    expect(within(section as HTMLElement).getByText('10')).toBeInTheDocument()
+    expect(within(section as HTMLElement).getByText('40,000')).toBeInTheDocument()
+    expect(within(section as HTMLElement).getByText('v1')).toBeInTheDocument()
+    expect(within(section as HTMLElement).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(section as HTMLElement).queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(
+      within(section as HTMLElement).queryByRole('button', { name: /保存/ }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps member platform details available when WebChat access loading fails', async () => {

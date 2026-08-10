@@ -107,6 +107,10 @@ select ok(pg_temp.webchat_function_acl_is(
 select ok(pg_temp.webchat_function_acl_is(
   'public.bind_webchat_image_attachments(uuid,uuid,text,uuid[])', 'service_role'
 ), 'explicit binding RPC is service-role-only');
+
+-- Exercise the retained history/image binding implementation in this rolled-back test only.
+grant execute on function public.upsert_own_webchat_message(uuid, text, text, text, jsonb)
+to authenticated;
 select ok(pg_temp.webchat_function_acl_is(
   'public.read_webchat_image_attachment_for_preview(uuid,uuid)', 'service_role'
 ), 'object-locator preview RPC is service-role-only');

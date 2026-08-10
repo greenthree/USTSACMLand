@@ -57,7 +57,7 @@ select throws_like(
 );
 
 select ok(
-  pg_catalog.has_function_privilege(
+  not pg_catalog.has_function_privilege(
     'authenticated',
     'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)',
     'EXECUTE'
@@ -72,7 +72,7 @@ select ok(
       'public.admin_update_webchat_member_access(uuid,boolean,integer,bigint,bigint,text)',
       'EXECUTE'
     ),
-  'ordinary authenticated sessions retain only the administrator-checked access boundary'
+  'all application roles are denied the retired member access writer'
 );
 
 select ok(

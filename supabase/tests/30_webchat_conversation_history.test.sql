@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(20);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -105,6 +105,34 @@ select ok(
     ),
   'only authenticated callers receive own-history RPC access'
 );
+
+select ok(
+  not pg_catalog.has_function_privilege(
+    'authenticated', 'public.create_own_webchat_conversation()', 'EXECUTE'
+  )
+    and not pg_catalog.has_function_privilege(
+      'authenticated', 'public.rename_own_webchat_conversation(uuid,text)', 'EXECUTE'
+    )
+    and not pg_catalog.has_function_privilege(
+      'authenticated',
+      'public.set_own_webchat_conversation_archived(uuid,boolean)',
+      'EXECUTE'
+    )
+    and not pg_catalog.has_function_privilege(
+      'authenticated',
+      'public.upsert_own_webchat_message(uuid,text,text,text,jsonb)',
+      'EXECUTE'
+    ),
+  'retired WebChat history creation and update RPCs are unavailable to members'
+);
+
+-- Exercise the retained implementation inside this rolled-back test transaction only.
+grant execute on function public.create_own_webchat_conversation() to authenticated;
+grant execute on function public.rename_own_webchat_conversation(uuid, text) to authenticated;
+grant execute on function public.set_own_webchat_conversation_archived(uuid, boolean)
+to authenticated;
+grant execute on function public.upsert_own_webchat_message(uuid, text, text, text, jsonb)
+to authenticated;
 
 select is(
   (select count(*)::integer from cron.job where jobname = 'webchat-history-retention'),

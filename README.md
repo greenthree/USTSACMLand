@@ -205,8 +205,8 @@ npm run test:db
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_REGISTRATION_TURNSTILE_ENABLED`（注册 Turnstile 开关；默认关闭）
 - `VITE_TURNSTILE_SITE_KEY`（公开站点 Key；Turnstile 开启时必填）
-- `VITE_WEBCHAT_UI_ENABLED`（仅接受 `true`/`false`；默认关闭）
-- `VITE_WEBCHAT_IMAGE_INPUT_ENABLED`（图片粘贴/选择入口；默认关闭，必须在 Storage 备份恢复与视觉模型烟测后才可开启）
+- `VITE_WEBCHAT_UI_ENABLED`（遗留界面开关；生产固定为 `false`，不得开启）
+- `VITE_WEBCHAT_IMAGE_INPUT_ENABLED`（遗留图片入口开关；生产固定为 `false`，不得开启）
 - `VITE_WEBCHAT_API_URL`（仅供本地回环测试；生产固定使用当前 Supabase 项目的 `webchat` Function）
 
 只读生产验收变量：
@@ -217,7 +217,7 @@ GitHub Actions Variables：
 
 - `VITE_REGISTRATION_TURNSTILE_ENABLED`（Pages 注册安全验证开关）
 - `VITE_TURNSTILE_SITE_KEY`（Cloudflare Turnstile 公开站点 Key，不是 Secret）
-- `VITE_WEBCHAT_UI_ENABLED`（Pages 构建开关；未配置时 workflow 明确回退为 `false`）
+- `VITE_WEBCHAT_UI_ENABLED`（遗留 Pages 构建开关；必须为 `false`，未配置时 workflow 也固定回退为 `false`）
 
 Turnstile 私有 Secret 只配置在 Supabase Auth，真实邮箱确认、Auth 限流和无 token
 直连拒绝必须一起验收。完整启用与回滚顺序见
@@ -229,7 +229,7 @@ GitHub 仓库级 Actions Secrets：
 - `VITE_SUPABASE_ANON_KEY`
 - `SUPABASE_ACCESS_TOKEN`（仅供加密数据库备份；CLI 每次运行动态取得短期数据库登录，不保存长期数据库密码）
 - `BACKUP_ENCRYPTION_PASSPHRASE`（独立随机口令，至少 32 个字符）
-- 遗留 WebChat 兼容性工作流仍识别 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，但模块停止后不再运行付费协议、Abort 或缓存验收，也不再向 GitHub 新增或更新这三项 Secret。仍保留在 Supabase Vault 的生产配置不得复制到 `VITE_*`、前端、日志或发布记录。
+- 遗留 WebChat 兼容性工作流仍识别 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，但模块停止后不再运行付费协议、Abort 或缓存验收，也不再向 GitHub 新增或更新这三项 Secret。仍保留在 Supabase Vault 的生产配置只允许核对名称和关闭状态，不读取值、不轮换，也不得复制到 `VITE_*`、前端、日志或发布记录；未来若删除，必须单独取得生产 Secret 变更批准。
 
 `production-operations` Environment Secrets：
 
@@ -246,11 +246,11 @@ Supabase Function Secrets/配置：
 - `LUOGU_COOKIE`（专用洛谷会话 Cookie）
 - `LUOGU_CSRF_TOKEN`（与 Cookie 对应的 CSRF Token）
 - `SYNC_QUEUE_TOKEN`（独立随机值，32-256 个可打印 ASCII 字符；只授权 `scope=queue`）
-- 可选：`WEBCHAT_CACHE_PROBE_TIMEOUT_MS`（单次上游缓存探针超时，默认 120000ms；两次请求共享的数据库租约会据此保持足够余量）
+- 遗留：`WEBCHAT_CACHE_PROBE_TIMEOUT_MS`（只解释已停止缓存探针的兼容实现；关闭态不新增或调整该配置）
 - `DELETION_RECOVERY_REPOSITORY`、`DELETION_RECOVERY_GITHUB_TOKEN`（注销前更新 GitHub 恢复下限；Token 仅授予目标仓库 Variables write）
-- `CHAT_IMAGE_INPUT_ENABLED`（Edge 图片上传入口；默认关闭）
-- `CHAT_VISION_ENABLED`（Edge 向中转站发送图片的视觉能力；默认关闭，必须与前端/上传开关分别审核）
-- `CHAT_VISION_MODEL`（唯一允许接收图片的精确运行时模型；管理员更换模型后图片自动失败关闭）
+- `CHAT_IMAGE_INPUT_ENABLED`（遗留 Edge 图片上传入口；生产固定关闭）
+- `CHAT_VISION_ENABLED`（遗留视觉能力开关；生产固定为 `false`）
+- `CHAT_VISION_MODEL`（只保留历史精确模型绑定的数据契约；关闭态不配置、更换或验收模型）
 - 遗留 WebChat 仍保留浏览器、服务端和数据库三层开关、Vault 配置、预算账本与成员授权结构；生产三层均保持关闭，后台不再录入或修改中转站、模型、Key、预算和成员 AI 权限。浏览器不得配置任何 `VITE_CHAT_RELAY_*` 密钥变量。
 - `ALLOWED_ORIGIN`
 - 可选：`FIRECRAWL_API_URL`、`CODEFORCES_MAX_PAGES`、`LUOGU_MAX_PAGES`、`XCPC_ELO_DATA_URL`
@@ -260,11 +260,11 @@ Supabase Function Secrets/配置：
 
 WebChat 的 Origin 白名单是浏览器跨域边界，不代替身份认证。没有 `Origin` 的受控 CLI/服务端请求仍必须携带有效 Supabase Bearer Token，并通过 Profile 启用状态检查；浏览器请求只允许 `CHAT_ALLOWED_ORIGINS` 中的精确 Origin。
 
-WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和预算阻断标记。额度账本不保存消息正文；成员和全站额度按完整 `total_tokens` 结算，不因缓存折扣改变产品额度。生产缓存探针固定计入全站 2 次请求，不占成员额度，30 分钟冷却且无自动重试；会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
+WebChat 配额表位于 `private` Schema，浏览器角色和 `service_role` 都没有配额表直表权限，只能由 Edge Function 通过最小权限 `SECURITY DEFINER` RPC 执行 claim、开始、结算、开始前释放、聚合用量读取和预算阻断标记。额度账本不保存消息正文；成员和全站额度按完整 `total_tokens` 结算，不因缓存折扣改变产品额度。历史缓存探针曾固定计入全站 2 次请求、不占成员额度，并受 30 分钟冷却和零自动重试约束；该探针现已停止，不得运行。会话正文另存于私有历史表，只能通过绑定 `auth.uid()` 的 own-history RPC 访问，普通管理员默认也不能读取成员正文。
 
 WebChat 历史设计曾把成员问题、会话上下文和固定系统指令转发给中转站及其上游模型；生产关闭后不再发送新内容。遗留图片对象只允许私有 Storage 中的规范化 WebP，继续受四重归属、短时签名 URL、账号/会话容量、自动清理和注销级联约束；历史消息最多保留 100 个会话、单会话 120 条消息/1 MiB，最后活动超过 180 天自动清理。历史接口只绑定当前登录账号，额度账本不保存正文。站内披露见 [`/privacy`](https://ustsacm.fun/privacy)，工程边界见[WebChat 私有历史会话](./docs/webchat-conversation-history.md)。
 
-`npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只证明本地协议与客户端隔离，不能替代真实中转站费用、Usage 和 Abort 验收。
+`npm run test:e2e:webchat` 使用本地脱敏流式服务覆盖 Chromium、Firefox、WebKit、390px 移动端和宽屏：登录返回、动态 Token、流式输出、键盘停止、403 权限刷新、429 限流不重试、502/504 手动恢复、会话失效、减少动画和 axe 均进入门禁；Chromium 还会同时驱动 10 个独立页面验证回复不串流，并用 10 路并行 HTTP 流确认服务端传输层可同时完成且无残留活动连接。该测试只保留为本地协议、客户端隔离和关闭态安全回归，不再安排真实中转站费用、Usage、Abort 或模型验收。
 
 历史上的中转站兼容性验收覆盖非流式、Responses typed SSE、Usage、Abort 和缓存命中，并使用 service-role-only `webchat-cache-probe` 从 Vault 读取配置。该工作流与探针现已停止运行，不再消耗模型额度；协议与安全记录保留在 [WebChat 中转站兼容性验收](./docs/webchat-relay-compatibility.md)，仅供理解遗留实现。
 
