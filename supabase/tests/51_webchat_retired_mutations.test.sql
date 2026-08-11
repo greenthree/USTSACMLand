@@ -2,7 +2,17 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(3);
+select plan(4);
+
+select is(
+  (
+    select config.requests_enabled
+    from private.webchat_relay_config as config
+    where config.singleton
+  ),
+  false,
+  'retired WebChat relay configuration is persisted in the disabled state'
+);
 
 select ok(
   not exists (
