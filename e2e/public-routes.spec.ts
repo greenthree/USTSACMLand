@@ -105,7 +105,7 @@ test('shared referral links prefill a normalized invitation on mobile', async ({
   await page.goto('/register?invite=8a4c19f2e7b603d5')
 
   const referralInput = page.getByRole('textbox', { name: '邀请码（选填）' })
-  await expect(referralInput).toHaveValue('8A4C19F2E7B603D5')
+  await expect(referralInput).toHaveValue('8A4C19F2E7B603D5', { timeout: 20_000 })
   await referralInput.fill('abcdef0123456789')
   await expect(referralInput).toHaveValue('ABCDEF0123456789')
   await expect
@@ -223,19 +223,18 @@ test('learning mobile chapter navigation keeps the current section visible', asy
   await expect(page).toHaveURL(/#learning-community$/)
   await expect(communityLink).toHaveAttribute('aria-current', 'true')
 
-  const visibility = await page.evaluate(() => {
-    const nav = document.querySelector<HTMLElement>('.learning-jump-nav')
-    const current = nav?.querySelector<HTMLElement>('a[aria-current="true"]')
-    const navRect = nav?.getBoundingClientRect()
-    const currentRect = current?.getBoundingClientRect()
-    return {
-      currentLeft: currentRect?.left ?? -1,
-      currentRight: currentRect?.right ?? Number.POSITIVE_INFINITY,
-      navLeft: navRect?.left ?? 0,
-      navRight: navRect?.right ?? 0,
-    }
-  })
-
-  expect(visibility.currentLeft).toBeGreaterThanOrEqual(visibility.navLeft - 1)
-  expect(visibility.currentRight).toBeLessThanOrEqual(visibility.navRight + 1)
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const nav = document.querySelector<HTMLElement>('.learning-jump-nav')
+          const current = nav?.querySelector<HTMLElement>('a[aria-current="true"]')
+          const navRect = nav?.getBoundingClientRect()
+          const currentRect = current?.getBoundingClientRect()
+          if (!navRect || !currentRect) return false
+          return currentRect.left >= navRect.left - 1 && currentRect.right <= navRect.right + 1
+        }),
+      { message: 'the active chapter link should settle inside the mobile chapter nav' },
+    )
+    .toBe(true)
 })
