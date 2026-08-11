@@ -85,7 +85,7 @@ describe('AdminWebChatPilotPanel', () => {
     const region = await screen.findByRole('region', { name: 'AI 助手账号与用量' })
     const summary = await within(region).findByLabelText('AI 助手账号摘要')
     expect(within(summary).getByText('已配置账号').nextSibling).toHaveTextContent('2')
-    expect(within(summary).getByText('当前可用').nextSibling).toHaveTextContent('1')
+    expect(within(summary).getByText('停止前已授权').nextSibling).toHaveTextContent('1')
     expect(within(summary).getByText('累计占用 Token').nextSibling).toHaveTextContent('15,000')
     const cacheSummary = await within(region).findByLabelText('输入缓存摘要')
     expect(within(cacheSummary).getByText('命中请求').nextSibling).toHaveTextContent('7 / 10')
@@ -121,11 +121,11 @@ describe('AdminWebChatPilotPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('缓存摘要暂时不可用')
   })
 
-  it('explains how to configure the first AI assistant account', async () => {
+  it('keeps an empty account list closed', async () => {
     pilotPanelMocks.fetchMembers.mockResolvedValue([])
     renderPanel()
 
-    expect(await screen.findByText('尚未配置 AI 助手账号')).toBeInTheDocument()
-    expect(screen.getByText(/开放 AI 助手权限并设置累计额度/)).toBeInTheDocument()
+    expect(await screen.findByText('没有历史授权记录')).toBeInTheDocument()
+    expect(screen.getByText(/不再新增成员授权/)).toBeInTheDocument()
   })
 })

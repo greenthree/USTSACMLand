@@ -90,7 +90,7 @@ export function AdminWebChatPilotPanel() {
       <header className="webchat-pilot-heading">
         <div>
           <h2 id="webchat-pilot-title">AI 助手账号与用量</h2>
-          <p>集中查看成员权限、累计额度、剩余用量和脱敏活动状态。</p>
+          <p>只读查看停止前的成员授权、累计额度和脱敏活动状态。</p>
         </div>
         <button
           className="secondary-button"
@@ -116,7 +116,7 @@ export function AdminWebChatPilotPanel() {
           </div>
           <div>
             <Zap size={18} aria-hidden="true" />
-            <span>当前可用</span>
+            <span>停止前已授权</span>
             <strong>{number(summary.enabledMembers)}</strong>
           </div>
           <div>
@@ -199,8 +199,8 @@ export function AdminWebChatPilotPanel() {
 
       {!loading && !error && members.length === 0 ? (
         <EmptyState
-          title="尚未配置 AI 助手账号"
-          description="请进入成员详情开放 AI 助手权限并设置累计额度。"
+          title="没有历史授权记录"
+          description="WebChat 已退出产品范围，不再新增成员授权。"
         />
       ) : null}
 

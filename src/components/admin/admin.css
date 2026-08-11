@@ -468,6 +468,20 @@
   padding: 13px 0;
 }
 
+.admin-member-webchat-toggle.is-readonly {
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+
+.admin-member-webchat-readonly-facts {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  padding: 16px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .admin-member-webchat-toggle input {
   width: 17px;
   height: 17px;
@@ -684,6 +698,9 @@
   }
   .admin-member-webchat-form {
     grid-template-columns: 1fr;
+  }
+  .admin-member-webchat-readonly-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .admin-member-webchat-reason,
   .admin-member-webchat-error,

@@ -57,14 +57,8 @@ function renderPage() {
 
 describe('AdminWebChatPage', () => {
   beforeEach(() => {
-    localStorage.clear()
-    sessionStorage.clear()
     webChatConfigMocks.fetchConfig.mockReset().mockResolvedValue(configured)
-    webChatConfigMocks.updateConfig.mockReset().mockResolvedValue({
-      ...configured,
-      version: 8,
-      updatedAt: '2026-07-17T09:00:00Z',
-    })
+    webChatConfigMocks.updateConfig.mockReset()
     webChatConfigMocks.fetchPilotMembers.mockReset().mockResolvedValue([])
     webChatConfigMocks.fetchCacheSummary.mockReset().mockResolvedValue({
       observedRequests: 0,
@@ -76,14 +70,28 @@ describe('AdminWebChatPage', () => {
     })
   })
 
-  it('shows only redacted secret state, version, and update time', async () => {
+  it('renders a read-only archived snapshot without configuration controls', async () => {
     renderPage()
 
-    expect(await screen.findByText('已配置')).toBeInTheDocument()
-    expect(screen.getByText('v7')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /中转站 Base URL/ })).toHaveValue(configured.baseUrl)
-    expect(screen.getByLabelText(/替换 API Key/)).toHaveValue('')
-    expect(screen.getByText(/旧 Key 永不回显/)).toBeInTheDocument()
+    const archive = await screen.findByRole('region', { name: '遗留配置快照' })
+    expect(screen.getByText('只读关闭', { selector: 'strong' })).toBeInTheDocument()
+    expect(within(archive).getByText(configured.baseUrl)).toBeInTheDocument()
+    expect(within(archive).getByText(configured.model)).toBeInTheDocument()
+    expect(within(archive).getByText('已保存（不读取原值）')).toBeInTheDocument()
+    expect(within(archive).getByText(/配置、密钥、预算与请求开关均不可修改/)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /保存/ })).not.toBeInTheDocument()
+    expect(webChatConfigMocks.updateConfig).not.toHaveBeenCalled()
+  })
+
+  it('labels an old enabled database value as non-runnable legacy state', async () => {
+    webChatConfigMocks.fetchConfig.mockResolvedValue({ ...configured, requestsEnabled: true })
+    renderPage()
+
+    expect(await screen.findByText('遗留值为允许，运行入口仍关闭')).toBeInTheDocument()
+    expect(screen.getByText('只读关闭', { selector: 'strong' })).toBeInTheDocument()
   })
 
   it('shows shared request and Token usage, remaining budget, and Beijing reset time', async () => {
@@ -95,20 +103,12 @@ describe('AdminWebChatPage', () => {
 
     expect(within(requests).getByText('128 / 300')).toBeInTheDocument()
     expect(within(requests).getByText('172')).toBeInTheDocument()
-    expect(within(requests).getByRole('progressbar', { name: '今日全站请求用量' })).toHaveAttribute(
-      'value',
-      '128',
-    )
-
     expect(within(tokens).getByText('500,000 / 1,000,000')).toBeInTheDocument()
-    expect(within(tokens).getByText('420,000')).toBeInTheDocument()
-    expect(within(tokens).getByText('80,000')).toBeInTheDocument()
     expect(within(tokens).getAllByText('500,000')).toHaveLength(2)
-    expect(within(tokens).getByText('1,000,000')).toBeInTheDocument()
     expect(within(usage).getByText(/北京时间重置：/)).toHaveTextContent('07/18 00:00')
   })
 
-  it('clamps remaining budget and progress when usage exceeds the configured limits', async () => {
+  it('clamps remaining budget and progress when historical usage exceeds the limits', async () => {
     webChatConfigMocks.fetchConfig.mockResolvedValue({
       ...configured,
       dailyUsage: {
@@ -123,166 +123,24 @@ describe('AdminWebChatPage', () => {
     const usage = await screen.findByRole('region', { name: '今日全站用量' })
     const requests = within(usage).getByRole('group', { name: '今日请求预算' })
     const tokens = within(usage).getByRole('group', { name: '今日 Token 预算' })
-
     expect(within(requests).getByText('0')).toBeInTheDocument()
     expect(within(tokens).getByText('0')).toBeInTheDocument()
-    expect(within(requests).queryByText('-50')).not.toBeInTheDocument()
-    expect(within(tokens).queryByText('-100,000')).not.toBeInTheDocument()
     expect(within(requests).getByRole('progressbar')).toHaveAttribute('value', '300')
     expect(within(tokens).getByRole('progressbar')).toHaveAttribute('value', '1000000')
   })
 
-  it('clears a submitted API key before the request settles and never persists it', async () => {
+  it('refreshes the read-only snapshot without exposing a write path', async () => {
     const user = userEvent.setup()
-    let resolveUpdate: ((value: typeof configured) => void) | undefined
-    webChatConfigMocks.updateConfig.mockReturnValue(
-      new Promise((resolve) => {
-        resolveUpdate = resolve
-      }),
-    )
     renderPage()
-
     await screen.findByText('v7')
-    const model = screen.getByRole('textbox', { name: /^模型/ })
-    const apiKey = screen.getByLabelText(/替换 API Key/)
-    await user.clear(model)
-    await user.type(model, 'gpt-5.6-sol')
-    await user.type(apiKey, 'test_key_aaaaaaaaaaaaaaaa')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '切换模型与正式密钥')
-    await user.click(screen.getByRole('button', { name: '保存配置' }))
 
-    expect(apiKey).toHaveValue('')
-    expect(webChatConfigMocks.updateConfig).toHaveBeenCalledWith({
-      baseUrl: configured.baseUrl,
-      model: 'gpt-5.6-sol',
-      apiKey: 'test_key_aaaaaaaaaaaaaaaa',
-      requestsEnabled: false,
-      globalDailyRequestLimit: 300,
-      globalDailyTokenLimit: 1_000_000,
-      expectedVersion: 7,
-      reason: '切换模型与正式密钥',
-    })
-    expect(JSON.stringify(localStorage)).not.toContain('test_key_aaaaaaaaaaaaaaaa')
-    expect(JSON.stringify(sessionStorage)).not.toContain('test_key_aaaaaaaaaaaaaaaa')
-
-    resolveUpdate?.({ ...configured, model: 'gpt-5.6-sol', version: 8 })
-    expect(await screen.findByText('WebChat 中转站配置已保存。')).toBeInTheDocument()
-  })
-
-  it('omits a blank API key when one is already configured', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByText('v7')
-    const model = screen.getByRole('textbox', { name: /^模型/ })
-    await user.clear(model)
-    await user.type(model, 'gpt-5.6-sol')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '仅更新模型别名')
-    await user.click(screen.getByRole('button', { name: '保存配置' }))
-
-    expect(webChatConfigMocks.updateConfig).toHaveBeenCalledWith({
-      baseUrl: configured.baseUrl,
-      model: 'gpt-5.6-sol',
-      requestsEnabled: false,
-      globalDailyRequestLimit: 300,
-      globalDailyTokenLimit: 1_000_000,
-      expectedVersion: 7,
-      reason: '仅更新模型别名',
-    })
-  })
-
-  it('lets an administrator pause requests and lower the shared daily budget', async () => {
-    const user = userEvent.setup()
-    webChatConfigMocks.fetchConfig.mockResolvedValue({ ...configured, requestsEnabled: true })
-    renderPage()
-
-    await screen.findByText('允许', { exact: true })
-    await user.click(screen.getByRole('checkbox', { name: /允许成员发起 AI 请求/ }))
-    const requestLimit = screen.getByRole('spinbutton', { name: /全站每日请求上限/ })
-    const tokenLimit = screen.getByRole('spinbutton', { name: /全站每日 Token 上限/ })
-    await user.clear(requestLimit)
-    await user.type(requestLimit, '200')
-    await user.clear(tokenLimit)
-    await user.type(tokenLimit, '800000')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '暂停服务并降低预算')
-    await user.click(screen.getByRole('button', { name: '保存配置' }))
-
-    expect(webChatConfigMocks.updateConfig).toHaveBeenCalledWith({
-      baseUrl: configured.baseUrl,
-      model: configured.model,
-      requestsEnabled: false,
-      globalDailyRequestLimit: 200,
-      globalDailyTokenLimit: 800_000,
-      expectedVersion: 7,
-      reason: '暂停服务并降低预算',
-    })
-  })
-
-  it('requires an API key with at least 16 characters for the initial configuration', async () => {
-    const user = userEvent.setup()
-    webChatConfigMocks.fetchConfig.mockResolvedValue({
-      baseUrl: '',
-      model: '',
-      apiKeyConfigured: false,
-      requestsEnabled: false,
-      globalDailyRequestLimit: 300,
-      globalDailyTokenLimit: 1_000_000,
-      dailyUsage: configured.dailyUsage,
-      version: 0,
-      updatedAt: null,
-    })
-    renderPage()
-
-    const baseUrl = await screen.findByRole('textbox', { name: /中转站 Base URL/ })
-    expect(screen.getByText('尚未配置')).toBeInTheDocument()
-    await user.type(baseUrl, 'https://relay.example.com/v1')
-    await user.type(screen.getByRole('textbox', { name: /^模型/ }), 'gpt-5.6')
-    await user.type(screen.getByLabelText(/API Key/), 'too-short')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '首次接入中转站')
-
-    expect(screen.getByRole('button', { name: '保存配置' })).toBeDisabled()
-    expect(webChatConfigMocks.updateConfig).not.toHaveBeenCalled()
-  })
-
-  it('rejects a relay endpoint with credentials, query data, or a Responses suffix', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByText('v7')
-    const baseUrl = screen.getByRole('textbox', { name: /中转站 Base URL/ })
-    await user.clear(baseUrl)
-    await user.type(baseUrl, 'https://user:secret@relay.example.com/v1/responses?debug=1')
-    await user.type(screen.getByRole('textbox', { name: /修改原因/ }), '测试非法地址校验')
-    await user.click(screen.getByRole('button', { name: '保存配置' }))
-
-    expect(await screen.findByText('请输入有效的 HTTPS 中转站 Base URL。')).toBeInTheDocument()
-    expect(webChatConfigMocks.updateConfig).not.toHaveBeenCalled()
-  })
-
-  it('clears an unsaved API key when the administrator refreshes configuration', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await screen.findByText('v7')
-    const apiKey = screen.getByLabelText(/替换 API Key/)
-    await user.type(apiKey, 'test_key_bbbbbbbbbbbbbbbb')
     await user.click(screen.getByRole('button', { name: '刷新' }))
 
     await waitFor(() => expect(webChatConfigMocks.fetchConfig).toHaveBeenCalledTimes(2))
-    expect(await screen.findByLabelText(/替换 API Key/)).toHaveValue('')
+    expect(webChatConfigMocks.updateConfig).not.toHaveBeenCalled()
   })
 
-  it('keeps relay configuration usable when account usage fails independently', async () => {
-    webChatConfigMocks.fetchPilotMembers.mockRejectedValue(new Error('成员用量服务暂时不可用'))
-    renderPage()
-
-    expect(await screen.findByText('v7')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /中转站 Base URL/ })).toHaveValue(configured.baseUrl)
-    expect(await screen.findByRole('alert')).toHaveTextContent('成员用量服务暂时不可用')
-    expect(screen.getByRole('button', { name: '保存配置' })).toBeInTheDocument()
-  })
-
-  it('keeps account usage available when relay configuration fails independently', async () => {
+  it('keeps member usage available when relay configuration fails independently', async () => {
     webChatConfigMocks.fetchConfig.mockRejectedValue(new Error('中转站配置服务暂时不可用'))
     webChatConfigMocks.fetchPilotMembers.mockResolvedValue([
       {
@@ -311,6 +169,6 @@ describe('AdminWebChatPage', () => {
     expect(await screen.findByText('WebChat 配置暂不可用')).toBeInTheDocument()
     expect(await screen.findByRole('region', { name: 'AI 助手账号与用量' })).toBeInTheDocument()
     expect(screen.getByText('8 / 30')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '保存配置' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /保存/ })).not.toBeInTheDocument()
   })
 })

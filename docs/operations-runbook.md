@@ -1,10 +1,10 @@
 # 生产运维手册
 
-本文供 USTS ACM Land 的项目维护者使用，覆盖部署、验证、回滚、凭据轮换、数据源修复和管理员交接。新维护者应先按 [维护者交接与独立操作卡](./maintainer-handoff.md) 完成权限准入、同步巡检、备份恢复、轮换和回滚演练。所有命令均在仓库根目录执行；示例中的项目引用、邮箱和 URL 必须替换为当前生产配置，禁止把真实 Secret 写入命令历史、工单、截图或 Git。
+本文供 USTS ACM Land 的维护 Agent 使用，覆盖部署、验证、回滚、凭据轮换、数据源修复和管理员操作。任何全新上下文 Agent 都应先完整阅读根目录 [`agent.md`](../agent.md)，再按 [Agent 维护交接手册](./maintainer-handoff.md) 完成冷启动检查、授权分级和任务范围确认。所有命令均在仓库根目录执行；示例中的项目引用、邮箱和 URL 必须替换为当前生产配置，禁止把真实 Secret 写入命令历史、工单、截图或 Git。
 
 ## 1. 权限与职责
 
-至少保留两名维护者，但日常只使用完成任务所需的最小权限：
+项目采用 Agent 全程维护、一名项目负责人持有长期账号恢复能力的模式。开发、测试、发布、运维和事故处理均由 Agent 执行；项目负责人只提供必要凭据输入、账号持有人操作、法律/产品决定和高风险批准。项目负责人已接受没有第二名真人维护者的单点风险；Agent 日常只使用完成任务所需的最小权限：
 
 | 角色         | 必需权限                                         | 禁止事项                                |
 | ------------ | ------------------------------------------------ | --------------------------------------- |
@@ -13,29 +13,28 @@
 | 同步维护者   | Edge Function 部署、Function Secrets、同步健康页 | 不下载或传播成员私有资料                |
 | 集训队管理员 | 网站后台                                         | 不直接操作数据库表，不共享个人登录会话  |
 
-生产变更至少记录：变更人、关联提交、开始/结束时间、受影响组件、验证结果和回滚判断。高风险数据库与凭据变更建议由第二名维护者复核。
+生产变更至少记录：项目负责人批准范围、执行 Agent/会话、关联提交、开始/结束时间、受影响组件、验证结果和回滚判断。高风险数据库、凭据、域名和权限变更必须由项目负责人逐次明确批准；Agent 不得把一次批准扩展到后续批次。
 
 ### 生产保留窗口登记
 
-正式发布前必须由对应维护者在供应商控制台核验并填写下表。任何“待核验”项都属于发布阻塞，不得用供应商默认值或推测值代替。
+正式发布前必须由维护 Agent 在供应商控制台核验并填写下表；遇到必须由账号持有人完成的步骤时，只由项目负责人提供输入，后续核验仍由 Agent 完成。任何“待核验”项都属于发布阻塞，不得用供应商默认值或推测值代替。
 
 | 服务与数据                          | 实际保留窗口                           | 核验日期与负责人          | 删除/恢复能力与限制                                                          |
 | ----------------------------------- | -------------------------------------- | ------------------------- | ---------------------------------------------------------------------------- |
 | Supabase 数据库备份 / PITR          | PITR 未启用，可用物理备份 0 份         | 2026-07-15 / 自动只读检查 | `walg_enabled=true` 不等于存在可恢复备份；正式发布必须依赖并演练加密逻辑备份 |
 | Supabase Auth / Edge Functions 日志 | 待核验（发布阻塞）                     | 待填写                    | 待填写                                                                       |
-| GitHub Actions 日志与 artifact      | 仓库默认 90 天；完整加密快照单项 14 天 | 2026-07-15 / GitHub API   | 数据库和引用的 WebChat 图片共同进入每日完整快照；约占 `14 × 单次密文大小`    |
+| GitHub Actions 日志与 artifact      | 仓库默认 30 天；完整加密快照单项 14 天 | 2026-08-09 / GitHub API   | 数据库和引用的 WebChat 图片共同进入每日完整快照；约占 `14 × 单次密文大小`    |
 | Firecrawl 作业与会话记录            | 待核验（发布阻塞）                     | 待填写                    | 待填写                                                                       |
 
 数据库备份的文件范围、加密参数、Secret 配置和隔离恢复步骤见 [数据库备份与恢复方案](./backup-and-recovery.md)。当前 Artifact 同时包含数据库快照和该快照精确引用的私有 `webchat-images` 对象，但不包含其他 Storage Bucket、Edge Function Secrets 或第三方凭据。Storage 失败时整个任务失败，不得发布数据库-only 的部分 Artifact。
 
-WebChat 图片数据库 migration、`webchat-attachment` 与 `webchat-image-cleanup` 已在默认关闭状态部署。2026-07-25 的受控空队列与真实私有对象清理烟测均通过，确认本人历史恢复、跨成员/直接 Storage 拒绝、短时签名预览、零重试、零死信、对象删除和 Storage 对账一致。仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 仍必须保持缺失或为 `false`；只有图片入口正式开放并完成失败、过期和孤儿对象验收后，才可将该变量设为 `true`。回滚图片功能时先关闭前端、视觉模型和定时清理开关，再处理函数或数据库兼容变更；不得直接回滚已被备份与注销流程引用的表结构。
+WebChat 图片数据库 migration、`webchat-attachment` 与 `webchat-image-cleanup` 已在默认关闭状态部署。2026-07-25 的受控空队列与真实私有对象清理烟测均通过，确认本人历史恢复、跨成员/直接 Storage 拒绝、短时签名预览、零重试、零死信、对象删除和 Storage 对账一致。WebChat 已退出产品范围，仓库变量 `WEBCHAT_IMAGE_CLEANUP_ENABLED` 必须保持缺失或为 `false`，不得依据历史图片验收将其设为 `true`。关闭态维护时先确认前端、视觉模型和定时清理开关均关闭，再处理函数或数据库兼容变更；不得直接回滚已被备份与注销流程引用的表结构。未来只有项目负责人重新立项并重新完成产品、隐私、安全和运维授权后，才能另行制定启用流程。
 
-视觉能力使用 `CHAT_VISION_ENABLED` 与 `CHAT_VISION_MODEL` 双重服务端门禁。后者必须与
-管理员后台当前运行时模型完全一致；更换模型会让图片请求立即返回
-`vision_not_enabled`，只有新模型完成视觉协议和 Usage 烟测后才能更新精确绑定。不要用
-宽泛前缀、正则或浏览器传入的模型名放行，纯文本请求不依赖该绑定。
+遗留视觉实现保留 `CHAT_VISION_ENABLED` 与 `CHAT_VISION_MODEL` 双重失败关闭门禁；生产
+视觉开关必须为 `false`，关闭态不配置或更换模型，也不运行视觉协议或 Usage 烟测。
+精确模型匹配、拒绝宽泛前缀/正则和拒绝浏览器模型名的代码只作为安全兼容边界保留。
 
-仓库 Actions Variables 必须配置正整数 `MAX_BACKUP_ARTIFACT_BYTES` 和非负整数 `MAX_STORAGE_OBJECTS`；前者同时限制引用图片总字节与最终密文大小，后者限制单次快照引用对象数。每月按最近一次实际密文估算 14 份完整快照的容量，并检查备份耗时和 Runner 磁盘趋势。备份脚本先从数据库快照生成精确对象计划，再逐个下载被引用对象；未引用对象不会进入下载阶段。清理队列积压、对象计划异常增长或备份耗时异常时，应先停止图片功能发布并处理删除队列与死信。
+仓库 Actions Variables 必须配置正整数 `MAX_BACKUP_ARTIFACT_BYTES` 和非负整数 `MAX_STORAGE_OBJECTS`；前者同时限制引用图片总字节与最终密文大小，后者限制单次快照引用对象数。每月按最近一次实际密文估算 14 份完整快照的容量，并检查备份耗时和 Runner 磁盘趋势。备份脚本先从数据库快照生成精确对象计划，再逐个下载被引用对象；未引用对象不会进入下载阶段。清理队列积压、对象计划异常增长或备份耗时异常时，应阻塞发布并按遗留数据保护事件处理删除队列与死信。
 
 本项目已选择“禁止恢复到最近一次注销事件之前”的策略。`delete-account` 的目标绑定数据库租约必须覆盖完整临界区：取得 owner/target 租约 → 使用仅有目标仓库 Variables write 的 fine-grained PAT 更新 `BACKUP_RECOVERY_NOT_BEFORE` 并回读确认 → 续期并停止外部阶段心跳 → 调用最终删除 RPC。RPC 对租约行和目标 Profile `FOR UPDATE`，重新验证 owner、target、有效期、角色与活动同步，设置事务内 fence 标记，并在同一事务删除 `auth.users` 与消费租约；Auth 触发器拒绝没有匹配标记的旧 HTTP/旁路删除，使 migration 与 Edge Function 的部署切换也保持失败关闭。租约取得、删除前续期或恢复记录失败时不得进入最终 RPC，并返回 `503`；管理员、活动同步、Storage 所有权或其他受控约束拒绝删除时返回 `409`。最终事务由数据库行锁 fencing，不依赖 Edge Runtime 定时器。最终 RPC 抛出传输错误、返回错误或响应契约损坏时，Edge 并行只读核对 Auth 与 Profile；仅两者均明确不存在才确认提交成功，仍存在、状态分裂、模糊 Auth 404 或任一查询失败均重抛原错误。该变量不含成员身份，只保存带一小时并发/时钟安全余量的 UTC 恢复下限。
 
@@ -85,7 +84,7 @@ npm run check:supabase-preflight
 
 该命令退出码为 `1` 时不得继续发布。先处理缺失 Secret、远端独有 migration、项目健康、权限或 schema lint 等真正的前置阻塞；待部署 migration 与函数本身会保留为 warning。
 
-2026-07-26 的生产只读核对确认 71 个 migration 已全部应用，十个 Edge Function 均为 ACTIVE、启用 JWT 验证并使用仓库 import map；浏览器函数的正式 Origin 与后台专用函数的拒绝浏览器边界均通过。AI 助手页面必须以管理员当前运行时配置为权威，文档不固定模型名称；当次页面显示 `grok-4.5`，此前 GPT-5.6 的渠道验收记录不能代表当前配置。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./evidence/supabase-ten-function-readiness-2026-07-26.md) 与 [`docs/evidence/webchat-current-model-cache-channel-2026-07-25.md`](./evidence/webchat-current-model-cache-channel-2026-07-25.md)。
+2026-08-09 的生产只读核对确认 75 个 migration 已全部应用、0 项 pending，12 个 Edge Function 均为 ACTIVE 并使用仓库 import map；除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，其余函数均启用 JWT 验证，浏览器函数的正式 Origin与后台专用函数的拒绝浏览器边界均通过。AI 助手已经退出产品范围，运行时配置仍以管理员后台为权威，但生产请求、图片和成员入口必须保持关闭。发布后仍必须重新运行严格就绪检查，不能用部分函数的通过结果替代完整门禁。历史十函数证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./evidence/supabase-ten-function-readiness-2026-07-26.md)，当前基线见 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
 
 先核对本地与远端 migration，不直接在生产 SQL Editor 手工粘贴仓库 migration：
 
@@ -129,15 +128,15 @@ npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar m
   --use-api --import-map supabase/functions/deno.json
 ```
 
-WebChat 不随其他函数直接启用。可以先在 `VITE_WEBCHAT_UI_ENABLED=false`、`CHAT_ENABLED=false` 和数据库 `requests_enabled=false` 的三层关闭态下应用配额、账号授权与配置 migration，并使用仓库 import map 部署 `webchat-config`、`webchat` 与拒绝浏览器调用的 `webchat-cache-probe`；这一步只提供管理员配置入口和失败关闭边界，不允许账号调用中转站。首次启用或更换中转站前，在 GitHub Actions Secrets 中配置 `CHAT_RELAY_BASE_URL`、`CHAT_RELAY_API_KEY`、`CHAT_RELAY_MODEL`，手动运行 `WebChat relay compatibility`，并下载检查 14 天保留的脱敏报告。非流式、typed SSE、Usage 和 Abort 四项均通过后，再由管理员在 `/admin/webchat` 写入同一组 Base URL、模型和 Key，设置全站北京时间每日请求/Token 预算，并继续保持“允许账号发起 AI 请求”关闭。Key 只进入 Supabase Vault；保存后页面必须清空密钥输入框，刷新时只能看到配置状态、开关、预算、版本和更新时间。生产配置写入后可手动运行 `WebChat production cache probe`：它只使用仓库现有的 `SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY`，由 Supabase 内部读取 Vault，不要在 GitHub 再保存一份中转站配置；探针固定占用全站 2 次请求，并按两次请求 JSON 的 UTF-8 字节、最大输出与协议余量动态保守预留 Token，不扣成员额度、30 分钟冷却且不自动重试，第二次必须报告 `cached_tokens > 0`。随后在账号详情中按实际需要打开“允许使用 AI 学习助手”，逐人设置累计请求与 Token 总限额并填写原因；无授权行默认拒绝，停用账号始终无效。已授权账号的 `/assistant` 应只显示服务端当前模型名、自己的累计已用、预留、总限额和剩余，不得返回 Base URL、Key、全站预算或他人额度；成员累计额度不会每日重置，管理员提高总限额可追加可用额度，历史用量不得清零。同一服务端解析模型必须进入请求系统提示词与额度指纹。此时保持 `CHAT_ENABLED=false`，先验证环境禁用态 `503`、数据库暂停态 `503`、CORS、匿名拒绝、管理员配置边界、账号默认拒绝、撤权/降额竞态、逐人累计额度及全站日预算边界。完成真实中转站、额度和隐私验收后，先受控设置 `CHAT_ENABLED=true`，再由管理员打开数据库请求开关，最后在下一次前端 Pages 构建中设置 `VITE_WEBCHAT_UI_ENABLED=true`。`CHAT_RELAY_*` 与 `CHAT_GLOBAL_*` Supabase Function Secrets 只在数据库 RPC 没有返回中转站配置行时作为部署引导/应急回退；账号累计额度没有环境变量回退。数据库配置行一旦存在，后台暂停开关和预算始终优先，启用状态下缺少地址、模型或 Vault Key 会失败关闭。任一阶段失败时立即关闭数据库请求开关，并按需要恢复 `CHAT_ENABLED=false` 与 `VITE_WEBCHAT_UI_ENABLED=false`；不能只隐藏导航而继续让后端消费模型额度。正式试运行观察名单与连续观察机制已取消，后台只保留账号授权、累计额度、用量和缓存监控。完整步骤见 [WebChat 中转站兼容性验收](./webchat-relay-compatibility.md)。
+WebChat / AI 学习助手已退出正式产品范围。遗留代码、Schema、函数和后台配置只允许在关闭态维护：`VITE_WEBCHAT_UI_ENABLED=false`、`CHAT_ENABLED=false`、数据库 `requests_enabled=false`，且不向 GitHub 或 Supabase 新增、轮换或读取中转站运行凭据。只有安全修复或 Schema 兼容需要时，才可使用仓库 import map 部署遗留 WebChat 函数；不得运行付费兼容性验收、缓存探针、模型请求、成员授权或额度烟测，也不得设置任何开关为 `true`。每次关闭态维护后必须运行严格 Supabase readiness 和生产安全检查，确认匿名、普通成员和管理员发起的新 AI 消息、配置写入、成员授权和额度变更请求均失败关闭，成员入口仍不可见且没有新增请求或额度账目；本人历史读取/删除和管理员只读诊断继续按保留的数据保护边界工作。历史协议说明保留在 [WebChat 中转站兼容性验收](./webchat-relay-compatibility.md)，不构成启用步骤。
 
-Pages 的客户端开关使用 GitHub 仓库变量 `VITE_WEBCHAT_UI_ENABLED`，只接受小写 `true` 或 `false`；未配置时 workflow 固定回退为 `false`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
+Pages 的遗留 WebChat 客户端变量 `VITE_WEBCHAT_UI_ENABLED` 必须固定为小写 `false`；未配置时 workflow 也固定回退为 `false`，不得在生产构建中设置为 `true`。生产客户端从同一次构建的 `VITE_SUPABASE_URL` 推导当前项目的 `/functions/v1/webchat`，不得用覆盖 URL 把成员 Supabase 登录 Token 发送到其他域名。
 
 注册防滥用使用 Cloudflare Turnstile 的公开 Site Key 和 Supabase Auth 私有 Secret 双端
 验证。跨系统启用时先暂时禁止注册，避免 Pages 与 Auth 配置切换窗口；真实邮箱确认、
 Auth 限流、直连拒绝和回滚步骤见 [注册滥用防护](./registration-abuse-controls.md)。
 
-WebChat 部署后还要核对 `/admin/webchat` 的当天请求数、已结算 Token、正在预留 Token、剩余额度和下一次北京时间 00:00 重置时间。使用隔离数据分别触发请求/Token 阻断，确认后台聚合状态准确、并发请求不能越过预算，原请求返回额度 `503` 且不得自动重试或放行。
+遗留 WebChat 关闭态维护后，只读核对 `/admin/webchat` 显示关闭状态、请求数和额度账目没有新增；不得使用真实成员或模型请求触发预算阻断。若关闭态查询失败，成员端和服务端必须继续失败关闭。
 
 部署后执行受控烟测：
 
@@ -191,12 +190,15 @@ git worktree add ..\ustsacmland-rollback <known-good-commit>
 Set-Location ..\ustsacmland-rollback
 npx --yes supabase@2.109.1 functions deploy sync-member sync-stats sync-avatar member-avatar delete-account change-password `
   --use-api --import-map supabase/functions/deno.json
-npx --yes supabase@2.109.1 functions deploy firecrawl-config webchat webchat-attachment webchat-image-cleanup webchat-config webchat-cache-probe `
+npx --yes supabase@2.109.1 functions deploy firecrawl-config `
   --use-api --import-map supabase/functions/deno.json
 npm run check:supabase-readiness
 ```
 
-完成后回到主工作区并删除临时 worktree。若旧函数不兼容新 Schema，不回滚函数，改为从主分支发布最小修复版本。
+遗留 WebChat 函数不随常规回滚部署。只有关闭态安全或 Schema 兼容修复明确涉及某个
+遗留函数时，才在单独批准的范围内只部署该函数，并再次确认全部产品开关为 `false`、
+没有新增请求或额度记录。完成后回到主工作区并删除临时 worktree。若旧函数不兼容新
+Schema，不回滚函数，改为从主分支发布最小修复版本。
 
 ### 4.3 数据库回滚
 
@@ -207,7 +209,7 @@ npm run check:supabase-readiness
 - 已发生数据破坏：立即暂停同步和管理写入，记录时间窗口，评估 Supabase PITR/备份恢复。
 - 只有整库灾难恢复才考虑使用备份；必须先用 GitHub 当前 `BACKUP_RECOVERY_NOT_BEFORE` 运行恢复下限校验，再核对 Auth、业务表、审计匿名化和私有 `webchat-images` 对象。校验失败时禁止恢复旧备份。
 
-恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、8 个聚合行数、7 类孤儿关系、Storage 数量/字节/哈希、匿名访问拒绝和抽样结果。Schema v2 的零图片对象恢复已经通过，但图片正式开放前仍必须使用包含真实非空图片对象的 Artifact 完成贯通演练；零对象结果不能替代。
+恢复前不得覆盖唯一可用备份。所有恢复操作先在隔离项目演练，并保存恢复点、8 个聚合行数、7 类孤儿关系、Storage 数量/字节/哈希、匿名访问拒绝和抽样结果。Schema v2 的零图片对象恢复已经通过；图片功能已经退役，不再为功能开放制造非空夹具或安排开放态演练。若真实备份包含遗留图片对象，恢复演练仍必须逐项验证这些对象，这是数据保护要求。
 
 ## 5. 凭据轮换
 
@@ -215,19 +217,22 @@ npm run check:supabase-readiness
 
 生产环境按产品决定不配置外部告警 Webhook；同步最终状态改由后台同步中心、数据源健康页和审计记录巡检。当前 `DELETION_RECOVERY_REPOSITORY` 与 `DELETION_RECOVERY_GITHUB_TOKEN` 已配置，Token 已收敛为只授权目标仓库 Variables 读写的 fine-grained Token；维护端单调前推并回读恢复下限、Edge 自主写入、真实注销与残留清理烟测均已通过。Secret 审计工具只读取名称，不输出真实值或摘要。
 
-| 凭据                      | 存放位置                                                | 轮换后验证                                                                                   |
-| ------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Firecrawl API Key         | 管理后台私有 Vault Key 池；Function Secret 仅为兼容回退 | 逐 Key 健康/额度、受控冷却轮换、牛客回退和 QOJ 登录会话清理                                  |
-| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                         | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试                |
-| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新                 | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                                  |
-| 同步队列调度 Token        | Supabase Function Secret + Vault                        | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                                     |
-| Supabase access token     | GitHub Actions/维护者本机安全存储                       | migration list 与函数部署只访问目标项目                                                      |
-| Supabase service role key | Edge/GitHub 受控 Secret                                 | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                                     |
-| WebChat 中转站 Key        | GitHub Actions（验收）+ Supabase Vault（运行）          | 手动兼容性烟测、后台轮换、禁用态函数边界和成员生产验证；前端包、配置读取与审计中均不存在该值 |
-| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器                       | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI                                        |
-| 数据库备份加密口令        | GitHub Actions Secret、密码管理器                       | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验                                          |
-| 注销恢复下限 GitHub Token | Supabase Function Secret                                | 仅 Variables write；受控注销前后变量单调前移且不含身份信息                                   |
-| 管理员密码                | Supabase Auth                                           | 新密码登录、旧会话按策略失效、恢复邮箱可用                                                   |
+遗留 WebChat 配置不进入凭据轮换流程。若 Supabase Vault 仍有历史残留，只允许通过
+Secret 名称和关闭状态确认三层关闭，不读取值、不轮换、不运行兼容性烟测。未来若要
+删除遗留 Secret，必须把目标名称和影响范围作为单独的生产 Secret 变更取得批准。
+
+| 凭据                      | 存放位置                                                | 轮换后验证                                                                    |
+| ------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Firecrawl API Key         | 管理后台私有 Vault Key 池；Function Secret 仅为兼容回退 | 逐 Key 健康/额度、受控冷却轮换、牛客回退和 QOJ 登录会话清理                   |
+| QOJ 服务账号密码          | QOJ + Supabase Function Secrets                         | 每个 attempt 单次登录、目标主页匹配、会话最终关闭；可恢复错误最多一次队列重试 |
+| 洛谷 Cookie + CSRF        | Supabase Function Secrets，必须成对更新                 | 公开 UID 校验、Accepted 分页、仅 P/B 题去重                                   |
+| 同步队列调度 Token        | Supabase Function Secret + Vault                        | 暂停 cron 后同步轮换两处，手动调用与下一次 cron 均为 2xx                      |
+| Supabase access token     | GitHub Actions/维护者本机安全存储                       | migration list 与函数部署只访问目标项目                                       |
+| Supabase service role key | Edge/GitHub 受控 Secret                                 | 计划同步、队列领取和管理员函数正常；浏览器包中不存在该值                      |
+| Supabase 数据库密码/URI   | GitHub Actions Secret、密码管理器                       | 手动备份 dry run 与一次受控加密备份成功；日志不含 URI                         |
+| 数据库备份加密口令        | GitHub Actions Secret、密码管理器                       | 下载最新 Artifact，在隔离目录完成解密和 SHA256 校验                           |
+| 注销恢复下限 GitHub Token | Supabase Function Secret                                | 仅 Variables write；受控注销前后变量单调前移且不含身份信息                    |
+| 管理员密码                | Supabase Auth                                           | 新密码登录、旧会话按策略失效、恢复邮箱可用                                    |
 
 轮换后搜索近期日志只能检查字段名或错误码，禁止搜索并输出 Secret 本身。若凭据疑似泄露，先撤销、再调查影响范围；不要继续使用旧值“观察是否被滥用”。
 
@@ -263,12 +268,12 @@ npm run check:supabase-readiness
 后台成员管理提供受控角色交接，并遵循“先增加、验证，再移除旧权限”：
 
 1. 新管理员先完成正常注册、邮箱恢复配置和资料填写。
-2. 两名维护者核对目标邮箱与 Profile ID，不在聊天或截图中传播会话信息。
+2. 维护 Agent 核对目标成员，项目负责人只确认角色变更目标并给出高风险批准；Agent 使用已授权的后台会话完成操作，不读取 Cookie、密码或浏览器存储。
 3. 在后台成员管理中选择目标成员，点击“设为管理员”，填写交接原因、核对权限影响并二次确认。
 4. 新管理员登录并完成只读检查，再执行一次低风险、可审计操作。
 5. 确认新管理员可用后，才在同一页面把离任管理员降为普通成员；数据库会串行化角色变化并拒绝移除最后一名启用管理员。
 6. 轮换离任人员可访问的 GitHub、Supabase、Firecrawl 和第三方服务凭据。
-7. 保存交接清单，但不保存密码、Token、Cookie 或恢复码。
+7. 使用 `docs/maintainer-handoff.md` 的 Agent 交接模板保存批准范围和结果，但不保存密码、Token、Cookie 或恢复码。
 
 首次部署且数据库中完全没有管理员时，才允许使用一次性的：
 
@@ -286,12 +291,12 @@ select public.bootstrap_first_admin('new-admin@example.edu.cn');
 - 同步成功率、耗时、队列长度和后台终态失败记录符合预期。
 - 没有新增凭据错误、结构错误、无限重试或重复快照。
 - 数据过期规则按最近计划批次计算，没有把失败值写成 0。
-- 变更记录包含验证证据、遗留风险和下一位值班维护者。
+- 变更记录包含验证证据、遗留风险和下一次 Agent 冷启动所需上下文。
 
-### 推荐计划全线开关
+### 推荐计划关闭态维护
 
-推荐计划异常时，从后台概览的“推荐计划”区域发起关闭，填写可审计原因并二次确认。关闭只停止邀请码展示、校验、新绑定和新奖励，不删除邀请码、绑定或已发 Token；关闭期间新账号仍可注册。操作后同时核对面板版本、修改人和原因，以及审计页的“关闭推荐计划”记录。恢复前确认异常已处理，再通过同一区域重新开启；不得为关闭期间注册的账号手工追补绑定或奖励。
+推荐计划已退出产品范围，生产全局开关与重开安全闸门必须保持关闭。管理员后台只用于查看关闭状态、版本、最后修改人和原因；正常维护不得重新开启、发放奖励或运行生产并发计奖烟测。关闭状态下不得展示邀请码、接受新绑定或发放新奖励，已有邀请码、绑定和奖励数据继续保留。
 
-若提交结果因网络中断不确定，先刷新面板对账，不要连续点击。只有状态、版本和原因均符合本次操作时才视为成功；否则按最新版本重新确认。数据库以 `profile -> config -> code -> access` 行锁顺序围栏并发注册，生产发布仍需用受控双连接烟测确认关闭提交后的新注册不计奖。
+若只读检查意外发现功能已开启，将其作为生产事件处理：从后台概览填写可审计原因并二次确认关闭，随后核对面板状态、版本、修改人、原因和审计记录。若提交结果因网络中断不确定，先刷新面板只读对账，不要连续点击；关闭后继续验证注册和成员页面没有推荐入口、邀请码校验或奖励行为。
 
-若无法证明恢复正常，保持事件开放并停止扩大变更范围。
+不得依据本手册重新开启推荐计划。未来只有项目负责人明确重新立项，并重新完成产品、滥用防护、隐私、安全、生产验收和变更授权后，才能另行制定启用流程。

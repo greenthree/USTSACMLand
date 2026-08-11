@@ -38,8 +38,8 @@ describe('CI workflow', () => {
         imageCleanupWorkflow,
       ),
     ).toEqual({
-      fileCount: 50,
-      assertionCount: 1243,
+      fileCount: 51,
+      assertionCount: 1249,
       releaseMigrationCount: 54,
     })
   })

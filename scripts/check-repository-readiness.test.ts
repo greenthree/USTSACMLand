@@ -1,9 +1,12 @@
 import {
   classifyGhFailure,
+  collectSecretNames,
+  describeProductionEnvironmentReadFailure,
   evaluateRepositoryReadiness,
   expectedWorkflows,
   requiredActionSecrets,
   requiredActionVariables,
+  requiredProductionEnvironmentSecrets,
 } from './check-repository-readiness.mjs'
 
 function createReadyState() {
@@ -42,6 +45,16 @@ function createReadyState() {
       url: `https://github.test/actions/${workflow.name}`,
     })),
     actionSecrets: [...requiredActionSecrets],
+    organizationActionSecrets: [],
+    productionEnvironment: {
+      name: 'production-operations',
+      secrets: [...requiredProductionEnvironmentSecrets],
+      deploymentBranchPolicy: {
+        customBranchPolicies: true,
+        protectedBranches: false,
+      },
+      branchPolicies: [{ name: 'main', type: 'branch' }],
+    },
     actionVariables: [...requiredActionVariables],
     actionsPermissions: {
       defaultWorkflowPermissions: 'read',
@@ -106,6 +119,25 @@ describe('repository readiness checker', () => {
     )
   })
 
+  it('collects every organization Secret name returned by paginated GitHub API responses', () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({ name: `SECRET_${index}` }))
+
+    expect(
+      collectSecretNames([
+        { secrets: firstPage },
+        { secrets: [{ name: 'SUPABASE_SERVICE_ROLE_KEY' }] },
+      ]),
+    ).toEqual([...firstPage.map((secret) => secret.name), 'SUPABASE_SERVICE_ROLE_KEY'])
+  })
+
+  it('explains an unavailable production environment without exposing the GitHub response', () => {
+    expect(
+      describeProductionEnvironmentReadFailure({ stderr: 'HTTP 404: environment not found' }),
+    ).toBe(
+      'production-operations Environment 不存在或当前 GitHub Token 无权读取；请创建该 Environment 并授予当前 Token Actions 读取权限。',
+    )
+  })
+
   it('accepts a repository that satisfies the release settings contract', () => {
     expect(evaluateRepositoryReadiness(createReadyState())).toMatchObject({
       errors: [],
@@ -113,7 +145,9 @@ describe('repository readiness checker', () => {
       summary: {
         repository: 'greenthree/USTSACMLand',
         workflows: 5,
-        actionSecrets: 6,
+        actionSecrets: 4,
+        productionEnvironmentSecrets: 2,
+        organizationActionSecrets: 0,
         actionVariables: 3,
         actionsRetentionDays: 14,
         defaultBranchSha: '0123456789abcdef',
@@ -145,10 +179,47 @@ describe('repository readiness checker', () => {
 
     expect(evaluateRepositoryReadiness(state).errors).toEqual(
       expect.arrayContaining([
-        'Actions Secret 未配置：BACKUP_ENCRYPTION_PASSPHRASE。',
+        '仓库 Actions Secret 未配置：BACKUP_ENCRYPTION_PASSPHRASE。',
         'Actions 变量未配置：BACKUP_RECOVERY_NOT_BEFORE。',
         'Actions 变量未配置：MAX_BACKUP_ARTIFACT_BYTES。',
         'Actions 变量未配置：MAX_STORAGE_OBJECTS。',
+      ]),
+    )
+  })
+
+  it('requires production credentials only in the default-branch environment', () => {
+    const state = createReadyState()
+    state.productionEnvironment.secrets = state.productionEnvironment.secrets.filter(
+      (name) => name !== 'SUPABASE_SERVICE_ROLE_KEY',
+    )
+    state.productionEnvironment.branchPolicies = [{ name: 'release/*', type: 'branch' }]
+
+    expect(evaluateRepositoryReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        'production-operations Environment Secret 未配置：SUPABASE_SERVICE_ROLE_KEY。',
+        'production-operations Environment 必须只允许默认分支 main 部署。',
+      ]),
+    )
+  })
+
+  it('fails closed with a specific blocker when the production environment is unavailable', () => {
+    const state = createReadyState()
+    state.productionEnvironment = null
+
+    expect(evaluateRepositoryReadiness(state).errors).toContain(
+      '缺少 production-operations Environment。',
+    )
+  })
+
+  it('rejects production credentials copied to repository or organization secrets', () => {
+    const state = createReadyState()
+    state.actionSecrets.push('SUPABASE_PROJECT_REF')
+    state.organizationActionSecrets.push('SUPABASE_SERVICE_ROLE_KEY')
+
+    expect(evaluateRepositoryReadiness(state).errors).toEqual(
+      expect.arrayContaining([
+        'SUPABASE_PROJECT_REF 不得存在仓库 Actions Secret；请只配置在 production-operations Environment。',
+        'SUPABASE_SERVICE_ROLE_KEY 不得存在组织级 Actions Secret；请只配置在 production-operations Environment。',
       ]),
     )
   })

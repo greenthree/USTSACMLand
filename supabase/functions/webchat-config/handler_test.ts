@@ -187,49 +187,43 @@ Deno.test(
   },
 )
 
-Deno.test('webchat config update action forwards the key once and never returns it', async () => {
-  let received: unknown
-  const response = await createWebChatConfigHandler(
-    dependencies({
-      createServices: () =>
-        services({
-          async updateConfig(targetUserId, update) {
-            strictEqual(targetUserId, userId)
-            received = update
-            return { ...redactedConfig, version: 5 }
-          },
-        }),
-    }),
-  )(
-    request({
-      action: 'update',
-      baseUrl: 'https://relay.example.test/v1',
-      model: 'gpt-5.6',
-      apiKey: 'secret-key-that-must-not-echo',
-      requestsEnabled: true,
-      globalDailyRequestLimit: 400,
-      globalDailyTokenLimit: 1_200_000,
-      expectedVersion: 4,
-      reason: 'rotate production relay',
-    }),
-  )
+Deno.test(
+  'webchat config rejects retired updates without forwarding or echoing the key',
+  async () => {
+    let received: unknown
+    const response = await createWebChatConfigHandler(
+      dependencies({
+        createServices: () =>
+          services({
+            async updateConfig(targetUserId, update) {
+              strictEqual(targetUserId, userId)
+              received = update
+              return { ...redactedConfig, version: 5 }
+            },
+          }),
+      }),
+    )(
+      request({
+        action: 'update',
+        baseUrl: 'https://relay.example.test/v1',
+        model: 'gpt-5.6',
+        apiKey: 'secret-key-that-must-not-echo',
+        requestsEnabled: true,
+        globalDailyRequestLimit: 400,
+        globalDailyTokenLimit: 1_200_000,
+        expectedVersion: 4,
+        reason: 'rotate production relay',
+      }),
+    )
 
-  strictEqual(response.status, 200)
-  deepStrictEqual(received, {
-    baseUrl: 'https://relay.example.test/v1',
-    model: 'gpt-5.6',
-    apiKey: 'secret-key-that-must-not-echo',
-    requestsEnabled: true,
-    globalDailyRequestLimit: 400,
-    globalDailyTokenLimit: 1_200_000,
-    expectedVersion: 4,
-    reason: 'rotate production relay',
-  })
-  const serialized = JSON.stringify(await json(response))
-  strictEqual(serialized.includes('secret-key-that-must-not-echo'), false)
-  strictEqual(serialized.includes('"apiKey"'), false)
-  strictEqual(serialized.includes('"apiKeyConfigured":true'), true)
-})
+    strictEqual(response.status, 410)
+    strictEqual(received, undefined)
+    const serialized = JSON.stringify(await json(response))
+    strictEqual(serialized.includes('secret-key-that-must-not-echo'), false)
+    strictEqual(serialized.includes('"apiKey"'), false)
+    strictEqual(serialized.includes('"feature_retired"'), true)
+  },
+)
 
 Deno.test('webchat config rejects oversized, malformed, and ambiguous update bodies', async () => {
   const handler = createWebChatConfigHandler(dependencies({ maxBodyBytes: 128 }))
@@ -278,14 +272,14 @@ Deno.test('webchat config rejects oversized, malformed, and ambiguous update bod
 })
 
 Deno.test(
-  'webchat config maps RPC conflict, rate limit, validation, and recheck failures',
+  'webchat config keeps retired updates closed before retained writer errors can run',
   async () => {
-    for (const [serviceError, status, code, retryAfter] of [
-      [new WebChatConfigServiceError('conflict'), 409, 'config_conflict', null],
-      [new WebChatConfigServiceError('rate_limited', 19), 429, 'admin_rate_limited', '19'],
-      [new WebChatConfigServiceError('invalid_request'), 400, 'invalid_request', null],
-      [new WebChatConfigServiceError('forbidden'), 403, 'admin_required', null],
-    ] as const) {
+    for (const serviceError of [
+      new WebChatConfigServiceError('conflict'),
+      new WebChatConfigServiceError('rate_limited', 19),
+      new WebChatConfigServiceError('invalid_request'),
+      new WebChatConfigServiceError('forbidden'),
+    ]) {
       const response = await createWebChatConfigHandler(
         dependencies({
           createServices: () =>
@@ -307,9 +301,9 @@ Deno.test(
           reason: 'change relay',
         }),
       )
-      strictEqual(response.status, status)
-      strictEqual(((await json(response)).error as { code: string }).code, code)
-      strictEqual(response.headers.get('retry-after'), retryAfter)
+      strictEqual(response.status, 410)
+      strictEqual(((await json(response)).error as { code: string }).code, 'feature_retired')
+      strictEqual(response.headers.get('retry-after'), null)
     }
   },
 )
@@ -335,7 +329,7 @@ Deno.test('webchat config redacts unexpected database failures and reports them'
   strictEqual(errors.length, 1)
 })
 
-Deno.test('webchat config reads usage before applying a configuration mutation', async () => {
+Deno.test('webchat config rejects retired updates before reading usage or mutating', async () => {
   let updates = 0
   const response = await createWebChatConfigHandler(
     dependencies({
@@ -363,6 +357,6 @@ Deno.test('webchat config reads usage before applying a configuration mutation',
     }),
   )
 
-  strictEqual(response.status, 500)
+  strictEqual(response.status, 410)
   strictEqual(updates, 0)
 })

@@ -268,24 +268,25 @@ export function createWebChatConfigHandler(
       }
 
       const action = await parseActionRequest(request, maxBodyBytes)
-      let config: WebChatRelayConfigView
-      let dailyUsage: WebChatGlobalBudgetUsageView
-      if (action.action === 'read') {
-        const [currentConfig, currentUsage] = await Promise.all([
-          services.readConfig(),
-          services.readBudgetUsage(),
-        ])
-        config = currentConfig
-        dailyUsage = currentUsage
-      } else {
-        // Read monitoring state before the mutation so a usage RPC failure
-        // cannot make a committed key rotation look like a failed update.
-        dailyUsage = await services.readBudgetUsage()
-        config = await services.updateConfig(user.id, action.update)
+      if (action.action === 'update') {
+        return respond(
+          {
+            error: {
+              code: 'feature_retired',
+              message: 'WebChat 已退出产品范围，配置现为只读',
+            },
+          },
+          410,
+        )
       }
 
+      const [config, dailyUsage] = await Promise.all([
+        services.readConfig(),
+        services.readBudgetUsage(),
+      ])
+
       // Only this explicit redacted projection can reach the browser. The API
-      // key is accepted on writes but is never represented in response types.
+      // key is never represented in response types.
       return respond({ config: { ...config, dailyUsage } }, 200)
     } catch (error) {
       const mapped = error instanceof WebChatConfigServiceError ? serviceError(error) : error

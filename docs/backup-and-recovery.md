@@ -43,7 +43,7 @@
 - `ustsacmland-database-backup.enc`
 - `ustsacmland-database-backup.enc.sha256`
 
-密文保留 14 天且不再次压缩。按每日任务计算，仓库备份的目标 RPO 为 24 小时；GitHub Artifact 没有跨快照去重，稳定状态下的存储占用约为 `14 × 单次加密快照大小`。2026-07-19 首次真实 Artifact 隔离演练的 GitHub Actions 端到端耗时为 2 分 7 秒，其中数据库恢复与验证阶段为 3 秒；该结果只覆盖旧的数据库-only 格式。Storage 纳入后必须重新运行一次真实隔离演练，才能建立新的自动化 RTO 基线。完整站点事故恢复仍不包含新建远端项目、Secrets/Auth 回调、Edge Functions、DNS、第三方凭据和业务复核，RTO 须通过远端灾备演练确认。
+密文保留 14 天且不再次压缩。按每日任务计算，仓库备份的目标 RPO 为 24 小时；GitHub Artifact 没有跨快照去重，稳定状态下的存储占用约为 `14 × 单次加密快照大小`。2026-07-19 首次真实 Artifact 隔离演练的 GitHub Actions 端到端耗时为 2 分 7 秒，其中数据库恢复与验证阶段为 3 秒；该结果只覆盖旧的数据库-only 格式。当前 Schema v2 恢复演练必须继续验证 Storage 清单与快照中实际引用的对象，才能建立新的自动化 RTO 基线；这是遗留数据保护要求，不是图片功能开放门禁。完整站点事故恢复仍不包含新建远端项目、Secrets/Auth 回调、Edge Functions、DNS、第三方凭据和业务复核，RTO 须通过远端灾备演练确认。
 
 `.github/workflows/database-restore-drill.yml` 提供手动隔离恢复演练。管理员输入一个来自 `main` 的成功 `Encrypted database backup` run ID；工作流会同时核对来源仓库、工作流路径、分支、结论、run attempt、Artifact 名称和过期状态，不能把其他工作流或 PR 产物冒充为生产备份。该工作流没有 Supabase Access Token、项目引用或远端数据库连接，只把备份恢复到 GitHub Runner 中一次性的本地 Supabase/PostgreSQL 17，完成后无状态销毁。
 
@@ -53,13 +53,14 @@
 
 ## GitHub Actions Secrets
 
-在仓库 `Settings > Secrets and variables > Actions` 配置：
+在仓库 `Settings > Secrets and variables > Actions` 配置仓库级 Secret：
 
 | Secret                         | 要求                                                                           |
 | ------------------------------ | ------------------------------------------------------------------------------ |
 | `SUPABASE_ACCESS_TOKEN`        | Supabase 个人访问令牌；固定版本 CLI 仅用它链接目标项目并动态取得短期数据库登录 |
-| `SUPABASE_PROJECT_REF`         | 生产项目引用，用于把备份任务严格绑定到目标项目                                 |
 | `BACKUP_ENCRYPTION_PASSPHRASE` | 独立随机口令，至少 32 个字符；不得与数据库、GitHub、邮箱或平台账号密码复用     |
+
+`SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只配置在受保护的 `production-operations` Environment；该 Environment 只允许默认分支 `main`。备份工作流从该 Environment 取得项目引用，生产同步与只读探针同时使用项目引用和 service role key；仓库级和组织级不得保留同名副本。当前 `greenthree/USTSACMLand` 属于个人账户，因此没有组织级 Secret 作用域；若仓库转移到 Organization，必须重新运行仓库就绪检查并核对组织级 Secret 名称。
 
 同一页面的 `Variables` 必须配置：
 
@@ -79,7 +80,7 @@
 | `DELETION_RECOVERY_REPOSITORY`   | 固定为目标 GitHub 仓库，如 `greenthree/USTSACMLand`                          |
 | `DELETION_RECOVERY_GITHUB_TOKEN` | Fine-grained PAT；只授权该仓库的 Variables write，不授予 Contents 等其他权限 |
 
-推荐使用密码管理器生成并保存备份口令，至少由两名授权负责人分别确认可访问。口令丢失等同于全部仓库备份不可恢复；口令泄露时必须立即轮换，并删除旧 Artifact。
+使用项目负责人控制的密码管理器生成并保存备份口令。项目已明确接受只有一名真人持有账号恢复能力的风险；口令丢失等同于全部仓库备份不可恢复，口令泄露时必须立即轮换，并删除旧 Artifact。
 
 ## 下载与本地完整性检查
 
@@ -132,7 +133,7 @@ gh run download $restoreRunId --repo greenthree/USTSACMLand --dir ".artifacts\re
 
 完整权限登记、证据模板和清理要求见 [维护者交接与独立操作卡](./maintainer-handoff.md)。
 
-1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。恢复演练优先使用 Schema v2；历史 Schema v1 Artifact 仍可用于数据库恢复，但只接受固定的数据库-only 文件白名单，归档中出现任何 Storage 路径都会拒绝，报告也会明确标记 Storage 证据不可用。该兼容路径不能替代上线图片功能前的 Schema v2 Storage 恢复演练。
+1. 先手动运行当前 `main` 的 `Encrypted database backup`，等待成功并记录 run ID。恢复演练优先使用 Schema v2；历史 Schema v1 Artifact 仍可用于数据库恢复，但只接受固定的 database-only 文件白名单，归档中出现任何 Storage 路径都会拒绝，报告也会明确标记 Storage 证据不可用。该兼容路径不能替代当前 Schema v2 的遗留 Storage 数据保护验收。
 2. 打开 Actions → `Encrypted database restore drill`，输入刚才的 run ID。恢复任务不会自动运行或自动重试。
 3. 工作流校验密文 SHA-256、AES-256/PBKDF2 解密、按 Storage 清单生成的归档精确白名单、内部 `SHA256SUMS` 和当前 `BACKUP_RECOVERY_NOT_BEFORE`。
 4. 仓库 migration 会先移出目标目录，保证恢复目标只有 Supabase 平台基线；解密文件只复制进一次性数据库容器，由容器内 `supabase_admin` Unix-socket 管理入口把角色、应用 Schema、三个 `auth.users` 应用触发器、业务数据、Auth 数据和 migration 历史在同一 `psql --single-transaction` 中恢复，任一步失败都会整体回滚。工作流不会让普通本地 `postgres` 提升为平台角色，也不持有远端数据库连接。
@@ -181,4 +182,4 @@ psql \
 
 只有“最近备份存在”不能证明可恢复；必须以隔离项目成功登录和数据核对作为恢复验收证据。
 
-旧数据库-only 格式的首次真实演练 run、聚合行数、Auth/RLS、受控注销、清理结果和 RTO 边界见 [生产加密数据库隔离恢复演练证据](./evidence/database-restore-drill-2026-07-19.md)。Schema v2 零对象恢复见 [WebChat 图片备份恢复证据](./evidence/webchat-image-backup-restore-2026-07-25.md)；图片正式开放前仍必须补充一次非空 `webchat-images` 对象贯通恢复记录。
+旧 database-only 格式的首次真实演练 run、聚合行数、Auth/RLS、受控注销、清理结果和 RTO 边界见 [生产加密数据库隔离恢复演练证据](./evidence/database-restore-drill-2026-07-19.md)。Schema v2 零对象恢复见 [WebChat 图片备份恢复证据](./evidence/webchat-image-backup-restore-2026-07-25.md)。图片功能已经退役，不再为开放制造非空夹具；若真实备份包含遗留 `webchat-images` 对象，恢复演练仍必须逐项验证对象、引用和匿名拒绝。

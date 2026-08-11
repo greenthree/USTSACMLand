@@ -377,12 +377,9 @@ export function LearningPage() {
     const link = chapterLinkRefs.current[index]
     if (!nav || !link) return
     const left = Math.max(0, link.offsetLeft - (nav.clientWidth - link.offsetWidth) / 2)
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (typeof nav.scrollTo === 'function') {
-      nav.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' })
-    } else {
-      nav.scrollLeft = left
-    }
+    // Keep the active item visible synchronously. WebKit can still be animating
+    // a nested smooth scroll when the scrollspy state has already committed.
+    nav.scrollLeft = left
   }, [currentChapter])
 
   const recommendedPlatform = useMemo(
@@ -421,7 +418,13 @@ export function LearningPage() {
     if (!section || typeof section.scrollIntoView !== 'function') return
     event.preventDefault()
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    section.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    const mobileViewport = window.matchMedia?.('(max-width: 780px)').matches ?? false
+    // Avoid a long-running WebKit page animation racing the scrollspy threshold
+    // on mobile; the sticky horizontal chapter nav must settle in one frame.
+    section.scrollIntoView({
+      behavior: reduceMotion || mobileViewport ? 'auto' : 'smooth',
+      block: 'start',
+    })
     history.replaceState(null, '', `#${id}`)
   }
 

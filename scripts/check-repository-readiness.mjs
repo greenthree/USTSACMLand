@@ -14,10 +14,13 @@ export const expectedWorkflows = [
 export const requiredActionSecrets = [
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_ANON_KEY',
-  'SUPABASE_PROJECT_REF',
-  'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_ACCESS_TOKEN',
   'BACKUP_ENCRYPTION_PASSPHRASE',
+]
+
+export const requiredProductionEnvironmentSecrets = [
+  'SUPABASE_PROJECT_REF',
+  'SUPABASE_SERVICE_ROLE_KEY',
 ]
 
 export const requiredActionVariables = [
@@ -30,6 +33,7 @@ export const requiredActionVariables = [
 // "workflow / job" labels.
 const requiredChecks = ['verify', 'database-security', 'gitleaks']
 const productionDomain = 'ustsacm.fun'
+const productionEnvironmentName = 'production-operations'
 const scheduledWorkflowMaxAgeHours = new Map([
   // The twice-daily GitHub platform batches have a two-hour execution grace.
   // The five-minute retry queue is monitored separately in Supabase.
@@ -38,7 +42,7 @@ const scheduledWorkflowMaxAgeHours = new Map([
 ])
 
 function asSet(values) {
-  return new Set(values.filter(Boolean))
+  return new Set((Array.isArray(values) ? values : []).filter(Boolean))
 }
 
 function targetsDefaultBranch(ruleset, defaultBranch) {
@@ -135,7 +139,49 @@ export function evaluateRepositoryReadiness(state) {
 
   const actionSecrets = asSet(state.actionSecrets)
   for (const secret of requiredActionSecrets) {
-    if (!actionSecrets.has(secret)) errors.push(`Actions Secret 未配置：${secret}。`)
+    if (!actionSecrets.has(secret)) errors.push(`仓库 Actions Secret 未配置：${secret}。`)
+  }
+  for (const secret of requiredProductionEnvironmentSecrets) {
+    if (actionSecrets.has(secret)) {
+      errors.push(
+        `${secret} 不得存在仓库 Actions Secret；请只配置在 ${productionEnvironmentName} Environment。`,
+      )
+    }
+  }
+
+  const organizationActionSecrets = asSet(state.organizationActionSecrets)
+  for (const secret of requiredProductionEnvironmentSecrets) {
+    if (organizationActionSecrets.has(secret)) {
+      errors.push(
+        `${secret} 不得存在组织级 Actions Secret；请只配置在 ${productionEnvironmentName} Environment。`,
+      )
+    }
+  }
+
+  const productionEnvironment = state.productionEnvironment
+  if (productionEnvironment?.name !== productionEnvironmentName) {
+    errors.push(`缺少 ${productionEnvironmentName} Environment。`)
+  } else {
+    const environmentSecrets = asSet(productionEnvironment.secrets)
+    for (const secret of requiredProductionEnvironmentSecrets) {
+      if (!environmentSecrets.has(secret)) {
+        errors.push(`${productionEnvironmentName} Environment Secret 未配置：${secret}。`)
+      }
+    }
+
+    const deploymentPolicy = productionEnvironment.deploymentBranchPolicy
+    const branchPolicies = productionEnvironment.branchPolicies ?? []
+    const onlyDefaultBranch =
+      deploymentPolicy?.customBranchPolicies === true &&
+      deploymentPolicy?.protectedBranches === false &&
+      branchPolicies.length === 1 &&
+      branchPolicies[0]?.type === 'branch' &&
+      branchPolicies[0]?.name === defaultBranch
+    if (!onlyDefaultBranch) {
+      errors.push(
+        `${productionEnvironmentName} Environment 必须只允许默认分支 ${defaultBranch} 部署。`,
+      )
+    }
   }
 
   const actionVariables = asSet(state.actionVariables)
@@ -191,6 +237,8 @@ export function evaluateRepositoryReadiness(state) {
       repository: state.repository.nameWithOwner,
       workflows: state.workflows.length,
       actionSecrets: state.actionSecrets.length,
+      productionEnvironmentSecrets: state.productionEnvironment?.secrets?.length ?? 0,
+      organizationActionSecrets: state.organizationActionSecrets?.length ?? 0,
       actionVariables: state.actionVariables.length,
       pagesUrl: state.pages.htmlUrl ?? null,
       actionsRetentionDays: state.actionsRetention?.days ?? null,
@@ -225,7 +273,30 @@ export function classifyGhFailure(error) {
   return 'GitHub CLI 返回未知错误'
 }
 
-function runGhJson(args, label) {
+function isGhNotFoundFailure(error) {
+  const stderr =
+    error && typeof error === 'object' && 'stderr' in error
+      ? Buffer.isBuffer(error.stderr)
+        ? error.stderr.toString('utf8')
+        : String(error.stderr ?? '')
+      : ''
+  const message = error instanceof Error ? error.message : ''
+  return /HTTP 404|not found/i.test(`${message}\n${stderr}`)
+}
+
+export function describeProductionEnvironmentReadFailure(error) {
+  if (isGhNotFoundFailure(error)) {
+    return `${productionEnvironmentName} Environment 不存在或当前 GitHub Token 无权读取；请创建该 Environment 并授予当前 Token Actions 读取权限。`
+  }
+  return `无法读取 ${productionEnvironmentName} Environment：${classifyGhFailure(error)}。`
+}
+
+export function collectSecretNames(response) {
+  const pages = Array.isArray(response) ? response : [response]
+  return pages.flatMap((page) => (page?.secrets ?? []).map((secret) => secret.name).filter(Boolean))
+}
+
+function runGhJson(args, label, options = {}) {
   try {
     const output = execFileSync('gh', args, {
       encoding: 'utf8',
@@ -235,6 +306,9 @@ function runGhJson(args, label) {
     })
     return output.trim() ? JSON.parse(output) : null
   } catch (error) {
+    if (options.failureMessage) {
+      throw new Error(options.failureMessage(error))
+    }
     throw new Error(`无法读取 ${label}：${classifyGhFailure(error)}。`)
   }
 }
@@ -242,6 +316,10 @@ function runGhJson(args, label) {
 function listNames(args, label) {
   const rows = runGhJson(args, label)
   return Array.isArray(rows) ? rows.map((row) => row.name).filter(Boolean) : []
+}
+
+function listPagedSecretNames(args, label) {
+  return collectSecretNames(runGhJson([...args, '--paginate', '--slurp'], label))
 }
 
 export function collectRepositoryReadinessState(repositoryName) {
@@ -261,6 +339,8 @@ export function collectRepositoryReadinessState(repositoryName) {
   )
   const runResponse = runGhJson(['api', `${apiRoot}/actions/runs?per_page=100`], 'Actions 运行记录')
   const repositorySettings = runGhJson(['api', apiRoot], '仓库安全设置')
+  const organizationOwner =
+    repositorySettings.owner?.type === 'Organization' ? repositorySettings.owner.login : null
   const actionsPermissions = runGhJson(
     ['api', `${apiRoot}/actions/permissions/workflow`],
     'Actions 默认权限',
@@ -280,6 +360,30 @@ export function collectRepositoryReadinessState(repositoryName) {
     '私密漏洞报告设置',
   )
   const pages = runGhJson(['api', `${apiRoot}/pages`], 'GitHub Pages 设置')
+  const productionEnvironment = runGhJson(
+    ['api', `${apiRoot}/environments/${productionEnvironmentName}`],
+    `${productionEnvironmentName} Environment`,
+    {
+      failureMessage: describeProductionEnvironmentReadFailure,
+    },
+  )
+  const environmentSecretsResponse = runGhJson(
+    ['api', `${apiRoot}/environments/${productionEnvironmentName}/secrets?per_page=100`],
+    `${productionEnvironmentName} Environment Secret 名称`,
+  )
+  const environmentBranchPoliciesResponse = runGhJson(
+    [
+      'api',
+      `${apiRoot}/environments/${productionEnvironmentName}/deployment-branch-policies?per_page=100`,
+    ],
+    `${productionEnvironmentName} Environment 分支策略`,
+  )
+  const organizationSecretsResponse = organizationOwner
+    ? listPagedSecretNames(
+        ['api', `orgs/${organizationOwner}/actions/secrets?per_page=100`],
+        '组织级 Actions Secret 名称',
+      )
+    : []
   const workflows = (workflowResponse.workflows ?? []).map((workflow) => {
     const expected = expectedWorkflows.find((item) => item.name === workflow.name)
     let contentMatches = false
@@ -327,6 +431,22 @@ export function collectRepositoryReadinessState(repositoryName) {
       ['variable', 'list', '--repo', nameWithOwner, '--json', 'name'],
       'Actions 变量名称',
     ),
+    productionEnvironment: {
+      name: productionEnvironment.name,
+      secrets: (environmentSecretsResponse.secrets ?? [])
+        .map((secret) => secret.name)
+        .filter(Boolean),
+      deploymentBranchPolicy: {
+        customBranchPolicies:
+          productionEnvironment.deployment_branch_policy?.custom_branch_policies,
+        protectedBranches: productionEnvironment.deployment_branch_policy?.protected_branches,
+      },
+      branchPolicies: (environmentBranchPoliciesResponse.branch_policies ?? []).map((policy) => ({
+        name: policy.name,
+        type: policy.type,
+      })),
+    },
+    organizationActionSecrets: organizationSecretsResponse,
     actionsPermissions: {
       defaultWorkflowPermissions: actionsPermissions.default_workflow_permissions,
       canApprovePullRequestReviews: actionsPermissions.can_approve_pull_request_reviews,
@@ -360,7 +480,7 @@ async function main() {
 
   console.log(`Repository readiness: ${report.summary.repository}`)
   console.log(
-    `Observed ${report.summary.workflows} workflows, ${report.summary.actionSecrets} Actions Secret names and ${report.summary.actionVariables} Actions variable names.`,
+    `Observed ${report.summary.workflows} workflows, ${report.summary.actionSecrets} repository Actions Secret names, ${report.summary.productionEnvironmentSecrets} ${productionEnvironmentName} Environment Secret names, ${report.summary.organizationActionSecrets} organization Actions Secret names and ${report.summary.actionVariables} Actions variable names.`,
   )
   console.log(`Actions default retention: ${report.summary.actionsRetentionDays} days.`)
   if (report.summary.pagesUrl) console.log(`Pages: ${report.summary.pagesUrl}`)

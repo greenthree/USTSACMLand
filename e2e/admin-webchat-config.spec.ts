@@ -10,11 +10,8 @@ test.beforeEach(async ({ page }) => {
   )
 })
 
-test('administrator can update the redacted WebChat configuration without persisting the key', async ({
-  page,
-}) => {
+test('administrator can inspect the read-only archived WebChat configuration', async ({ page }) => {
   const runtimeErrors = collectRuntimeErrors(page)
-  const replacementSecret = 'test_key_aaaaaaaaaaaaaaaa'
 
   await page.goto('/admin/webchat')
 
@@ -22,28 +19,18 @@ test('administrator can update the redacted WebChat configuration without persis
     timeout: 20_000,
   })
   await expect(page.getByText('已配置', { exact: true })).toBeVisible()
-  await expect(page.getByText(/旧 Key 永不回显/)).toBeVisible()
 
-  const model = page.getByRole('textbox', { name: /^模型/ })
-  await model.fill('gpt-5.6-sol')
-  await page.getByRole('checkbox', { name: /允许成员发起 AI 请求/ }).check()
-  await page.getByRole('spinbutton', { name: /全站每日请求上限/ }).fill('400')
-  await page.getByRole('spinbutton', { name: /全站每日 Token 上限/ }).fill('1200000')
-  const apiKey = page.getByLabel(/替换 API Key/)
-  await apiKey.fill(replacementSecret)
-  await page.getByRole('textbox', { name: /修改原因/ }).fill('浏览器端配置回归验证')
-  await page.getByRole('button', { name: '保存配置' }).click()
+  const archive = page.getByRole('region', { name: '遗留配置快照' })
+  await expect(archive).toBeVisible()
+  await expect(archive).toContainText('配置、密钥、预算与请求开关均不可修改')
+  await expect(archive).toContainText('页面只显示是否存在历史 Key，不读取原值')
+  await expect(archive.getByText('已保存（不读取原值）')).toBeVisible()
+  await expect(archive.getByText('已暂停')).toBeVisible()
 
-  await expect(page.getByText('WebChat 中转站配置已保存。')).toBeVisible()
-  await expect(apiKey).toHaveValue('')
-  await expect(page.getByText('v2', { exact: true })).toBeVisible()
-  await expect(page.getByText('允许', { exact: true })).toBeVisible()
-
-  const storedValues = await page.evaluate(() => [
-    ...Object.values(window.localStorage),
-    ...Object.values(window.sessionStorage),
-  ])
-  expect(storedValues.join('\n')).not.toContain(replacementSecret)
+  await expect(page.getByRole('textbox')).toHaveCount(0)
+  await expect(page.getByRole('spinbutton')).toHaveCount(0)
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '保存配置' })).toHaveCount(0)
   expect(runtimeErrors).toEqual([])
 })
 
@@ -61,6 +48,20 @@ test('administrator can inspect the pilot roster and open its member policy', as
 
   await pilot.getByRole('link', { name: '查看详情' }).click()
   await expect(page).toHaveURL(/\/admin\/members\/member-1$/)
-  await expect(page.getByRole('checkbox', { name: /允许使用 AI 学习助手/ })).toBeChecked()
+
+  const access = page
+    .getByRole('heading', { name: 'AI 助手历史授权' })
+    .locator('xpath=ancestor::section[1]')
+  await expect(access).toContainText('产品入口已关闭')
+  await expect(access).toContainText('历史授权值仅用于对账，不代表成员当前可以发起 AI 请求')
+  await expect(access).toContainText('停止前授权值')
+  await expect(access).toContainText('已授权')
+  await expect(access).toContainText('只读关闭')
+  await expect(access).toContainText('300')
+  await expect(access).toContainText('1,000,000')
+  await expect(access.getByRole('checkbox')).toHaveCount(0)
+  await expect(access.getByRole('spinbutton')).toHaveCount(0)
+  await expect(access.getByRole('textbox')).toHaveCount(0)
+  await expect(access.getByRole('button', { name: /保存|授权/ })).toHaveCount(0)
   expect(runtimeErrors).toEqual([])
 })

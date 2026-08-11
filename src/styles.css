@@ -4231,6 +4231,14 @@ fieldset.form-section {
   line-height: 1.55;
 }
 
+.webchat-config-readonly-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 16px;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 .webchat-config-fields .webchat-config-toggle {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -5965,6 +5973,10 @@ fieldset.form-section {
 
   .webchat-token-usage-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .webchat-config-readonly-facts {
+    grid-template-columns: 1fr;
   }
 
   .source-health-card-grid {
