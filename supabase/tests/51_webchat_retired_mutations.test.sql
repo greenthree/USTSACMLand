@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(4);
+select plan(5);
 
 select is(
   (
@@ -12,6 +12,16 @@ select is(
   ),
   false,
   'retired WebChat relay configuration is persisted in the disabled state'
+);
+
+select is(
+  (
+    select state.image_uploads_paused
+    from private.webchat_global_quota_state as state
+    where state.singleton
+  ),
+  true,
+  'retired WebChat image uploads are persisted in the paused state'
 );
 
 select ok(

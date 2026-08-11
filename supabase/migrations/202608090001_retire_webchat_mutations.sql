@@ -8,6 +8,12 @@ set
   updated_at = pg_catalog.clock_timestamp()
 where singleton and requests_enabled;
 
+update private.webchat_global_quota_state
+set
+  image_uploads_paused = true,
+  updated_at = pg_catalog.clock_timestamp()
+where singleton and not image_uploads_paused;
+
 revoke all on function public.create_own_webchat_conversation()
 from public, anon, authenticated, service_role;
 revoke all on function public.rename_own_webchat_conversation(uuid, text)
