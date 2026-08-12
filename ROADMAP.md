@@ -40,7 +40,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 ## 2. 当前生产基线
 
 - [x] GitHub Pages 已发布 React SPA，支持子路径资源、深链刷新和生产榜单审计。
-- [x] Supabase Auth、Postgres、RLS、12 个 Edge Function 和 75 个生产 migration 已部署；除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，其余函数均启用 JWT 验证，12 个函数的 import map、浏览器 CORS/后台拒绝边界及同步调度已通过生产只读检查。推荐计划与 WebChat 成员入口继续关闭，遗留图片数据库与函数安全基础保留。证据见 [`docs/evidence/supabase-ten-function-readiness-2026-07-26.md`](./docs/evidence/supabase-ten-function-readiness-2026-07-26.md) 与 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
+- [x] Supabase Auth、Postgres、RLS、12 个 Edge Function 和 76 个生产 migration 已部署；除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，其余函数均启用 JWT 验证，12 个函数的 import map、浏览器 CORS/后台拒绝边界及同步调度已通过生产只读检查。推荐计划与 WebChat 成员入口继续关闭，遗留图片数据库与函数安全基础保留。2026-08-12 已应用 `202608090001_retire_webchat_mutations.sql` 并部署 `webchat-config` v14；证据见 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./docs/evidence/webchat-retirement-production-2026-08-12.md)。
 - [x] 邮箱注册、密码登录、真实邮箱找回密码、修改密码和会话恢复流程可用。
 - [x] 成员资料、年级、专业联想、QQ、六个平台绑定和 XCPC ELO 姓名自动匹配已上线。
 - [x] Rating 榜、刷题榜、周榜、月榜和自定义时间范围增量榜已上线。
@@ -99,8 +99,8 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - 仓库已完成：移除 `use-composed-ref@1.4.0` 许可补充材料中从其他包推断的版权归属；现仅记录该精确 npm 包与源码 tag 的 MIT 声明、标准许可条款，以及上游未提供 LICENSE 文件或版权声明的事实，不再制造未经上游确认的版权行。
 - 仓库已完成：修复仓库就绪检查的组织级 Actions Secret 分页漏检，并让缺少 `production-operations` Environment 时返回可操作的失败信息；已补齐分页、缺失 Environment 和失败信息回归测试，readiness 专项 14 项通过。
 - 仓库已完成：统一公开隐私页与关闭态产品行为，不再承诺当前没有成员入口的单会话删除操作，明确 180 天自动清理、个人数据导出和永久注销边界；隐私页与默认关闭路由共 21 项测试通过。
-- 仓库已完成：阻止普通成员绕过已隐藏的 WebChat 界面直接调用 own-history 写 RPC 创建或修改遗留会话；新增 migration 撤销 `public`、`anon`、`authenticated` 与 `service_role` 对创建、重命名、归档和消息 upsert 的执行权限，同时将 relay 请求开关与图片上传全局暂停状态持久化为关闭，保留本人历史读取/删除、个人导出、180 天清理和注销级联边界。当前 51 个 pgTAP 文件、1249 项断言通过；生产 migration 尚未应用，仍须项目负责人单独批准后部署。
-- 仓库已完成：将管理员 WebChat 配置与成员 AI 权限界面收紧为只读关闭态，禁止通过站内后台修改中转站、模型、Key、预算、请求开关、成员授权或额度；`webchat-config` 的合法更新请求固定返回 `410 feature_retired`，同时保留关闭状态和历史用量诊断。管理员界面专项 20 项、Edge Function 专项 15 项、全量 Deno 477 项测试通过，并已完成桌面、390px 与宽屏 Chrome 验收；Pages 与 Edge Function 生产部署仍须另行授权。
+- 仓库与生产已完成：阻止普通成员绕过已隐藏的 WebChat 界面直接调用 own-history 写 RPC 创建或修改遗留会话；`202608090001_retire_webchat_mutations.sql` 已应用，撤销 `public`、`anon`、`authenticated` 与 `service_role` 对创建、重命名、归档和消息 upsert，以及两个管理员写 RPC 的执行权限，同时将 relay 请求开关与图片上传全局暂停状态持久化为关闭，保留本人历史读取/删除、个人导出、180 天清理和注销级联边界。生产共 76 个 migration，六个 writer 对三类应用角色全部撤权；部署后没有新增 WebChat 请求或额度账目。证据见 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./docs/evidence/webchat-retirement-production-2026-08-12.md)。
+- 仓库与生产已完成：将管理员 WebChat 配置与成员 AI 权限界面收紧为只读关闭态，禁止通过站内后台修改中转站、模型、Key、预算、请求开关、成员授权或额度；`webchat-config` v14 的合法更新请求固定返回 `410 feature_retired`，同时保留关闭状态和历史用量诊断。管理员界面专项 20 项、Edge Function 专项 15 项、严格 Supabase readiness 通过，并已完成桌面、390px 与宽屏 Chrome 验收；本次仅部署 `webchat-config`，未修改 Secret/Vault、其他函数或 Pages。证据见 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./docs/evidence/webchat-retirement-production-2026-08-12.md)。
 - 仓库已完成：同步 CI 回归到 WebChat 只读关闭态断言，并修复 WebKit 移动学习章节导航与邀请码注册页的异步时序；移动端锚点即时定位、当前章节导航同步收回，E2E 轮询最终可见几何状态并为低速路由加载保留充分等待，相关 WebKit 重复测试 20/20 通过。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
