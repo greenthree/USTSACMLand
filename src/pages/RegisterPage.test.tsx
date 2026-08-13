@@ -144,6 +144,16 @@ describe('RegisterPage', () => {
     expect(await screen.findByRole('heading', { name: '我的资料' })).toBeInTheDocument()
   })
 
+  it('explains that profile setup follows email confirmation and login', async () => {
+    renderRegister(vi.fn())
+
+    expect(
+      screen.getByText('完成邮箱确认并登录后，可以填写竞赛账号和其他成员资料。'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('注册后直接填写竞赛账号和其他成员资料。')).not.toBeInTheDocument()
+    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(1))
+  })
+
   it('replaces the registration form with email confirmation instructions', async () => {
     const user = userEvent.setup()
     const signUp = vi.fn().mockResolvedValue(false)

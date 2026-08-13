@@ -147,7 +147,7 @@ export function RegisterPage() {
           <form className="auth-form" onSubmit={handleSubmit}>
             <div>
               <h2>创建账号</h2>
-              <p>注册后直接填写竞赛账号和其他成员资料。</p>
+              <p>完成邮箱确认并登录后，可以填写竞赛账号和其他成员资料。</p>
             </div>
             <label>
               <span>姓名</span>

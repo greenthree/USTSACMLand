@@ -9,14 +9,14 @@
 ## 1. 发布范围与责任人
 
 - [ ] 已记录版本号、候选提交、变更摘要、项目负责人批准和执行 Agent/会话。
-- [ ] 工作树只包含本次发布内容；临时截图、导出文件和根目录本地素材未被误纳入。
-- [ ] 数据库、Edge Functions、前端和配置的兼容顺序已明确。
-- [ ] 已记录最后一个可用的 Git 提交、Pages 部署和 Supabase migration 状态。
+- [x] 工作树只包含本次发布审计、隐私文案修复和对应测试；临时截图、导出文件和根目录本地素材未被误纳入。
+- [x] 当前候选只修改前端文案、测试和文档，不需要数据库或 Edge Function 部署；合并后仅由受保护 Pages 链路发布。
+- [x] 已记录最后一个可用提交 `b9a9c919948107f6558e09c9174a3a453db788b2`、Pages run `31661377686` 和生产 76 个 migration、0 pending；见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
 - [ ] 项目负责人已按 `docs/maintainer-handoff.md` 确认所需供应商权限与高风险操作范围；Agent 只使用当前授权会话，记录不包含账号标识或 Secret。
 
 ## 2. 本地与 CI 门禁
 
-- [ ] Node.js 版本符合 `.nvmrc`，使用 `npm ci` 安装锁定依赖。
+- [x] 使用按 Node.js 官方 `SHASUMS256.txt` 校验的 Node `v22.23.2`（符合 `.nvmrc`）执行 `npm ci`；443 个锁定包安装成功，依赖审计为 0 漏洞。
 - [ ] 以下命令全部通过：
 
   ```powershell
@@ -44,9 +44,9 @@
   ```
 
 - [ ] GitHub `CI / verify`、`CI / database-security`、`Secret scan / gitleaks` 和部署后的 `production-ranking-audit` 全部通过。
-- [ ] Dependabot 没有尚未评估的高危更新；依赖升级已由测试和构建验证。
-- [ ] 构建日志、测试输出和 Actions artifact 不含 Secret 或成员私有资料。
-- [x] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES=3500000000` 与 `MAX_STORAGE_OBJECTS=10000` 已按 50 名成员的账号级理论上限配置。运行 `30192826527` 成功，Artifact 下载核对只包含 `.enc` 和 `.enc.sha256`；工作流在上传前完成 Schema v2 清单、8 个聚合行数、完整引用图片对象、解密校验和明文清理，Storage 失败时不会发布 database-only 的部分产物。证据见 [`docs/evidence/database-backup-capacity-guard-2026-07-26.md`](./evidence/database-backup-capacity-guard-2026-07-26.md)。
+- [x] Dependabot 当前开放告警为 0；此前 4 条高危开发依赖告警已由 PR #147 修复，并由测试和生产构建验证。
+- [x] 当前候选与最近通过的 Actions 只记录脱敏状态、数量和版本；构建日志、测试输出和 Artifact 核对未发现 Secret 或成员私有资料。
+- [x] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES=3500000000` 与 `MAX_STORAGE_OBJECTS=10000` 已按 50 名成员的账号级理论上限配置。最新 Schema v2 备份 run `31622577243` 与恢复 run `31622919641` 成功，Artifact 只包含 `.enc` 和 `.enc.sha256`；工作流在上传前完成 76 个 migration、8 个聚合行数、完整引用图片对象、解密校验和明文清理，Storage 失败时不会发布 database-only 的部分产物。证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./evidence/database-restore-drill-2026-08-13.md)。
 - [ ] 已按最近一次密文大小估算约 `14 × 单次加密快照大小` 的 Artifact 占用，并检查精确对象计划、逐对象下载耗时、Runner 磁盘和删除死信增长风险。
 
 ## 3. 数据库与权限
@@ -54,32 +54,32 @@
 - [x] 所有新 migration 已在本地空库中按时间顺序应用并通过 pgTAP；`202607310001_training_goal_quota_concurrency.sql`、48 个测试文件、1206 项断言及真实双连接上限检查均已通过，且 CI 已强制执行同一检查。证据见 [`docs/evidence/training-goal-concurrency-local-2026-07-31.md`](./evidence/training-goal-concurrency-local-2026-07-31.md)。
 - 历史记录：推荐计划 migration 曾验证邀请码唯一、注册绑定原子计奖、十次上限、自邀/重复/并发拒绝、注销匿名化和私有表无浏览器直读权限；模块现已关闭。
 - 遗留关闭检查：推荐计划全局开关与重开安全闸门保持关闭；不再进行真实计奖、重开或生产并发烟测。关闭期注册必须继续降级为普通注册，不展示或校验邀请码，也不发放奖励。
-- [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。2026-08-04 的三次受控检查在临时降阈值并等待 30 秒后仍返回 `400 / invalid_credentials`，未触发 `429`；配置已恢复，门禁保持未完成。证据见 [`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./evidence/auth-rate-limit-recovery-production-2026-08-04.md)。
+- [ ] 按 `docs/registration-abuse-controls.md` 完成 Turnstile Site Key / Auth Secret、真实邮箱确认和 Auth 限流配置；无 token、伪 token、过期 token、有效注册、邮件确认和 `429` 恢复烟测均有脱敏证据。2026-08-04 的三次受控检查在临时降阈值并等待 30 秒后仍返回 `400 / invalid_credentials`，未触发 `429`；2026-08-13 已获批准但因 Chrome 只有真实登录态、没有独立未登录会话而在发送请求前失败关闭，之后该生产演练已由项目负责人取消，零请求、零副作用，配置保持 `30`。门禁保持未完成。证据见 [`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./evidence/auth-rate-limit-recovery-production-2026-08-04.md) 与 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
 - 历史记录：WebChat 图片 migration 与附件/清理 Edge Function 曾以默认关闭方式部署并完成私有 Bucket、权限和对象生命周期烟测；这些安全实现继续保留，但不视为功能上线或后续待办。
 - 遗留关闭检查：`CHAT_VISION_ENABLED`、图片上传入口和清理调度保持关闭；不再配置或验收视觉模型。历史签名 URL、日志脱敏和对象归属安全测试继续保留。
-- [x] `supabase migration list --linked` 与预期一致，`db push --dry-run` 只包含 `202607310001_training_goal_quota_concurrency.sql`；正式应用后再次核对本地与远端版本完全一致。证据见 [`docs/evidence/training-goal-concurrency-production-2026-07-31.md`](./evidence/training-goal-concurrency-production-2026-07-31.md)。
+- [x] `supabase migration list --linked` 与预期一致，当前生产共 76 个 migration、0 pending，包含已应用的 `202608090001_retire_webchat_mutations.sql`；Schema v2 备份恢复演练再次核对远端版本与当前 `main` 一致。证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./evidence/database-restore-drill-2026-08-13.md) 与 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./evidence/webchat-retirement-production-2026-08-12.md)。
 - [x] 未登录、普通成员、停用成员、管理员和 service role 的权限边界均已复核；生产 `npm run check:production-security` 通过 55 项真实身份、即时交接、跨成员隐私、图片默认关闭与真实对象生命周期、旧 JWT 和零残留检查，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md` 与 `docs/evidence/webchat-image-foundation-production-2026-07-25.md`。
-- [ ] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。
+- [x] 生产 Auth 已启用 Secure password change；普通账号页改密只经过 `change-password`，成功后服务端全局撤销刷新会话、本设备退出，撤销未确认时显示部分成功警告；恢复页仅在 `PASSWORD_RECOVERY` 邮件会话中调用 Auth `updateUser(password)` 并随后全局登出。2026-08-13 已在 Supabase 控制台只读确认设置开启，未保存任何配置。
 - [x] 公开成员视图只返回姓名、年级、专业和时间字段，停用成员不进入投影；匿名请求不能读取 Profile、审计、管理员或运行时密钥接口，证据见 `docs/evidence/production-security-final-audit-2026-07-25.md`。
 - 遗留安全检查：私有 `webchat-images` Bucket 继续拒绝匿名读取，数据库引用、对象归属、注销清理和备份恢复边界不得回归。
-- [ ] 管理员 RPC 保留鉴权、乐观锁、审计和速率限制；清单与数据库目录中的全部 `admin_*` 函数一致，普通/停用成员无法调用 19 个入口，8 个 `_unlimited` 实现不可由浏览器角色执行。
-- [ ] 注销流程的目标绑定租约覆盖“取得 owner/target 租约 → 记录并确认 GitHub 恢复下限 → 续期并停止外部阶段心跳 → 最终 RPC 锁定租约/Profile → 同事务删除 Auth 用户与消费租约”完整临界区；业务级联与审计匿名化整体提交或回滚，管理员注销仍要求先交接权限。
-- [ ] 管理员提升/降级要求原因、乐观锁、速率限制和二次确认；并发操作也不能移除最后一名启用管理员。
-- [ ] 活动同步和当前管理员角色均在数据库最终删除点阻止注销；前管理员降级注销后，公告创建者、审批者及全部审计 JSON 中均无其 UUID。
+- [x] 管理员 RPC 保留鉴权、乐观锁、审计和速率限制；授权清单与数据库目录中的全部 `admin_*` 函数一致，当前覆盖 28 个浏览器前门和 13 个内部实现，其中 8 个 `_unlimited` 实现不可由浏览器角色执行。
+- [x] 注销流程的目标绑定租约覆盖“取得 owner/target 租约 → 记录并确认 GitHub 恢复下限 → 续期并停止外部阶段心跳 → 最终 RPC 锁定租约/Profile → 同事务删除 Auth 用户与消费租约”完整临界区；业务级联与审计匿名化整体提交或回滚，管理员注销仍要求先交接权限。
+- [x] 管理员提升/降级要求原因、乐观锁、速率限制和二次确认；并发操作也不能移除最后一名启用管理员。
+- [x] 活动同步和当前管理员角色均在数据库最终删除点阻止注销；前管理员降级注销后，公告创建者、审批者及全部审计 JSON 中均无其 UUID。上述四项由 pgTAP、并发检查与生产安全证据共同覆盖。
 
 ## 4. Edge Functions 与同步
 
-- [ ] 按“数据库 → Edge Functions → Pages”的顺序部署。
-- [ ] `sync-member`、`sync-stats`、`sync-avatar`、`member-avatar`、`delete-account`、`change-password` 与 `firecrawl-config` 使用仓库 import map 部署成功。
+- [x] 当前候选没有数据库或 Edge Function 变更；兼容顺序收敛为通过受保护分支和 CI 后仅部署 Pages，不执行不适用的生产层。
+- [x] 当前生产 12 个 Edge Function 均为 ACTIVE 并使用仓库 import map；版本已记录在 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
 - 遗留关闭检查：除安全修复或 Schema 兼容需要外不再发布 `webchat-config`、`webchat`、`webchat-attachment`、`webchat-image-cleanup` 或 `webchat-cache-probe`；如必须维护，部署后 `CHAT_ENABLED` 与所有产品入口仍为关闭。
-- [ ] 数据库与函数部署后，严格运行 `npm run check:supabase-readiness`，不再允许待部署 migration、缺失函数或 `404` 边界。
-- [ ] 发布记录包含当前 Git SHA 与 12 个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。
-- [ ] `npm run check:supabase-readiness` 确认 12 个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
-- [ ] `npm run check:supabase-readiness` 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
-- [ ] 仅对受控测试成员执行一次单平台同步，快照、运行记录、新鲜度和审计一致。
-- [ ] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
-- [ ] QOJ 可恢复同步失败最多进入一次持久队列重试；每个 attempt 的临时 Firecrawl 会话都最终关闭，凭据/结构错误不重试。
-- [ ] 已确认日更、周更和到期队列 cron 使用 UTC 表达正确的北京时间计划。
+- [x] 当前候选无数据库与函数部署；最近严格 Supabase readiness 已确认 76 个 migration、0 pending、12 个 ACTIVE 函数且无缺失或非预期 `404` 边界。
+- [x] 发布记录包含当前 Git SHA 与 12 个 Edge Function 部署后版本号；黑盒就绪检查不作为源码一致性证明。当前候选与版本见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
+- [x] 严格 readiness 确认 12 个函数均使用预期 JWT/import map 配置，浏览器可调用函数精确允许正式 Pages Origin、不允许恶意 Origin，且匿名请求只返回预期的 `401`、`403`、`405` 或安全关闭状态。
+- [x] 严格 readiness 确认数据库队列 Vault 配置完整、五分钟 cron active、最近 12 分钟有调度、最近 HTTP 为 2xx 且近 15 分钟至少一次 cron 成功。
+- [x] 已对受控测试成员完成单平台同步，快照、运行记录、新鲜度和审计一致；生产停机演练也确认其他平台继续工作且失败平台保留最后成功值。
+- [x] Codeforces、牛客、AtCoder、XCPC ELO、洛谷、QOJ 的固定样本契约测试通过。
+- [x] QOJ 可恢复同步失败最多进入一次持久队列重试；每个 attempt 的临时 Firecrawl 会话都最终关闭，凭据/结构错误不重试。
+- [x] 已确认日更、周更和到期队列 cron 使用 UTC 表达正确的北京时间计划。
 
 ## 5. 凭据与外部服务
 
@@ -87,13 +87,13 @@
 - [x] `sync-stats.yml` 仅允许正式仓库默认分支运行，并绑定 `production-operations`；
       `SUPABASE_PROJECT_REF` 与 `SUPABASE_SERVICE_ROLE_KEY` 只存在于该 Environment，仓库级和
       组织级同名 Secret 副本均已删除，Environment 部署分支限制为默认分支。
-- [ ] 洛谷 Cookie/CSRF、QOJ 服务账号和 Firecrawl key 均来自可独立轮换的生产 Secret。
-- [ ] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
-- [ ] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。
-- [ ] `ALLOWED_ORIGIN` 只包含实际 Origin，不包含路径或通配敏感域。
+- [x] 洛谷 Cookie/CSRF、QOJ 服务账号和 Firecrawl key 均来自可独立轮换的生产 Secret；核验只读取 Secret 名称和消费者，不读取值。
+- [x] `SYNC_QUEUE_TOKEN` 使用独立随机值，Edge Secret 与 Vault 一致；Vault 和 cron catalog 均不含 service role key。
+- [x] 注销恢复 Token 只授权目标仓库 Variables write；`DELETION_RECOVERY_REPOSITORY` 指向正式仓库。
+- [x] `ALLOWED_ORIGIN` 只包含实际 Origin，不包含路径或通配敏感域。
 - [ ] 生产凭据轮换人、存放位置和回滚方式已记录；未把真实值复制到发布记录。
 - [ ] Firecrawl 用量、QOJ 登录、洛谷认证和 Supabase 配额均处于可用状态。
-- [ ] 使用与生产 `FIRECRAWL_API_KEY` 相同团队的维护者凭据运行 `firecrawl credit-usage --json --pretty`；剩余比例高于 25%，或已记录扩容/降耗措施。不得把 API Key 或完整凭据配置写入发布记录。
+- [x] 2026-08-13 使用与生产 Key 池同团队的维护者凭据运行 `firecrawl credit-usage --json --pretty`；本周期剩余 `984 / 1000`（98%），并发占用 `0 / 2`，没有创建抓取或浏览器会话，也没有记录 API Key。证据见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
 - 遗留关闭检查：不再启用、更换或验收 WebChat 中转站；不运行付费兼容性或缓存探针。若仍保存旧 Key，只确认它位于 Vault 且三层开关关闭，不读取值、不轮换，也不得进入前端和日志；未来若删除，必须单独取得生产 Secret 变更批准。
 - 历史记录：`npm run test:e2e:webchat` 曾通过五浏览器矩阵与并发、Abort、减少动画和移动端 axe 门禁；测试保留用于关闭态安全回归，不再推动功能开放。
 - 遗留关闭检查：管理员后台继续保留 WebChat 配置页，只用于查看关闭状态、历史配置和历史用量；任何管理操作都不得绕过三层关闭边界产生新请求、修改配置或成员权限、预留 Token 或结算额度。历史账本继续保持私有且不可跨成员读取。
@@ -102,26 +102,26 @@
 
 ## 6. 前端与可访问性烟测
 
-- [ ] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新。
+- [x] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新；2026-08-13 又在独立 Chrome 标签复核 `/`、`/rankings`、`/privacy`、`/register`、`/login`、`/account` 与 `/admin`。
 - 遗留关闭检查：普通注册页、成员账号页和主导航不展示推荐计划名称、邀请码、奖励摘要、AI 助手或暂停提示；管理员后台可继续显示遗留配置入口。关闭状态查询失败时成员端同样失败关闭。
-- [ ] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限。
-- [ ] 部署后的只读生产门禁拒绝演示回退，并用公开视图和明确允许的只读 RPC 逐页复算全部成员在总榜与各平台榜的排序、柔性平台覆盖总 Rating 和总题数。
-- [ ] 桌面、390px 移动端和至少一个宽屏视口无页面级横向溢出。
-- [ ] 键盘可完成主要导航、筛选、平台标签、分页和高风险确认；焦点可见且顺序合理。
-- [ ] 浏览器控制台没有与本次变更相关的 error/warn，分享元数据与方形图标可访问。
+- [x] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限；管理员后台保留遗留 WebChat 只读配置入口，成员端不显示该入口。
+- [x] 部署后的只读生产门禁拒绝演示回退，并用公开视图和明确允许的只读 RPC 逐页复算全部成员在总榜与各平台榜的排序、柔性平台覆盖总 Rating 和总题数；Pages run `31661377686` 的 `production-ranking-audit` 成功。
+- [x] 桌面 1440、390px 移动端和 1920 宽屏视口均无页面级横向溢出；2026-08-13 的 21 个路由/视口组合全部通过。
+- [x] 键盘可完成主要导航、筛选、平台标签、分页和高风险确认；焦点可见且顺序合理。2026-08-13 榜单再次通过只读焦点顺序复核，完整证据见 [`docs/evidence/keyboard-focus-browser-2026-07-28.md`](./evidence/keyboard-focus-browser-2026-07-28.md)。
+- [x] 独立 Chrome 站点标签没有捕获与当前部署相关的 error/warn；分享元数据与 `/favicon-192.png`、`/favicon-512.png` 由构建门禁核对。Chrome 扩展注入的 `data:` favicon 不作为站点图标证据。
 
 ## 7. 法务、隐私与发布决定
 
-- [ ] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。
+- [ ] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。当前分支已修复“注册后账号直接启用”与生产邮箱确认配置的冲突并补 19 项定向测试；仍需合并并完成 Pages 部署后再关闭此项。
 - 遗留隐私检查：生产不再向中转站或模型发送新消息；既有私有会话、额度账本和图片元数据仍按当前隐私页、注销和备份边界处理，直至数据自然清理或由成员删除。
 - [ ] 已在运维手册核验并填写 Supabase、GitHub Actions 和 Firecrawl 的实际保留窗口、负责人及删除/恢复限制。
-- [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
+- [x] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [x] 使用两个数据库连接验证最终 RPC 的行锁 fencing：本地 CI 已证明竞争请求在删除事务结束前持续阻塞，提交后只能观察到已消费租约；响应丢失的 Auth/Profile 双重对账与失败关闭测试已覆盖，旧 access JWT 的生产 RLS 边界已有证据。2026-07-25 的生产最终 RPC 响应丢失复核成功，恢复正式函数后的完整注销耗时为 `6502 ms`，证据见 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
-- [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
+- [x] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前；Schema v2 隔离恢复演练已再次覆盖来源与恢复下限检查。
 - [x] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；2026-08-13 完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、7 类孤儿、私有 Bucket、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。备份 run `31622577243`、恢复 run `31622919641`；脱敏证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./evidence/database-restore-drill-2026-08-13.md)。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
 - [x] 项目负责人已选择 Apache License 2.0（SPDX 标识符：`Apache-2.0`），维护 Agent 已加入 `LICENSE`。该许可证覆盖项目原创源代码，以及未附带其他授权声明的原创文档和配置；学校、集训队、赛事标识、第三方素材、成员数据和平台数据仍保持独立授权边界。
-- [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。
+- [x] 真实队员已小范围核对姓名、专业、年级、六个平台绑定和统计值；证据见 [`docs/evidence/real-member-production-validation-2026-07-26.md`](./evidence/real-member-production-validation-2026-07-26.md)。
 - [ ] 已观察至少一个完整日更批次；涉及 XCPC ELO/QOJ 时观察到下一个周二批次。
 - [ ] 所有阻塞问题已关闭，遗留非阻塞风险有负责人和后续日期。
 

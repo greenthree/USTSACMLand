@@ -48,6 +48,8 @@ describe('PrivacyPage', () => {
     await screen.findByRole('heading', { name: '推荐计划' })
 
     const publicSection = screen.getByRole('heading', { name: '公开范围' }).closest('section')
+    expect(publicSection).toHaveTextContent('注册后需先完成邮箱确认，之后才能登录')
+    expect(publicSection).not.toHaveTextContent('注册后账号直接启用')
     expect(publicSection).toHaveTextContent('时间范围刷题增量')
     expect(publicSection).toHaveTextContent('邮箱、QQ、密码、登录令牌')
     expect(publicSection).toHaveTextContent('不进入公开榜单')
@@ -56,6 +58,13 @@ describe('PrivacyPage', () => {
     const thirdPartySection = screen.getByRole('heading', { name: '第三方服务' }).closest('section')
     expect(thirdPartySection).toHaveTextContent('只有服务端会把 QQ 号发送给腾讯 QQ 头像接口')
     expect(thirdPartySection).toHaveTextContent('私有存储中保留规范化 WebP 头像和不可逆来源摘要')
+  })
+
+  it('shows the current privacy notice date', async () => {
+    render(<PrivacyPage />)
+    await screen.findByRole('heading', { name: '推荐计划' })
+
+    expect(screen.getByText('更新日期：2026 年 8 月 13 日')).toBeInTheDocument()
   })
 
   it('documents the target-free personal data export boundary', async () => {
