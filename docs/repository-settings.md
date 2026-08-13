@@ -18,6 +18,12 @@
 - 禁止 force push 和删除默认分支。
 - 不允许管理员默认绕过；紧急绕过只在故障处理中临时启用并记录原因。
 
+2026-08-13 使用 GitHub Rulesets API 只读回读确认规则集 `Protect main release branch`
+处于 `active`，匹配 `~DEFAULT_BRANCH`，没有 bypass actor，当前维护账号也不能绕过。规则实际包含
+Pull Request、分支必须保持最新、review conversation 全部解决、上述三个 required checks、禁止
+删除和禁止 non-fast-forward。旧 Branch Protection API 对 `main` 返回 `404` 只表示仓库使用
+Rulesets，不表示默认分支未受保护；核验时应以 Rulesets API 和有效规则接口为准。
+
 个人仓库只有一名维护者时可以暂不要求他人批准，但仍应通过 PR 和全部状态检查。增加第二名维护者后，至少要求 1 个非作者批准；涉及 migration、RLS、认证、凭据或删除流程的变更建议要求代码所有者复核。
 
 `Deploy GitHub Pages / build` 只在 `main` 的 `CI` workflow 全部成功后由 `workflow_run` 触发，并检出通过 CI 的精确提交；不能作为 PR 合并前检查。CI 失败或 Pages 部署失败时保留上一可用版本，并按运维手册修复或 revert。
@@ -28,7 +34,7 @@
 - 只允许已审查的 GitHub Actions；仓库 workflow 使用完整提交 SHA 固定第三方 Action，并由 Dependabot 提议更新。
 - Dependabot security updates 保持启用；每周依赖 PR 必须经过现有测试，不自动合并大版本更新。
 - Actions 日志和 artifact 不得包含 Supabase service role、洛谷 Cookie/CSRF、QOJ 密码、Firecrawl key 或成员私有数据。
-- 仓库默认 Actions 日志/Artifact 保留建议设为 30 天以内；数据库备份 workflow 继续用 `retention-days: 14` 单独收紧。2026-07-15 GitHub API 核验的仓库默认值仍为 90 天，因此正式发布前需调整或在风险记录中明确接受。
+- 仓库默认 Actions 日志/Artifact 保留建议设为 30 天以内；数据库备份 workflow 继续用 `retention-days: 14` 单独收紧。2026-08-13 GitHub API 回读的仓库默认值为 30 天，符合当前发布契约。
 
 ### 备份与注销恢复下限
 
@@ -54,7 +60,7 @@ Remove-Item Env:DELETION_RECOVERY_GITHUB_TOKEN
 ## 安全报告与环境
 
 - 在 **Settings → Security → Private vulnerability reporting** 启用私密漏洞报告。
-- GitHub Pages 使用 `github-pages` environment；生产 Secret 只授予必要 workflow，定期清理不再使用的 Secret。
+- GitHub Pages 使用 `github-pages` environment；2026-08-13 API 回读确认其自定义部署分支策略只允许 `main`。生产 Secret 只授予必要 workflow，定期清理不再使用的 Secret。
 - 启用仓库可用的 Secret scanning / push protection；Gitleaks workflow 是补充门禁，不替代 GitHub 原生保护。
 - 若仓库转移到 Organization，先为 Gitleaks Action 配置其要求的组织许可证，或改用不需要外部许可证的固定版本 CLI 扫描方案。
 

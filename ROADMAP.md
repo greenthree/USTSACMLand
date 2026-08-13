@@ -102,7 +102,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - 仓库与生产已完成：阻止普通成员绕过已隐藏的 WebChat 界面直接调用 own-history 写 RPC 创建或修改遗留会话；`202608090001_retire_webchat_mutations.sql` 已应用，撤销 `public`、`anon`、`authenticated` 与 `service_role` 对创建、重命名、归档和消息 upsert，以及两个管理员写 RPC 的执行权限，同时将 relay 请求开关与图片上传全局暂停状态持久化为关闭，保留本人历史读取/删除、个人导出、180 天清理和注销级联边界。生产共 76 个 migration，六个 writer 对三类应用角色全部撤权；部署后没有新增 WebChat 请求或额度账目。证据见 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./docs/evidence/webchat-retirement-production-2026-08-12.md)。
 - 仓库与生产已完成：将管理员 WebChat 配置与成员 AI 权限界面收紧为只读关闭态，禁止通过站内后台修改中转站、模型、Key、预算、请求开关、成员授权或额度；`webchat-config` v14 的合法更新请求固定返回 `410 feature_retired`，同时保留关闭状态和历史用量诊断。管理员界面专项 20 项、Edge Function 专项 15 项、严格 Supabase readiness 通过，并已完成桌面、390px 与宽屏 Chrome 验收；本次仅部署 `webchat-config`，未修改 Secret/Vault、其他函数或 Pages。证据见 [`docs/evidence/webchat-retirement-production-2026-08-12.md`](./docs/evidence/webchat-retirement-production-2026-08-12.md)。
 - 仓库已完成：同步 CI 回归到 WebChat 只读关闭态断言，并修复 WebKit 移动学习章节导航与邀请码注册页的异步时序；移动端锚点即时定位、当前章节导航同步收回，E2E 轮询最终可见几何状态并为低速路由加载保留充分等待，相关 WebKit 重复测试 20/20 通过。
-- 仓库已完成：修复隐私说明和注册页与生产 Supabase 邮箱确认配置不一致的问题；隐私页现明确注册后需先确认邮箱才能登录，注册页明确确认并登录后再填写竞赛账号和成员资料，更新日期同步为 2026 年 8 月 13 日。定向 19 项测试通过；生产隐私一致性仍待本分支通过 CI、合并和 Pages 部署后关闭。
+- 仓库与生产已完成：修复隐私说明和注册页与生产 Supabase 邮箱确认配置不一致的问题；隐私页现明确注册后需先确认邮箱才能登录，注册页明确确认并登录后再填写竞赛账号和成员资料，更新日期同步为 2026 年 8 月 13 日。定向 19 项测试通过；PR #149 已合并为 `14e9f2257d51ee3578254ea3a2f1fba3387f1b6c`，`main` CI、Secret scan、Pages build/deploy 与 `production-ranking-audit` 全部成功，Chrome 桌面、390px 和宽屏复核确认新文案可见、旧文案不存在且无横向溢出或控制台 warning/error。证据见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./docs/evidence/v1-release-gate-audit-2026-08-13.md)。
 
 ## 4. v1.0.0 发布后接入 Cloudflare
 

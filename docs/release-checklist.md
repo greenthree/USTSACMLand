@@ -11,7 +11,7 @@
 - [ ] 已记录版本号、候选提交、变更摘要、项目负责人批准和执行 Agent/会话。
 - [x] 工作树只包含本次发布审计、隐私文案修复和对应测试；临时截图、导出文件和根目录本地素材未被误纳入。
 - [x] 当前候选只修改前端文案、测试和文档，不需要数据库或 Edge Function 部署；合并后仅由受保护 Pages 链路发布。
-- [x] 已记录最后一个可用提交 `b9a9c919948107f6558e09c9174a3a453db788b2`、Pages run `31661377686` 和生产 76 个 migration、0 pending；见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
+- [x] 已记录当前已部署提交 `14e9f2257d51ee3578254ea3a2f1fba3387f1b6c`、Pages run `31707162024` 和生产 76 个 migration、0 pending；见 [`docs/evidence/v1-release-gate-audit-2026-08-13.md`](./evidence/v1-release-gate-audit-2026-08-13.md)。
 - [ ] 项目负责人已按 `docs/maintainer-handoff.md` 确认所需供应商权限与高风险操作范围；Agent 只使用当前授权会话，记录不包含账号标识或 Secret。
 
 ## 2. 本地与 CI 门禁
@@ -43,7 +43,7 @@
   git diff --check
   ```
 
-- [ ] GitHub `CI / verify`、`CI / database-security`、`Secret scan / gitleaks` 和部署后的 `production-ranking-audit` 全部通过。
+- [x] GitHub `CI / verify`、`CI / database-security`、`Secret scan / gitleaks` 和部署后的 `production-ranking-audit` 全部通过。PR checks、`main` CI run `31706261357`、Secret scan run `31706261269` 与 Pages run `31707162024` 均覆盖已部署 merge SHA `14e9f2257d51ee3578254ea3a2f1fba3387f1b6c`。
 - [x] Dependabot 当前开放告警为 0；此前 4 条高危开发依赖告警已由 PR #147 修复，并由测试和生产构建验证。
 - [x] 当前候选与最近通过的 Actions 只记录脱敏状态、数量和版本；构建日志、测试输出和 Artifact 核对未发现 Secret 或成员私有资料。
 - [x] `Encrypted database backup` 最近一次手动任务成功；`MAX_BACKUP_ARTIFACT_BYTES=3500000000` 与 `MAX_STORAGE_OBJECTS=10000` 已按 50 名成员的账号级理论上限配置。最新 Schema v2 备份 run `31622577243` 与恢复 run `31622919641` 成功，Artifact 只包含 `.enc` 和 `.enc.sha256`；工作流在上传前完成 76 个 migration、8 个聚合行数、完整引用图片对象、解密校验和明文清理，Storage 失败时不会发布 database-only 的部分产物。证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./evidence/database-restore-drill-2026-08-13.md)。
@@ -105,14 +105,14 @@
 - [x] 正式首页、榜单、成员详情、隐私页、注册、登录、账号页和后台可直达并刷新；2026-08-13 又在独立 Chrome 标签复核 `/`、`/rankings`、`/privacy`、`/register`、`/login`、`/account` 与 `/admin`。
 - 遗留关闭检查：普通注册页、成员账号页和主导航不展示推荐计划名称、邀请码、奖励摘要、AI 助手或暂停提示；管理员后台可继续显示遗留配置入口。关闭状态查询失败时成员端同样失败关闭。
 - [x] 访客、普通成员、停用成员和管理员看到的导航与路由符合权限；管理员后台保留遗留 WebChat 只读配置入口，成员端不显示该入口。
-- [x] 部署后的只读生产门禁拒绝演示回退，并用公开视图和明确允许的只读 RPC 逐页复算全部成员在总榜与各平台榜的排序、柔性平台覆盖总 Rating 和总题数；Pages run `31661377686` 的 `production-ranking-audit` 成功。
-- [x] 桌面 1440、390px 移动端和 1920 宽屏视口均无页面级横向溢出；2026-08-13 的 21 个路由/视口组合全部通过。
+- [x] 部署后的只读生产门禁拒绝演示回退，并用公开视图和明确允许的只读 RPC 逐页复算全部成员在总榜与各平台榜的排序、柔性平台覆盖总 Rating 和总题数；Pages run `31707162024` 的 `production-ranking-audit` 成功。
+- [x] 桌面 1440、390px 移动端和 1920 宽屏视口均无页面级横向溢出；2026-08-13 的 21 个基线路由/视口组合以及 PR #149 部署后的隐私页、注册页三视口复核全部通过。
 - [x] 键盘可完成主要导航、筛选、平台标签、分页和高风险确认；焦点可见且顺序合理。2026-08-13 榜单再次通过只读焦点顺序复核，完整证据见 [`docs/evidence/keyboard-focus-browser-2026-07-28.md`](./evidence/keyboard-focus-browser-2026-07-28.md)。
 - [x] 独立 Chrome 站点标签没有捕获与当前部署相关的 error/warn；分享元数据与 `/favicon-192.png`、`/favicon-512.png` 由构建门禁核对。Chrome 扩展注入的 `data:` favicon 不作为站点图标证据。
 
 ## 7. 法务、隐私与发布决定
 
-- [ ] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。当前分支已修复“注册后账号直接启用”与生产邮箱确认配置的冲突并补 19 项定向测试；仍需合并并完成 Pages 部署后再关闭此项。
+- [x] `PRIVACY.md`、站内隐私页、第三方数据来源和实际数据生命周期一致。PR #149 已修复“注册后账号直接启用”与生产邮箱确认配置的冲突并补 19 项定向测试；merge SHA `14e9f2257d51ee3578254ea3a2f1fba3387f1b6c` 已由 Pages run `31707162024` 部署，Chrome 三视口确认新日期与邮箱确认说明可见、旧文案不存在且没有横向溢出或控制台 warning/error。
 - 遗留隐私检查：生产不再向中转站或模型发送新消息；既有私有会话、额度账本和图片元数据仍按当前隐私页、注销和备份边界处理，直至数据自然清理或由成员删除。
 - [ ] 已在运维手册核验并填写 Supabase、GitHub Actions 和 Firecrawl 的实际保留窗口、负责人及删除/恢复限制。
 - [x] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
