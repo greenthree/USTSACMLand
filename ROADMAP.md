@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-08-11（Asia/Shanghai）
+最后更新：2026-08-13（Asia/Shanghai）
 
 本路线图只保留仍需执行的工作和当前生产基线，不再把已经完成的每次迁移、测试数量和历史烟测逐条堆在主文档中。详细实现记录放在 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request 中。
 
@@ -50,7 +50,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 - [x] 每日一题、完成/撤销、讨论、审核和后台题目生命周期已上线。
 - [x] WebChat 的历史实现曾完成当前模型、累计成员限额、私有历史、刷新恢复和“思考中”等能力；现已作为遗留模块停止产品开发并保持生产关闭，代码与安全边界继续保留。
 - [x] 个人数据导出已上线，并通过真实成员归属和敏感字段生产烟测；证据见 `docs/evidence/personal-data-export-production-2026-07-20.md`。
-- [x] 加密数据库备份与隔离恢复演练已完成；证据见 `docs/evidence/database-restore-drill-2026-07-19.md`。
+- [x] 加密数据库备份与隔离恢复演练已完成；2026-08-13 使用当前 `main` 的 76-migration Schema v2 生产快照完成备份、Storage 清单/哈希、单事务隔离恢复、Auth/RLS、匿名拒绝和明文清理核对；证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./docs/evidence/database-restore-drill-2026-08-13.md)。
 
 ## 3. v1.0.0 发布前必须完成
 
@@ -86,7 +86,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
 
 - [x] 项目负责人已选择 Apache License 2.0（SPDX 标识符：`Apache-2.0`），维护 Agent 已加入根目录 `LICENSE`。该许可证覆盖项目原创源代码，以及未附带其他授权声明的原创文档和配置；学校、集训队、赛事标识、第三方素材、成员数据和平台数据仍保持独立授权边界。
 - [x] 确认同步巡检、数据库备份、凭据轮换、回滚和管理员操作可以由全新上下文 Agent 仅根据仓库文档冷启动执行。2026-08-09 全新上下文 Agent 完整阅读根契约与专项手册，在不触发生产写操作的前提下完成 GitHub/Supabase 冷启动核对、同步队列巡检、备份连续性检查及前端、Edge Function、数据库和 Cloudflare 回滚桌面推演；同时识别并修复仓库级 Secret 与 `production-operations` Environment Secret 的检查口径偏差。证据见 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
-- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-07-29 已通过仓库就绪检查、全仓库 ESLint、七项工作流结构门禁、93 个 Vitest 文件共 596 项测试、10 个函数入口 Deno 类型检查、136 个文件 Deno Lint、462 项 Edge Function 测试、生产构建和 Cloudflare 指纹资源长期缓存门禁；Supabase 已关闭邮箱自动确认并启用服务端 Turnstile CAPTCHA，preflight 与严格就绪检查均通过。全新真实邮箱的有效 token 注册、确认邮件、确认前登录拒绝、重复确认安全性、确认后密码登录和带独立 Turnstile 的自助注销已经完成；注销后的 Auth、Profile 及 19 类关联数据均为 0，再次登录返回标准凭据拒绝。两组各不超过 30 次的生产限流检查均安全停止但未触发 `429`。2026-08-04 又将登录/注册限额临时从 `30` 降至 `2`，等待 30 秒并严格限制为三次请求后仍只得到 `400 / invalid_credentials`；这表明动态降阈值没有立即收缩当前 IP 的旧令牌桶余额，配置已恢复为 `30`，不能把结果记作恢复通过。冷启动交接验收已于 2026-08-09 完成；仍缺维护窗口内可复现的受控 `429` 窗口恢复、当前 `main` Schema v2 备份恢复演练，以及 Supabase 日志与 Firecrawl 保留窗口核验，因此暂不创建标签。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)、[`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md)、[`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md) 与 [`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md)。
+- [ ] 按 `docs/release-checklist.md` 完成最终检查并创建 `v1.0.0` 标签。2026-08-13 已补齐当前 `main` Schema v2 备份恢复演练；仍缺维护窗口内可复现的受控 `429` 窗口恢复、Supabase 日志与 Firecrawl 保留窗口核验，因此暂不创建标签。证据见 [`docs/evidence/release-gates-2026-07-28.md`](./docs/evidence/release-gates-2026-07-28.md)、[`docs/evidence/registration-abuse-production-gap-2026-07-28.md`](./docs/evidence/registration-abuse-production-gap-2026-07-28.md)、[`docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md`](./docs/evidence/auth-rate-limit-recovery-production-2026-08-04.md)、[`docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md`](./docs/evidence/agent-cold-start-handoff-audit-2026-08-09.md) 与 [`docs/evidence/database-restore-drill-2026-08-13.md`](./docs/evidence/database-restore-drill-2026-08-13.md)。
 
 ### PR #146 合并前审查整改
 
