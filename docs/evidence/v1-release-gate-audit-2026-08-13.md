@@ -6,12 +6,12 @@ Vault、Function Secret、Edge Function、cron、Cloudflare 或 GitHub 设置，
 
 ## 发布候选与自动门禁
 
-- 候选提交：`b9a9c919948107f6558e09c9174a3a453db788b2`，即 PR #148 的 merge SHA。
-- CI run `31660849568`：`verify` 与 `database-security` 均成功；覆盖 Node 22 依赖安装、
+- 当前已部署候选：`14e9f2257d51ee3578254ea3a2f1fba3387f1b6c`，即 PR #149 的 merge SHA。
+- CI run `31706261357`：`verify` 与 `database-security` 均成功；覆盖 Node 22 依赖安装、
   格式、Lint、单元测试、多浏览器 E2E、生产构建、Edge Function 检查、pgTAP 与并发围栏。
-- Secret scan run `31660849595`：成功。
-- Pages run `31661377686`：`build`、`deploy` 与 `production-ranking-audit` 均成功；生产榜单
-  复算 job 为 `94327075488`。
+- Secret scan run `31706261269`：成功。
+- Pages run `31707162024`：`build`、`deploy` 与 `production-ranking-audit` 均成功；生产榜单
+  复算 job 为 `94471191081`。
 - `npm run check:repository-readiness -- greenthree/USTSACMLand` 通过：10 个 workflow、
   仓库与 `production-operations` Secret 名称边界、7 个 Actions Variable、Pages 正式地址和
   30 天默认 Actions 保留期均符合契约。检查只读取名称，不读取 Secret 值。
@@ -28,8 +28,8 @@ Vault、Function Secret、Edge Function、cron、Cloudflare 或 GitHub 设置，
 `sync-avatar` v1、`member-avatar` v1。除公开头像代理 `member-avatar` 按设计关闭 JWT 验证外，
 其余函数均启用 JWT 验证；12 个函数均启用仓库 import map。
 
-本轮只是记录已部署版本，没有重新部署函数。PR #148 只更新证据文档，发布顺序中的数据库、
-Edge Function 部署不适用；Pages 已由通过 CI 的精确 merge SHA 自动部署。
+本轮没有重新部署函数。PR #149 只更新前端文案、测试和文档，发布顺序中的数据库、Edge
+Function 部署不适用；Pages 已由通过 CI 的精确 merge SHA 自动部署。
 
 ## 保留窗口与外部服务
 
@@ -73,17 +73,17 @@ Edge Function 部署不适用；Pages 已由通过 CI 的精确 merge SHA 自动
 - 榜单键盘焦点顺序和焦点可见性再次只读确认正常；完整首页、登录、注册、认证页面和后台
   键盘证据继续引用 `docs/evidence/keyboard-focus-browser-2026-07-28.md`。
 
-## 隐私说明一致性缺口与修复
+## 隐私说明一致性修复与生产关闭
 
 生产 Supabase 要求完成邮箱确认后才能首次登录，注册成功页也一直要求用户查收确认邮件；
-但部署中的 `PRIVACY.md` 对应页面仍写有“注册后账号直接启用”，注册表单说明也暗示可以立即
-填写资料。该表述与真实 Auth 配置不一致，因此当前生产隐私一致性门禁不能关闭。
+但审计时部署中的 `PRIVACY.md` 对应页面仍写有“注册后账号直接启用”，注册表单说明也暗示可以
+立即填写资料。该表述与真实 Auth 配置不一致，因此当时生产隐私一致性门禁不能关闭。
 
-当前分支已将仓库隐私说明与站内隐私页改为“注册后需先完成邮箱确认，之后才能登录”，将
+修复分支将仓库隐私说明与站内隐私页改为“注册后需先完成邮箱确认，之后才能登录”，将
 更新日期改为 2026 年 8 月 13 日，并把注册页说明改为“完成邮箱确认并登录后”再填写资料。
 `PrivacyPage` 与 `RegisterPage` 定向测试共 19 项通过，新增断言同时要求邮箱确认语义存在、
-旧“直接启用”文案不存在。该修复仍需提交、通过 CI、合并并完成 Pages 发布后，才能把生产
-隐私一致性条目标记完成。
+旧“直接启用”文案不存在。该修复已由 PR #149 合并并完成 Pages 发布及生产 Chrome 验收，
+生产隐私一致性条目现已关闭。
 
 本地 Chrome 又在 `http://127.0.0.1:5173` 只读走通“注册页 → 隐私说明”导航：桌面隐私页
 显示新日期和邮箱确认说明，旧文案不存在且没有 Vite 错误覆盖；390px 覆盖下注册说明正常
@@ -96,6 +96,30 @@ Node `v22.23.2`：`npm ci` 成功安装 443 个锁定包且审计为 0 漏洞；
 `npm run lint`、完整 `npm test`（98 个文件、636 项测试）和 `npm run build` 均通过。构建同时
 验证 102 个运行时包的许可证清单、Pages SPA fallback、站点元数据、方形图标和 bundle 预算；
 仅保留既有 Assistant 分块超过 Vite 500 kB 提示阈值的非失败警告。
+
+## PR #149 合并、部署与生产验证
+
+- PR #149 的已验证 head 为 `c6cc6d36ebe4189f345d1e02030f931c8b3b3405`，合并提交为
+  `14e9f2257d51ee3578254ea3a2f1fba3387f1b6c`。PR 的 `verify`、`database-security` 与
+  `gitleaks` 全部成功；没有在检查完成后追加提交。
+- `main` CI run `31706261357` 与 Secret scan run `31706261269` 均成功并精确覆盖 merge
+  SHA。Pages run `31707162024` 的 build、deploy 和 `production-ranking-audit` 全部成功；
+  榜单审计重新计算生产公开排名并通过 3 项检查。
+- 使用 Chrome 对正式 `/privacy` 与 `/register` 完成 1440、390 和 1920 三种视口只读复核。
+  隐私页显示“更新日期：2026 年 8 月 13 日”和“注册后需先完成邮箱确认，之后才能登录”；
+  注册页显示“完成邮箱确认并登录后，可以填写竞赛账号和其他成员资料”。两页旧文案匹配数均
+  为 0，页面级横向溢出为 0，控制台没有 warning/error。现有真实登录态只让提交按钮显示
+  “已登录”并保持禁用；本轮没有填写或提交表单、取得 CAPTCHA 或发送认证请求。
+- `npm run check:cloudflare-domain` 通过：正式域名、旧 Pages 地址跳转、SPA fallback、HTML
+  `max-age=600`、指纹资源 `max-age=31536000` 与二次缓存 `HIT` 均符合契约。生产脚本资源已
+  切换到本次发布的指纹文件。
+- GitHub Rulesets API 确认 `Protect main release branch` 处于 active，匹配默认分支、没有
+  bypass actor，当前维护账号也不能绕过；规则要求 PR、分支最新、review thread 解决以及
+  `verify`、`database-security`、`gitleaks`，并禁止删除和 non-fast-forward。旧 Branch
+  Protection API 返回 `404` 是 Rulesets 仓库的接口差异，不是保护缺失。`github-pages`
+  environment 的自定义部署分支策略只允许 `main`。
+- 本轮发布只更新 Pages；没有修改 Supabase Auth、数据库、Vault、Secret、Edge Function、
+  cron、Cloudflare 配置或成员数据，也没有创建正式版本标签。
 
 ## 仍阻塞 v1.0.0
 
