@@ -118,7 +118,7 @@
 - [ ] 受控注销已验证三类结果：租约冲突/删除前续期失败或 GitHub 写入/确认失败返回 `503` 且 Auth 用户未删除；错误 owner/target、过期租约、管理员、活动同步或 Storage 所有权阻塞返回 `409` 或失败关闭且账号数据完整；成功时 Auth/Profile 级联、审计匿名化和租约消费在同一事务提交。
 - [x] 使用两个数据库连接验证最终 RPC 的行锁 fencing：本地 CI 已证明竞争请求在删除事务结束前持续阻塞，提交后只能观察到已消费租约；响应丢失的 Auth/Profile 双重对账与失败关闭测试已覆盖，旧 access JWT 的生产 RLS 边界已有证据。2026-07-25 的生产最终 RPC 响应丢失复核成功，恢复正式函数后的完整注销耗时为 `6502 ms`，证据见 `docs/evidence/account-deletion-response-loss-production-2026-07-25.md`。
 - [ ] 恢复工具拒绝早于当前注销恢复下限的备份，并拒绝仓库变量回退到备份 metadata 之前。
-- [ ] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；演练完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、7 类孤儿、私有 Bucket 重建、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。旧 run `29656219433` 只覆盖 database-only 格式，可作为历史基线但不能替代本项。
+- [x] 已按 [数据库备份与恢复方案](./backup-and-recovery.md) 使用当前 `main` 新生成的 Schema v2 真实 Artifact 运行手动 `Encrypted database restore drill`；2026-08-13 完成来源/恢复下限、解密、动态归档白名单、单事务数据库恢复、8 项行数、7 类孤儿、私有 Bucket、匿名访问拒绝、数据库引用与对象字节/哈希比对、3 个 Auth hooks、注册建档、密码登录、RLS、受控注销和明文/对象清理核对。备份 run `31622577243`、恢复 run `31622919641`；脱敏证据见 [`docs/evidence/database-restore-drill-2026-08-13.md`](./evidence/database-restore-drill-2026-08-13.md)。
 - [ ] 已确认学校、集训队、ICPC 等名称和图形标识的使用授权范围。
 - [x] 项目负责人已选择 Apache License 2.0（SPDX 标识符：`Apache-2.0`），维护 Agent 已加入 `LICENSE`。该许可证覆盖项目原创源代码，以及未附带其他授权声明的原创文档和配置；学校、集训队、赛事标识、第三方素材、成员数据和平台数据仍保持独立授权边界。
 - [ ] 真实队员已小范围核对姓名、专业、年级、平台绑定和统计值。
