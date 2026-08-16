@@ -6,7 +6,6 @@ import Check from 'lucide-react/dist/esm/icons/check'
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down'
 import CircleGauge from 'lucide-react/dist/esm/icons/circle-gauge'
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3'
-import CodeXml from 'lucide-react/dist/esm/icons/code-xml'
 import Flag from 'lucide-react/dist/esm/icons/flag'
 import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb'
 import Repeat2 from 'lucide-react/dist/esm/icons/repeat-2'
@@ -15,6 +14,7 @@ import Route from 'lucide-react/dist/esm/icons/route'
 import Sparkles from 'lucide-react/dist/esm/icons/sparkles'
 import TimerReset from 'lucide-react/dist/esm/icons/timer-reset'
 import UsersRound from 'lucide-react/dist/esm/icons/users-round'
+import KnowledgeMap from '../components/learning/KnowledgeMap'
 import './learning.css'
 
 interface LearningStage {
@@ -245,39 +245,6 @@ const beginnerPlatforms = [
     href: 'https://codeforces.com/problemset?tags=800-800',
     className: 'codeforces',
     firstStep: '找一场 Div. 4 或新手赛，从第一题开始，一步一步来。',
-  },
-]
-
-const topicGroups = [
-  {
-    label: '程序基础',
-    index: 'A',
-    description: '语法、复杂度、调试、STL 与代码习惯，是所有训练的地基。',
-  },
-  {
-    label: '思维方法',
-    index: 'B',
-    description: '枚举、贪心、构造、二分与不变量，训练从条件中提取规律。',
-  },
-  {
-    label: '数据结构',
-    index: 'C',
-    description: '栈、队列、集合、树状数组、线段树，让信息维护变得高效。',
-  },
-  {
-    label: '图与搜索',
-    index: 'D',
-    description: 'DFS、BFS、最短路、生成树与连通性，处理关系和状态空间。',
-  },
-  {
-    label: '动态规划',
-    index: 'E',
-    description: '从状态定义和转移来源出发，把重复子问题组织成完整解法。',
-  },
-  {
-    label: '数学基础',
-    index: 'F',
-    description: '数论、组合、概率与线性代数，为计数和结构推导提供语言。',
   },
 ]
 
@@ -794,19 +761,10 @@ export function LearningPage() {
               <p>04 / KNOWLEDGE MAP</p>
               <div>
                 <h2>知识点不是清单，而是一张相互连接的地图</h2>
-                <p>先认识六个区域，再通过题目理解它们之间的组合方式。</p>
+                <p>从领域进入子板块，再按顺序掌握具体知识点；先建立主干，再逐步扩展分支。</p>
               </div>
             </header>
-            <div className="learning-topic-grid">
-              {topicGroups.map((group) => (
-                <article key={group.index}>
-                  <span>{group.index}</span>
-                  <CodeXml size={21} aria-hidden="true" />
-                  <h3>{group.label}</h3>
-                  <p>{group.description}</p>
-                </article>
-              ))}
-            </div>
+            <KnowledgeMap />
             <aside className="learning-topic-note">
               <Lightbulb size={21} aria-hidden="true" />
               <p>
