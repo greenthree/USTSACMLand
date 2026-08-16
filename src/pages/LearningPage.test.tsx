@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
@@ -151,6 +151,52 @@ describe('LearningPage', () => {
     expect(screen.getByLabelText('环境与语法知识点')).not.toBeVisible()
 
     unmount()
+  }, 10_000)
+
+  it('explores the knowledge map from a domain to its learning sequence', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter initialEntries={['/learning#learning-topics']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    await screen.findByRole('heading', { name: /新手学习引导/ }, { timeout: 5000 })
+
+    const programmingDomain = screen.getByRole('button', { name: '程序基础' })
+    expect(programmingDomain).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '语言与工具' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    const languageDetail = screen.getByRole('article', { name: '语言与工具' })
+    for (const point of ['输入输出', '判断与循环', '函数', '数组', '字符串']) {
+      expect(within(languageDetail).getByText(point, { selector: 'strong' })).toBeInTheDocument()
+    }
+    expect(screen.getByLabelText('知识点难度说明')).toHaveTextContent('入门基础进阶')
+
+    await user.click(screen.getByRole('button', { name: '数据结构' }))
+    expect(programmingDomain).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '数据结构' })).toHaveAttribute('aria-pressed', 'true')
+
+    const dataStructureBranches = screen.getByLabelText('数据结构的子板块')
+    for (const branch of ['线性结构', '集合维护', '区间维护', '树上结构']) {
+      expect(
+        within(dataStructureBranches).getByRole('button', { name: branch }),
+      ).toBeInTheDocument()
+    }
+    expect(within(dataStructureBranches).getByRole('button', { name: '线性结构' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByRole('button', { name: 'STL 常用容器' })).not.toBeInTheDocument()
+
+    await user.click(within(dataStructureBranches).getByRole('button', { name: '区间维护' }))
+    const rangeDetail = screen.getByRole('article', { name: '区间维护' })
+    for (const point of ['树状数组', '线段树', '懒标记', '可持久化结构']) {
+      expect(within(rangeDetail).getByText(point, { selector: 'strong' })).toBeInTheDocument()
+    }
+    expect(screen.getByLabelText('当前学习路径')).toHaveTextContent('数据结构区间维护')
   }, 10_000)
 
   it('switches week tabs with arrow keys and reopens stage one from the closing link', async () => {

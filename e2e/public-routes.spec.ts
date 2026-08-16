@@ -214,6 +214,62 @@ test('learning roadmap keeps the expanded stage inside an iPad-width viewport', 
   expect(layout.notesRight).toBeLessThanOrEqual(layout.viewportWidth + 1)
 })
 
+test('learning knowledge map reveals nested topics without mobile overflow', async ({ page }) => {
+  const runtimeErrors = collectRuntimeErrors(page)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/learning#learning-topics')
+
+  const dataStructures = page.getByRole('button', { name: '数据结构' })
+  await expect(dataStructures).toBeVisible()
+  await dataStructures.click()
+  await expect(dataStructures).toHaveAttribute('aria-pressed', 'true')
+
+  const branches = page.getByLabel('数据结构的子板块')
+  const rangeMaintenance = branches.getByRole('button', { name: '区间维护' })
+  await expect(rangeMaintenance).toBeVisible()
+  await rangeMaintenance.click()
+  await expect(rangeMaintenance).toHaveAttribute('aria-pressed', 'true')
+
+  const detail = page.getByRole('article', { name: '区间维护' })
+  await expect(detail).toContainText('树状数组')
+  await expect(detail).toContainText('线段树')
+  await expect(detail).toContainText('可持久化结构')
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      ),
+    )
+    .toBe(true)
+
+  await page.setViewportSize({ width: 820, height: 1180 })
+  const tabletLayout = await page.evaluate(() => {
+    const root = document.documentElement
+    const domains = document.querySelector<HTMLElement>('.learning-knowledge-domains')
+    const branches = document.querySelector<HTMLElement>('.learning-knowledge-branches')
+    const detailPanel = document.querySelector<HTMLElement>('.learning-knowledge-detail')
+    const domainRect = domains?.getBoundingClientRect()
+    const branchRect = branches?.getBoundingClientRect()
+    const detailRect = detailPanel?.getBoundingClientRect()
+    return {
+      viewportWidth: root.clientWidth,
+      pageWidth: root.scrollWidth,
+      domainTop: domainRect?.top ?? -1,
+      branchTop: branchRect?.top ?? -2,
+      upperColumnsBottom: Math.max(domainRect?.bottom ?? 0, branchRect?.bottom ?? 0),
+      detailTop: detailRect?.top ?? -1,
+      detailLeft: detailRect?.left ?? -1,
+      detailRight: detailRect?.right ?? Number.POSITIVE_INFINITY,
+    }
+  })
+  expect(tabletLayout.pageWidth).toBeLessThanOrEqual(tabletLayout.viewportWidth + 1)
+  expect(Math.abs(tabletLayout.domainTop - tabletLayout.branchTop)).toBeLessThanOrEqual(1)
+  expect(tabletLayout.detailTop).toBeGreaterThanOrEqual(tabletLayout.upperColumnsBottom - 1)
+  expect(tabletLayout.detailLeft).toBeGreaterThanOrEqual(0)
+  expect(tabletLayout.detailRight).toBeLessThanOrEqual(tabletLayout.viewportWidth + 1)
+  expect(runtimeErrors).toEqual([])
+})
+
 test('learning mobile chapter navigation keeps the current section visible', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/learning')
