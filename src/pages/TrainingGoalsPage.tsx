@@ -16,6 +16,7 @@ import {
   fetchTrainingGoals,
   updateTrainingGoal,
 } from '../features/training-goals/trainingGoalsApi'
+import { formatBeijingDate, formatDateTime, formatShortDate } from '../lib/format'
 import { platformLabels, ratingPlatforms, solvedPlatforms } from '../lib/platforms'
 import type {
   Platform,
@@ -48,30 +49,7 @@ const statusLabels: Record<TrainingGoalLifecycleStatus, string> = {
   expired: '已过期',
 }
 
-const shortDateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: '2-digit',
-  day: '2-digit',
-  timeZone: 'Asia/Shanghai',
-})
-
-const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'Asia/Shanghai',
-})
-
-function beijingDate(offsetDays = 0): string {
-  const source = new Date(Date.now() + offsetDays * 86_400_000)
-  return new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone: 'Asia/Shanghai',
-  }).format(source)
-}
+const beijingDate = formatBeijingDate
 
 function initialDraft(): GoalDraft {
   return {
@@ -79,7 +57,7 @@ function initialDraft(): GoalDraft {
     metric: 'total_solved',
     platform: null,
     targetAmount: '30',
-    endDate: beijingDate(30),
+    endDate: formatBeijingDate(30),
   }
 }
 
@@ -90,11 +68,11 @@ function metricLabel(goal: Pick<TrainingGoal, 'metric' | 'platform'>): string {
 }
 
 function formatDate(value: string): string {
-  return shortDateFormatter.format(new Date(`${value}T00:00:00+08:00`))
+  return formatShortDate(value)
 }
 
 function formatSyncTime(value: string | null): string {
-  return value ? dateTimeFormatter.format(new Date(value)) : '暂无成功同步'
+  return value ? formatDateTime(value) : '暂无成功同步'
 }
 
 function targetUnit(metric: TrainingGoalMetric): string {

@@ -7,9 +7,21 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-supabase': ['@supabase/supabase-js'],
+        manualChunks(id) {
+          const normalized = id.replaceAll('\\', '/')
+          if (
+            normalized.includes('/node_modules/react/') ||
+            normalized.includes('/node_modules/react-dom/') ||
+            normalized.includes('/node_modules/react-router-dom/')
+          ) {
+            return 'vendor-react'
+          }
+          if (normalized.includes('/node_modules/@supabase/')) {
+            return 'vendor-supabase'
+          }
+          if (normalized.includes('/node_modules/lucide-react/')) {
+            return 'vendor-icons'
+          }
         },
       },
     },

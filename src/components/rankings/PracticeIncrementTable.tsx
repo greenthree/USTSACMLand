@@ -83,7 +83,10 @@ function OverallIncrementTable({
           {members.map((item, index) => {
             const rank = rankOffset + index + 1
             return (
-              <tr key={item.member.id}>
+              <tr
+                key={item.member.id}
+                className={rank <= 3 ? `ranking-row rank-${rank}-row` : 'ranking-row'}
+              >
                 <td data-label="排名">
                   <RankNumber rank={rank} />
                 </td>
@@ -152,7 +155,10 @@ function PlatformIncrementTable({
             const current = item.member.stats[platform]
             const increment = item.stats[platform]
             return (
-              <tr key={item.member.id}>
+              <tr
+                key={item.member.id}
+                className={rank <= 3 ? `ranking-row rank-${rank}-row` : 'ranking-row'}
+              >
                 <td data-label="排名">
                   <RankNumber rank={rank} />
                 </td>

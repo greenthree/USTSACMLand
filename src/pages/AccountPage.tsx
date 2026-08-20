@@ -1,13 +1,8 @@
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Save from 'lucide-react/dist/esm/icons/save'
-import KeyRound from 'lucide-react/dist/esm/icons/key-round'
-import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
-import Download from 'lucide-react/dist/esm/icons/download'
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/authContextValue'
 import { LoadingState } from '../components/LoadingState'
-import { PlatformMark } from '../components/PlatformMark'
-import { RegistrationTurnstile } from '../components/RegistrationTurnstile'
 import {
   accountDraftHasConflict,
   accountDraftPlatforms,
@@ -18,16 +13,14 @@ import {
   saveAccountDraft,
   type AccountFormValues,
 } from '../lib/accountDraft'
-import { platformLabels } from '../lib/platforms'
 import { syncMemberAvatar } from '../lib/memberAvatar'
 import {
   normalizePlatformAccountId,
   platformAccountSaveErrorMessage,
-  platformAccountMaxLengths,
   validatePlatformAccountId,
   validatePlatformAccounts,
 } from '../lib/platformAccounts'
-import { gradeOptions, majorSuggestions, normalizeGrade } from '../lib/profileFields'
+import { gradeOptions, normalizeGrade } from '../lib/profileFields'
 import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 import {
   buildDemoPersonalDataExport,
@@ -41,8 +34,15 @@ import {
 } from '../lib/referrals'
 import { supabase } from '../lib/supabase'
 import { platforms, type AccountVerificationStatus, type Platform } from '../types/domain'
-
-type AccountDisplayStatus = AccountVerificationStatus | 'missing'
+import { AccountDataExportSection } from './account/AccountDataExportSection'
+import { AccountDeletionSection } from './account/AccountDeletionSection'
+import { AccountPasswordSection } from './account/AccountPasswordSection'
+import {
+  AccountPlatformsSection,
+  type AccountDisplayStatus,
+} from './account/AccountPlatformsSection'
+import { AccountProfileSection } from './account/AccountProfileSection'
+import { AccountReferralSection } from './account/AccountReferralSection'
 
 interface PlatformAccountRow {
   platform: Platform
@@ -94,20 +94,12 @@ const emptyAccountErrors: Record<Platform, string | null> = {
 }
 
 const demoReferralSummary: ReferralSummary = {
-  programEnabled: true,
-  code: '8A4C19F2E7B603D5',
-  rewardCount: 2,
-  remainingRewards: 8,
-  rewardTokens: 2_000_000,
-  available: true,
-}
-
-const accountStatusLabels: Record<AccountDisplayStatus, string> = {
-  missing: '未绑定',
-  pending: '待验证',
-  verified: '已验证',
-  invalid: '无效',
-  disabled: '已停用',
+  programEnabled: false,
+  code: null,
+  rewardCount: 0,
+  remainingRewards: 0,
+  rewardTokens: 0,
+  available: false,
 }
 
 interface AccountState {
@@ -163,20 +155,6 @@ function restoreAccountState(server: AccountState, values: AccountFormValues): A
   }
 
   return { accounts, statuses, errors }
-}
-
-function AccountStatusBadge({
-  status,
-  error,
-}: {
-  status: AccountDisplayStatus
-  error: string | null
-}) {
-  return (
-    <span className={`status status-${status}`} title={error ?? undefined}>
-      {accountStatusLabels[status]}
-    </span>
-  )
 }
 
 export function AccountPage() {
@@ -390,6 +368,36 @@ export function AccountPage() {
       window.removeEventListener('focus', refreshOnFocus)
     }
   }, [loadReferralSummary, userId])
+
+  function handleAccountChange(platform: Platform, value: string) {
+    const nextAccounts = { ...accounts, [platform]: value }
+    setAccounts(nextAccounts)
+    persistFormDraft({ accounts: nextAccounts })
+    setAccountStatuses((current) => ({
+      ...current,
+      [platform]: value.trim() ? 'pending' : 'missing',
+    }))
+    setAccountErrors((current) => ({ ...current, [platform]: null }))
+    setAccountValidationErrors((current) => ({
+      ...current,
+      [platform]: null,
+    }))
+  }
+
+  function handleAccountBlur(platform: Platform, value: string) {
+    if (platform === 'xcpc_elo') return
+    const draftPlatform = platform as (typeof accountDraftPlatforms)[number]
+    const normalizedValue = normalizePlatformAccountId(value, draftPlatform)
+    if (normalizedValue !== accounts[draftPlatform]) {
+      const nextAccounts = { ...accounts, [draftPlatform]: normalizedValue }
+      setAccounts(nextAccounts)
+      persistFormDraft({ accounts: nextAccounts })
+    }
+    setAccountValidationErrors((current) => ({
+      ...current,
+      [draftPlatform]: validatePlatformAccountId(draftPlatform, normalizedValue),
+    }))
+  }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -751,233 +759,49 @@ export function AccountPage() {
 
       {loadingProfile ? <LoadingState label="正在读取账号资料" /> : null}
 
-      {referralSummary?.programEnabled ? (
-        <section className="account-form account-referral-form" aria-labelledby="referral-title">
-          <div className="form-section">
-            <div className="section-title-row">
-              <div>
-                <h2 id="referral-title">推荐计划</h2>
-                <p>分享邀请码，绑定成功后可获得额外 WebChat 累计额度上限。</p>
-              </div>
-            </div>
-            {referralNotice ? (
-              <p className="form-error" role="alert">
-                {referralNotice}
-              </p>
-            ) : null}
-            <div className="referral-summary-grid">
-              <div className="referral-card">
-                <span>我的邀请码</span>
-                <strong>{referralLoading ? '读取中' : (referralSummary?.code ?? '--')}</strong>
-              </div>
-              <div className="referral-card">
-                <span>已奖励次数</span>
-                <strong>
-                  {referralLoading ? '读取中' : String(referralSummary?.rewardCount ?? 0) + ' / 10'}
-                </strong>
-              </div>
-              <div className="referral-card">
-                <span>累计增加 Token 上限</span>
-                <strong>
-                  {referralLoading
-                    ? '读取中'
-                    : (referralSummary?.rewardTokens ?? 0).toLocaleString('zh-CN')}
-                </strong>
-              </div>
-            </div>
-            <div className="form-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={referralLoading || !referralSummary?.code || !referralSummary.available}
-                onClick={() => void copyReferralLink()}
-              >
-                复制注册链接
-              </button>
-              <span className="referral-copy-note" aria-live="polite">
-                {copyNotice || '新用户可通过链接自动带入邀请码。'}
-              </span>
-            </div>
-            {referralSummary?.programEnabled && referralSummary.remainingRewards === 0 ? (
-              <p className="account-data-export-note">当前邀请码已达到邀请上限，暂不可继续使用。</p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
+      <AccountReferralSection
+        referralSummary={referralSummary}
+        referralLoading={referralLoading}
+        referralNotice={referralNotice}
+        copyNotice={copyNotice}
+        onCopy={() => void copyReferralLink()}
+      />
 
       <form className="account-form" onSubmit={handleSave}>
-        <fieldset className="form-section" disabled={loadingProfile}>
-          <div className="section-title-row">
-            <div>
-              <h2>基本资料</h2>
-              <p>姓名、年级和专业会显示在公开成员列表。</p>
-            </div>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>姓名</span>
-              <input
-                required
-                value={name}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setName(value)
-                  persistFormDraft({ name: value })
-                }}
-              />
-            </label>
-            <label>
-              <span>QQ 号</span>
-              <input
-                required
-                inputMode="numeric"
-                pattern="[1-9][0-9]{4,11}"
-                value={qq}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setQq(value)
-                  persistFormDraft({ qq: value })
-                }}
-              />
-            </label>
-            <label>
-              <span>年级</span>
-              <select
-                required
-                value={grade}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setGrade(value)
-                  persistFormDraft({ grade: value })
-                }}
-              >
-                <option value="" disabled>
-                  请选择年级
-                </option>
-                {selectableGrades.map((item) => (
-                  <option value={item} key={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>专业</span>
-              <input
-                required
-                list="major-suggestions"
-                maxLength={100}
-                placeholder="输入专业名称"
-                value={major}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setMajor(value)
-                  persistFormDraft({ major: value })
-                }}
-              />
-              <datalist id="major-suggestions">
-                {majorSuggestions.map((item) => (
-                  <option value={item} key={item} />
-                ))}
-              </datalist>
-            </label>
-          </div>
-        </fieldset>
+        <AccountProfileSection
+          name={name}
+          onNameChange={(value) => {
+            setName(value)
+            persistFormDraft({ name: value })
+          }}
+          qq={qq}
+          onQqChange={(value) => {
+            setQq(value)
+            persistFormDraft({ qq: value })
+          }}
+          grade={grade}
+          onGradeChange={(value) => {
+            setGrade(value)
+            persistFormDraft({ grade: value })
+          }}
+          selectableGrades={selectableGrades}
+          major={major}
+          onMajorChange={(value) => {
+            setMajor(value)
+            persistFormDraft({ major: value })
+          }}
+          disabled={loadingProfile}
+        />
 
-        <fieldset className="form-section" disabled={loadingProfile}>
-          <div className="section-title-row">
-            <div>
-              <h2>平台绑定</h2>
-              <p>
-                牛客和洛谷填写 UID（个人主页链接最后的一串数字）；XCPC ELO 使用姓名和学校自动匹配。
-              </p>
-            </div>
-          </div>
-          <div className="platform-form-list">
-            {platforms.map((platform) => {
-              if (platform === 'xcpc_elo') {
-                return (
-                  <div className="platform-form-row platform-auto-match-row" key={platform}>
-                    <PlatformMark platform={platform} />
-                    <span className="platform-field-label">姓名匹配</span>
-                    <span className="platform-auto-match-value" aria-label="XCPC ELO 姓名匹配">
-                      按「姓名 + 苏州科技大学」自动匹配
-                    </span>
-                    <AccountStatusBadge
-                      status={accounts[platform] ? accountStatuses[platform] : 'missing'}
-                      error={accountErrors[platform]}
-                    />
-                  </div>
-                )
-              }
-
-              return (
-                <label className="platform-form-row" key={platform}>
-                  <PlatformMark platform={platform} />
-                  <span className="platform-field-label">
-                    {platform === 'nowcoder' || platform === 'luogu' ? 'UID' : '账号 ID'}
-                  </span>
-                  <input
-                    aria-label={`${platformLabels[platform]} 账号`}
-                    aria-invalid={accountValidationErrors[platform] ? 'true' : undefined}
-                    aria-describedby={
-                      accountValidationErrors[platform]
-                        ? `platform-${platform}-validation-error`
-                        : undefined
-                    }
-                    autoCapitalize="none"
-                    inputMode={platform === 'nowcoder' || platform === 'luogu' ? 'numeric' : 'text'}
-                    maxLength={platformAccountMaxLengths[platform]}
-                    spellCheck={false}
-                    value={accounts[platform]}
-                    onChange={(event) => {
-                      const value = event.target.value
-                      const nextAccounts = { ...accounts, [platform]: value }
-                      setAccounts(nextAccounts)
-                      persistFormDraft({ accounts: nextAccounts })
-                      setAccountStatuses((current) => ({
-                        ...current,
-                        [platform]: value.trim() ? 'pending' : 'missing',
-                      }))
-                      setAccountErrors((current) => ({ ...current, [platform]: null }))
-                      setAccountValidationErrors((current) => ({
-                        ...current,
-                        [platform]: null,
-                      }))
-                    }}
-                    onBlur={(event) => {
-                      const normalizedValue = normalizePlatformAccountId(
-                        event.target.value,
-                        platform,
-                      )
-                      if (normalizedValue !== accounts[platform]) {
-                        const nextAccounts = { ...accounts, [platform]: normalizedValue }
-                        setAccounts(nextAccounts)
-                        persistFormDraft({ accounts: nextAccounts })
-                      }
-                      setAccountValidationErrors((current) => ({
-                        ...current,
-                        [platform]: validatePlatformAccountId(platform, normalizedValue),
-                      }))
-                    }}
-                  />
-                  <AccountStatusBadge
-                    status={accounts[platform] ? accountStatuses[platform] : 'missing'}
-                    error={accountErrors[platform]}
-                  />
-                  {accountValidationErrors[platform] ? (
-                    <span
-                      className="platform-validation-error"
-                      id={`platform-${platform}-validation-error`}
-                    >
-                      {accountValidationErrors[platform]}
-                    </span>
-                  ) : null}
-                </label>
-              )
-            })}
-          </div>
-        </fieldset>
+        <AccountPlatformsSection
+          accounts={accounts}
+          accountStatuses={accountStatuses}
+          accountErrors={accountErrors}
+          accountValidationErrors={accountValidationErrors}
+          onAccountChange={handleAccountChange}
+          onAccountBlur={handleAccountBlur}
+          disabled={loadingProfile}
+        />
 
         {notice ? (
           <p className={`form-${noticeKind} sticky-notice`} role="status">
@@ -1008,225 +832,55 @@ export function AccountPage() {
         </div>
       </form>
 
-      <section className="account-form account-data-export" aria-labelledby="data-export-title">
-        <div className="form-section">
-          <div className="section-title-row">
-            <div>
-              <h2 id="data-export-title">导出个人数据</h2>
-              <p>
-                下载版本化 JSON
-                文件，包含已保存的账号资料、平台绑定与统计、同步记录、每日一题记录，以及本人私有的
-                AI 对话和用量。
-              </p>
-            </div>
-          </div>
-          <p className="account-data-export-note">
-            文件不会包含密码、登录令牌、服务密钥、管理员身份信息或其他成员数据。
-          </p>
-          {exportNotice ? (
-            <p
-              className={`form-${exportNoticeKind} account-export-notice`}
-              role={exportNoticeKind === 'error' ? 'alert' : 'status'}
-            >
-              {exportNotice}
-            </p>
-          ) : null}
-          <div className="form-actions">
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={exportingData || loadingProfile || !userId}
-              onClick={() => void handleDataExport()}
-            >
-              <Download size={17} aria-hidden="true" />
-              {exportingData ? '正在整理数据' : '导出我的数据'}
-            </button>
-          </div>
-        </div>
-      </section>
+      <AccountDataExportSection
+        exportingData={exportingData}
+        disabled={exportingData || loadingProfile || !userId}
+        exportNotice={exportNotice}
+        exportNoticeKind={exportNoticeKind}
+        onExport={() => void handleDataExport()}
+      />
 
-      <form className="account-form account-security-form" onSubmit={handlePasswordChange}>
-        <fieldset className="form-section" disabled={changingPassword}>
-          <div className="section-title-row">
-            <div>
-              <h2>账号安全</h2>
-              <p>修改密码前需要验证当前密码。</p>
-            </div>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>当前密码</span>
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-            </label>
-            <label>
-              <span id="account-new-password-label">新密码</span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                aria-labelledby="account-new-password-label"
-                aria-describedby="account-new-password-help"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-              <small id="account-new-password-help">至少 8 位，不要与其他网站共用。</small>
-            </label>
-            <label className="span-two">
-              <span>确认新密码</span>
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={confirmedPassword}
-                onChange={(event) => setConfirmedPassword(event.target.value)}
-              />
-            </label>
-          </div>
-          {captchaConfig.enabled && captchaConfig.siteKey ? (
-            <RegistrationTurnstile
-              siteKey={captchaConfig.siteKey}
-              resetKey={passwordCaptchaResetKey}
-              onTokenChange={setPasswordCaptchaToken}
-              ariaLabel="修改密码安全验证"
-            />
-          ) : null}
-          {captchaConfig.configurationError ? (
-            <p className="form-error" role="alert">
-              {captchaConfig.configurationError}
-            </p>
-          ) : null}
-          {passwordNotice ? (
-            <p
-              className={`form-${passwordNoticeKind} account-password-notice`}
-              role={passwordNoticeKind === 'error' ? 'alert' : 'status'}
-            >
-              {passwordNotice}
-            </p>
-          ) : null}
-          <div className="form-actions">
-            <button
-              className="primary-button"
-              type="submit"
-              disabled={
-                changingPassword ||
-                Boolean(captchaConfig.configurationError) ||
-                (captchaConfig.enabled && !passwordCaptchaToken)
-              }
-            >
-              <KeyRound size={17} aria-hidden="true" />
-              {changingPassword ? '更新中' : '修改密码'}
-            </button>
-          </div>
-        </fieldset>
-      </form>
+      <AccountPasswordSection
+        currentPassword={currentPassword}
+        onCurrentPasswordChange={setCurrentPassword}
+        newPassword={newPassword}
+        onNewPasswordChange={setNewPassword}
+        confirmedPassword={confirmedPassword}
+        onConfirmedPasswordChange={setConfirmedPassword}
+        changingPassword={changingPassword}
+        passwordNotice={passwordNotice}
+        passwordNoticeKind={passwordNoticeKind}
+        captchaConfig={captchaConfig}
+        passwordCaptchaResetKey={passwordCaptchaResetKey}
+        onPasswordCaptchaTokenChange={setPasswordCaptchaToken}
+        passwordCaptchaToken={passwordCaptchaToken}
+        onSubmit={handlePasswordChange}
+      />
 
-      <form className="account-form account-danger-form" onSubmit={handleAccountDeletion}>
-        <fieldset className="form-section danger-zone" disabled={deletingAccount}>
-          <div className="section-title-row">
-            <div>
-              <h2>注销账号</h2>
-              <p>注销后，账号、个人资料、平台绑定和全部统计记录将永久删除。</p>
-            </div>
-          </div>
-
-          {user?.role === 'admin' ? (
-            <p className="danger-zone-note">
-              管理员账号不能自助注销；请先完成管理员交接并移除管理员身份。
-            </p>
-          ) : showDeletionConfirmation ? (
-            <div className="account-deletion-confirmation">
-              <label>
-                <span>账号密码</span>
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  maxLength={256}
-                  value={deletionPassword}
-                  onChange={(event) => setDeletionPassword(event.target.value)}
-                />
-              </label>
-              <label className="account-deletion-checkbox">
-                <input
-                  type="checkbox"
-                  required
-                  checked={deletionConfirmed}
-                  onChange={(event) => setDeletionConfirmed(event.target.checked)}
-                />
-                <span>我确认永久删除账号及全部训练数据，此操作无法撤销。</span>
-              </label>
-              {captchaConfig.enabled && captchaConfig.siteKey ? (
-                <RegistrationTurnstile
-                  siteKey={captchaConfig.siteKey}
-                  resetKey={deletionCaptchaResetKey}
-                  onTokenChange={setDeletionCaptchaToken}
-                  ariaLabel="注销账号安全验证"
-                />
-              ) : null}
-              {captchaConfig.configurationError ? (
-                <p className="form-error" role="alert">
-                  {captchaConfig.configurationError}
-                </p>
-              ) : null}
-              {deletionNotice ? (
-                <p className="form-error account-deletion-notice" role="alert">
-                  {deletionNotice}
-                </p>
-              ) : null}
-              <div className="form-actions">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={deletingAccount}
-                  onClick={() => {
-                    setShowDeletionConfirmation(false)
-                    setDeletionPassword('')
-                    setDeletionConfirmed(false)
-                    setDeletionNotice('')
-                    setDeletionCaptchaToken('')
-                    setDeletionCaptchaResetKey((current) => current + 1)
-                  }}
-                >
-                  取消
-                </button>
-                <button
-                  className="danger-button"
-                  type="submit"
-                  disabled={
-                    deletingAccount ||
-                    !deletionPassword ||
-                    !deletionConfirmed ||
-                    Boolean(captchaConfig.configurationError) ||
-                    (captchaConfig.enabled && !deletionCaptchaToken)
-                  }
-                >
-                  <Trash2 size={17} aria-hidden="true" />
-                  {deletingAccount ? '正在注销' : '永久注销账号'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="form-actions">
-              <button
-                className="danger-button"
-                type="button"
-                onClick={() => setShowDeletionConfirmation(true)}
-              >
-                <Trash2 size={17} aria-hidden="true" />
-                注销账号
-              </button>
-            </div>
-          )}
-        </fieldset>
-      </form>
+      <AccountDeletionSection
+        isAdmin={user?.role === 'admin'}
+        showDeletionConfirmation={showDeletionConfirmation}
+        onShowConfirmation={setShowDeletionConfirmation}
+        deletionPassword={deletionPassword}
+        onDeletionPasswordChange={setDeletionPassword}
+        deletionConfirmed={deletionConfirmed}
+        onDeletionConfirmedChange={setDeletionConfirmed}
+        deletingAccount={deletingAccount}
+        deletionNotice={deletionNotice}
+        captchaConfig={captchaConfig}
+        deletionCaptchaResetKey={deletionCaptchaResetKey}
+        onDeletionCaptchaTokenChange={setDeletionCaptchaToken}
+        deletionCaptchaToken={deletionCaptchaToken}
+        onCancel={() => {
+          setShowDeletionConfirmation(false)
+          setDeletionPassword('')
+          setDeletionConfirmed(false)
+          setDeletionNotice('')
+          setDeletionCaptchaToken('')
+          setDeletionCaptchaResetKey((current) => current + 1)
+        }}
+        onSubmit={handleAccountDeletion}
+      />
     </div>
   )
 }

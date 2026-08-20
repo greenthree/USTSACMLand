@@ -51,8 +51,8 @@ export async function checkReferralCodeAvailability(code = ''): Promise<Referral
   const normalized = normalizeReferralCode(code)
   if (!supabase) {
     return {
-      programEnabled: true,
-      available: !normalized || referralCodeError(normalized) === null,
+      programEnabled: false,
+      available: false,
     }
   }
 
@@ -79,12 +79,12 @@ export async function checkReferralCodeAvailability(code = ''): Promise<Referral
 export async function fetchOwnReferralSummary(): Promise<ReferralSummary> {
   if (!supabase) {
     return {
-      programEnabled: true,
-      code: '8A4C19F2E7B603D5',
-      rewardCount: 2,
-      remainingRewards: 8,
-      rewardTokens: 2_000_000,
-      available: true,
+      programEnabled: false,
+      code: null,
+      rewardCount: 0,
+      remainingRewards: 0,
+      rewardTokens: 0,
+      available: false,
     }
   }
 

@@ -88,3 +88,64 @@ for (const route of [
     assertNoViolations(route, results.violations)
   })
 }
+
+test('skeleton elements disable shimmer animation and apply static background under prefers-reduced-motion: reduce', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.locator('main#main-content').waitFor({ state: 'visible' })
+
+  const evaluateSkeletonStyles = async () => {
+    return await page.evaluate(() => {
+      const container = document.createElement('div')
+      container.className = 'table-skeleton'
+      container.innerHTML = `
+        <div class="skeleton-row">
+          <div class="skeleton-cell skeleton-rank"></div>
+          <div class="skeleton-cell skeleton-avatar"></div>
+          <div class="skeleton-cell skeleton-member">
+            <div class="skeleton-name"></div>
+            <div class="skeleton-grade"></div>
+          </div>
+          <div class="skeleton-line"></div>
+        </div>
+      `
+      document.body.appendChild(container)
+
+      const cell = container.querySelector('.skeleton-cell')!
+      const name = container.querySelector('.skeleton-name')!
+      const grade = container.querySelector('.skeleton-grade')!
+      const line = container.querySelector('.skeleton-line')!
+
+      const cellStyle = window.getComputedStyle(cell)
+      const nameStyle = window.getComputedStyle(name)
+      const gradeStyle = window.getComputedStyle(grade)
+      const lineStyle = window.getComputedStyle(line)
+
+      const result = {
+        cellAnimation: cellStyle.animationName,
+        nameAnimation: nameStyle.animationName,
+        gradeAnimation: gradeStyle.animationName,
+        lineAnimation: lineStyle.animationName,
+        cellBg: cellStyle.backgroundColor,
+      }
+
+      container.remove()
+      return result
+    })
+  }
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const normal = await evaluateSkeletonStyles()
+  expect(normal.cellAnimation).toBe('skeleton-shimmer')
+  expect(normal.nameAnimation).toBe('skeleton-shimmer')
+  expect(normal.gradeAnimation).toBe('skeleton-shimmer')
+
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const reduced = await evaluateSkeletonStyles()
+  expect(reduced.cellAnimation).toBe('none')
+  expect(reduced.nameAnimation).toBe('none')
+  expect(reduced.gradeAnimation).toBe('none')
+  expect(reduced.lineAnimation).toBe('none')
+  expect(reduced.cellBg).toBe('rgb(237, 242, 239)')
+})

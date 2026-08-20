@@ -52,7 +52,10 @@ export function RankingTable({ members, platform, metric, rankOffset = 0 }: Rank
             const accountLabel = platform === 'xcpc_elo' ? member.name : current.externalId
             const rank = rankOffset + index + 1
             return (
-              <tr key={member.id}>
+              <tr
+                key={member.id}
+                className={rank <= 3 ? `ranking-row rank-${rank}-row` : 'ranking-row'}
+              >
                 <td data-label="排名">
                   <RankNumber rank={rank} />
                 </td>

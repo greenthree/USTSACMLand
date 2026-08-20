@@ -4,11 +4,11 @@ import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal'
 import type { FormEvent } from 'react'
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyState } from '../components/EmptyState'
-import { LoadingState } from '../components/LoadingState'
 import { MetricTabs } from '../components/MetricTabs'
 import { OverallRankingTable } from '../components/rankings/OverallRankingTable'
 import { PracticeIncrementTable } from '../components/rankings/PracticeIncrementTable'
 import { RankingTable } from '../components/rankings/RankingTable'
+import { TableSkeleton } from '../components/TableSkeleton'
 import { loadPublicPracticeIncrements } from '../data/practiceIncrementRankings'
 import { useMembersData } from '../data/useMembersData'
 import {
@@ -493,7 +493,7 @@ export function RankingsPage() {
           tabIndex={-1}
         >
           {rankingLoading ? (
-            <LoadingState
+            <TableSkeleton
               label={incrementRankingActive ? '正在计算刷题增量榜' : '正在读取公开榜单'}
             />
           ) : incrementRankingActive && incrementError ? (

@@ -81,4 +81,22 @@ describe('MemberPage data states', () => {
     expect(screen.getByText('成员不存在')).toBeInTheDocument()
     expect(screen.queryByText('成员资料暂不可用')).not.toBeInTheDocument()
   })
+
+  it('renders custom avatar image when avatarUrl is present', () => {
+    memberPageMocks.membersData.mockReturnValue({
+      members: [
+        {
+          ...mockMembers[0],
+          avatarUrl: 'https://example.com/avatar.png',
+        },
+      ],
+      loading: false,
+      error: null,
+      demo: true,
+    })
+
+    const { container } = renderPage(mockMembers[0].id)
+    const avatarImg = container.querySelector('img.member-profile-avatar')
+    expect(avatarImg).toHaveAttribute('src', 'https://example.com/avatar.png')
+  })
 })

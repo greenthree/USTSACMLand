@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const referralProgramMocks = vi.hoisted(() => ({
@@ -32,149 +32,69 @@ const disabledConfig = {
 
 describe('AdminReferralProgramPanel', () => {
   beforeEach(() => {
-    referralProgramMocks.fetchConfig.mockReset().mockResolvedValue(enabledConfig)
+    referralProgramMocks.fetchConfig.mockReset().mockResolvedValue(disabledConfig)
     referralProgramMocks.updateConfig.mockReset().mockResolvedValue(disabledConfig)
   })
 
-  it('loads the global state independently and shows bounded audit metadata', async () => {
+  it('loads the global state and renders read-only closed status with audit metadata', async () => {
     render(<AdminReferralProgramPanel />)
 
     const region = await screen.findByRole('region', { name: '推荐计划' })
-    expect(within(region).getByText('推荐计划正在运行')).toBeInTheDocument()
-    expect(within(region).getByText('v7')).toBeInTheDocument()
+    expect(within(region).getByText('只读关闭')).toBeInTheDocument()
+    expect(within(region).getByText('推荐计划已永久关闭')).toBeInTheDocument()
+    expect(within(region).getByText('v8')).toBeInTheDocument()
     expect(within(region).getByText('值班管理员')).toBeInTheDocument()
-    expect(within(region).getByText('开放暑期推荐计划')).toBeInTheDocument()
+    expect(within(region).getByText('活动结束暂停推荐')).toBeInTheDocument()
+
+    // 断言无开启/关闭按钮与无更新调用
+    expect(within(region).queryByRole('button', { name: /开启/ })).not.toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: /关闭/ })).not.toBeInTheDocument()
+    expect(within(region).queryByRole('dialog')).not.toBeInTheDocument()
+    expect(referralProgramMocks.updateConfig).not.toHaveBeenCalled()
   })
 
-  it('requires an audit reason and explicit confirmation while trapping dialog focus', async () => {
-    const user = userEvent.setup()
+  it('renders legacy enabled values as retired closed status without mutation controls', async () => {
+    referralProgramMocks.fetchConfig.mockResolvedValueOnce(enabledConfig)
     render(<AdminReferralProgramPanel />)
-    const trigger = await screen.findByRole('button', { name: '关闭推荐计划' })
 
-    await user.click(trigger)
-    const dialog = screen.getByRole('dialog', { name: '确认关闭推荐计划' })
-    const reason = within(dialog).getByRole('textbox', { name: '变更原因' })
-    const confirmation = within(dialog).getByRole('checkbox', { name: /我已核对全站影响/ })
-    const close = within(dialog).getByRole('button', { name: '关闭推荐计划确认对话框' })
-    const submit = within(dialog).getByRole('button', { name: '确认关闭' })
+    const region = await screen.findByRole('region', { name: '推荐计划' })
+    expect(within(region).getByText('只读关闭（遗留值开启）')).toBeInTheDocument()
+    expect(within(region).getByText('推荐计划已废弃关闭')).toBeInTheDocument()
+    expect(within(region).getByText('v7')).toBeInTheDocument()
 
-    expect(reason).toHaveFocus()
-    expect(submit).toBeDisabled()
-    await user.type(reason, '活动结束暂停推荐')
-    await user.click(confirmation)
-    expect(submit).toBeEnabled()
-
-    close.focus()
-    await user.tab({ shift: true })
-    expect(submit).toHaveFocus()
-    await user.tab()
-    expect(close).toHaveFocus()
-
-    await user.click(submit)
-    await waitFor(() =>
-      expect(referralProgramMocks.updateConfig).toHaveBeenCalledWith(false, 7, '活动结束暂停推荐'),
-    )
-    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已全线关闭')
-    await waitFor(() => expect(trigger).toHaveFocus())
+    // 即使历史数据库值为 enabled，面板仍为只读关闭，不提供开启/关闭按钮
+    expect(within(region).queryByRole('button', { name: /开启/ })).not.toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: /关闭/ })).not.toBeInTheDocument()
+    expect(referralProgramMocks.updateConfig).not.toHaveBeenCalled()
   })
 
-  it('treats a lost response as success when the reloaded state reached the target', async () => {
+  it('refreshes the read-only state via the refresh button without making mutation calls', async () => {
     const user = userEvent.setup()
     referralProgramMocks.fetchConfig
-      .mockResolvedValueOnce(enabledConfig)
-      .mockResolvedValueOnce({ ...disabledConfig, reason: '活动结束 暂停推荐' })
-    referralProgramMocks.updateConfig.mockRejectedValue(new Error('网络连接中断'))
+      .mockResolvedValueOnce(disabledConfig)
+      .mockResolvedValueOnce({ ...disabledConfig, version: 9 })
     render(<AdminReferralProgramPanel />)
 
-    await user.click(await screen.findByRole('button', { name: '关闭推荐计划' }))
-    const dialog = screen.getByRole('dialog', { name: '确认关闭推荐计划' })
-    await user.type(
-      within(dialog).getByRole('textbox', { name: '变更原因' }),
-      '  活动结束   暂停推荐  ',
-    )
-    await user.click(within(dialog).getByRole('checkbox', { name: /我已核对全站影响/ }))
-    await user.click(within(dialog).getByRole('button', { name: '确认关闭' }))
+    expect(await screen.findByText('v8')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '刷新状态' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('已通过服务端状态复核')
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByText('推荐计划已暂停')).toBeInTheDocument()
+    expect(await screen.findByText('v9')).toBeInTheDocument()
     expect(referralProgramMocks.fetchConfig).toHaveBeenCalledTimes(2)
-    expect(referralProgramMocks.updateConfig).toHaveBeenCalledWith(false, 7, '活动结束 暂停推荐')
+    expect(referralProgramMocks.updateConfig).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /开启/ })).not.toBeInTheDocument()
   })
 
-  it('reloads a conflicting version and requires the administrator to confirm again', async () => {
-    const user = userEvent.setup()
-    const conflictedConfig = {
-      ...enabledConfig,
-      version: 8,
-      reason: '另一名管理员更新了说明',
-    }
-    const resolvedConfig = { ...disabledConfig, version: 9 }
-    referralProgramMocks.fetchConfig
-      .mockResolvedValueOnce(enabledConfig)
-      .mockResolvedValueOnce(conflictedConfig)
-    referralProgramMocks.updateConfig
-      .mockRejectedValueOnce(new Error('配置版本冲突'))
-      .mockResolvedValueOnce(resolvedConfig)
-    render(<AdminReferralProgramPanel />)
-
-    await user.click(await screen.findByRole('button', { name: '关闭推荐计划' }))
-    const dialog = screen.getByRole('dialog', { name: '确认关闭推荐计划' })
-    const reason = within(dialog).getByRole('textbox', { name: '变更原因' })
-    const confirmation = within(dialog).getByRole('checkbox', { name: /我已核对全站影响/ })
-    await user.type(reason, '活动结束暂停推荐')
-    await user.click(confirmation)
-    await user.click(within(dialog).getByRole('button', { name: '确认关闭' }))
-
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      '已重新加载最新配置（版本 8）',
-    )
-    expect(confirmation).not.toBeChecked()
-    expect(within(dialog).getByRole('button', { name: '确认关闭' })).toBeDisabled()
-
-    await user.click(confirmation)
-    await user.click(within(dialog).getByRole('button', { name: '确认关闭' }))
-    await waitFor(() =>
-      expect(referralProgramMocks.updateConfig).toHaveBeenLastCalledWith(
-        false,
-        8,
-        '活动结束暂停推荐',
-      ),
-    )
-    expect(await screen.findByRole('status')).toHaveTextContent('推荐计划已全线关闭')
-  })
-
-  it('does not claim another administrator same-direction change as its own success', async () => {
-    const user = userEvent.setup()
-    referralProgramMocks.fetchConfig.mockResolvedValueOnce(enabledConfig).mockResolvedValueOnce({
-      ...disabledConfig,
-      reason: '另一位管理员提前关闭',
-    })
-    referralProgramMocks.updateConfig.mockRejectedValue(new Error('配置版本冲突'))
-    render(<AdminReferralProgramPanel />)
-
-    await user.click(await screen.findByRole('button', { name: '关闭推荐计划' }))
-    const dialog = screen.getByRole('dialog', { name: '确认关闭推荐计划' })
-    const confirmation = within(dialog).getByRole('checkbox', { name: /我已核对全站影响/ })
-    await user.type(within(dialog).getByRole('textbox', { name: '变更原因' }), '活动结束暂停推荐')
-    await user.click(confirmation)
-    await user.click(within(dialog).getByRole('button', { name: '确认关闭' }))
-
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('已重新加载最新配置')
-    expect(screen.queryByText('已通过服务端状态复核')).not.toBeInTheDocument()
-    expect(confirmation).not.toBeChecked()
-  })
-
-  it('keeps a local read failure with an independent retry action', async () => {
+  it('keeps a local read failure with an independent retry action without making mutation calls', async () => {
     const user = userEvent.setup()
     referralProgramMocks.fetchConfig
       .mockRejectedValueOnce(new Error('推荐配置暂不可用'))
-      .mockResolvedValueOnce(enabledConfig)
+      .mockResolvedValueOnce(disabledConfig)
     render(<AdminReferralProgramPanel />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('推荐配置暂不可用')
     await user.click(screen.getByRole('button', { name: '重新读取' }))
-    expect(await screen.findByText('推荐计划正在运行')).toBeInTheDocument()
+    expect(await screen.findByText('推荐计划已永久关闭')).toBeInTheDocument()
     expect(referralProgramMocks.fetchConfig).toHaveBeenCalledTimes(2)
+    expect(referralProgramMocks.updateConfig).not.toHaveBeenCalled()
   })
 })

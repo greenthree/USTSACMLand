@@ -1,6 +1,7 @@
 import Search from 'lucide-react/dist/esm/icons/search'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MemberAvatar } from '../components/MemberAvatar'
 import { PlatformMark } from '../components/PlatformMark'
 import { useMembersData } from '../data/useMembersData'
 import { formatInteger } from '../lib/format'
@@ -42,7 +43,11 @@ export function MembersPage() {
       <section className="member-list" aria-label="成员列表">
         {members.map((member) => (
           <Link className="member-list-item" to={`/members/${member.id}`} key={member.id}>
-            <span className="member-avatar member-avatar-large">{member.name.slice(-1)}</span>
+            <MemberAvatar
+              name={member.name}
+              avatarUrl={member.avatarUrl}
+              className="member-avatar-large"
+            />
             <span className="member-list-main">
               <span className="member-title-line">
                 <strong>{member.name}</strong>

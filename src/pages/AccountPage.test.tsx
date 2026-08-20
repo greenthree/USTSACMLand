@@ -257,6 +257,16 @@ describe('AccountPage XCPC ELO automatic matching', () => {
     expect(screen.queryByText('3,000,000')).not.toBeInTheDocument()
   })
 
+  it('does not display referral program for demo session', async () => {
+    const demoAuthValue: AuthContextValue = { ...authValue, isDemo: true }
+    renderAccountPage(demoAuthValue)
+
+    expect(await screen.findByDisplayValue('周知行')).toBeInTheDocument()
+    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
+    expect(screen.queryByText('我的邀请码')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '复制注册链接' })).not.toBeInTheDocument()
+  })
+
   it('refreshes the program state before copying a referral link', async () => {
     const user = userEvent.setup()
     const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
