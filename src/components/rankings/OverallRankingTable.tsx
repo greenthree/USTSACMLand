@@ -76,7 +76,10 @@ export function OverallRankingTable({
                 ? calculateOverallRating(member, ratingBenchmarks)
                 : calculateTotalSolved(member)
             return (
-              <tr key={member.id}>
+              <tr
+                key={member.id}
+                className={rank <= 3 ? `ranking-row rank-${rank}-row` : 'ranking-row'}
+              >
                 <td data-label="排名">
                   <RankNumber rank={rank} />
                 </td>

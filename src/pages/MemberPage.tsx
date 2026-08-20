@@ -4,6 +4,7 @@ import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days'
 import { Link, useParams } from 'react-router-dom'
 import { EmptyState } from '../components/EmptyState'
 import { LoadingState } from '../components/LoadingState'
+import { MemberAvatar } from '../components/MemberAvatar'
 import { PlatformMark } from '../components/PlatformMark'
 import { RatingValue } from '../components/RatingValue'
 import { StatusBadge } from '../components/StatusBadge'
@@ -55,7 +56,11 @@ export function MemberPage() {
       ) : null}
 
       <section className="member-profile-header">
-        <span className="member-avatar member-profile-avatar">{member.name.slice(-1)}</span>
+        <MemberAvatar
+          name={member.name}
+          avatarUrl={member.avatarUrl}
+          className="member-profile-avatar"
+        />
         <div>
           <div className="member-profile-title">
             <h1>{member.name}</h1>

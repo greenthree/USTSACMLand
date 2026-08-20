@@ -1,6 +1,24 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = 'http://127.0.0.1:4173'
+export function resolveE2EPort(
+  rawPort: string | undefined = process.env.E2E_PORT || process.env.PLAYWRIGHT_PORT,
+): number {
+  if (!rawPort || rawPort.trim() === '') {
+    return 4273
+  }
+  const trimmed = rawPort.trim()
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(`Invalid E2E port "${rawPort}": must be a decimal integer between 1 and 65535.`)
+  }
+  const parsed = Number(trimmed)
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(`Invalid E2E port "${rawPort}": must be between 1 and 65535.`)
+  }
+  return parsed
+}
+
+const port = resolveE2EPort()
+const baseURL = `http://127.0.0.1:${port}`
 
 export default defineConfig({
   testDir: './e2e',
@@ -19,9 +37,9 @@ export default defineConfig({
     video: 'off',
   },
   webServer: {
-    command: 'npm run dev -- --mode e2e --host 127.0.0.1 --port 4173 --strictPort',
+    command: `npm run dev -- --mode e2e --host 127.0.0.1 --port ${port} --strictPort`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [

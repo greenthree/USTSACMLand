@@ -23,8 +23,8 @@
   --lp-aux-size: 11px;
   --lp-radius-panel: 8px;
   --lp-radius-control: 6px;
-  --lp-shadow-card: 0 1px 2px rgba(23, 33, 27, 0.04), 0 10px 26px rgba(23, 33, 27, 0.05);
-  --lp-shadow-lift: 0 2px 4px rgba(23, 33, 27, 0.05), 0 16px 36px rgba(23, 33, 27, 0.11);
+  --lp-shadow-card: 0 4px 20px -2px rgba(23, 33, 27, 0.06), 0 2px 6px -1px rgba(23, 33, 27, 0.03);
+  --lp-shadow-lift: 0 8px 30px -4px rgba(23, 33, 27, 0.12), 0 4px 10px -2px rgba(23, 33, 27, 0.06);
   min-height: 100vh;
   overflow: clip;
   color: var(--lp-ink);

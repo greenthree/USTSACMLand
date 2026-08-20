@@ -3,19 +3,9 @@ import Check from 'lucide-react/dist/esm/icons/check'
 import CircleCheckBig from 'lucide-react/dist/esm/icons/circle-check-big'
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3'
 import MessageCircle from 'lucide-react/dist/esm/icons/message-circle'
+import { formatDailyArticleDate } from '../../lib/format'
 import { platformLabels } from '../../lib/platforms'
 import type { DailyProblem, Platform } from '../../types/domain'
-
-const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  month: 'long',
-  day: 'numeric',
-  weekday: 'short',
-  timeZone: 'Asia/Shanghai',
-})
-
-function displayDate(date: string): string {
-  return dateFormatter.format(new Date(`${date}T00:00:00+08:00`))
-}
 
 function safeSourceUrl(value: string): string | null {
   try {
@@ -46,7 +36,7 @@ export function DailyProblemArticle({
     <article className="dp-problem-card" aria-labelledby="daily-problem-title">
       <header className="dp-problem-header">
         <div>
-          <p className="dp-date-label">{displayDate(problem.date)}</p>
+          <p className="dp-date-label">{formatDailyArticleDate(problem.date)}</p>
           <h1 id="daily-problem-title">{problem.title}</h1>
         </div>
         <span className="dp-problem-number">#{problem.id.toString().padStart(3, '0')}</span>

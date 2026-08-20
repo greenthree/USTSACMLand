@@ -25,11 +25,11 @@ interface RpcResponse {
 type UntypedRpc = (functionName: string, args?: Record<string, unknown>) => PromiseLike<RpcResponse>
 
 const demoConfig: AdminReferralProgramConfig = {
-  enabled: true,
+  enabled: false,
   version: 1,
   updatedAt: '2026-07-22T08:00:00+08:00',
-  updatedByLabel: '演示管理员',
-  reason: '演示环境默认开启',
+  updatedByLabel: '系统',
+  reason: '推荐计划已永久关闭',
 }
 
 function integer(value: unknown): number | null {
