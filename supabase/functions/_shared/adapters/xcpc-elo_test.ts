@@ -1,8 +1,9 @@
-import { deepStrictEqual } from 'node:assert/strict'
+import { deepStrictEqual, strictEqual } from 'node:assert/strict'
 import {
   computeXcpcHistoricalMaxRating,
   createXcpcEloAdapter,
   findXcpcPlayersByIdentity,
+  parseXcpcDataset,
   XCPC_TARGET_ORGANIZATION,
   type XcpcDataset,
   type XcpcPlayer,
@@ -152,6 +153,40 @@ Deno.test('XCPC adapter uses the precomputed historical max from a cache version
   if (!result.ok) return
   deepStrictEqual(result.metrics.maxRating, 1483)
   deepStrictEqual(result.sourceVersion, 'xcpc-elo-data-js-v2-cache-7')
+})
+
+Deno.test('XCPC parser normalizes the current upstream player shape', async () => {
+  const dataset = parseXcpcDataset(
+    `window.__ELO_DATA__ = ${JSON.stringify({
+      generatedAt: '2026-08-17T11:44:35.408Z',
+      players: [
+        {
+          id: 'xcpc_aaaaaaaaaaaaaaaa',
+          organization: XCPC_TARGET_ORGANIZATION,
+          name: '王五',
+          history: [
+            [100, 10, 301, 1801],
+            [101, 20, -77, 1723],
+          ],
+        },
+      ],
+    })};`,
+  )
+
+  const player = dataset.players?.[0]
+  strictEqual(player?.teamMember, '王五')
+  strictEqual(player?.rating, 1723)
+  strictEqual(player?.contests, 2)
+
+  const result = await adapterFor(dataset).sync('auto:placeholder', { memberName: '王五' })
+  deepStrictEqual(result.ok, true)
+  if (result.ok) {
+    deepStrictEqual(result.metrics, {
+      currentRating: 1723,
+      maxRating: 1801,
+      solvedCount: null,
+    })
+  }
 })
 
 Deno.test('XCPC adapter rejects a matched player with an invalid stable ID', async () => {
