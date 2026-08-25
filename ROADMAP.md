@@ -64,7 +64,7 @@ USTSACMLand 的定位是苏州科技大学 ACM 集训队官网，当前产品范
   - 第二次仍失败时写入最终失败状态，并在后台同步中心与数据源健康页展示；保留最后成功统计，不得写成 0。
   - 两次尝试必须复用同一逻辑任务身份并保持幂等，旧 worker 不能覆盖新 attempt。
   - 本项只适用于平台数据同步；WebChat、中转站兼容性检查和其他付费 AI 请求继续禁止自动重试。
-- [ ] XCPC ELO 上游在 2026-08-17 将选手字段从 `teamMember/rating/contests` 调整为 `name/history`，导致生产共享缓存刷新被 `schema_changed` 阻断；仓库已完成统一归一化解析与缓存回归测试（Deno 40 项、全量 Vitest 648 项通过），仍需部署 `sync-member` 后仅重跑一次 `xcpc_elo`，并核对缓存版本、错误状态和新鲜度后才能勾选完成。
+- [ ] XCPC ELO 上游在 2026-08-17 将选手字段从 `teamMember/rating/contests` 调整为 `name/history`，导致生产共享缓存刷新被 `schema_changed` 阻断；仓库已完成统一归一化解析与缓存回归测试（Deno 40 项、全量 Vitest 648 项通过）。2026-08-25 仅部署 `sync-member` v59 后执行的一次 `xcpc_elo` 受控同步仍有 7 项因 `schema_changed` 失败：`sync-stats` v39 在分派前使用旧共享解析器刷新缓存，先写入了失败冷却。只读对账确认缓存仍为过期的 v3（53 名选手）、7 项旧 Rating 全部保留并标记为 `stale`、无活动 XCPC 任务，且本次没有触发或改写 QOJ。下一步需单独批准部署包含同一共享解析器的 `sync-stats`，再仅重跑一次 `xcpc_elo` 并核对缓存恢复后才能勾选完成。
 - [x] 使用已录入的生产 Firecrawl Key 完成额度检查、启用状态、轮换/冷却以及牛客和 QOJ 真实烟测。两把数据库 Key 均已配置、启用、逐一检查为健康且有可用额度，受控冷却/轮换与牛客 Firecrawl 回退已验证；`sync-member` v50 的 QOJ 生产烟测在首次 attempt 成功，写入有效题数且没有安排重试，函数日志确认临时会话清理成功。证据见 `docs/evidence/firecrawl-production-readiness-2026-07-22.md` 与 `docs/evidence/firecrawl-qoj-production-smoke-2026-07-24.md`。
 - [x] 完成 QOJ 密码错误、反爬 Challenge 页面分类、Firecrawl 限流和会话清理的受控生产演练。真实 QOJ 成功烟测与错误密码演练均确认会话清理成功；错误密码被归类为不可重试的 `auth_expired`，不会安排第二次 attempt。Firecrawl 官方没有 Challenge/`429` 专用测试模式；已用严格限定为 3 次会话创建的受控检查观察到 `200/200/429`，并立即成功清理前两次会话，没有访问 QOJ 或使用请求洪泛。Challenge 检查使用真实 Browser Sandbox 执行受控合成页面，由生产解析器归类为可重试的 `source_unavailable`，随后清理成功；它验证的是页面识别、错误分类和清理路径，不宣称人为触发了 QOJ 的真实 Cloudflare 防护。清理事件只用本站内部 `syncRunId` 关联，不记录 Firecrawl 会话 ID、账号或响应正文。证据见 `docs/evidence/firecrawl-qoj-production-smoke-2026-07-24.md`。
 - [x] 完成单平台停机演练，确认其他平台继续更新、失败平台保留最后成功值且只重试一次。
