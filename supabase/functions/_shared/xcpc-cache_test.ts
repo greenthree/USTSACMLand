@@ -341,6 +341,46 @@ Deno.test('XCPC conditional request sends validators and accepts 304', async () 
   })
 })
 
+Deno.test('XCPC source preparation accepts the current upstream player shape', async () => {
+  const script = `window.__ELO_DATA__ = ${JSON.stringify({
+    generatedAt: '2026-08-17T11:44:35.408Z',
+    players: [
+      {
+        id: 'xcpc_1111111111111111',
+        organization: XCPC_TARGET_ORGANIZATION,
+        name: '张三',
+        history: [
+          [1, 1, -100, 1400],
+          [2, 2, 75, 1475],
+        ],
+      },
+    ],
+  })};`
+  const result = await loadXcpcRemoteSource({ etag: null, lastModified: null }, undefined, {
+    url: 'https://example.test/data.js',
+    minimumSourcePlayers: 1,
+    fetcher: () => Promise.resolve(new Response(script)),
+  })
+
+  deepStrictEqual(result, {
+    kind: 'modified',
+    etag: null,
+    lastModified: null,
+    sourceGeneratedAt: '2026-08-17T11:44:35.408Z',
+    players: [
+      {
+        player_id: 'xcpc_1111111111111111',
+        normalized_name: '张三',
+        display_name: '张三',
+        organization: XCPC_TARGET_ORGANIZATION,
+        rating: 1475,
+        max_rating: 1475,
+        contests: 2,
+      },
+    ],
+  })
+})
+
 Deno.test('XCPC source size guard rejects oversized responses before parsing', async () => {
   const fetcher: typeof fetch = () =>
     Promise.resolve(

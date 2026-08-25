@@ -5,6 +5,7 @@ export interface XcpcPlayer {
   id: string
   organization?: string
   teamMember?: string
+  name?: string
   rating?: number
   maxRating?: number
   contests?: number
@@ -58,6 +59,29 @@ export function computeXcpcHistoricalMaxRating(player: Pick<XcpcPlayer, 'history
   return Number.isFinite(best) ? best : null
 }
 
+function deriveCurrentRating(history: unknown[] | undefined): number | undefined {
+  const latest = history?.at(-1)
+  const rating = Array.isArray(latest) ? latest[3] : undefined
+  return typeof rating === 'number' && Number.isFinite(rating) ? rating : undefined
+}
+
+function normalizeXcpcPlayer(value: unknown): XcpcPlayer {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new HttpError('XCPC ELO player record is invalid', 'schema_changed', false)
+  }
+
+  const player = value as XcpcPlayer
+  const history = Array.isArray(player.history) ? player.history : undefined
+  return {
+    ...player,
+    // The upstream source renamed teamMember to name and stopped publishing
+    // derived rating/contest fields. Keep one internal shape for both formats.
+    teamMember: player.teamMember ?? player.name,
+    rating: player.rating ?? deriveCurrentRating(history),
+    contests: player.contests ?? history?.length,
+  }
+}
+
 export function parseXcpcDataset(script: string): XcpcDataset {
   const assignment = script.indexOf('=')
   if (!script.slice(0, assignment).trim().startsWith(DATA_PREFIX) || assignment < 0) {
@@ -77,7 +101,10 @@ export function parseXcpcDataset(script: string): XcpcDataset {
   if (!Array.isArray(parsed.players)) {
     throw new HttpError('XCPC ELO players array is missing', 'schema_changed', false)
   }
-  return parsed
+  return {
+    ...parsed,
+    players: parsed.players.map(normalizeXcpcPlayer),
+  }
 }
 
 async function loadRemoteDataset(signal?: AbortSignal): Promise<XcpcDataset> {
