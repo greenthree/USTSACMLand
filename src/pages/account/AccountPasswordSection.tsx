@@ -1,43 +1,90 @@
 import KeyRound from 'lucide-react/dist/esm/icons/key-round'
-import type { FormEvent } from 'react'
+import { type FormEvent, useState } from 'react'
+import { useAuth } from '../../auth/authContextValue'
 import { RegistrationTurnstile } from '../../components/RegistrationTurnstile'
 import type { getRegistrationCaptchaConfig } from '../../lib/registrationCaptcha'
 
 interface AccountPasswordSectionProps {
-  currentPassword: string
-  onCurrentPasswordChange: (value: string) => void
-  newPassword: string
-  onNewPasswordChange: (value: string) => void
-  confirmedPassword: string
-  onConfirmedPasswordChange: (value: string) => void
-  changingPassword: boolean
-  passwordNotice: string
-  passwordNoticeKind: 'success' | 'error'
   captchaConfig: ReturnType<typeof getRegistrationCaptchaConfig>
-  passwordCaptchaResetKey: number
-  onPasswordCaptchaTokenChange: (token: string) => void
-  passwordCaptchaToken: string
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
-export function AccountPasswordSection({
-  currentPassword,
-  onCurrentPasswordChange,
-  newPassword,
-  onNewPasswordChange,
-  confirmedPassword,
-  onConfirmedPasswordChange,
-  changingPassword,
-  passwordNotice,
-  passwordNoticeKind,
-  captchaConfig,
-  passwordCaptchaResetKey,
-  onPasswordCaptchaTokenChange,
-  passwordCaptchaToken,
-  onSubmit,
-}: AccountPasswordSectionProps) {
+export function AccountPasswordSection({ captchaConfig }: AccountPasswordSectionProps) {
+  const { changePassword } = useAuth()
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmedPassword, setConfirmedPassword] = useState('')
+  const [passwordNotice, setPasswordNotice] = useState('')
+  const [passwordNoticeKind, setPasswordNoticeKind] = useState<'success' | 'error'>('success')
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordCaptchaToken, setPasswordCaptchaToken] = useState('')
+  const [passwordCaptchaResetKey, setPasswordCaptchaResetKey] = useState(0)
+
+  async function handlePasswordChange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPasswordNotice('')
+
+    const resetPasswordCaptcha = () => {
+      setPasswordCaptchaToken('')
+      setPasswordCaptchaResetKey((current) => current + 1)
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice('新密码至少需要 8 位。')
+      resetPasswordCaptcha()
+      return
+    }
+    if (newPassword !== confirmedPassword) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice('两次输入的新密码不一致。')
+      resetPasswordCaptcha()
+      return
+    }
+    if (newPassword === currentPassword) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice('新密码不能与当前密码相同。')
+      resetPasswordCaptcha()
+      return
+    }
+    if (captchaConfig.configurationError) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice(captchaConfig.configurationError)
+      resetPasswordCaptcha()
+      return
+    }
+    if (captchaConfig.enabled && !passwordCaptchaToken) {
+      setPasswordNoticeKind('error')
+      setPasswordNotice('请先完成修改密码安全验证。')
+      resetPasswordCaptcha()
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      if (captchaConfig.enabled) {
+        await changePassword(currentPassword, newPassword, passwordCaptchaToken)
+      } else {
+        await changePassword(currentPassword, newPassword)
+      }
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmedPassword('')
+      setPasswordNoticeKind('success')
+      setPasswordNotice('密码已更新。')
+    } catch (error) {
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmedPassword('')
+      setPasswordNoticeKind('error')
+      setPasswordNotice(error instanceof Error ? error.message : '密码更新失败，请稍后重试。')
+    } finally {
+      resetPasswordCaptcha()
+      setChangingPassword(false)
+    }
+  }
+
   return (
-    <form className="account-form account-security-form" onSubmit={onSubmit}>
+    <form className="account-form account-security-form" onSubmit={handlePasswordChange}>
       <fieldset className="form-section" disabled={changingPassword}>
         <div className="section-title-row">
           <div>
@@ -53,7 +100,7 @@ export function AccountPasswordSection({
               autoComplete="current-password"
               required
               value={currentPassword}
-              onChange={(event) => onCurrentPasswordChange(event.target.value)}
+              onChange={(event) => setCurrentPassword(event.target.value)}
             />
           </label>
           <label>
@@ -66,7 +113,7 @@ export function AccountPasswordSection({
               aria-labelledby="account-new-password-label"
               aria-describedby="account-new-password-help"
               value={newPassword}
-              onChange={(event) => onNewPasswordChange(event.target.value)}
+              onChange={(event) => setNewPassword(event.target.value)}
             />
             <small id="account-new-password-help">至少 8 位，不要与其他网站共用。</small>
           </label>
@@ -78,7 +125,7 @@ export function AccountPasswordSection({
               minLength={8}
               required
               value={confirmedPassword}
-              onChange={(event) => onConfirmedPasswordChange(event.target.value)}
+              onChange={(event) => setConfirmedPassword(event.target.value)}
             />
           </label>
         </div>
@@ -86,7 +133,7 @@ export function AccountPasswordSection({
           <RegistrationTurnstile
             siteKey={captchaConfig.siteKey}
             resetKey={passwordCaptchaResetKey}
-            onTokenChange={onPasswordCaptchaTokenChange}
+            onTokenChange={setPasswordCaptchaToken}
             ariaLabel="修改密码安全验证"
           />
         ) : null}

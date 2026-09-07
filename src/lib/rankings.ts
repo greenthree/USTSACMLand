@@ -81,11 +81,16 @@ export function calculateOverallRankChanges(
   currentBenchmarks: RatingBenchmarks,
   previousBenchmarks: RatingBenchmarks,
 ): Map<string, number | null> {
+  const previousValues = new Map<string, number | null>()
+  for (const member of currentRankedMembers) {
+    previousValues.set(member.id, calculateOverallPreviousRating(member, previousBenchmarks))
+  }
+
   const previousRankedMembers = currentRankedMembers
-    .filter((member) => calculateOverallPreviousRating(member, previousBenchmarks) !== null)
+    .filter((member) => previousValues.get(member.id) !== null)
     .sort((left, right) => {
-      const leftValue = calculateOverallPreviousRating(left, previousBenchmarks) ?? -1
-      const rightValue = calculateOverallPreviousRating(right, previousBenchmarks) ?? -1
+      const leftValue = previousValues.get(left.id) ?? -1
+      const rightValue = previousValues.get(right.id) ?? -1
       const valueDifference = rightValue - leftValue
       return valueDifference === 0 ? left.name.localeCompare(right.name, 'zh-CN') : valueDifference
     })
@@ -93,10 +98,15 @@ export function calculateOverallRankChanges(
     previousRankedMembers.map((member, index) => [member.id, index + 1]),
   )
 
+  const currentValues = new Map<string, number | null>()
+  for (const member of currentRankedMembers) {
+    currentValues.set(member.id, calculateOverallRating(member, currentBenchmarks))
+  }
+
   return new Map(
     currentRankedMembers.map((member, index) => {
       const previousRank = previousRanks.get(member.id)
-      const currentValue = calculateOverallRating(member, currentBenchmarks)
+      const currentValue = currentValues.get(member.id)
       return [
         member.id,
         previousRank === undefined || currentValue === null ? null : previousRank - (index + 1),

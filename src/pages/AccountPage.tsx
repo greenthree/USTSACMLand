@@ -23,11 +23,6 @@ import {
 import { gradeOptions, normalizeGrade } from '../lib/profileFields'
 import { getRegistrationCaptchaConfig } from '../lib/registrationCaptcha'
 import {
-  buildDemoPersonalDataExport,
-  downloadPersonalDataExport,
-  fetchOwnPersonalDataExport,
-} from '../lib/personalDataExport'
-import {
   buildReferralRegistrationUrl,
   fetchOwnReferralSummary,
   type ReferralSummary,
@@ -158,7 +153,7 @@ function restoreAccountState(server: AccountState, values: AccountFormValues): A
 }
 
 export function AccountPage() {
-  const { user, isDemo, changePassword, deleteAccount } = useAuth()
+  const { user, isDemo } = useAuth()
   const userId = user?.id
   const [name, setName] = useState('')
   const [qq, setQq] = useState('')
@@ -179,24 +174,6 @@ export function AccountPage() {
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmedPassword, setConfirmedPassword] = useState('')
-  const [passwordNotice, setPasswordNotice] = useState('')
-  const [passwordNoticeKind, setPasswordNoticeKind] = useState<'success' | 'error'>('success')
-  const [changingPassword, setChangingPassword] = useState(false)
-  const [passwordCaptchaToken, setPasswordCaptchaToken] = useState('')
-  const [passwordCaptchaResetKey, setPasswordCaptchaResetKey] = useState(0)
-  const [showDeletionConfirmation, setShowDeletionConfirmation] = useState(false)
-  const [deletionPassword, setDeletionPassword] = useState('')
-  const [deletionConfirmed, setDeletionConfirmed] = useState(false)
-  const [deletionNotice, setDeletionNotice] = useState('')
-  const [deletingAccount, setDeletingAccount] = useState(false)
-  const [deletionCaptchaToken, setDeletionCaptchaToken] = useState('')
-  const [deletionCaptchaResetKey, setDeletionCaptchaResetKey] = useState(0)
-  const [exportingData, setExportingData] = useState(false)
-  const [exportNotice, setExportNotice] = useState('')
-  const [exportNoticeKind, setExportNoticeKind] = useState<'success' | 'error'>('success')
   const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null)
   const [referralLoading, setReferralLoading] = useState(false)
   const [referralNotice, setReferralNotice] = useState('')
@@ -605,129 +582,6 @@ export function AccountPage() {
     }, 1200)
   }
 
-  async function handlePasswordChange(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPasswordNotice('')
-
-    const resetPasswordCaptcha = () => {
-      setPasswordCaptchaToken('')
-      setPasswordCaptchaResetKey((current) => current + 1)
-    }
-
-    if (newPassword.length < 8) {
-      setPasswordNoticeKind('error')
-      setPasswordNotice('新密码至少需要 8 位。')
-      resetPasswordCaptcha()
-      return
-    }
-    if (newPassword !== confirmedPassword) {
-      setPasswordNoticeKind('error')
-      setPasswordNotice('两次输入的新密码不一致。')
-      resetPasswordCaptcha()
-      return
-    }
-    if (newPassword === currentPassword) {
-      setPasswordNoticeKind('error')
-      setPasswordNotice('新密码不能与当前密码相同。')
-      resetPasswordCaptcha()
-      return
-    }
-    if (captchaConfig.configurationError) {
-      setPasswordNoticeKind('error')
-      setPasswordNotice(captchaConfig.configurationError)
-      resetPasswordCaptcha()
-      return
-    }
-    if (captchaConfig.enabled && !passwordCaptchaToken) {
-      setPasswordNoticeKind('error')
-      setPasswordNotice('请先完成修改密码安全验证。')
-      resetPasswordCaptcha()
-      return
-    }
-
-    setChangingPassword(true)
-    try {
-      if (captchaConfig.enabled) {
-        await changePassword(currentPassword, newPassword, passwordCaptchaToken)
-      } else {
-        await changePassword(currentPassword, newPassword)
-      }
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmedPassword('')
-      setPasswordNoticeKind('success')
-      setPasswordNotice('密码已更新。')
-    } catch (error) {
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmedPassword('')
-      setPasswordNoticeKind('error')
-      setPasswordNotice(error instanceof Error ? error.message : '密码更新失败，请稍后重试。')
-    } finally {
-      resetPasswordCaptcha()
-      setChangingPassword(false)
-    }
-  }
-
-  async function handleAccountDeletion(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (
-      user?.role !== 'member' ||
-      !deletionConfirmed ||
-      !deletionPassword ||
-      (captchaConfig.enabled && !deletionCaptchaToken)
-    ) {
-      return
-    }
-
-    setDeletingAccount(true)
-    setDeletionNotice('')
-    try {
-      if (captchaConfig.enabled) {
-        await deleteAccount(deletionPassword, deletionCaptchaToken)
-      } else {
-        await deleteAccount(deletionPassword)
-      }
-      if (userId) clearAccountDraft(userId)
-    } catch (error) {
-      setDeletionPassword('')
-      setDeletionNotice(error instanceof Error ? error.message : '账号注销失败，请稍后重试。')
-      setDeletingAccount(false)
-    } finally {
-      setDeletionCaptchaToken('')
-      setDeletionCaptchaResetKey((current) => current + 1)
-    }
-  }
-
-  async function handleDataExport() {
-    if (!userId || !user) return
-
-    setExportingData(true)
-    setExportNotice('')
-    try {
-      const exportedData = isDemo
-        ? buildDemoPersonalDataExport({
-            userId,
-            email: user.email,
-            fullName: name,
-            qq,
-            grade,
-            major,
-            role: user.role,
-            accounts,
-          })
-        : await fetchOwnPersonalDataExport()
-      const filename = downloadPersonalDataExport(exportedData)
-      setExportNoticeKind('success')
-      setExportNotice(`数据已导出为 ${filename}。`)
-    } catch (error) {
-      setExportNoticeKind('error')
-      setExportNotice(error instanceof Error ? error.message : '个人数据导出失败，请稍后重试。')
-    } finally {
-      setExportingData(false)
-    }
-  }
-
   async function copyReferralLink() {
     if (!referralSummary?.programEnabled || !referralSummary.code || !referralSummary.available) {
       return
@@ -833,53 +687,26 @@ export function AccountPage() {
       </form>
 
       <AccountDataExportSection
-        exportingData={exportingData}
-        disabled={exportingData || loadingProfile || !userId}
-        exportNotice={exportNotice}
-        exportNoticeKind={exportNoticeKind}
-        onExport={() => void handleDataExport()}
+        userId={userId}
+        userEmail={user?.email}
+        userRole={user?.role}
+        isDemo={isDemo}
+        profile={{
+          fullName: name,
+          qq,
+          grade,
+          major,
+          accounts,
+        }}
+        disabled={loadingProfile}
       />
 
-      <AccountPasswordSection
-        currentPassword={currentPassword}
-        onCurrentPasswordChange={setCurrentPassword}
-        newPassword={newPassword}
-        onNewPasswordChange={setNewPassword}
-        confirmedPassword={confirmedPassword}
-        onConfirmedPasswordChange={setConfirmedPassword}
-        changingPassword={changingPassword}
-        passwordNotice={passwordNotice}
-        passwordNoticeKind={passwordNoticeKind}
-        captchaConfig={captchaConfig}
-        passwordCaptchaResetKey={passwordCaptchaResetKey}
-        onPasswordCaptchaTokenChange={setPasswordCaptchaToken}
-        passwordCaptchaToken={passwordCaptchaToken}
-        onSubmit={handlePasswordChange}
-      />
+      <AccountPasswordSection captchaConfig={captchaConfig} />
 
       <AccountDeletionSection
         isAdmin={user?.role === 'admin'}
-        showDeletionConfirmation={showDeletionConfirmation}
-        onShowConfirmation={setShowDeletionConfirmation}
-        deletionPassword={deletionPassword}
-        onDeletionPasswordChange={setDeletionPassword}
-        deletionConfirmed={deletionConfirmed}
-        onDeletionConfirmedChange={setDeletionConfirmed}
-        deletingAccount={deletingAccount}
-        deletionNotice={deletionNotice}
+        userId={userId}
         captchaConfig={captchaConfig}
-        deletionCaptchaResetKey={deletionCaptchaResetKey}
-        onDeletionCaptchaTokenChange={setDeletionCaptchaToken}
-        deletionCaptchaToken={deletionCaptchaToken}
-        onCancel={() => {
-          setShowDeletionConfirmation(false)
-          setDeletionPassword('')
-          setDeletionConfirmed(false)
-          setDeletionNotice('')
-          setDeletionCaptchaToken('')
-          setDeletionCaptchaResetKey((current) => current + 1)
-        }}
-        onSubmit={handleAccountDeletion}
       />
     </div>
   )

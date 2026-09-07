@@ -7,6 +7,7 @@ export interface MembersDataState {
   loading: boolean
   error: string | null
   demo: boolean
+  reload?: () => Promise<void>
 }
 
 export const defaultMembersDataState: MembersDataState = {

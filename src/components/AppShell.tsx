@@ -13,6 +13,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { webChatUiEnabled } from '../features/chat/chatAvailability'
 import { Brand } from './Brand'
+import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { RouteLoading } from './RouteLoading'
 
 const learningItems = [
@@ -241,9 +242,11 @@ export function AppShell() {
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
-        <Suspense fallback={<RouteLoading />}>
-          <Outlet />
-        </Suspense>
+        <RouteErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<RouteLoading />}>
+            <Outlet />
+          </Suspense>
+        </RouteErrorBoundary>
       </main>
       <footer className="site-footer">
         <span>USTS ACM Land</span>

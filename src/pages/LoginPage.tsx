@@ -40,7 +40,13 @@ export function LoginPage() {
       if (captchaConfig.enabled) await signIn(email, password, captchaToken)
       else await signIn(email, password)
       const requestedPath = searchParams.get('returnTo')
-      const safePath = requestedPath?.startsWith('/') ? requestedPath : null
+      const safePath =
+        requestedPath &&
+        requestedPath.startsWith('/') &&
+        !requestedPath.startsWith('//') &&
+        !requestedPath.includes('\\')
+          ? requestedPath
+          : null
       navigate(
         safePath ?? (email.trim().toLowerCase().startsWith('admin@') ? '/admin' : '/account'),
       )

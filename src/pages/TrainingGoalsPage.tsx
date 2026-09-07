@@ -7,6 +7,7 @@ import Plus from 'lucide-react/dist/esm/icons/plus'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import Target from 'lucide-react/dist/esm/icons/target'
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../components/ConfirmModal'
 import { EmptyState } from '../components/EmptyState'
 import { LoadingState } from '../components/LoadingState'
 import {
@@ -273,8 +274,12 @@ export function TrainingGoalsPage() {
     }
   }
 
-  async function archiveGoal(goal: TrainingGoal) {
-    if (!window.confirm(`确定归档“${goal.title}”吗？归档后仍会保留历史记录。`)) return
+  const [archivingGoal, setArchivingGoal] = useState<TrainingGoal | null>(null)
+
+  async function handleConfirmArchive() {
+    if (!archivingGoal) return
+    const goal = archivingGoal
+    setArchivingGoal(null)
     setBusyGoalId(goal.id)
     setNotice('')
     try {
@@ -642,7 +647,7 @@ export function TrainingGoalsPage() {
                               className="text-button"
                               type="button"
                               disabled={goalBusy}
-                              onClick={() => void archiveGoal(goal)}
+                              onClick={() => setArchivingGoal(goal)}
                             >
                               <Archive size={15} aria-hidden="true" />
                               归档
@@ -658,6 +663,17 @@ export function TrainingGoalsPage() {
           ) : null}
         </section>
       </div>
+
+      <ConfirmModal
+        open={archivingGoal !== null}
+        title="确认归档训练目标"
+        description={
+          archivingGoal ? `确定归档“${archivingGoal.title}”吗？归档后仍会保留历史记录。` : ''
+        }
+        confirmText="确认归档"
+        onConfirm={handleConfirmArchive}
+        onCancel={() => setArchivingGoal(null)}
+      />
     </div>
   )
 }

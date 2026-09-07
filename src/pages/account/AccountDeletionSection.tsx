@@ -1,45 +1,71 @@
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
-import type { FormEvent } from 'react'
+import { type FormEvent, useState } from 'react'
+import { useAuth } from '../../auth/authContextValue'
 import { RegistrationTurnstile } from '../../components/RegistrationTurnstile'
+import { clearAccountDraft } from '../../lib/accountDraft'
 import type { getRegistrationCaptchaConfig } from '../../lib/registrationCaptcha'
 
 interface AccountDeletionSectionProps {
   isAdmin: boolean
-  showDeletionConfirmation: boolean
-  onShowConfirmation: (show: boolean) => void
-  deletionPassword: string
-  onDeletionPasswordChange: (value: string) => void
-  deletionConfirmed: boolean
-  onDeletionConfirmedChange: (checked: boolean) => void
-  deletingAccount: boolean
-  deletionNotice: string
+  userId?: string
   captchaConfig: ReturnType<typeof getRegistrationCaptchaConfig>
-  deletionCaptchaResetKey: number
-  onDeletionCaptchaTokenChange: (token: string) => void
-  deletionCaptchaToken: string
-  onCancel: () => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }
 
 export function AccountDeletionSection({
   isAdmin,
-  showDeletionConfirmation,
-  onShowConfirmation,
-  deletionPassword,
-  onDeletionPasswordChange,
-  deletionConfirmed,
-  onDeletionConfirmedChange,
-  deletingAccount,
-  deletionNotice,
+  userId,
   captchaConfig,
-  deletionCaptchaResetKey,
-  onDeletionCaptchaTokenChange,
-  deletionCaptchaToken,
-  onCancel,
-  onSubmit,
 }: AccountDeletionSectionProps) {
+  const { user, deleteAccount } = useAuth()
+  const [showDeletionConfirmation, setShowDeletionConfirmation] = useState(false)
+  const [deletionPassword, setDeletionPassword] = useState('')
+  const [deletionConfirmed, setDeletionConfirmed] = useState(false)
+  const [deletionNotice, setDeletionNotice] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deletionCaptchaToken, setDeletionCaptchaToken] = useState('')
+  const [deletionCaptchaResetKey, setDeletionCaptchaResetKey] = useState(0)
+
+  function handleCancel() {
+    setShowDeletionConfirmation(false)
+    setDeletionPassword('')
+    setDeletionConfirmed(false)
+    setDeletionNotice('')
+    setDeletionCaptchaToken('')
+    setDeletionCaptchaResetKey((current) => current + 1)
+  }
+
+  async function handleAccountDeletion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (
+      user?.role !== 'member' ||
+      !deletionConfirmed ||
+      !deletionPassword ||
+      (captchaConfig.enabled && !deletionCaptchaToken)
+    ) {
+      return
+    }
+
+    setDeletingAccount(true)
+    setDeletionNotice('')
+    try {
+      if (captchaConfig.enabled) {
+        await deleteAccount(deletionPassword, deletionCaptchaToken)
+      } else {
+        await deleteAccount(deletionPassword)
+      }
+      if (userId) clearAccountDraft(userId)
+    } catch (error) {
+      setDeletionPassword('')
+      setDeletionNotice(error instanceof Error ? error.message : '账号注销失败，请稍后重试。')
+      setDeletingAccount(false)
+    } finally {
+      setDeletionCaptchaToken('')
+      setDeletionCaptchaResetKey((current) => current + 1)
+    }
+  }
+
   return (
-    <form className="account-form account-danger-form" onSubmit={onSubmit}>
+    <form className="account-form account-danger-form" onSubmit={handleAccountDeletion}>
       <fieldset className="form-section danger-zone" disabled={deletingAccount}>
         <div className="section-title-row">
           <div>
@@ -62,7 +88,7 @@ export function AccountDeletionSection({
                 required
                 maxLength={256}
                 value={deletionPassword}
-                onChange={(event) => onDeletionPasswordChange(event.target.value)}
+                onChange={(event) => setDeletionPassword(event.target.value)}
               />
             </label>
             <label className="account-deletion-checkbox">
@@ -70,7 +96,7 @@ export function AccountDeletionSection({
                 type="checkbox"
                 required
                 checked={deletionConfirmed}
-                onChange={(event) => onDeletionConfirmedChange(event.target.checked)}
+                onChange={(event) => setDeletionConfirmed(event.target.checked)}
               />
               <span>我确认永久删除账号及全部训练数据，此操作无法撤销。</span>
             </label>
@@ -78,7 +104,7 @@ export function AccountDeletionSection({
               <RegistrationTurnstile
                 siteKey={captchaConfig.siteKey}
                 resetKey={deletionCaptchaResetKey}
-                onTokenChange={onDeletionCaptchaTokenChange}
+                onTokenChange={setDeletionCaptchaToken}
                 ariaLabel="注销账号安全验证"
               />
             ) : null}
@@ -97,7 +123,7 @@ export function AccountDeletionSection({
                 className="secondary-button"
                 type="button"
                 disabled={deletingAccount}
-                onClick={onCancel}
+                onClick={handleCancel}
               >
                 取消
               </button>
@@ -122,7 +148,7 @@ export function AccountDeletionSection({
             <button
               className="danger-button"
               type="button"
-              onClick={() => onShowConfirmation(true)}
+              onClick={() => setShowDeletionConfirmation(true)}
             >
               <Trash2 size={17} aria-hidden="true" />
               注销账号

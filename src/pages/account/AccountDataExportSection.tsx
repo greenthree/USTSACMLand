@@ -1,20 +1,68 @@
 import Download from 'lucide-react/dist/esm/icons/download'
+import { useState } from 'react'
+import {
+  buildDemoPersonalDataExport,
+  downloadPersonalDataExport,
+  fetchOwnPersonalDataExport,
+} from '../../lib/personalDataExport'
+import type { Platform } from '../../types/domain'
 
 interface AccountDataExportSectionProps {
-  exportingData: boolean
-  disabled: boolean
-  exportNotice: string
-  exportNoticeKind: 'success' | 'error'
-  onExport: () => void
+  userId?: string
+  userEmail?: string
+  userRole?: 'member' | 'admin'
+  isDemo: boolean
+  profile: {
+    fullName: string
+    qq: string
+    grade: string
+    major: string
+    accounts: Record<Platform, string>
+  }
+  disabled?: boolean
 }
 
 export function AccountDataExportSection({
-  exportingData,
-  disabled,
-  exportNotice,
-  exportNoticeKind,
-  onExport,
+  userId,
+  userEmail,
+  userRole,
+  isDemo,
+  profile,
+  disabled = false,
 }: AccountDataExportSectionProps) {
+  const [exportingData, setExportingData] = useState(false)
+  const [exportNotice, setExportNotice] = useState('')
+  const [exportNoticeKind, setExportNoticeKind] = useState<'success' | 'error'>('success')
+
+  async function handleDataExport() {
+    if (!userId) return
+
+    setExportingData(true)
+    setExportNotice('')
+    try {
+      const exportedData = isDemo
+        ? buildDemoPersonalDataExport({
+            userId,
+            email: userEmail ?? '',
+            fullName: profile.fullName,
+            qq: profile.qq,
+            grade: profile.grade,
+            major: profile.major,
+            role: userRole ?? 'member',
+            accounts: profile.accounts,
+          })
+        : await fetchOwnPersonalDataExport()
+      const filename = downloadPersonalDataExport(exportedData)
+      setExportNoticeKind('success')
+      setExportNotice(`数据已导出为 ${filename}。`)
+    } catch (error) {
+      setExportNoticeKind('error')
+      setExportNotice(error instanceof Error ? error.message : '个人数据导出失败，请稍后重试。')
+    } finally {
+      setExportingData(false)
+    }
+  }
+
   return (
     <section className="account-form account-data-export" aria-labelledby="data-export-title">
       <div className="form-section">
@@ -40,7 +88,12 @@ export function AccountDataExportSection({
           </p>
         ) : null}
         <div className="form-actions">
-          <button className="secondary-button" type="button" disabled={disabled} onClick={onExport}>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={disabled || exportingData || !userId}
+            onClick={() => void handleDataExport()}
+          >
             <Download size={17} aria-hidden="true" />
             {exportingData ? '正在整理数据' : '导出我的数据'}
           </button>

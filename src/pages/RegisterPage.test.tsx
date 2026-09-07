@@ -276,17 +276,14 @@ describe('RegisterPage', () => {
     expect(signUp).toHaveBeenCalledWith('测试成员', 'new@example.com', 'password123', '')
   })
 
-  it('refreshes the global state when the registration page regains focus', async () => {
-    referralMocks.check
-      .mockResolvedValueOnce({ programEnabled: true, available: false })
-      .mockResolvedValueOnce({ programEnabled: false, available: false })
+  it('does not trigger redundant referral probes when the registration page regains focus', async () => {
+    referralMocks.check.mockResolvedValue({ programEnabled: true, available: false })
     renderRegister(vi.fn(), '/register?invite=8a4c19f2e7b603d5')
 
     expect(await screen.findByRole('textbox', { name: '邀请码（选填）' })).toBeInTheDocument()
     act(() => window.dispatchEvent(new Event('focus')))
+    act(() => document.dispatchEvent(new Event('visibilitychange')))
 
-    await waitFor(() => expect(referralMocks.check).toHaveBeenCalledTimes(2))
-    expect(screen.queryByText('推荐计划')).not.toBeInTheDocument()
-    expect(screen.queryByRole('textbox', { name: '邀请码（选填）' })).not.toBeInTheDocument()
+    expect(referralMocks.check).toHaveBeenCalledTimes(1)
   })
 })

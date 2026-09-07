@@ -1,4 +1,5 @@
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3'
+import RotateCw from 'lucide-react/dist/esm/icons/rotate-cw'
 import Search from 'lucide-react/dist/esm/icons/search'
 import SlidersHorizontal from 'lucide-react/dist/esm/icons/sliders-horizontal'
 import type { FormEvent } from 'react'
@@ -72,7 +73,7 @@ function getPaginationItems(currentPage: number, totalPages: number): Pagination
 }
 
 export function RankingsPage() {
-  const { members: sourceMembers, loading, error, demo } = useMembersData()
+  const { members: sourceMembers, loading, error, demo, reload } = useMembersData()
   const [beijingToday] = useState(() => currentBeijingDate())
   const [customRange, setCustomRange] = useState<PracticeDateRange>(() =>
     practicePresetRange('week', currentBeijingDate()),
@@ -178,19 +179,29 @@ export function RankingsPage() {
 
   const currentMembers = useMemo(() => {
     const metricKey = mode === 'rating' ? 'rating' : 'solved'
+    if (platform === 'overall') {
+      const overallScores = new Map<string, number | null>()
+      for (const member of filteredSourceMembers) {
+        overallScores.set(
+          member.id,
+          mode === 'rating'
+            ? calculateOverallRating(member, ratingBenchmarks)
+            : calculateTotalSolved(member),
+        )
+      }
+      return [...filteredSourceMembers].sort((left, right) => {
+        const leftValue = overallScores.get(left.id) ?? -1
+        const rightValue = overallScores.get(right.id) ?? -1
+        const valueDifference = (rightValue ?? -1) - (leftValue ?? -1)
+        return valueDifference === 0
+          ? left.name.localeCompare(right.name, 'zh-CN')
+          : valueDifference
+      })
+    }
+
     return [...filteredSourceMembers].sort((left, right) => {
-      const leftValue =
-        platform === 'overall'
-          ? mode === 'rating'
-            ? calculateOverallRating(left, ratingBenchmarks)
-            : calculateTotalSolved(left)
-          : (left.stats[platform][metricKey] ?? -1)
-      const rightValue =
-        platform === 'overall'
-          ? mode === 'rating'
-            ? calculateOverallRating(right, ratingBenchmarks)
-            : calculateTotalSolved(right)
-          : (right.stats[platform][metricKey] ?? -1)
+      const leftValue = left.stats[platform][metricKey] ?? -1
+      const rightValue = right.stats[platform][metricKey] ?? -1
       const valueDifference = (rightValue ?? -1) - (leftValue ?? -1)
       return valueDifference === 0 ? left.name.localeCompare(right.name, 'zh-CN') : valueDifference
     })
@@ -330,10 +341,37 @@ export function RankingsPage() {
                 ? '按北京时间同步快照计算'
                 : '数据更新于最新成功同步'}
           </span>
+          {reload ? (
+            <button
+              type="button"
+              className="rankings-reload-btn"
+              onClick={() => void reload()}
+              disabled={loading}
+              title="刷新榜单数据"
+              aria-label="刷新榜单数据"
+            >
+              <RotateCw size={13} className={loading ? 'is-spinning' : ''} aria-hidden="true" />
+              <span>{loading ? '刷新中' : '刷新'}</span>
+            </button>
+          ) : null}
         </div>
       </section>
 
-      {error ? <p className="data-warning">实时数据读取失败，当前显示演示数据。</p> : null}
+      {error ? (
+        <div className="data-warning rankings-error-banner">
+          <span>实时数据读取失败，当前显示演示数据。</span>
+          {reload ? (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => void reload()}
+              disabled={loading}
+            >
+              重试
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <section className="ranking-workspace" aria-label="榜单筛选与数据">
         <div className="ranking-toolbar">
