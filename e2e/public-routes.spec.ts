@@ -89,6 +89,8 @@ test('mobile navigation exposes state and restores focus after Escape', async ({
 
 test('contest navigation exposes campus and online sub-routes', async ({ page }) => {
   await page.goto('/rankings')
+  const menu = page.getByRole('button', { name: '打开导航' })
+  if (await menu.isVisible()) await menu.click()
   await page.getByRole('button', { name: '赛事' }).click()
   const contests = page.getByRole('group', { name: '赛事导航' })
   await expect(contests.getByRole('link', { name: /校内比赛/ })).toHaveAttribute(
