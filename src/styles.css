@@ -35,38 +35,6 @@
   --site-hero-height: clamp(655px, calc(100svh - 104px), 810px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --ink: #e3ece6;
-    --muted: #95a59c;
-    --faint: #788980;
-    --line: #26382f;
-    --line-strong: #344c40;
-    --surface: #121c16;
-    --surface-muted: #17241d;
-    --surface-soft: #1c2c23;
-    --nav: #08120d;
-    --nav-accent: #c4ec43;
-    --green: #2ecc71;
-    --green-dark: #27ae60;
-    --green-soft: #122b1d;
-    --red: #e74c3c;
-    --red-soft: #2e1513;
-    --gold: #f39c12;
-    --gold-soft: #2e220a;
-    --blue: #3498db;
-    --blue-soft: #132438;
-    --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  }
-
-  html,
-  body {
-    background: #0d1510;
-    color: var(--ink);
-  }
-}
-
 * {
   box-sizing: border-box;
   letter-spacing: 0;
@@ -74,7 +42,7 @@
 
 html {
   min-width: 320px;
-  background: var(--surface-muted);
+  background: #f4f7f5;
 }
 
 body {
