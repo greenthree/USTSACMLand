@@ -5,6 +5,7 @@ import Save from 'lucide-react/dist/esm/icons/save'
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import X from 'lucide-react/dist/esm/icons/x'
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { ConfirmModal } from '../../components/ConfirmModal'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import {
@@ -278,9 +279,12 @@ export function AdminDailyProblemsPage() {
     }
   }
 
-  async function deleteDraft(problem: AdminDailyProblem) {
-    if (problem.status !== 'draft') return
-    if (!window.confirm(`确定删除草稿“${problem.title}”吗？此操作不可撤销。`)) return
+  const [deletingProblem, setDeletingProblem] = useState<AdminDailyProblem | null>(null)
+
+  async function handleConfirmDeleteDraft() {
+    if (!deletingProblem || deletingProblem.status !== 'draft') return
+    const problem = deletingProblem
+    setDeletingProblem(null)
     setBusy(true)
     setNotice('')
     try {
@@ -547,7 +551,7 @@ export function AdminDailyProblemsPage() {
                     aria-label={`删除草稿 ${problem.title}`}
                     title="删除草稿"
                     disabled={busy}
-                    onClick={() => void deleteDraft(problem)}
+                    onClick={() => setDeletingProblem(problem)}
                   >
                     <Trash2 size={16} aria-hidden="true" />
                   </button>
@@ -557,6 +561,18 @@ export function AdminDailyProblemsPage() {
           ))}
         </div>
       ) : null}
+
+      <ConfirmModal
+        open={deletingProblem !== null}
+        title="确认删除草稿"
+        description={
+          deletingProblem ? `确定删除草稿“${deletingProblem.title}”吗？此操作不可撤销。` : ''
+        }
+        confirmText="确认删除"
+        danger
+        onConfirm={handleConfirmDeleteDraft}
+        onCancel={() => setDeletingProblem(null)}
+      />
     </div>
   )
 }

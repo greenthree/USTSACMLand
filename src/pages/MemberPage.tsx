@@ -89,15 +89,19 @@ export function MemberPage() {
             return (
               <article className="platform-stat-row" key={platform}>
                 <PlatformMark platform={platform} />
-                <a
-                  href={platformUrls[platform](item.externalId)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="platform-id-link"
-                >
-                  {item.externalId || '未绑定'}
-                  {item.externalId ? <ArrowUpRight size={14} aria-hidden="true" /> : null}
-                </a>
+                {item.externalId ? (
+                  <a
+                    href={platformUrls[platform](item.externalId)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="platform-id-link"
+                  >
+                    {item.externalId}
+                    <ArrowUpRight size={14} aria-hidden="true" />
+                  </a>
+                ) : (
+                  <span className="platform-id-unbound">未绑定</span>
+                )}
                 <div className="stat-pair">
                   <span>
                     <small>当前 Rating</small>

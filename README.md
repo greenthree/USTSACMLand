@@ -82,6 +82,8 @@ flowchart LR
 | 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                               |
 | QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 独立临时浏览器每次请求自动登录并读取去重 Accepted problems；失败只记录脱敏阶段、HTTP 状态或错误类别，不记录会话 ID；可恢复失败进入一次持久队列重试 |
 
+线上比赛日历使用 clist.by 官方 `/api/v4/contest/` 接口。服务端以 `CLIST_API_USERNAME` 和 `CLIST_API_KEY` Function Secrets 认证，按时间窗口筛选并只保留白名单平台的官方赛事链接；Edge Function 缓存一小时，由 GitHub Actions 每小时预热一次，前端不提供手动刷新入口；凭据不会进入前端或日志。
+
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
 QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，通过 `POST /v2/interact` 创建全新 Firecrawl Browser Sandbox，再通过 `POST /v2/interact/{sessionId}/execute` 登录并在同一浏览器中打开目标主页，最后主动删除会话。创建请求显式设置 `recordSession: false`、`streamWebView: false`，不使用持久 profile，也不保存页面缓存；浏览器异常只归类为 `timeout` 或 `navigation_error`，并按 `login_navigation`、`login_selector`、`login_submit`、`profile_navigation` 等脱敏阶段定位。登录提交后的页面执行上下文切换只允许在同一次执行中重试 DOM 观察，不会再次提交表单或创建额外上游请求。不得把目标主页 URL、成员账号、会话 ID 或原始错误正文写入统计记录。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为单次浏览器执行请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
@@ -240,6 +242,7 @@ GitHub 仓库级 Actions Secrets：
 
 Supabase Function Secrets/配置：
 
+- `CLIST_API_USERNAME`、`CLIST_API_KEY`（clist.by 官方 API 账户名与 Key；仅供 `contest-calendar` 服务端函数使用）
 - `FIRECRAWL_API_KEY`（数据库多 Key 池尚未建立时的兼容 Key；只允许配置在 Supabase Function Secrets）
 - `QOJ_SERVICE_USERNAME`（专用 QOJ 服务账号）
 - `QOJ_SERVICE_PASSWORD`（专用 QOJ 服务账号密码）

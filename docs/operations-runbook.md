@@ -121,6 +121,8 @@ npm run check:production-security
 
 ### 3.2 Edge Functions
 
+`contest-calendar` 仅调用 clist.by 官方 `/api/v4/contest/` API。其 `CLIST_API_USERNAME` 与 `CLIST_API_KEY` 必须作为 Supabase Function Secrets 配置；不得写入 Pages、前端变量、仓库或日志。函数缓存成功结果一小时，GitHub Actions 每小时调用一次公开读取端点预热缓存，前端不提供手动刷新入口。缺少任一 Secret 时函数失败关闭，不回退到 HTML 抓取或绕过第三方挑战。
+
 显式使用仓库 import map：
 
 ```powershell

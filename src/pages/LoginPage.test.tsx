@@ -54,6 +54,7 @@ function renderLogin(initialEntry = '/login') {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/account" element={<h1>我的资料</h1>} />
+        <Route path="/rankings" element={<h1>榜单</h1>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -142,5 +143,27 @@ describe('LoginPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       '密码已更新，本设备已退出，但无法确认其他设备会话均已撤销。',
     )
+  })
+
+  it('navigates to safe internal returnTo destination upon successful login', async () => {
+    const user = userEvent.setup()
+    renderLogin('/login?returnTo=%2Frankings')
+
+    await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'member@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.click(screen.getByRole('button', { name: '登录' }))
+
+    expect(await screen.findByRole('heading', { name: '榜单' })).toBeInTheDocument()
+  })
+
+  it('rejects protocol-relative and backslash returnTo paths and falls back to account', async () => {
+    const user = userEvent.setup()
+    renderLogin('/login?returnTo=%2F%2Fevil.com')
+
+    await user.type(screen.getByRole('textbox', { name: '邮箱' }), 'member@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.click(screen.getByRole('button', { name: '登录' }))
+
+    expect(await screen.findByRole('heading', { name: '我的资料' })).toBeInTheDocument()
   })
 })

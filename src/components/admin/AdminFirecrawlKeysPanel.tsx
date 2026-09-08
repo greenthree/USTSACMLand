@@ -16,6 +16,7 @@ import {
 } from '../../lib/adminFirecrawlKeys'
 import { formatDateTime } from '../../lib/format'
 import type { AdminFirecrawlKey, FirecrawlKeyHealthStatus } from '../../types/domain'
+import { ConfirmModal } from '../ConfirmModal'
 import { LoadingState } from '../LoadingState'
 
 const conflictCodes = new Set(['config_conflict', 'conflict'])
@@ -231,14 +232,21 @@ export function AdminFirecrawlKeysPanel() {
     }
   }
 
-  async function deleteKey() {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  function requestDeleteKey() {
     if (!editingKey) return
     const reason = editReason.trim()
     if (reason.length < 3 || reason.length > 500) {
       return setFormError('删除前请填写 3 到 500 个字符的原因。')
     }
-    if (!window.confirm(`确认删除“${editingKey.label}”及其 Vault 密钥？此操作不可撤销。`)) return
+    setShowDeleteConfirm(true)
+  }
 
+  async function handleConfirmDeleteKey() {
+    if (!editingKey) return
+    const reason = editReason.trim()
+    setShowDeleteConfirm(false)
     setBusyKeyId(editingKey.id)
     setNotice('')
     setEditApiKey('')
@@ -525,7 +533,7 @@ export function AdminFirecrawlKeysPanel() {
               className="danger-button"
               type="button"
               disabled={busyKeyId !== null}
-              onClick={() => void deleteKey()}
+              onClick={requestDeleteKey}
             >
               <Trash2 size={16} />
               删除 Key
@@ -545,6 +553,18 @@ export function AdminFirecrawlKeysPanel() {
           ID、成员信息或第三方响应正文。
         </p>
       </div>
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        title="确认删除密钥"
+        description={
+          editingKey ? `确认删除“${editingKey.label}”及其 Vault 密钥？此操作不可撤销。` : ''
+        }
+        confirmText="确认删除"
+        danger
+        onConfirm={handleConfirmDeleteKey}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </section>
   )
 }

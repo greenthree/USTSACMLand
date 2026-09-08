@@ -161,6 +161,17 @@ export function DailyProblemPage() {
             }
           : current,
       )
+      setRecentProblems((current) =>
+        current.map((item) =>
+          item.id === problem.id
+            ? {
+                ...item,
+                completedAt,
+                completionCount: Math.max(0, item.completionCount + (requestedCompleted ? 1 : -1)),
+              }
+            : item,
+        ),
+      )
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '完成记录保存失败。')
     } finally {

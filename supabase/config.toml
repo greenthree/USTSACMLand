@@ -85,6 +85,9 @@ static_files = ["./functions/webchat-attachment/codecs/*.wasm"]
 [functions.member-avatar]
 verify_jwt = false
 
+[functions.contest-calendar]
+verify_jwt = false
+
 [functions.delete-account]
 verify_jwt = true
 

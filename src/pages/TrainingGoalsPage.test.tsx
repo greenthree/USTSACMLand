@@ -82,7 +82,6 @@ describe('TrainingGoalsPage', () => {
     goalMocks.update.mockResolvedValue({ goal_id: 71, updated_at: '2026-07-21T02:00:00Z' })
     goalMocks.complete.mockResolvedValue({ goal_id: 71, updated_at: '2026-07-21T02:00:00Z' })
     goalMocks.archive.mockResolvedValue({ goal_id: 71, updated_at: '2026-07-21T02:00:00Z' })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -157,6 +156,7 @@ describe('TrainingGoalsPage', () => {
     await waitFor(() => expect(goalMocks.complete).toHaveBeenCalledWith(reachedGoal))
 
     await user.click(screen.getByRole('button', { name: '归档' }))
+    await user.click(await screen.findByRole('button', { name: '确认归档' }))
     await waitFor(() => expect(goalMocks.archive).toHaveBeenCalledWith(reachedGoal))
   })
 

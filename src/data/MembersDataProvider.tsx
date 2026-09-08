@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { hasSupabaseConfig, supabase } from '../lib/supabase'
 import {
   defaultMembersDataState,
@@ -18,6 +18,22 @@ export function MembersDataProvider({ children }: { children: ReactNode }) {
       ? { members: [], loading: true, error: null, demo: false }
       : defaultMembersDataState,
   )
+
+  const reload = useCallback(async () => {
+    if (!hasSupabaseConfig) return
+    setState((curr) => ({ ...curr, loading: true, error: null }))
+    try {
+      const members = await loadPublicMembers()
+      setState({ members, loading: false, error: null, demo: false })
+    } catch (error: unknown) {
+      setState({
+        members: mockMembers,
+        loading: false,
+        error: error instanceof Error ? error.message : '公共榜单加载失败',
+        demo: true,
+      })
+    }
+  }, [])
 
   useEffect(() => {
     if (!hasSupabaseConfig) return
@@ -42,5 +58,9 @@ export function MembersDataProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  return <MembersDataContext.Provider value={state}>{children}</MembersDataContext.Provider>
+  return (
+    <MembersDataContext.Provider value={{ ...state, reload }}>
+      {children}
+    </MembersDataContext.Provider>
+  )
 }

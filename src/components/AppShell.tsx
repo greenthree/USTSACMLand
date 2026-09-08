@@ -1,6 +1,8 @@
 import BookOpen from 'lucide-react/dist/esm/icons/book-open'
+import Building2 from 'lucide-react/dist/esm/icons/building-2'
 import CalendarCheck2 from 'lucide-react/dist/esm/icons/calendar-check-2'
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down'
+import Globe2 from 'lucide-react/dist/esm/icons/globe-2'
 import LogOut from 'lucide-react/dist/esm/icons/log-out'
 import Menu from 'lucide-react/dist/esm/icons/menu'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
@@ -13,6 +15,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/authContextValue'
 import { webChatUiEnabled } from '../features/chat/chatAvailability'
 import { Brand } from './Brand'
+import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { RouteLoading } from './RouteLoading'
 
 const learningItems = [
@@ -26,12 +29,23 @@ const learningItems = [
   },
 ]
 
+const contestItems = [
+  {
+    to: '/contests/campus',
+    label: '校内比赛',
+    description: '新生赛、练习赛与校赛',
+    icon: Building2,
+  },
+  { to: '/contests/online', label: '线上比赛', description: '近期公开赛与倒计时', icon: Globe2 },
+]
+
 export function AppShell() {
   const [open, setOpen] = useState(false)
-  const [openGroup, setOpenGroup] = useState<'learning' | 'account' | null>(null)
+  const [openGroup, setOpenGroup] = useState<'learning' | 'contests' | 'account' | null>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const navigationRef = useRef<HTMLElement>(null)
   const learningButtonRef = useRef<HTMLButtonElement>(null)
+  const contestsButtonRef = useRef<HTMLButtonElement>(null)
   const accountButtonRef = useRef<HTMLButtonElement>(null)
   const { user, signOut } = useAuth()
   const location = useLocation()
@@ -39,6 +53,10 @@ export function AppShell() {
   const learningActive = learningItems.some(
     (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
   )
+  const contestsActive =
+    location.pathname === '/contests' ||
+    location.pathname.startsWith('/contests/') ||
+    location.pathname === '/freshman-contest'
   const accountActive = location.pathname === '/account' || location.pathname.startsWith('/admin')
 
   useEffect(() => {
@@ -48,7 +66,11 @@ export function AppShell() {
       if (event.key !== 'Escape') return
       if (openGroup !== null) {
         const trigger =
-          openGroup === 'learning' ? learningButtonRef.current : accountButtonRef.current
+          openGroup === 'learning'
+            ? learningButtonRef.current
+            : openGroup === 'contests'
+              ? contestsButtonRef.current
+              : accountButtonRef.current
         setOpenGroup(null)
         trigger?.focus()
         return
@@ -149,10 +171,43 @@ export function AppShell() {
                 </div>
               ) : null}
             </div>
-            <NavLink className="primary-nav-link" to="/contests" onClick={closeNavigation}>
-              <Trophy size={15} aria-hidden="true" />
-              赛事
-            </NavLink>
+            <div className={`nav-group nav-contests${openGroup === 'contests' ? ' is-open' : ''}`}>
+              <button
+                ref={contestsButtonRef}
+                className={`nav-group-trigger${contestsActive ? ' is-current' : ''}`}
+                type="button"
+                aria-expanded={openGroup === 'contests'}
+                aria-controls="contests-navigation"
+                onClick={() =>
+                  setOpenGroup((current) => (current === 'contests' ? null : 'contests'))
+                }
+              >
+                <Trophy size={15} aria-hidden="true" />
+                赛事
+                <ChevronDown className="nav-chevron" size={14} aria-hidden="true" />
+              </button>
+              {openGroup === 'contests' ? (
+                <div
+                  id="contests-navigation"
+                  className="nav-dropdown"
+                  role="group"
+                  aria-label="赛事导航"
+                >
+                  {contestItems.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <NavLink key={item.to} to={item.to} onClick={closeNavigation}>
+                        <Icon size={16} aria-hidden="true" />
+                        <span>
+                          <strong>{item.label}</strong>
+                          <small>{item.description}</small>
+                        </span>
+                      </NavLink>
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
             <NavLink className="primary-nav-link" to="/rankings" onClick={closeNavigation}>
               榜单
             </NavLink>
@@ -241,9 +296,11 @@ export function AppShell() {
         </div>
       </header>
       <main id="main-content" tabIndex={-1}>
-        <Suspense fallback={<RouteLoading />}>
-          <Outlet />
-        </Suspense>
+        <RouteErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<RouteLoading />}>
+            <Outlet />
+          </Suspense>
+        </RouteErrorBoundary>
       </main>
       <footer className="site-footer">
         <span>USTS ACM Land</span>

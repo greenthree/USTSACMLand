@@ -48,18 +48,8 @@ export function RegisterPage() {
 
   useEffect(() => {
     void loadReferralProgramState()
-
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void loadReferralProgramState()
-    }
-    const refreshOnFocus = () => void loadReferralProgramState()
-    document.addEventListener('visibilitychange', refreshWhenVisible)
-    window.addEventListener('focus', refreshOnFocus)
-
     return () => {
       referralStatusRequestIdRef.current += 1
-      document.removeEventListener('visibilitychange', refreshWhenVisible)
-      window.removeEventListener('focus', refreshOnFocus)
     }
   }, [loadReferralProgramState])
 

@@ -99,4 +99,37 @@ describe('MemberPage data states', () => {
     const avatarImg = container.querySelector('img.member-profile-avatar')
     expect(avatarImg).toHaveAttribute('src', 'https://example.com/avatar.png')
   })
+
+  it('renders unbound platforms as plain text and bound platforms as external links', () => {
+    const memberWithMixedAccounts = {
+      ...mockMembers[0],
+      stats: {
+        ...mockMembers[0].stats,
+        codeforces: {
+          ...mockMembers[0].stats.codeforces,
+          externalId: 'tourist',
+        },
+        nowcoder: {
+          ...mockMembers[0].stats.nowcoder,
+          externalId: '',
+        },
+      },
+    }
+
+    memberPageMocks.membersData.mockReturnValue({
+      members: [memberWithMixedAccounts],
+      loading: false,
+      error: null,
+      demo: true,
+    })
+
+    renderPage(memberWithMixedAccounts.id)
+
+    const cfLink = screen.getByRole('link', { name: /tourist/ })
+    expect(cfLink).toHaveAttribute('href', 'https://codeforces.com/profile/tourist')
+    expect(cfLink).toHaveAttribute('target', '_blank')
+
+    expect(screen.getByText('未绑定')).not.toHaveAttribute('href')
+    expect(screen.queryByRole('link', { name: /未绑定/ })).not.toBeInTheDocument()
+  })
 })

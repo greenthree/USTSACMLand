@@ -122,7 +122,7 @@ describe('Supabase production readiness checker', () => {
         projectStatus: 'ACTIVE_HEALTHY',
         migrations: 1,
         pendingMigrations: 0,
-        functions: 12,
+        functions: 13,
         lintFindings: 0,
         authEmailReady: true,
         anonRestReady: true,

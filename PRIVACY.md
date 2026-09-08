@@ -23,7 +23,7 @@
 
 ## 第三方服务
 
-GitHub Pages 托管静态前端，Supabase 提供认证、数据库和服务端函数。同步时会使用成员填写的平台账号查询 Codeforces、牛客、AtCoder、AtCoder Problems、XCPC ELO、洛谷和 QOJ；牛客反自动化回退查询和 QOJ 临时登录使用 Firecrawl。成员填写或修改 QQ 后，只有服务端会把 QQ 号发送给腾讯 QQ 头像接口以获取头像；浏览器不会取得该请求地址，本站只在私有存储中保留规范化 WebP 头像和不可逆来源摘要。QOJ 登录会把专用服务账号和目标用户名发送给 Firecrawl，但不会发送成员邮箱、QQ 或本站密码；本站创建临时浏览器时显式关闭会话录制和直播，不使用持久 profile，并在每次 attempt 后主动删除会话。完整字段、认证方式和保留边界见[第三方数据来源说明](./docs/third-party-data-sources.md)。各服务对请求数据的处理同时受其自身政策和生产配置约束。
+GitHub Pages 托管静态前端，Supabase 提供认证、数据库和服务端函数。同步时会使用成员填写的平台账号查询 Codeforces、牛客、AtCoder、AtCoder Problems、XCPC ELO、洛谷和 QOJ；线上比赛日历会由服务端使用受保护的 clist.by 官方 API 凭据读取赛事数据，并只保留白名单平台的比赛名称、时间与官方链接；牛客反自动化回退查询和 QOJ 临时登录使用 Firecrawl。成员填写或修改 QQ 后，只有服务端会把 QQ 号发送给腾讯 QQ 头像接口以获取头像；浏览器不会取得该请求地址，本站只在私有存储中保留规范化 WebP 头像和不可逆来源摘要。QOJ 登录会把专用服务账号和目标用户名发送给 Firecrawl，但不会发送成员邮箱、QQ 或本站密码；本站创建临时浏览器时显式关闭会话录制和直播，不使用持久 profile，并在每次 attempt 后主动删除会话。完整字段、认证方式和保留边界见[第三方数据来源说明](./docs/third-party-data-sources.md)。各服务对请求数据的处理同时受其自身政策和生产配置约束。
 
 ## 遗留 AI 学习助手数据
 

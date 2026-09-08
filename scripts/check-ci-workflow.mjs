@@ -416,6 +416,19 @@ export function verifyCiWorkflow(
     )
   }
 
+  const contestCalendarConfig =
+    supabaseConfig.match(/\[functions\.contest-calendar\][\s\S]*?(?=\r?\n\[|$)/)?.[0] ?? ''
+  requireMatch(
+    denoCheckStep,
+    /supabase\/functions\/contest-calendar\/index\.ts/,
+    'CI must type-check the contest-calendar Edge Function entrypoint.',
+  )
+  requireMatch(
+    contestCalendarConfig,
+    /\bverify_jwt\s*=\s*false\b/,
+    'The contest-calendar Edge Function must remain publicly readable without JWT.',
+  )
+
   const denoTestStep = extractStep(workflow, 'Test Edge Functions')
   requireMatch(denoTestStep, /\bdeno test\b/, 'CI must execute the Edge Function tests.')
   requireMatch(
