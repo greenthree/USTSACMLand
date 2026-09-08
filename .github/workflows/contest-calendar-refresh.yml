@@ -1,0 +1,57 @@
+name: Refresh contest calendar
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contest-calendar-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.repository == 'greenthree/USTSACMLand' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production-operations
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - name: Validate configuration
+        shell: bash
+        run: |
+          if [[ ! "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "SUPABASE_PROJECT_REF must be a 20-character lowercase project ref." >&2
+            exit 1
+          fi
+
+      - name: Warm the contest calendar cache
+        shell: bash
+        run: |
+          endpoint="https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/contest-calendar"
+          http_status="$(curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --output response.json \
+            --write-out '%{http_code}' \
+            "$endpoint")"
+
+          if [[ "$http_status" -lt 200 || "$http_status" -ge 300 ]]; then
+            echo "Contest calendar refresh returned HTTP $http_status." >&2
+            exit 1
+          fi
+
+          jq -e '(.events | type == "array") and (.fetchedAt | type == "string")' response.json >/dev/null
+          event_count="$(jq -r '.events | length' response.json)"
+          fetched_at="$(jq -r '.fetchedAt' response.json)"
+          echo "Contest calendar cache warmed: events=$event_count fetchedAt=$fetched_at"
+          rm -f response.json

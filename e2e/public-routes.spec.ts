@@ -87,6 +87,26 @@ test('mobile navigation exposes state and restores focus after Escape', async ({
   await expect(menu).toBeFocused()
 })
 
+test('contest navigation exposes campus and online sub-routes', async ({ page }) => {
+  await page.goto('/rankings')
+  await page.getByRole('button', { name: '赛事' }).click()
+  const contests = page.getByRole('group', { name: '赛事导航' })
+  await expect(contests.getByRole('link', { name: /校内比赛/ })).toHaveAttribute(
+    'href',
+    '/contests/campus',
+  )
+  await expect(contests.getByRole('link', { name: /线上比赛/ })).toHaveAttribute(
+    'href',
+    '/contests/online',
+  )
+  await contests.getByRole('link', { name: /线上比赛/ }).click()
+  await expect(page).toHaveURL(/\/contests\/online$/)
+  await expect(page.getByRole('heading', { name: '线上比赛' })).toBeVisible()
+  await expect(page.getByText(/暂时无法获取线上比赛|窗口内暂无比赛/)).toBeVisible({
+    timeout: 20_000,
+  })
+})
+
 test('anonymous account navigation returns after demo login', async ({ page }, testInfo) => {
   testInfo.setTimeout(45_000)
   await page.goto('/account')
@@ -158,6 +178,8 @@ test('public pages do not create page-level horizontal overflow', async ({ page 
   for (const route of [
     '/',
     '/learning',
+    '/contests/campus',
+    '/contests/online',
     '/daily-problem',
     '/rankings',
     '/members',

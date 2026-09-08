@@ -16,6 +16,7 @@ export const expectedEdgeFunctions = [
   'sync-stats',
   'sync-avatar',
   'member-avatar',
+  'contest-calendar',
   'delete-account',
   'change-password',
   'webchat',
@@ -27,7 +28,7 @@ export const expectedEdgeFunctions = [
 ]
 
 export const serviceOnlyEdgeFunctions = ['webchat-image-cleanup', 'webchat-cache-probe']
-export const publicAnonymousEdgeFunctions = ['member-avatar']
+export const publicAnonymousEdgeFunctions = ['member-avatar', 'contest-calendar']
 
 const serviceOnlyEdgeFunctionSet = new Set(serviceOnlyEdgeFunctions)
 const publicAnonymousEdgeFunctionSet = new Set(publicAnonymousEdgeFunctions)
@@ -37,6 +38,8 @@ export const requiredFunctionSecrets = [
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'ALLOWED_ORIGIN',
+  'CLIST_API_USERNAME',
+  'CLIST_API_KEY',
   'FIRECRAWL_API_KEY',
   'LUOGU_COOKIE',
   'LUOGU_CSRF_TOKEN',
@@ -353,7 +356,7 @@ export function evaluateSupabaseReadiness(state, options = {}) {
       ) {
         errors.push(
           publicAnonymousEdgeFunctionSet.has(functionName)
-            ? `Edge Function ${probe.functionName} 无参数匿名 GET 返回 HTTP ${probe.getStatus}，未体现公开头像参数边界。`
+            ? `Edge Function ${probe.functionName} 无参数匿名 GET 返回 HTTP ${probe.getStatus}，未体现${probe.functionName === 'member-avatar' ? '公开头像' : '公开'}参数边界。`
             : `Edge Function ${probe.functionName} 匿名 GET 返回 HTTP ${probe.getStatus}，未体现认证/方法边界。`,
         )
       }

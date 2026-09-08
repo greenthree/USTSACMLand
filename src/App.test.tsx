@@ -192,9 +192,15 @@ describe('route authorization', () => {
 
     const navigation = await screen.findByRole('navigation', { name: '主导航' })
     expect(within(navigation).getByRole('link', { name: '榜单' })).toHaveClass('active')
-    expect(within(navigation).getByRole('link', { name: '赛事' })).toHaveAttribute(
+    await user.click(within(navigation).getByRole('button', { name: '赛事' }))
+    const contestsGroup = within(navigation).getByRole('group', { name: '赛事导航' })
+    expect(within(contestsGroup).getByRole('link', { name: /校内比赛/ })).toHaveAttribute(
       'href',
-      '/contests',
+      '/contests/campus',
+    )
+    expect(within(contestsGroup).getByRole('link', { name: /线上比赛/ })).toHaveAttribute(
+      'href',
+      '/contests/online',
     )
 
     await user.click(within(navigation).getByRole('button', { name: '学习' }))
