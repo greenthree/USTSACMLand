@@ -1,6 +1,26 @@
-import { parseRegistrationCaptchaConfig } from './registrationCaptcha'
+import {
+  clearRuntimeRegistrationCaptchaOverride,
+  getRegistrationCaptchaConfig,
+  parseRegistrationCaptchaConfig,
+  setRuntimeRegistrationCaptchaEnabled,
+} from './registrationCaptcha'
 
 describe('registration CAPTCHA configuration', () => {
+  afterEach(() => {
+    clearRuntimeRegistrationCaptchaOverride()
+  })
+
+  it('allows the runtime server switch to override the build-time flag', () => {
+    vi.stubEnv('VITE_REGISTRATION_TURNSTILE_ENABLED', 'true')
+    vi.stubEnv('VITE_TURNSTILE_SITE_KEY', 'runtime-site-key')
+    setRuntimeRegistrationCaptchaEnabled(false)
+    expect(getRegistrationCaptchaConfig()).toEqual({
+      enabled: false,
+      siteKey: '',
+      configurationError: null,
+    })
+  })
+
   it('stays disabled by default', () => {
     expect(parseRegistrationCaptchaConfig(undefined, undefined)).toEqual({
       enabled: false,

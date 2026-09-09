@@ -88,6 +88,9 @@ verify_jwt = false
 [functions.contest-calendar]
 verify_jwt = false
 
+[functions.auth-captcha-config]
+verify_jwt = false
+
 [functions.delete-account]
 verify_jwt = true
 

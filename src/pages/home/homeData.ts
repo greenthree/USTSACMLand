@@ -31,6 +31,8 @@ export interface HeroBalloon {
   rx: number
   ry: number
   fill: string
+  light: string
+  shade: string
   knot: string
   ink: string
   sway: 1 | -1
@@ -45,6 +47,8 @@ export const heroBalloons: HeroBalloon[] = [
     cy: 128,
     rx: 34,
     ry: 41,
+    light: '#f17a63',
+    shade: '#93271b',
     sway: 1,
     airFreq: 0.52,
     airPhase: 0.4,
@@ -56,6 +60,8 @@ export const heroBalloons: HeroBalloon[] = [
     cy: 170,
     rx: 28,
     ry: 34,
+    light: '#ffbc7a',
+    shade: '#a9571a',
     sway: -1,
     airFreq: 0.67,
     airPhase: 2.8,
@@ -67,6 +73,8 @@ export const heroBalloons: HeroBalloon[] = [
     cy: 118,
     rx: 37,
     ry: 45,
+    light: '#ffd97e',
+    shade: '#a37a14',
     sway: 1,
     airFreq: 0.45,
     airPhase: 4.6,
@@ -78,6 +86,8 @@ export const heroBalloons: HeroBalloon[] = [
     cy: 164,
     rx: 27,
     ry: 33,
+    light: '#5cb884',
+    shade: '#1d4f31',
     sway: -1,
     airFreq: 0.73,
     airPhase: 1.5,
@@ -89,6 +99,8 @@ export const heroBalloons: HeroBalloon[] = [
     cy: 134,
     rx: 31,
     ry: 38,
+    light: '#6f96ff',
+    shade: '#1d3f92',
     sway: 1,
     airFreq: 0.58,
     airPhase: 5.7,

@@ -75,6 +75,23 @@ describe('HomePage', () => {
     expect(screen.getByText(/每解出一道题，志愿者就会给队伍系上一只气球/)).toBeInTheDocument()
     expect(document.querySelectorAll('.home-balloon')).toHaveLength(5)
 
+    // 气球视觉契约：体积渐变本体、结点、绳子和字母各自完整且互不遮挡
+    const balloonGroups = document.querySelectorAll('.home-hero-art-balloons .home-balloon')
+    expect(
+      document.querySelectorAll('.home-hero-art-balloons .home-balloon defs radialGradient'),
+    ).toHaveLength(5)
+    for (const group of balloonGroups) {
+      expect(group.querySelectorAll('path').length).toBeGreaterThanOrEqual(1)
+      expect(group.querySelector('ellipse[fill^="url(#"]')).not.toBeNull()
+      expect(group.querySelectorAll('ellipse').length).toBeGreaterThanOrEqual(2)
+      expect(group.querySelector('text')).not.toBeNull()
+    }
+    const letterTexts = [...document.querySelectorAll('.home-balloon text')].map(
+      (node) => node.textContent,
+    )
+    expect(letterTexts).toEqual(['A', 'B', 'C', 'D', 'E'])
+    expect(document.querySelectorAll('.home-hero-art-balloons svg > g')).toHaveLength(5)
+
     expect(screen.getByText(/智力与创造力的巅峰赛/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'ACM，不只是把题做出来' })).toBeInTheDocument()
     expect(screen.getByText('赛场禁止，学习鼓励')).toBeInTheDocument()

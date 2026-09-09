@@ -12,6 +12,12 @@ USTSACMLand 的注册、密码登录和找回密码入口直接使用 Supabase A
 - `VITE_REGISTRATION_TURNSTILE_ENABLED` 是为兼容既有部署保留的变量名，默认 `false`。
   开启后 Turnstile 同时保护注册、密码登录和找回密码；缺少站点 Key 时构建失败，浏览器
   运行时配置异常时三个入口均失败关闭。
+- 管理后台“登录安全验证”面板通过 `auth-captcha-config` 受保护函数读取运行时状态。管理员
+  提交带原因的变更后，服务端先调用 Supabase Management API 更新 Auth CAPTCHA，再通过
+  数据库 CAS 版本写入审计状态；任一步失败都保持原状态。Management API Token 只允许作为
+  `SUPABASE_MANAGEMENT_TOKEN` Function Secret 保存，绝不返回浏览器。
+- 本地开发和本地 Supabase 测试始终强制关闭 Turnstile，不读取生产运行时开关，因此无需
+  Cloudflare Widget 或 Auth CAPTCHA Secret 即可登录测试账号。生产环境仍以后台运行时状态为准。
 - 推荐计划、WebChat 图片输入和图片清理任务有独立开关。完成验证码配置不会自动开启
   这些功能。
 
@@ -32,7 +38,10 @@ USTSACMLand 的注册、密码登录和找回密码入口直接使用 Supabase A
 5. 在 GitHub 仓库 Actions Variables 写入
    `VITE_REGISTRATION_TURNSTILE_ENABLED=true` 与公开的
    `VITE_TURNSTILE_SITE_KEY`，完成 Pages 构建和部署。
-6. 保持推荐计划和图片三层开关关闭，重新允许 Auth 新用户注册，立即执行下述烟测。
+6. 配置 `SUPABASE_MANAGEMENT_TOKEN` Function Secret，部署 `auth-captcha-config`。新配置
+   默认关闭；只有在生产 Site Key、Auth Secret 和完整烟测准备就绪后，才可在后台通过带原因
+   的开关操作启用或关闭生产 Auth CAPTCHA。首次启用、关闭或回滚都必须完成下述烟测。
+7. 保持推荐计划和图片三层开关关闭，重新允许 Auth 新用户注册，立即执行下述烟测。
 
 ## 必须烟测
 

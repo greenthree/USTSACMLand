@@ -122,6 +122,14 @@ test('anonymous account navigation returns after demo login', async ({ page }, t
   await expect(page.getByRole('heading', { name: '我的资料' })).toBeVisible()
 })
 
+test('local login keeps Turnstile disabled for development authentication', async ({ page }) => {
+  await page.goto('/login')
+
+  await expect(page.getByRole('heading', { name: '登录' })).toBeVisible({ timeout: 20_000 })
+  await expect(page.locator('.registration-captcha')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '登录' })).toBeEnabled()
+})
+
 test('shared referral links do not activate invitation inputs while referral program is closed', async ({
   page,
 }) => {

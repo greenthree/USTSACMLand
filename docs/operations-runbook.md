@@ -123,6 +123,8 @@ npm run check:production-security
 
 `contest-calendar` 仅调用 clist.by 官方 `/api/v4/contest/` API。其 `CLIST_API_USERNAME` 与 `CLIST_API_KEY` 必须作为 Supabase Function Secrets 配置；不得写入 Pages、前端变量、仓库或日志。函数缓存成功结果一小时，GitHub Actions 每小时调用一次公开读取端点预热缓存，前端不提供手动刷新入口。缺少任一 Secret 时函数失败关闭，不回退到 HTML 抓取或绕过第三方挑战。
 
+`auth-captcha-config` 提供公开的非敏感运行时状态读取和管理员受保护的 Auth CAPTCHA 切换。管理员变更先调用 Supabase Management API，再提交数据库版本 CAS 与审计日志；Management API 失败、验证不一致或数据库提交失败时保持原配置，并尝试回滚外部设置。`SUPABASE_MANAGEMENT_TOKEN` 只能配置为该函数的 Function Secret，不得写入数据库、Pages、日志或前端。生产启用前必须完成无 token/伪 token 拒绝、有效 Turnstile 登录和关闭后的凭据登录回归。
+
 显式使用仓库 import map：
 
 ```powershell

@@ -429,6 +429,19 @@ export function verifyCiWorkflow(
     'The contest-calendar Edge Function must remain publicly readable without JWT.',
   )
 
+  const authCaptchaConfig =
+    supabaseConfig.match(/\[functions\.auth-captcha-config\][\s\S]*?(?=\r?\n\[|$)/)?.[0] ?? ''
+  requireMatch(
+    denoCheckStep,
+    /supabase\/functions\/auth-captcha-config\/index\.ts/,
+    'CI must type-check the auth-captcha-config Edge Function entrypoint.',
+  )
+  requireMatch(
+    authCaptchaConfig,
+    /\bverify_jwt\s*=\s*false\b/,
+    'The auth-captcha-config Edge Function must allow its public runtime GET and authenticate POSTs manually.',
+  )
+
   const denoTestStep = extractStep(workflow, 'Test Edge Functions')
   requireMatch(denoTestStep, /\bdeno test\b/, 'CI must execute the Edge Function tests.')
   requireMatch(

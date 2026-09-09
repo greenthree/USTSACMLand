@@ -86,6 +86,7 @@ jobs:
           supabase/functions/sync-avatar/index.ts
           supabase/functions/member-avatar/index.ts
           supabase/functions/contest-calendar/index.ts
+          supabase/functions/auth-captcha-config/index.ts
           supabase/functions/delete-account/index.ts
           supabase/functions/change-password/index.ts
           supabase/functions/webchat/index.ts

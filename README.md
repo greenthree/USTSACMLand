@@ -243,6 +243,7 @@ GitHub 仓库级 Actions Secrets：
 Supabase Function Secrets/配置：
 
 - `CLIST_API_USERNAME`、`CLIST_API_KEY`（clist.by 官方 API 账户名与 Key；仅供 `contest-calendar` 服务端函数使用）
+- `SUPABASE_MANAGEMENT_TOKEN`（仅供 `auth-captcha-config` 在审计后的管理员操作中调用 Supabase Management API；不得返回浏览器）
 - `FIRECRAWL_API_KEY`（数据库多 Key 池尚未建立时的兼容 Key；只允许配置在 Supabase Function Secrets）
 - `QOJ_SERVICE_USERNAME`（专用 QOJ 服务账号）
 - `QOJ_SERVICE_PASSWORD`（专用 QOJ 服务账号密码）
