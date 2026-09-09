@@ -1771,6 +1771,13 @@ main {
   min-height: 30px;
   padding: 0;
   color: var(--green-dark);
+  background: transparent;
+  border: 0;
+}
+
+.auth-captcha-actions .text-button:disabled {
+  color: #4f6f5b;
+  opacity: 1;
 }
 
 .full-button {
