@@ -233,6 +233,9 @@ export const HeroBalloons = memo(function HeroBalloons() {
     <svg ref={svgRef} viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="xMidYMax meet">
       {heroBalloons.map((balloon, index) => {
         const knotY = balloon.cy + balloon.ry + KNOT_DROP
+        const bottom = balloon.cy + balloon.ry
+        const highlightX = balloon.cx - balloon.rx * 0.34
+        const highlightY = balloon.cy - balloon.ry * 0.32
         return (
           <g key={balloon.letter}>
             <path
@@ -250,32 +253,50 @@ export const HeroBalloons = memo(function HeroBalloons() {
                 bodyRefs.current[index] = el
               }}
             >
+              <defs>
+                <radialGradient
+                  id={`home-balloon-body-${balloon.letter}`}
+                  gradientUnits="userSpaceOnUse"
+                  cx={balloon.cx - balloon.rx * 0.3}
+                  cy={balloon.cy - balloon.ry * 0.34}
+                  r={balloon.rx * 2.2}
+                >
+                  <stop offset="0" stopColor={balloon.light} />
+                  <stop offset="0.45" stopColor={balloon.fill} />
+                  <stop offset="1" stopColor={balloon.shade} />
+                </radialGradient>
+              </defs>
               <ellipse
                 cx={balloon.cx}
                 cy={balloon.cy}
                 rx={balloon.rx}
                 ry={balloon.ry}
-                fill={balloon.fill}
-                stroke="rgb(246 243 233 / 25%)"
+                fill={`url(#home-balloon-body-${balloon.letter})`}
+                stroke={balloon.shade}
+                strokeOpacity="0.5"
                 strokeWidth="1.2"
               />
               <path
-                d={`M${balloon.cx - 5} ${balloon.cy + balloon.ry - 3} L${balloon.cx} ${knotY} L${balloon.cx + 6} ${balloon.cy + balloon.ry - 3} Z`}
+                d={`M${balloon.cx - 5} ${bottom - 3} L${balloon.cx} ${knotY} L${balloon.cx + 6} ${bottom - 3} Z`}
                 fill={balloon.knot}
               />
               <ellipse
-                cx={balloon.cx - balloon.rx * 0.34}
-                cy={balloon.cy - balloon.ry * 0.32}
+                cx={highlightX}
+                cy={highlightY}
                 rx={balloon.rx * 0.26}
                 ry={balloon.ry * 0.3}
-                transform={`rotate(-24 ${balloon.cx - balloon.rx * 0.34} ${balloon.cy - balloon.ry * 0.32})`}
+                transform={`rotate(-24 ${highlightX} ${highlightY})`}
                 fill="#fff"
                 opacity="0.34"
               />
-              <circle
-                cx={balloon.cx - balloon.rx * 0.08}
-                cy={balloon.cy - balloon.ry * 0.58}
-                r="3"
+              <ellipse
+                cx={balloon.cx - balloon.rx * 0.02}
+                cy={balloon.cy - balloon.ry * 0.62}
+                rx={balloon.rx * 0.09}
+                ry={balloon.ry * 0.11}
+                transform={`rotate(-16 ${balloon.cx - balloon.rx * 0.02} ${
+                  balloon.cy - balloon.ry * 0.62
+                })`}
                 fill="#fff"
                 opacity="0.5"
               />

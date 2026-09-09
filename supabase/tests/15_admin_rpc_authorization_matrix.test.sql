@@ -315,6 +315,9 @@ values
   ),
   (
     'public.admin_delete_firecrawl_api_key(uuid,uuid,bigint,text)'::regprocedure
+  ),
+  (
+    'public.admin_commit_auth_captcha_config(uuid,boolean,bigint,text)'::regprocedure
   );
 
 create temporary table admin_rpc_matrix_results (

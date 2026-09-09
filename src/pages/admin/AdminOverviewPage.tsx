@@ -6,6 +6,7 @@ import Users from 'lucide-react/dist/esm/icons/users'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AdminReferralProgramPanel } from '../../components/admin/AdminReferralProgramPanel'
+import { AdminAuthCaptchaPanel } from '../../components/admin/AdminAuthCaptchaPanel'
 import { EmptyState } from '../../components/EmptyState'
 import { LoadingState } from '../../components/LoadingState'
 import { PlatformMark } from '../../components/PlatformMark'
@@ -72,6 +73,7 @@ export function AdminOverviewPage() {
       </section>
 
       <AdminReferralProgramPanel />
+      <AdminAuthCaptchaPanel />
 
       {errorMessage ? (
         <p className="form-error admin-notice" role="status">

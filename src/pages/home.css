@@ -1601,9 +1601,9 @@
   gap: 64px;
   padding: 72px max(32px, calc((100% - 1240px) / 2));
   overflow: hidden;
-  color: #171a17;
-  background: #f1b934;
-  border-bottom: 1px solid #b98b1d;
+  color: var(--ink);
+  background: var(--green-soft);
+  border-bottom: 1px solid #b8d9c7;
 }
 
 .home-action-band::after {
@@ -1611,7 +1611,7 @@
   position: absolute;
   right: -24px;
   bottom: -30px;
-  color: rgb(23 26 23 / 7%);
+  color: rgb(15 91 55 / 7%);
   font-family: Arial, Helvetica, sans-serif;
   font-size: clamp(120px, 18vw, 270px);
   font-weight: 900;
@@ -1630,12 +1630,12 @@
 
 .home-action-band > div > p {
   margin: 0 0 16px;
-  color: #4f3a08;
+  color: var(--green-dark);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .home-action-band h2 {
-  color: #171a17;
+  color: var(--ink);
   font-size: clamp(34px, 4vw, 54px);
 }
 
@@ -1646,14 +1646,14 @@
 
 .home-primary-action-light {
   color: #fff;
-  background: #171a17;
-  border-color: #171a17;
+  background: var(--green-dark);
+  border-color: var(--green-dark);
 }
 
 .home-primary-action-light:hover {
-  color: #171a17;
-  background: #fff;
-  border-color: #fff;
+  color: var(--nav);
+  background: var(--nav-accent);
+  border-color: var(--nav-accent);
 }
 
 @keyframes home-rise {

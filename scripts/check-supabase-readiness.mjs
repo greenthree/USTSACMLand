@@ -17,6 +17,7 @@ export const expectedEdgeFunctions = [
   'sync-avatar',
   'member-avatar',
   'contest-calendar',
+  'auth-captcha-config',
   'delete-account',
   'change-password',
   'webchat',
@@ -28,7 +29,11 @@ export const expectedEdgeFunctions = [
 ]
 
 export const serviceOnlyEdgeFunctions = ['webchat-image-cleanup', 'webchat-cache-probe']
-export const publicAnonymousEdgeFunctions = ['member-avatar', 'contest-calendar']
+export const publicAnonymousEdgeFunctions = [
+  'member-avatar',
+  'contest-calendar',
+  'auth-captcha-config',
+]
 
 const serviceOnlyEdgeFunctionSet = new Set(serviceOnlyEdgeFunctions)
 const publicAnonymousEdgeFunctionSet = new Set(publicAnonymousEdgeFunctions)
@@ -40,6 +45,7 @@ export const requiredFunctionSecrets = [
   'ALLOWED_ORIGIN',
   'CLIST_API_USERNAME',
   'CLIST_API_KEY',
+  'SUPABASE_MANAGEMENT_TOKEN',
   'FIRECRAWL_API_KEY',
   'LUOGU_COOKIE',
   'LUOGU_CSRF_TOKEN',

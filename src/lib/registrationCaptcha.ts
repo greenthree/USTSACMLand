@@ -4,6 +4,16 @@ export interface RegistrationCaptchaConfig {
   configurationError: string | null
 }
 
+let runtimeEnabled: boolean | null = null
+
+export function setRuntimeRegistrationCaptchaEnabled(enabled: boolean): void {
+  runtimeEnabled = enabled
+}
+
+export function clearRuntimeRegistrationCaptchaOverride(): void {
+  runtimeEnabled = null
+}
+
 export function parseRegistrationCaptchaConfig(
   enabledValue: string | undefined,
   siteKeyValue: string | undefined,
@@ -32,6 +42,21 @@ export function parseRegistrationCaptchaConfig(
 }
 
 export function getRegistrationCaptchaConfig(): RegistrationCaptchaConfig {
+  if (runtimeEnabled !== null) {
+    const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY?.trim() ?? ''
+    if (runtimeEnabled && !siteKey) {
+      return {
+        enabled: true,
+        siteKey: '',
+        configurationError: '账号安全验证尚未配置完成，请联系管理员。',
+      }
+    }
+    return {
+      enabled: runtimeEnabled,
+      siteKey: runtimeEnabled ? siteKey : '',
+      configurationError: null,
+    }
+  }
   return parseRegistrationCaptchaConfig(
     import.meta.env.VITE_REGISTRATION_TURNSTILE_ENABLED,
     import.meta.env.VITE_TURNSTILE_SITE_KEY,
