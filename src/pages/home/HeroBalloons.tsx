@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react'
+import { memo, useEffect, useId, useRef } from 'react'
 import {
   balloonStringPath,
   CEILING_MARGIN,
@@ -12,6 +12,7 @@ import {
 
 // memo：组件无 props，仅首渲染一次；把 rAF 的命令式 DOM 写入与父级重渲染彻底隔离
 export const HeroBalloons = memo(function HeroBalloons() {
+  const gradientId = useId()
   const svgRef = useRef<SVGSVGElement>(null)
   const bodyRefs = useRef<(SVGGElement | null)[]>([])
   const stringRefs = useRef<(SVGPathElement | null)[]>([])
@@ -231,11 +232,32 @@ export const HeroBalloons = memo(function HeroBalloons() {
 
   return (
     <svg ref={svgRef} viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} preserveAspectRatio="xMidYMax meet">
+      <defs>
+        <radialGradient id={`${gradientId}-sheen`}>
+          <stop offset="0" stopColor="#fff" stopOpacity="0.58" />
+          <stop offset="0.4" stopColor="#fff" stopOpacity="0.3" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id={`${gradientId}-string`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f6f3e9" stopOpacity="0.58" />
+          <stop offset="1" stopColor="#f6f3e9" stopOpacity="0.16" />
+        </linearGradient>
+      </defs>
       {heroBalloons.map((balloon, index) => {
-        const knotY = balloon.cy + balloon.ry + KNOT_DROP
-        const bottom = balloon.cy + balloon.ry
-        const highlightX = balloon.cx - balloon.rx * 0.34
-        const highlightY = balloon.cy - balloon.ry * 0.32
+        const { cx, cy, rx, ry } = balloon
+        const bottom = cy + ry
+        const knotY = bottom + KNOT_DROP
+        const highlightX = cx - rx * 0.38
+        const highlightY = cy - ry * 0.4
+        // 保持原有包围盒和绳结锚点，上半部饱满、下半部自然收拢。
+        const bodyPath = `M ${cx} ${bottom}
+          C ${cx - rx * 0.14} ${bottom}, ${cx - rx * 0.14} ${cy + ry * 0.84}, ${cx - rx * 0.36} ${cy + ry * 0.72}
+          C ${cx - rx * 0.76} ${cy + ry * 0.56}, ${cx - rx} ${cy + ry * 0.14}, ${cx - rx} ${cy - ry * 0.12}
+          C ${cx - rx} ${cy - ry * 0.64}, ${cx - rx * 0.58} ${cy - ry}, ${cx} ${cy - ry}
+          C ${cx + rx * 0.58} ${cy - ry}, ${cx + rx} ${cy - ry * 0.64}, ${cx + rx} ${cy - ry * 0.12}
+          C ${cx + rx} ${cy + ry * 0.14}, ${cx + rx * 0.76} ${cy + ry * 0.56}, ${cx + rx * 0.36} ${cy + ry * 0.72}
+          C ${cx + rx * 0.14} ${cy + ry * 0.84}, ${cx + rx * 0.14} ${bottom}, ${cx} ${bottom} Z`
+        const bodyGradientId = `${gradientId}-body-${balloon.letter}`
         return (
           <g key={balloon.letter}>
             <path
@@ -243,8 +265,9 @@ export const HeroBalloons = memo(function HeroBalloons() {
                 stringRefs.current[index] = el
               }}
               d={balloonStringPath(balloon)}
-              stroke="rgb(246 243 233 / 45%)"
-              strokeWidth="1.4"
+              stroke={`url(#${gradientId}-string)`}
+              strokeWidth="1.1"
+              strokeLinecap="round"
               fill="none"
             />
             <g
@@ -254,58 +277,64 @@ export const HeroBalloons = memo(function HeroBalloons() {
               }}
             >
               <defs>
-                <radialGradient
-                  id={`home-balloon-body-${balloon.letter}`}
-                  gradientUnits="userSpaceOnUse"
-                  cx={balloon.cx - balloon.rx * 0.3}
-                  cy={balloon.cy - balloon.ry * 0.34}
-                  r={balloon.rx * 2.2}
-                >
+                <radialGradient id={bodyGradientId} cx="30%" cy="24%" r="78%">
                   <stop offset="0" stopColor={balloon.light} />
-                  <stop offset="0.45" stopColor={balloon.fill} />
+                  <stop offset="0.48" stopColor={balloon.fill} />
                   <stop offset="1" stopColor={balloon.shade} />
                 </radialGradient>
               </defs>
-              <ellipse
-                cx={balloon.cx}
-                cy={balloon.cy}
-                rx={balloon.rx}
-                ry={balloon.ry}
-                fill={`url(#home-balloon-body-${balloon.letter})`}
-                stroke={balloon.shade}
-                strokeOpacity="0.5"
-                strokeWidth="1.2"
+              <path
+                className="home-balloon-body"
+                d={bodyPath}
+                fill={`url(#${bodyGradientId})`}
+                stroke={balloon.light}
+                strokeOpacity="0.42"
+                strokeWidth="0.7"
               />
               <path
-                d={`M${balloon.cx - 5} ${bottom - 3} L${balloon.cx} ${knotY} L${balloon.cx + 6} ${bottom - 3} Z`}
+                d={`M ${cx - 1.5} ${bottom - 1} Q ${cx} ${bottom + 1} ${cx + 1.5} ${bottom - 1}
+                  L ${cx + 4} ${knotY - 0.7} Q ${cx} ${knotY + 1} ${cx - 4} ${knotY - 0.7} Z`}
                 fill={balloon.knot}
+              />
+              <path
+                d={`M ${cx - 1.6} ${bottom + 1.5} L ${cx + 1.6} ${bottom + 1.5}`}
+                stroke={balloon.shade}
+                strokeWidth="1.2"
+                strokeLinecap="round"
               />
               <ellipse
                 cx={highlightX}
                 cy={highlightY}
-                rx={balloon.rx * 0.26}
-                ry={balloon.ry * 0.3}
+                rx={rx * 0.4}
+                ry={ry * 0.48}
                 transform={`rotate(-24 ${highlightX} ${highlightY})`}
-                fill="#fff"
-                opacity="0.34"
+                fill={`url(#${gradientId}-sheen)`}
+              />
+              <path
+                d={`M ${cx - rx * 0.72} ${cy - ry * 0.14}
+                  C ${cx - rx * 0.74} ${cy - ry * 0.38}, ${cx - rx * 0.6} ${cy - ry * 0.62}, ${cx - rx * 0.38} ${cy - ry * 0.7}`}
+                fill="none"
+                stroke="#fff"
+                strokeOpacity="0.32"
+                strokeWidth={rx * 0.07}
+                strokeLinecap="round"
               />
               <ellipse
-                cx={balloon.cx - balloon.rx * 0.02}
-                cy={balloon.cy - balloon.ry * 0.62}
-                rx={balloon.rx * 0.09}
-                ry={balloon.ry * 0.11}
-                transform={`rotate(-16 ${balloon.cx - balloon.rx * 0.02} ${
-                  balloon.cy - balloon.ry * 0.62
-                })`}
-                fill="#fff"
-                opacity="0.5"
+                cx={cx + rx * 0.36}
+                cy={cy + ry * 0.28}
+                rx={rx * 0.16}
+                ry={ry * 0.32}
+                transform={`rotate(28 ${cx + rx * 0.36} ${cy + ry * 0.28})`}
+                fill={`url(#${gradientId}-sheen)`}
+                opacity="0.2"
               />
               <text
-                x={balloon.cx}
-                y={balloon.cy + 7}
+                x={cx}
+                y={cy + 1}
                 textAnchor="middle"
+                dominantBaseline="middle"
                 fontFamily="Consolas,monospace"
-                fontSize="19"
+                fontSize={rx * 0.56}
                 fontWeight="700"
                 fill={balloon.ink}
               >

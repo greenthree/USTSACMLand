@@ -1,30 +1,28 @@
-/* 学习页视觉 v3：清爽绿白工作台。网格纸底纹 + 白卡片 + 青柠点睛，
-   无衬线粗标题替代旧版衬线编辑风。DOM、类名、交互与断点骨架不变。 */
+/* 延续本站绿白配色与浅色学习页，优化内容层级、细线分区与交互状态。 */
 .learning-page {
-  --lp-bg: #f5f7f6;
-  --lp-grid-line: rgba(22, 121, 75, 0.055);
+  --lp-bg: #f7f9f7;
   --lp-mist: #f2f8f4;
   --lp-surface: #ffffff;
-  --lp-ink: #17211b;
+  --lp-ink: var(--ink);
   --lp-muted: #52615a;
   --lp-faint: #5d6a63;
   --lp-line: #e1e8e3;
   --lp-line-strong: #ccd6cf;
-  --lp-green: #16794b;
-  --lp-green-deep: #0f5b37;
+  --lp-green: var(--green);
+  --lp-green-deep: var(--green-dark);
   --lp-green-soft: #e9f4ec;
-  --lp-lime: #b7dc3d;
+  --lp-lime: var(--nav-accent);
   --lp-gold: #a06f10;
   --lp-gold-soft: #fbf3dc;
   --lp-red: #bd3d32;
   --lp-blue: #2f68a2;
   --lp-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --lp-body-size: 13.5px;
+  --lp-serif: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'SimSun', serif;
+  --lp-body-size: 14px;
   --lp-aux-size: 11px;
   --lp-radius-panel: 8px;
   --lp-radius-control: 6px;
-  --lp-shadow-card: 0 4px 20px -2px rgba(23, 33, 27, 0.06), 0 2px 6px -1px rgba(23, 33, 27, 0.03);
-  --lp-shadow-lift: 0 8px 30px -4px rgba(23, 33, 27, 0.12), 0 4px 10px -2px rgba(23, 33, 27, 0.06);
+  --lp-shadow-card: 0 2px 6px rgb(23 33 27 / 3%);
   min-height: 100vh;
   overflow: clip;
   color: var(--lp-ink);
@@ -49,26 +47,20 @@
   outline-offset: 2px;
 }
 
-/* ---------------- Hero：网格纸工作台封面 ---------------- */
+/* ---------------- Hero：学习指南封面 ---------------- */
 .learning-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.9fr);
-  gap: clamp(40px, 6vw, 84px);
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 0.85fr);
+  gap: 44px clamp(40px, 7vw, 112px);
   align-items: center;
-  min-height: 540px;
-  padding: 84px max(24px, calc((100% - 1120px) / 2)) 78px;
-  background-color: #f4f9f5;
+  padding: 30px max(24px, calc((100% - 1280px) / 2)) 60px;
+  color: var(--lp-ink);
+  background-color: #f2f7f3;
   background-image:
-    linear-gradient(var(--lp-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--lp-grid-line) 1px, transparent 1px),
-    radial-gradient(760px 360px at 86% -16%, rgba(183, 220, 61, 0.16), transparent 62%),
-    radial-gradient(640px 400px at -12% 116%, rgba(22, 121, 75, 0.1), transparent 58%);
-  background-size:
-    32px 32px,
-    32px 32px,
-    auto,
-    auto;
-  border-bottom: 1px solid var(--lp-line);
+    linear-gradient(rgb(22 121 75 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(22 121 75 / 4%) 1px, transparent 1px);
+  background-size: 32px 32px;
+  border-bottom: 1px solid var(--lp-line-strong);
 }
 
 .learning-hero-copy {
@@ -76,17 +68,20 @@
 }
 
 .learning-kicker-row {
+  grid-column: 1 / -1;
   display: flex;
   gap: 18px;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--lp-line-strong);
 }
 
 .learning-kicker {
   display: inline-flex;
   gap: 10px;
   align-items: center;
+  margin: 0;
   color: var(--lp-green-deep);
   font-family: var(--lp-mono);
   font-size: var(--lp-aux-size);
@@ -112,7 +107,8 @@
 .learning-hero h1 {
   max-width: 700px;
   margin: 0;
-  font-size: clamp(38px, 5vw, 58px);
+  font-family: var(--lp-serif);
+  font-size: clamp(40px, 4.5vw, 64px);
   font-weight: 800;
   line-height: 1.14;
 }
@@ -124,25 +120,49 @@
   margin-top: 16px;
   padding-right: 4px;
   color: var(--lp-green-deep);
-  font-size: clamp(16px, 2vw, 21px);
+  font-family: inherit;
+  font-size: clamp(18px, 2vw, 24px);
   font-weight: 650;
   line-height: 1.5;
-  background: linear-gradient(transparent 62%, rgba(183, 220, 61, 0.5) 62%);
 }
 
 .learning-hero-copy > p:last-of-type {
-  max-width: 600px;
-  margin: 28px 0 0;
+  max-width: 550px;
+  margin: 24px 0 0;
   color: var(--lp-muted);
   font-size: 14.5px;
   line-height: 1.95;
 }
 
+.learning-hero-action {
+  display: inline-flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 44px;
+  padding: 11px 18px;
+  margin-top: 26px;
+  color: #fff;
+  font-weight: 700;
+  background: var(--lp-green-deep);
+  border: 1px solid var(--lp-green-deep);
+  border-radius: var(--lp-radius-control);
+  transition: background 160ms ease;
+}
+
+.learning-hero-action:hover {
+  background: #0a4a2c;
+}
+
+.learning-hero-action:focus-visible {
+  outline-color: var(--lp-green-deep);
+}
+
 .learning-time-note {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding-top: 20px;
+  padding-top: 18px;
   margin-top: 26px;
   border-top: 1px solid var(--lp-line-strong);
 }
@@ -165,12 +185,12 @@
 /* ---------------- 起点选择卡 ---------------- */
 .learning-start-panel {
   position: relative;
-  padding: 25px;
+  padding: 26px;
   overflow: hidden;
+  color: var(--lp-ink);
   background: var(--lp-surface);
-  border: 1px solid var(--lp-line);
+  border: 1px solid var(--lp-line-strong);
   border-radius: var(--lp-radius-panel);
-  box-shadow: 0 18px 44px rgba(23, 33, 27, 0.08);
 }
 
 .learning-start-panel::before {
@@ -178,9 +198,9 @@
   top: 0;
   right: 0;
   left: 0;
-  height: 4px;
+  height: 3px;
   content: '';
-  background: linear-gradient(90deg, var(--lp-green-deep), var(--lp-lime));
+  background: var(--lp-lime);
 }
 
 .learning-start-heading {
@@ -191,8 +211,8 @@
 
 .learning-start-heading > svg {
   flex: 0 0 auto;
-  margin-top: 2px;
-  padding: 7px;
+  box-sizing: content-box;
+  padding: 10px;
   color: var(--lp-green-deep);
   background: var(--lp-green-soft);
   border-radius: var(--lp-radius-control);
@@ -208,7 +228,7 @@
 }
 
 .learning-start-heading strong {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 750;
 }
 
@@ -220,11 +240,11 @@
 
 .learning-start-options button {
   display: grid;
-  grid-template-columns: 26px 1fr;
+  grid-template-columns: 26px 1fr 16px;
   gap: 10px;
   align-items: center;
-  min-height: 44px;
-  padding: 9px 12px;
+  min-height: 48px;
+  padding: 10px 12px;
   color: #3d4a42;
   text-align: left;
   background: #fbfdfb;
@@ -240,15 +260,13 @@
 .learning-start-options button:hover {
   background: var(--lp-mist);
   border-color: #b9d4c3;
-  transform: translateX(2px);
 }
 
 .learning-start-options button.is-selected {
-  color: var(--lp-green-deep);
+  color: #fff;
   font-weight: 700;
-  background: var(--lp-green-soft);
-  border-color: var(--lp-green);
-  box-shadow: inset 3px 0 0 var(--lp-green-deep);
+  background: var(--lp-green-deep);
+  border-color: var(--lp-green-deep);
 }
 
 .learning-start-options button span {
@@ -259,12 +277,21 @@
 }
 
 .learning-start-options button.is-selected span {
-  color: var(--lp-green-deep);
+  color: #d4ecb2;
+}
+
+.learning-start-options button > svg {
+  visibility: hidden;
+}
+
+.learning-start-options button.is-selected > svg {
+  visibility: visible;
+  color: var(--lp-lime);
 }
 
 .learning-start-result {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px 16px;
   align-items: end;
   padding-top: 18px;
@@ -280,6 +307,11 @@
 .learning-start-result > div {
   display: grid;
   gap: 5px;
+}
+
+.learning-start-result > a {
+  justify-self: start;
+  margin-top: 6px;
 }
 
 .learning-start-result strong {
@@ -326,9 +358,9 @@
 /* ---------------- 章节骨架 ---------------- */
 .learning-guide-shell {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  gap: 44px;
-  width: min(1120px, calc(100% - 48px));
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 40px;
+  width: min(1280px, calc(100% - 48px));
   padding-bottom: 96px;
   margin: 0 auto;
 }
@@ -337,7 +369,7 @@
   position: sticky;
   top: 88px;
   align-self: start;
-  padding: 40px 0 26px;
+  padding: 54px 0 26px;
 }
 
 .learning-jump-nav > p {
@@ -365,12 +397,12 @@
   grid-template-columns: 30px 1fr;
   gap: 8px;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 10px;
   color: var(--lp-muted);
   font-size: 12.5px;
   font-weight: 600;
-  border-radius: var(--lp-radius-control);
+  border-left: 1px solid var(--lp-line-strong);
   transition:
     color 150ms ease,
     background 150ms ease,
@@ -386,14 +418,14 @@
 .learning-jump-nav a:hover {
   color: var(--lp-green-deep);
   background: var(--lp-surface);
-  box-shadow: var(--lp-shadow-card);
 }
 
 .learning-jump-nav a.is-current {
   color: var(--lp-green-deep);
   font-weight: 700;
   background: var(--lp-green-soft);
-  box-shadow: inset 3px 0 0 var(--lp-green);
+  border-left-color: var(--lp-green);
+  box-shadow: inset 2px 0 0 var(--lp-green);
 }
 
 .learning-jump-nav a.is-current span {
@@ -413,7 +445,7 @@
 }
 
 .learning-section {
-  padding: 84px 0;
+  padding: 54px 0;
   scroll-margin-top: 84px;
   border-bottom: 1px solid var(--lp-line);
 }
@@ -425,16 +457,16 @@
 
 .learning-section-heading {
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  gap: 28px;
-  margin-bottom: 40px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 28px;
 }
 
 .learning-section-heading > p {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding-top: 10px;
+  margin: 0;
   color: var(--lp-green-deep);
   font-family: var(--lp-mono);
   font-size: var(--lp-aux-size);
@@ -447,13 +479,15 @@
   flex: 1;
   height: 1px;
   content: '';
-  background: linear-gradient(90deg, var(--lp-line-strong), transparent);
+  max-width: 64px;
+  background: var(--lp-green);
 }
 
 .learning-section-heading h2,
 .learning-closing h2,
 .learning-community-copy h2 {
   margin: 0;
+  font-family: var(--lp-serif);
   font-size: clamp(24px, 3vw, 34px);
   font-weight: 800;
   line-height: 1.28;
@@ -490,7 +524,7 @@
 
 .learning-plan-progress {
   display: grid;
-  grid-template-columns: auto minmax(120px, 1fr) auto;
+  grid-template-columns: auto minmax(60px, 1fr) auto;
   gap: 20px;
   align-items: center;
   padding: 18px 22px;
@@ -512,11 +546,17 @@
 .learning-plan-progress strong {
   color: var(--lp-green-deep);
   font-family: var(--lp-mono);
-  font-size: 18px;
+  font-size: 23px;
+}
+
+.learning-progress-count {
+  padding-left: 6px;
+  font-family: var(--lp-mono);
+  white-space: nowrap;
 }
 
 .learning-progress-track {
-  height: 8px;
+  height: 5px;
   overflow: hidden;
   background: #e0eae2;
   border-radius: 999px;
@@ -525,7 +565,7 @@
 .learning-progress-track > span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--lp-green-deep), var(--lp-lime));
+  background: var(--lp-green);
   border-radius: inherit;
   transition: width 300ms ease;
 }
@@ -581,9 +621,9 @@
 }
 
 .learning-week-tabs button.is-active {
-  color: var(--lp-ink);
-  background: var(--lp-surface);
-  box-shadow: inset 0 -3px 0 var(--lp-green);
+  color: #fff;
+  background: var(--lp-green-deep);
+  box-shadow: inset 0 -3px 0 var(--lp-lime);
 }
 
 .learning-week-tabs button > span:first-child {
@@ -593,7 +633,7 @@
 }
 
 .learning-week-tabs button.is-active > span:first-child {
-  color: var(--lp-green-deep);
+  color: #d4ecb2;
 }
 
 .learning-week-tabs strong {
@@ -633,9 +673,9 @@
 
 .learning-week-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(280px, 1.05fr);
-  gap: 40px;
-  padding: 30px 32px;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 32px;
+  padding: 28px;
 }
 
 .learning-week-panel[hidden],
@@ -683,6 +723,7 @@
 .learning-week-checklist {
   display: grid;
   align-content: start;
+  gap: 6px;
 }
 
 .learning-week-checklist > span {
@@ -698,6 +739,9 @@
   min-height: 50px;
   padding: 10px 12px;
   color: #3d4a42;
+  font-size: var(--lp-body-size);
+  background: #fafcf9;
+  border: 1px solid var(--lp-line);
   border-radius: var(--lp-radius-control);
   cursor: pointer;
   transition:
@@ -789,8 +833,8 @@
   --lp-brand-text: var(--lp-green-deep);
   position: relative;
   display: grid;
-  grid-template-columns: 56px minmax(150px, 0.52fr) minmax(0, 1fr) auto;
-  gap: 22px;
+  grid-template-columns: 44px minmax(160px, 0.6fr) minmax(0, 1fr) auto;
+  gap: 20px;
   align-items: center;
   min-height: 118px;
   padding: 22px 24px;
@@ -842,6 +886,7 @@
 .learning-platform > div {
   display: grid;
   gap: 5px;
+  justify-items: start;
 }
 
 .learning-platform small {
@@ -886,12 +931,10 @@
 }
 
 .learning-recommended-badge {
-  position: absolute;
-  top: 13px;
-  right: 14px;
+  display: inline-flex;
   padding: 4px 9px;
   color: #17211b;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   background: var(--lp-lime);
@@ -900,14 +943,13 @@
 
 .learning-platform-order {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding: 15px 18px;
+  padding: 16px 0 0;
   margin-top: 20px;
   color: var(--lp-muted);
-  background: var(--lp-surface);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius-panel);
+  border-top: 1px dashed var(--lp-line-strong);
 }
 
 .learning-platform-order strong {
@@ -918,11 +960,11 @@
 
 .learning-platform-order span {
   padding: 5px 12px;
-  color: #fff;
+  color: var(--lp-green-deep);
   font-size: 12px;
   font-weight: 700;
-  background: var(--lp-green-deep);
-  border-radius: 999px;
+  background: var(--lp-green-soft);
+  border-radius: var(--lp-radius-control);
 }
 
 .learning-platform-order i {
@@ -1039,9 +1081,9 @@
 
 .learning-stage-content {
   display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  gap: 26px;
-  padding: 6px 26px 26px 104px;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 24px;
+  padding: 24px;
   animation: learning-unfold 180ms ease-out;
 }
 
@@ -1083,10 +1125,8 @@
 }
 
 .learning-stage-notes > div {
-  padding: 16px 18px;
-  background: var(--lp-mist);
-  border: 1px solid #e3ede6;
-  border-radius: var(--lp-radius-panel);
+  padding: 0 0 0 18px;
+  border-left: 1px solid var(--lp-line);
 }
 
 .learning-stage-notes svg {
@@ -1200,7 +1240,7 @@
 
 .learning-knowledge-explorer {
   display: grid;
-  grid-template-columns: minmax(200px, 0.8fr) minmax(220px, 0.9fr) minmax(320px, 1.3fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.95fr) minmax(0, 1.2fr);
   min-width: 0;
 }
 
@@ -1278,9 +1318,9 @@
 
 .learning-knowledge-domain[aria-pressed='true'] {
   color: var(--lp-green-deep);
-  background: var(--lp-surface);
+  background: var(--lp-green-soft);
   border-color: var(--lp-green);
-  box-shadow: 0 0 0 3px rgba(22, 121, 75, 0.12);
+  box-shadow: inset 2px 0 0 var(--lp-green);
 }
 
 .learning-knowledge-domain-index {
@@ -1316,11 +1356,9 @@
 
 .learning-knowledge-domain-copy strong,
 .learning-knowledge-branch strong {
-  overflow: hidden;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
 }
 
 .learning-knowledge-domain-copy small,
@@ -1369,10 +1407,10 @@
 .learning-knowledge-branch {
   position: relative;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto 15px;
-  gap: 8px;
+  grid-template-columns: 20px minmax(0, 1fr) 15px;
+  gap: 2px 8px;
   align-items: center;
-  min-height: 50px;
+  min-height: 62px;
   padding: 8px 9px 8px 10px;
   background: var(--lp-surface);
   border: 1px solid var(--lp-line);
@@ -1390,9 +1428,19 @@
 
 .learning-knowledge-branch[aria-pressed='true'] {
   color: var(--lp-green-deep);
-  background: var(--lp-surface);
+  background: var(--lp-green-soft);
   border-color: var(--lp-green);
-  box-shadow: 0 0 0 3px rgba(22, 121, 75, 0.12);
+  box-shadow: inset 2px 0 0 var(--lp-green);
+}
+
+.learning-knowledge-branch small {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.learning-knowledge-branch > svg {
+  grid-column: 3;
+  grid-row: 1 / 3;
 }
 
 .learning-knowledge-branch > span:first-child {
@@ -1571,7 +1619,9 @@
 .learning-rhythm-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
+  gap: 0;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-line);
 }
 
 .learning-rhythm-grid article {
@@ -1579,14 +1629,12 @@
   display: flex;
   flex-direction: column;
   min-height: 246px;
-  padding: 22px 20px 18px;
-  background: var(--lp-surface);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius-panel);
-  box-shadow: var(--lp-shadow-card);
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease;
+  padding: 24px 22px;
+  border-top: 2px solid var(--lp-rhythm);
+}
+
+.learning-rhythm-grid article + article {
+  border-left: 1px solid var(--lp-line);
 }
 
 .learning-rhythm-grid article:nth-child(2) {
@@ -1601,12 +1649,8 @@
   --lp-rhythm: var(--lp-red);
 }
 
-.learning-rhythm-grid article:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--lp-shadow-lift);
-}
-
 .learning-rhythm-grid svg {
+  box-sizing: content-box;
   padding: 9px;
   color: var(--lp-rhythm);
   background: color-mix(in srgb, var(--lp-rhythm) 12%, white);
@@ -1624,7 +1668,7 @@
 }
 
 .learning-rhythm-grid h3 {
-  margin: 8px;
+  margin: 8px 0 12px;
   font-size: 17px;
   font-weight: 750;
 }
@@ -1731,9 +1775,9 @@
   padding: 30px 32px;
   margin-top: 26px;
   color: #fff;
-  background: linear-gradient(135deg, #0f5b37, #0b3d24);
+  background: #10291d;
   border-radius: var(--lp-radius-panel);
-  box-shadow: 0 16px 36px rgba(15, 91, 55, 0.22);
+  border-left: 3px solid var(--lp-lime);
 }
 
 .learning-closing > svg {
@@ -1782,14 +1826,10 @@
 /* ---------------- 07 竞赛圈子 ---------------- */
 .learning-community {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: 48px minmax(0, 1fr) minmax(260px, 1fr);
   gap: 30px;
   align-items: start;
-  padding: 30px;
-  background: var(--lp-surface);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius-panel);
-  box-shadow: var(--lp-shadow-card);
+  padding: 48px 0;
 }
 
 .learning-community-icon {
@@ -1881,31 +1921,18 @@
 }
 
 /* ---------------- 响应式 ---------------- */
-@media (max-width: 1020px) {
+@media (max-width: 1120px) {
   .learning-hero {
     grid-template-columns: minmax(0, 1.25fr) minmax(290px, 0.85fr);
-    gap: 36px;
+    gap: 30px 36px;
     min-height: auto;
-    padding-top: 72px;
-    padding-bottom: 64px;
-  }
-
-  .learning-kicker-row {
-    display: block;
-  }
-
-  .learning-kicker-meta {
-    display: block;
-    margin-top: 8px;
+    padding-top: 26px;
+    padding-bottom: 44px;
   }
 
   .learning-guide-shell {
     grid-template-columns: 160px minmax(0, 1fr);
     gap: 28px;
-  }
-
-  .learning-section-heading {
-    grid-template-columns: 136px minmax(0, 1fr);
   }
 
   .learning-platform {
@@ -1934,12 +1961,37 @@
   .learning-rhythm-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .learning-rhythm-grid article:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .learning-community {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .learning-community-action {
+    grid-column: 2;
+  }
 }
 
 @media (max-width: 950px) {
+  .learning-week-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-plan-progress {
+    grid-template-columns: 1fr auto;
+  }
+
+  .learning-progress-track {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
   .learning-stage-content {
     grid-template-columns: 1fr;
-    padding-left: 104px;
+    padding: 24px;
   }
 }
 
@@ -1947,7 +1999,7 @@
   .learning-hero {
     grid-template-columns: 1fr;
     gap: 30px;
-    padding: 56px 24px 52px;
+    padding: 24px 24px 36px;
   }
 
   .learning-kicker-meta {
@@ -1955,11 +2007,11 @@
   }
 
   .learning-hero h1 {
-    font-size: clamp(32px, 10.5vw, 44px);
+    font-size: clamp(36px, 8vw, 52px);
   }
 
   .learning-hero h1 span {
-    font-size: clamp(15px, 4.6vw, 19px);
+    font-size: clamp(17px, 4.6vw, 21px);
   }
 
   .learning-time-note {
@@ -2012,7 +2064,8 @@
     font-size: 12.5px;
     white-space: nowrap;
     background: transparent;
-    border-radius: 999px;
+    border-left: 0;
+    border-radius: var(--lp-radius-control);
     box-shadow: none;
   }
 
@@ -2088,11 +2141,6 @@
     grid-column: 2;
   }
 
-  .learning-recommended-badge {
-    top: 16px;
-    right: 16px;
-  }
-
   .learning-platform-order {
     flex-wrap: wrap;
   }
@@ -2109,7 +2157,7 @@
 
   .learning-stage-content {
     grid-template-columns: 1fr;
-    padding: 4px 18px 22px 80px;
+    padding: 20px 18px;
   }
 
   .learning-stage-notes {
@@ -2118,6 +2166,8 @@
 
   .learning-knowledge-toolbar {
     align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .learning-knowledge-explorer {
@@ -2194,11 +2244,23 @@
 
 @media (max-width: 520px) {
   .learning-hero {
-    padding: 46px 20px 44px;
+    padding: 22px 20px 32px;
   }
 
   .learning-hero h1 {
-    font-size: clamp(28px, 10vw, 38px);
+    font-size: clamp(32px, 10.5vw, 42px);
+  }
+
+  .learning-kicker-row {
+    padding-bottom: 14px;
+  }
+
+  .learning-time-note {
+    gap: 8px;
+  }
+
+  .learning-time-note span {
+    font-size: 12px;
   }
 
   .learning-guide-shell {
@@ -2215,6 +2277,17 @@
 
   .learning-plan-progress {
     padding: 16px;
+    gap: 12px;
+  }
+
+  .learning-plan-progress > div:first-child {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .learning-progress-count {
+    flex-basis: 100%;
+    padding-left: 0;
   }
 
   .learning-plan-progress button {
@@ -2252,7 +2325,7 @@
   }
 
   .learning-stage-content {
-    padding: 2px 13px 20px 62px;
+    padding: 18px 16px;
   }
 
   .learning-rhythm-grid {
@@ -2261,6 +2334,7 @@
 
   .learning-rhythm-grid article {
     min-height: auto;
+    border-left: 0;
   }
 
   .learning-knowledge-toolbar {
