@@ -82,7 +82,7 @@ describe('HomePage', () => {
     ).toHaveLength(5)
     for (const group of balloonGroups) {
       expect(group.querySelectorAll('path').length).toBeGreaterThanOrEqual(1)
-      expect(group.querySelector('ellipse[fill^="url(#"]')).not.toBeNull()
+      expect(group.querySelector('path.home-balloon-body[fill^="url(#"]')).not.toBeNull()
       expect(group.querySelectorAll('ellipse').length).toBeGreaterThanOrEqual(2)
       expect(group.querySelector('text')).not.toBeNull()
     }

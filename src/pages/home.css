@@ -362,6 +362,8 @@
 
 .home-hero-art-scan {
   position: absolute;
+  z-index: -1;
+  pointer-events: none;
   right: 0;
   left: 0;
   height: 1px;
@@ -1654,6 +1656,155 @@
   color: var(--nav);
   background: var(--nav-accent);
   border-color: var(--nav-accent);
+}
+
+/* Hero 的响应式规则跟随页面样式加载，避免被后加载的桌面规则覆盖。 */
+@media (max-width: 1050px) {
+  .home-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.58fr);
+    gap: 40px;
+  }
+
+  .home-hero-statement {
+    font-size: clamp(52px, 7vw, 74px);
+  }
+}
+
+@media (max-width: 900px) {
+  .home-hero {
+    min-height: 0;
+    padding-top: 76px;
+    padding-bottom: 92px;
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .home-hero-grid-lines {
+    right: 32px;
+    left: 32px;
+  }
+
+  .home-hero-grid {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 48px;
+  }
+
+  .home-hero-copy {
+    max-width: 760px;
+  }
+
+  .home-hero-instrument {
+    width: min(100%, 680px);
+    justify-self: start;
+  }
+
+  .home-hero-index {
+    right: 32px;
+    left: 32px;
+  }
+}
+
+@media (max-width: 680px) {
+  .home-hero {
+    min-height: 690px;
+    justify-content: flex-start;
+    padding: 58px 20px 66px;
+  }
+
+  .home-hero-grid-lines {
+    right: 20px;
+    left: 20px;
+  }
+
+  .home-hero-corner {
+    right: 20px;
+    left: 20px;
+  }
+
+  .home-hero-corner--top {
+    top: 20px;
+  }
+
+  .home-hero-corner--top span:last-child,
+  .home-hero-corner--bottom span:first-child {
+    display: none;
+  }
+
+  .home-hero-corner--bottom {
+    bottom: 18px;
+    justify-content: flex-end;
+  }
+
+  .home-hero-logo {
+    top: 29%;
+    right: -110px;
+    width: 340px;
+    opacity: 0.045;
+  }
+
+  .home-hero-kicker {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .home-hero-kicker-status {
+    display: none;
+  }
+
+  .home-hero h1 {
+    margin-top: 14px;
+    font-size: 13px;
+  }
+
+  .home-hero-statement {
+    margin: 15px 0 18px;
+    font-size: clamp(42px, 13.5vw, 54px);
+    line-height: 1.02;
+  }
+
+  .home-hero-lead {
+    padding-left: 13px;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .home-hero-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 22px;
+  }
+
+  .home-primary-action,
+  .home-secondary-action {
+    width: 100%;
+  }
+
+  .home-hero-grid {
+    gap: 22px;
+  }
+
+  /* .home-page 前缀提高优先级：文件尾部桥接层的 18px 阴影同为 (0,1,0)，裸类名会被其反杀 */
+  .home-page .home-hero-instrument {
+    width: 100%;
+    box-shadow: 9px 9px 0 rgb(22 121 75 / 18%);
+  }
+
+  .home-hero-instrument-head {
+    min-height: 36px;
+  }
+
+  .home-hero-art {
+    aspect-ratio: 1.65;
+    /* 为五只气球保留足够高度，并让扫描线行程保持在画框内。 */
+    --home-scan-travel: calc(25vw - 10px);
+  }
+
+  .home-hero-instrument-grid,
+  .home-hero-instrument-caption,
+  .home-hero-index {
+    display: none;
+  }
 }
 
 @keyframes home-rise {

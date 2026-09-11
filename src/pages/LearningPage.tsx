@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right'
+import ArrowDown from 'lucide-react/dist/esm/icons/arrow-down'
 import BookMarked from 'lucide-react/dist/esm/icons/book-marked'
 import Check from 'lucide-react/dist/esm/icons/check'
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down'
@@ -11,7 +12,6 @@ import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb'
 import Repeat2 from 'lucide-react/dist/esm/icons/repeat-2'
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
 import Route from 'lucide-react/dist/esm/icons/route'
-import Sparkles from 'lucide-react/dist/esm/icons/sparkles'
 import TimerReset from 'lucide-react/dist/esm/icons/timer-reset'
 import UsersRound from 'lucide-react/dist/esm/icons/users-round'
 import KnowledgeMap from '../components/learning/KnowledgeMap'
@@ -143,15 +143,14 @@ export function LearningPage() {
   return (
     <div className="learning-page">
       <section className="learning-hero" aria-labelledby="learning-title">
+        <div className="learning-kicker-row">
+          <p className="learning-kicker">USTS ACM LAND / LEARNING</p>
+          <span className="learning-kicker-meta" aria-hidden="true">
+            {String(learningStages.length).padStart(2, '0')} STAGES ·{' '}
+            {String(totalTasks).padStart(2, '0')} TASKS
+          </span>
+        </div>
         <div className="learning-hero-copy">
-          <div className="learning-kicker-row">
-            <p className="learning-kicker">USTS ACM INTERACTIVE PATH · START</p>
-            <span className="learning-kicker-meta" aria-hidden="true">
-              {String(learningStages.length).padStart(2, '0')} STAGES ·{' '}
-              {String(totalTasks).padStart(2, '0')} TASKS ·{' '}
-              {String(learningChapters.length).padStart(2, '0')} SECTIONS
-            </span>
-          </div>
           <h1 id="learning-title">
             新手学习引导
             <span>从第一行代码，到第一次团队赛</span>
@@ -159,6 +158,14 @@ export function LearningPage() {
           <p>
             算法竞赛的公开资源很多，难点往往不是“没有资料”，而是不知道现在该学什么、练到什么程度再继续。这里给出一条可调整的主线，帮你减少路线选择，把时间留给思考和实践。
           </p>
+          <a
+            className="learning-hero-action"
+            href="#learning-first-month"
+            onClick={(event) => scrollToSection(event, 'learning-first-month')}
+          >
+            开始四周计划
+            <ArrowDown size={17} aria-hidden="true" />
+          </a>
           <div className="learning-time-note">
             <Clock3 size={18} aria-hidden="true" />
             <strong>每天 60–90 分钟即可开始</strong>
@@ -167,7 +174,7 @@ export function LearningPage() {
         </div>
         <div className="learning-start-panel" aria-label="选择学习起点">
           <div className="learning-start-heading">
-            <Sparkles size={18} aria-hidden="true" />
+            <Route size={20} aria-hidden="true" />
             <div>
               <small>先告诉我们你现在在哪</small>
               <strong>选择你的学习起点</strong>
@@ -184,6 +191,7 @@ export function LearningPage() {
               >
                 <span aria-hidden="true">{platform.order}</span>
                 {platform.cue}
+                <Check size={16} aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -243,6 +251,9 @@ export function LearningPage() {
                 <div>
                   <span>四周总体进度</span>
                   <strong>{progress}%</strong>
+                  <span className="learning-progress-count">
+                    {completedTasks.length} / {totalTasks} 项
+                  </span>
                 </div>
                 <div
                   className="learning-progress-track"
@@ -399,10 +410,10 @@ export function LearningPage() {
                   <div>
                     <small>{platform.cue}</small>
                     <h3>{platform.name}</h3>
+                    {startLevel === platform.id ? (
+                      <strong className="learning-recommended-badge">当前推荐</strong>
+                    ) : null}
                   </div>
-                  {startLevel === platform.id ? (
-                    <strong className="learning-recommended-badge">当前推荐</strong>
-                  ) : null}
                   <p>{platform.goal}</p>
                   <a
                     href={platform.href}
