@@ -83,9 +83,9 @@ export function SchoolRollboard() {
       <header className="school-rollboard-intro">
         <div>
           <p>ROLLING / SIMULATION 01</p>
-          <h3>从最后一支待揭晓队伍开始</h3>
+          <h3>从最后一位待揭晓选手开始</h3>
           <span>
-            队伍按名次由下向上，题目按 A–L
+            选手按名次由下向上，题目按 A–L
             从左到右揭晓；题格显示提交次数/提交时间（分钟），绿色记录首次
             AC，红色与蓝色记录最后一次提交。
           </span>
@@ -100,11 +100,11 @@ export function SchoolRollboard() {
       <div
         className="school-rollboard-frame"
         role="img"
-        aria-label="模拟真实滚榜：从最低名次的待揭晓队伍开始，题格显示提交次数和提交时间，并在揭晓通过后重新排名"
+        aria-label="模拟真实滚榜：从最低名次的待揭晓选手开始，题格显示提交次数和提交时间，并在揭晓通过后重新排名"
       >
         <div className="school-rollboard-columns" aria-hidden="true">
           <span>名次</span>
-          <span>队伍</span>
+          <span>选手</span>
           {schoolRollboardTeams[0].problems.map((problem) => (
             <span key={problem.label} className="school-rollboard-problem-head">
               {problem.label}
@@ -154,7 +154,7 @@ export function SchoolRollboard() {
         </ol>
         <footer aria-hidden="true">
           <span className="school-rollboard-live-dot" />
-          从最低未揭晓队伍开始，逐题确认封榜提交
+          从最低未揭晓选手开始，逐题确认封榜提交
           <span>
             {risingReveal && risingTeam
               ? `RISING / ${risingTeam.team} / ${risingReveal.problemLabel}`

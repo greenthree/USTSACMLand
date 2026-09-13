@@ -551,14 +551,14 @@ export function HomePage() {
         <div className="home-section-heading">
           <p className="home-section-index">06 / 加入我们</p>
           <span className="home-section-meta" aria-hidden="true">
-            SELECT / 3 ROUNDS
+            SELECT / 2 ROUNDS
           </span>
           <h2 id="join-title">在比赛中找到下一段训练</h2>
         </div>
         <div className="home-join-body">
           <div className="home-join-intro">
             <p className="home-join-lead">
-              集训队每年通过三场面向不同人群的比赛选拔成员。无需提前加入，先来参加比赛，在真实题目和有限时间里展示自己的思路与潜力。
+              集训队每年通过校赛与练习赛选拔成员。无需提前加入，先来参加比赛，在真实题目和有限时间里展示自己的思路与潜力。
             </p>
             <aside className="home-join-group" aria-label="USTS算法小白交流群">
               <MessagesSquare size={22} aria-hidden="true" />
@@ -577,17 +577,17 @@ export function HomePage() {
               <span>
                 <Crosshair size={13} /> FIELD NOTE / 006 — SELECTION
               </span>
-              <span>3 ROUNDS / YEAR</span>
+              <span>2 ROUNDS / YEAR</span>
             </div>
             <div className="home-join-events">
               <article>
-                <span className="home-join-month">12 月</span>
+                <span className="home-join-month">11 月</span>
                 <div>
-                  <h3>新生赛</h3>
-                  <p className="home-join-target">面向新生</p>
-                  <p>选拔新生进入集训队，开始更高强度、更系统的算法训练。</p>
-                  <Link className="home-join-detail-link" to="/contests">
-                    了解新生赛
+                  <h3>校赛</h3>
+                  <p className="home-join-target">面向所有人 · 单人赛</p>
+                  <p>独立完成算法题目，选拔集训队成员与后续 JSCPC 参赛选手。</p>
+                  <Link className="home-join-detail-link" to="/contests/campus">
+                    了解校赛
                     <ArrowRight size={15} aria-hidden="true" />
                   </Link>
                 </div>
@@ -597,15 +597,7 @@ export function HomePage() {
                 <div>
                   <h3>练习赛</h3>
                   <p className="home-join-target">面向所有人</p>
-                  <p>选拔代表学校参加天梯赛的选手，在团队协作中完成新的挑战。</p>
-                </div>
-              </article>
-              <article>
-                <span className="home-join-month">04 月</span>
-                <div>
-                  <h3>校赛</h3>
-                  <p className="home-join-target">面向所有人</p>
-                  <p>选拔代表学校参加 JSCPC 的队伍，向更高水平的省级赛事出发。</p>
+                  <p>个人独立作答，依据比赛成绩选拔并编排代表学校参加天梯赛的队伍。</p>
                 </div>
               </article>
             </div>
