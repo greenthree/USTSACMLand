@@ -1,58 +1,60 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { FreshmanContestPage } from './FreshmanContestPage'
+import {
+  completedSchoolRollboardTeams,
+  schoolRollboardTeams,
+} from './freshman-contest/freshmanContestData'
 
 describe('FreshmanContestPage', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
 
-  it('introduces the event format, timeline and participation requirements', () => {
-    render(
-      <MemoryRouter initialEntries={['/contests']}>
-        <FreshmanContestPage />
-      </MemoryRouter>,
-    )
-
-    expect(screen.getByRole('heading', { name: '新生赛', level: 1 })).toBeInTheDocument()
-    expect(screen.getByLabelText('新生赛赛制概览')).toHaveTextContent('02:00:00')
-    expect(screen.getByLabelText('十道题难度分布')).toHaveTextContent('L1')
-    expect(screen.getByLabelText('十道题难度分布')).toHaveTextContent('L2')
-    expect(screen.getByLabelText('十道题难度分布')).toHaveTextContent('L3')
-    expect(screen.getByRole('heading', { name: '从开场到最终榜' })).toBeInTheDocument()
-    expect(screen.getByText('最后一小时封榜')).toBeInTheDocument()
-    expect(screen.getByText('连接比赛指定局域网，禁止连接手机热点。')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '从第一题开始准备' })).toHaveAttribute(
-      'href',
-      '/learning',
-    )
+  it('keeps rolling scoreboard submissions and penalties consistent with a three-hour contest', () => {
+    for (const entries of [schoolRollboardTeams, completedSchoolRollboardTeams()]) {
+      for (const entry of entries) {
+        const accepted = entry.problems.filter((problem) => problem.state === 'ac')
+        expect(entry.solved).toBe(accepted.length)
+        expect(entry.penalty).toBe(
+          accepted.reduce(
+            (sum, problem) => sum + problem.submissionTime! + (problem.attempts! - 1) * 20,
+            0,
+          ),
+        )
+        for (const problem of entry.problems) {
+          if (problem.state === 'empty') continue
+          expect(problem.submissionTime).toBeGreaterThanOrEqual(0)
+          expect(problem.submissionTime).toBeLessThanOrEqual(180)
+          if (problem.state === 'pending')
+            expect(problem.submissionTime).toBeGreaterThanOrEqual(120)
+        }
+      }
+    }
   })
 
-  it('switches to the L3 answer-sheet scoring explanation', async () => {
-    const user = userEvent.setup()
+  it('lists the November individual school contest before the March practice contest', () => {
     render(
-      <MemoryRouter initialEntries={['/contests']}>
+      <MemoryRouter initialEntries={['/contests/campus']}>
         <FreshmanContestPage />
       </MemoryRouter>,
     )
-
-    expect(screen.getByRole('tab', { name: 'L1语法题03 题' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    expect(screen.queryByLabelText('L3 答题卡计分公式')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('tab', { name: 'L3思维题05 题' }))
-
-    expect(screen.getByRole('tab', { name: 'L3思维题05 题' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    expect(screen.getByText(/可在纸质答题卡写下结论与推导过程/)).toBeInTheDocument()
-    expect(screen.getByLabelText('L3 答题卡计分公式')).toHaveTextContent(
-      '题目满分 × 结论百分比 × 过程百分比',
-    )
+    const tabs = within(screen.getByRole('tablist', { name: '选择校内赛事' })).getAllByRole('tab')
+    expect(tabs).toHaveLength(2)
+    expect(tabs[0]).toHaveTextContent('校赛')
+    expect(tabs[0]).toHaveTextContent('11月 · 单人赛')
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
+    expect(tabs[1]).toHaveTextContent('练习赛')
+    expect(tabs[1]).toHaveTextContent('3月')
+    expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
+    expect(screen.getByLabelText('校赛赛制概览')).toHaveTextContent('单人赛')
+    expect(screen.getByRole('heading', { name: '做好个人准备，再进入赛场' })).toBeInTheDocument()
+    expect(screen.getByText('个人报名')).toBeInTheDocument()
+    expect(screen.getByText('独立设备')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('新生赛')
+    expect(document.body).not.toHaveTextContent('三人一队')
+    expect(document.body).not.toHaveTextContent('三人组队')
   })
 
   it('reveals the lowest pending team from left to right and reranks it after an AC', () => {
@@ -106,28 +108,28 @@ describe('FreshmanContestPage', () => {
     expect(boundaryRow).toHaveClass('is-current')
     expect(boundaryRank).toHaveTextContent('05')
     expect(boundarySolved).toHaveTextContent('08')
-    expect(boundaryProblemG).toHaveTextContent('2/244')
+    expect(boundaryProblemG).toHaveTextContent('2/144')
     expect(boundaryProblemG).toHaveClass('is-active')
 
     act(() => {
       vi.advanceTimersByTime(1350)
     })
 
-    expect(boundaryProblemG).toHaveTextContent('2/244')
+    expect(boundaryProblemG).toHaveTextContent('2/144')
     expect(boundaryProblemG).toHaveClass('is-wa')
     expect(boundaryProblemG).toHaveAttribute('title', expect.stringContaining('最后一次提交'))
     expect(boundaryRow).toHaveClass('is-current')
     expect(boundaryRank).toHaveTextContent('05')
     expect(boundarySolved).toHaveTextContent('08')
     expect(screen.getByRole('region', { name: '滚榜动画演示' })).toHaveTextContent(
-      'CURRENT / 航电一队 / K',
+      'CURRENT / 航电同学 / K',
     )
 
     act(() => {
       vi.advanceTimersByTime(1350)
     })
 
-    expect(boundaryProblemK).toHaveTextContent('3/130')
+    expect(boundaryProblemK).toHaveTextContent('3/150')
     expect(boundaryProblemK).toHaveClass('is-ac')
     expect(boundaryProblemK).toHaveAttribute('title', expect.stringContaining('首次 AC'))
     expect(boundaryRow).toHaveClass('is-current')
@@ -137,7 +139,7 @@ describe('FreshmanContestPage', () => {
     expect(boundaryRank).toHaveTextContent('04')
     expect(boundarySolved).toHaveTextContent('09')
     expect(screen.getByRole('region', { name: '滚榜动画演示' })).toHaveTextContent(
-      'RISING / 航电一队 / K',
+      'RISING / 航电同学 / K',
     )
 
     act(() => {
@@ -174,7 +176,7 @@ describe('FreshmanContestPage', () => {
       .sort((left, right) => left.rank - right.rank)
       .map((entry) => entry.team)
 
-    expect(finalRanking).toEqual(['CF皇帝', '零基础新生0队', '春日影', '一路向南', '航电一队'])
+    expect(finalRanking).toEqual(['CF皇帝', '零基础选手', '春日影', '一路向南', '航电同学'])
     expect(screen.getByRole('region', { name: '滚榜动画演示' })).toHaveTextContent(
       'FINAL / COMPLETE',
     )
@@ -193,17 +195,20 @@ describe('FreshmanContestPage', () => {
 
     expect(schoolContestTab).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
-    expect(screen.getByLabelText('校赛赛制概览')).toHaveTextContent('05:00:00')
+    expect(screen.getByLabelText('校赛赛制概览')).toHaveTextContent('03:00:00')
+    expect(screen.getByText('02:00')).toBeInTheDocument()
+    expect(screen.getByText('03:00')).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('五小时')
     expect(
-      screen.getByRole('heading', { name: '把三个人的判断，压缩进一台电脑' }),
+      screen.getByRole('heading', { name: '一人一台电脑，独立完成每一次判断' }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('传统 ACM 罚时公式')).toHaveTextContent('错误提交数 × 20 分钟')
 
     const rollboard = screen.getByRole('region', { name: '滚榜动画演示' })
-    expect(rollboard).toHaveTextContent('从最后一支待揭晓队伍开始')
-    expect(rollboard).toHaveTextContent('名次队伍ABCDEFGHIJKLAC罚时')
-    expect(rollboard).toHaveTextContent('CURRENT / 航电一队 / G')
-    expect(screen.getByRole('img', { name: /从最低名次的待揭晓队伍开始/ })).toBeInTheDocument()
+    expect(rollboard).toHaveTextContent('从最后一位待揭晓选手开始')
+    expect(rollboard).toHaveTextContent('名次选手ABCDEFGHIJKLAC罚时')
+    expect(rollboard).toHaveTextContent('CURRENT / 航电同学 / G')
+    expect(screen.getByRole('img', { name: /从最低名次的待揭晓选手开始/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '暂停滚榜动画' }))
     expect(rollboard).toHaveClass('is-paused')
@@ -257,7 +262,7 @@ describe('FreshmanContestPage', () => {
     expect(screen.getByRole('link', { name: '往届题目入口' })).toHaveAttribute('target', '_blank')
   })
 
-  it('supports horizontal swipe across all three contest covers', () => {
+  it('swipes between school and practice contests and stops at the ends', () => {
     render(
       <MemoryRouter initialEntries={['/contests']}>
         <FreshmanContestPage />
@@ -274,12 +279,15 @@ describe('FreshmanContestPage', () => {
     fireEvent.pointerDown(contestHero, { clientX: 180, pointerType: 'touch' })
     fireEvent.pointerUp(contestHero, { clientX: 80, pointerType: 'touch' })
 
-    expect(screen.getByRole('tab', { name: /校赛/ })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
     fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
 
-    expect(screen.getByRole('tab', { name: /练习赛/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /校赛/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: '校赛', level: 1 })).toBeInTheDocument()
+    fireEvent.pointerDown(contestHero, { clientX: 80, pointerType: 'touch' })
+    fireEvent.pointerUp(contestHero, { clientX: 180, pointerType: 'touch' })
+    expect(screen.getByRole('tab', { name: /校赛/ })).toHaveAttribute('aria-selected', 'true')
   })
 })

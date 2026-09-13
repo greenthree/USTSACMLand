@@ -141,8 +141,16 @@ describe('HomePage', () => {
     expect(screen.queryByText('规划中')).not.toBeInTheDocument()
 
     expect(screen.getByRole('heading', { name: '在比赛中找到下一段训练' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '新生赛' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '了解新生赛' })).toHaveAttribute('href', '/contests')
+    expect(screen.queryByRole('heading', { name: '新生赛' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '了解校赛' })).toHaveAttribute(
+      'href',
+      '/contests/campus',
+    )
+    const campusEvents = document.querySelectorAll('.home-join-events article')
+    expect(campusEvents).toHaveLength(2)
+    expect(campusEvents[0]).toHaveTextContent('11 月校赛')
+    expect(campusEvents[0]).toHaveTextContent('单人赛')
+    expect(campusEvents[1]).toHaveTextContent('03 月练习赛')
     expect(screen.getByRole('heading', { name: '练习赛' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '校赛' })).toBeInTheDocument()
     expect(screen.getByLabelText('USTS算法小白交流群')).toHaveTextContent(

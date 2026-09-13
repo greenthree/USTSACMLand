@@ -33,7 +33,7 @@ const contestItems = [
   {
     to: '/contests/campus',
     label: '校内比赛',
-    description: '新生赛、练习赛与校赛',
+    description: '校赛（11月）、练习赛（3月）',
     icon: Building2,
   },
   { to: '/contests/online', label: '线上比赛', description: '近期公开赛与倒计时', icon: Globe2 },

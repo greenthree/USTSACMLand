@@ -106,7 +106,7 @@
 }
 
 .campus-contest-slide--school::before {
-  content: '05';
+  content: '03';
   color: rgb(183 220 61 / 5%);
 }
 
@@ -188,7 +188,7 @@
 
 .campus-contest-picker {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 0;
   background: rgb(11 25 18 / 92%);
   border-top: 1px solid rgb(244 247 245 / 18%);
