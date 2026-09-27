@@ -99,20 +99,39 @@ export function parseLuoguJsonResponse(
   try {
     return JSON.parse(text) as unknown
   } catch {
+    if (/^\s*<script>\s*var\s+_\$[a-z0-9_]+\s*=/i.test(text)) {
+      throw new HttpError(
+        'Luogu returned a script challenge page',
+        'source_unavailable',
+        false,
+        status,
+        undefined,
+        { responseKind: 'script_challenge' },
+      )
+    }
     if (challengePage(text)) {
       throw new HttpError(
         'Luogu returned an anti-bot challenge page',
         'source_unavailable',
-        true,
+        false,
         status,
+        undefined,
+        { responseKind: 'challenge' },
       )
     }
     if (/^\s*</.test(text) || contentType?.includes('text/html')) {
+      const loginPage =
+        /<title[^>]*>[^<]*(?:login|登录)/i.test(text) ||
+        /UserUnloginException|["']needLogin["']\s*:\s*1/.test(text)
       throw new HttpError(
-        'Luogu authentication credentials are invalid or expired',
-        'auth_expired',
+        loginPage
+          ? 'Luogu authentication credentials are invalid or expired'
+          : 'Luogu returned unexpected HTML',
+        loginPage ? 'auth_expired' : 'source_unavailable',
         false,
         status,
+        undefined,
+        { responseKind: loginPage ? 'login' : 'other_html' },
       )
     }
     throw new HttpError('Upstream returned invalid JSON', 'schema_changed', false, status)
