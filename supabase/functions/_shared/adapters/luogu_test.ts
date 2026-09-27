@@ -478,9 +478,16 @@ Deno.test('Luogu adapter rejects invalid UIDs before requesting records', async 
 })
 
 Deno.test('Luogu JSON parser classifies HTML login and challenge pages', () => {
-  for (const [body, expectedCode, retryable] of [
-    ['<!doctype html><title>Login</title>', 'auth_expired', false],
-    ['<!doctype html><title>Just a moment...</title>', 'source_unavailable', true],
+  for (const [body, expectedCode, retryable, responseKind] of [
+    ['<!doctype html><title>Login</title>', 'auth_expired', false, 'login'],
+    ['<!doctype html><title>Just a moment...</title>', 'source_unavailable', false, 'challenge'],
+    [
+      '<script>var _$daewqwskl=["\\x64"];</script>',
+      'source_unavailable',
+      false,
+      'script_challenge',
+    ],
+    ['<!doctype html><title>Record list</title>', 'source_unavailable', false, 'other_html'],
   ] as const) {
     try {
       parseLuoguJsonResponse(body, 200, 'text/html; charset=UTF-8')
@@ -488,6 +495,7 @@ Deno.test('Luogu JSON parser classifies HTML login and challenge pages', () => {
     } catch (error) {
       equal(error instanceof HttpError ? error.code : null, expectedCode)
       equal(error instanceof HttpError ? error.retryable : null, retryable)
+      equal(error instanceof HttpError ? error.details?.responseKind : null, responseKind)
     }
   }
 })
