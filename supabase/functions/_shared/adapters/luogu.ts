@@ -95,6 +95,7 @@ export function parseLuoguJsonResponse(
   text: string,
   status: number,
   contentType: string | null,
+  redirected = false,
 ): unknown {
   try {
     return JSON.parse(text) as unknown
@@ -123,6 +124,13 @@ export function parseLuoguJsonResponse(
       const loginPage =
         /<title[^>]*>[^<]*(?:login|登录)/i.test(text) ||
         /UserUnloginException|["']needLogin["']\s*:\s*1/.test(text)
+      const htmlShape = /^\s*(?:<!doctype\s+html|<html\b)/i.test(text)
+        ? 'document'
+        : /^\s*<script\b/i.test(text)
+          ? 'script'
+          : 'fragment'
+      const sizeBand =
+        text.length < 1_024 ? 'under_1k' : text.length < 10_240 ? '1k_to_10k' : 'over_10k'
       throw new HttpError(
         loginPage
           ? 'Luogu authentication credentials are invalid or expired'
@@ -131,7 +139,13 @@ export function parseLuoguJsonResponse(
         false,
         status,
         undefined,
-        { responseKind: loginPage ? 'login' : 'other_html' },
+        {
+          responseKind: loginPage ? 'login' : 'other_html',
+          htmlShape,
+          sizeBand,
+          luoguPageMarkers: /__feConfigVersion|__luoguTagVersion|lentille-context/.test(text),
+          redirected,
+        },
       )
     }
     throw new HttpError('Upstream returned invalid JSON', 'schema_changed', false, status)
@@ -150,7 +164,12 @@ async function fetchAuthenticatedJson(
     retryBaseMs: 750,
     headers,
   })
-  return parseLuoguJsonResponse(text, response.status, response.headers.get('content-type'))
+  return parseLuoguJsonResponse(
+    text,
+    response.status,
+    response.headers.get('content-type'),
+    response.redirected,
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

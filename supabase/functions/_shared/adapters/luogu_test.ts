@@ -508,3 +508,24 @@ Deno.test('Luogu JSON parser preserves non-HTML schema failures', () => {
     equal(error instanceof HttpError ? error.code : null, 'schema_changed')
   }
 })
+
+Deno.test('Luogu HTML diagnostics retain only bounded response structure', () => {
+  try {
+    parseLuoguJsonResponse(
+      '<!doctype html><html><head><script>window.__feConfigVersion = "v"</script></head></html>',
+      200,
+      'text/html',
+      true,
+    )
+    throw new Error('expected parser failure')
+  } catch (error) {
+    equal(error instanceof HttpError ? error.code : null, 'source_unavailable')
+    deepStrictEqual(error instanceof HttpError ? error.details : null, {
+      responseKind: 'other_html',
+      htmlShape: 'document',
+      sizeBand: 'under_1k',
+      luoguPageMarkers: true,
+      redirected: true,
+    })
+  }
+})
