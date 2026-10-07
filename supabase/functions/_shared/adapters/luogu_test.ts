@@ -2,6 +2,7 @@ import { deepStrictEqual, equal, match } from 'node:assert/strict'
 import { HttpError } from '../http.ts'
 import {
   createLuoguAdapter,
+  createLuoguTransport,
   parseLuoguJsonResponse,
   parseLuoguRecordPage,
   type LuoguSyncState,
@@ -17,12 +18,13 @@ interface TestRecord {
 const NOW = new Date('2026-07-14T00:00:00Z')
 
 function record(pid: string, id: number | string, submitTime: number): Record<string, unknown> {
-  return { id, submitTime, problem: { pid } }
+  return { id, submitTime, status: 12, problem: { pid } }
 }
 
 function page(entries: TestRecord[], count?: number): unknown {
   return {
-    currentData: {
+    template: 'record.list',
+    data: {
       records: {
         result: entries.map((entry) => record(entry.pid, entry.id, entry.submitTime)),
         ...(count === undefined ? {} : { count }),
@@ -82,12 +84,105 @@ Deno.test('Luogu record parser reads stable IDs, submit times, and problem IDs',
 
 Deno.test('Luogu record parser recognizes a missing UID without a profile request', () => {
   try {
-    parseLuoguRecordPage({ currentData: { errorCode: 404 } })
+    parseLuoguRecordPage({ template: 'error', data: { errorCode: 404 } })
     throw new Error('expected parser failure')
   } catch (error) {
     equal(error instanceof HttpError ? error.code : null, 'not_found')
   }
 })
+
+Deno.test('Luogu transport requests Lentille content with Accepted pagination', async () => {
+  let requests = 0
+  const fetcher: typeof fetch = (input, init) => {
+    requests += 1
+    const url = new URL(String(input))
+    equal(url.origin, 'https://www.luogu.com.cn')
+    equal(url.pathname, '/record/list')
+    deepStrictEqual(
+      [...url.searchParams],
+      [
+        ['user', '409073'],
+        ['page', '2'],
+        ['status', '12'],
+      ],
+    )
+    const headers = new Headers(init?.headers)
+    equal(headers.get('x-lentille-request'), 'content-only')
+    equal(headers.get('x-requested-with'), 'XMLHttpRequest')
+    equal(headers.get('cookie'), 'synthetic-cookie')
+    equal(headers.get('x-csrf-token'), 'synthetic-csrf')
+    equal(headers.get('referer'), 'https://www.luogu.com.cn/record/list?user=409073')
+    return Promise.resolve(
+      new Response(JSON.stringify(page([entry(101, 'P1000')], 1)), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+  }
+  const transport = createLuoguTransport('synthetic-cookie', 'synthetic-csrf', fetcher)
+  const result = parseLuoguRecordPage(await transport.fetchRecordPage('409073', 2))
+  equal(result.records[0].problemId, 'P1000')
+  equal(requests, 1)
+})
+
+Deno.test(
+  'Luogu transport fails closed on HTML without retrying or returning a checkpoint',
+  async () => {
+    let requests = 0
+    const transport = createLuoguTransport('synthetic-cookie', 'synthetic-csrf', () => {
+      requests += 1
+      return Promise.resolve(
+        new Response('<!doctype html><title>Record list</title>', {
+          headers: { 'content-type': 'text/html' },
+        }),
+      )
+    })
+    const result = await adapter(transport).sync('409073', { syncState: state() })
+    equal(result.ok, false)
+    if (result.ok) return
+    equal(result.error.code, 'source_unavailable')
+    equal(result.error.retryable, false)
+    equal(result.error.details?.responseKind, 'other_html')
+    equal('syncState' in result, false)
+    equal(requests, 1)
+  },
+)
+
+Deno.test('Luogu record parser rejects legacy and unrelated page envelopes', () => {
+  const records = { result: [record('P1000', 101, 101)], count: 1 }
+  for (const payload of [
+    { currentData: { records } },
+    { records },
+    { data: { records } },
+    { template: 'user.practice', data: { records } },
+  ]) {
+    try {
+      parseLuoguRecordPage(payload)
+      throw new Error('expected parser failure')
+    } catch (error) {
+      equal(error instanceof HttpError ? error.code : null, 'schema_changed')
+    }
+  }
+})
+
+Deno.test(
+  'Luogu adapter rejects missing or non-Accepted record status without advancing state',
+  async () => {
+    for (const status of [undefined, null, '12', 11, 0]) {
+      const { transport } = transportFromPages([
+        {
+          template: 'record.list',
+          data: { records: { result: [{ ...record('P1001', 101, 101), status }], count: 1 } },
+        },
+      ])
+      const result = await adapter(transport).sync('409073', { syncState: state() })
+      equal(result.ok, false)
+      if (result.ok) continue
+      equal(result.error.code, 'schema_changed')
+      equal(result.error.retryable, false)
+      equal('syncState' in result, false)
+    }
+  },
+)
 
 Deno.test('Luogu first synchronization reads the full accepted history', async () => {
   const { transport, requests } = transportFromPages([
@@ -99,10 +194,10 @@ Deno.test('Luogu first synchronization reads the full accepted history', async (
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 3)
-  equal(result.sourceVersion, 'luogu-authenticated-record-list-pb-v4')
+  equal(result.sourceVersion, 'luogu-lentille-record-list-pb-v5')
   deepStrictEqual(result.details, {
-    provider: 'authenticated_record_list',
-    statistic: 'unique currentData.records.result[].problem.pid',
+    provider: 'lentille_record_list',
+    statistic: 'unique data.records.result[].problem.pid',
     pidPrefixes: ['P', 'B'],
     syncMode: 'full',
     fallbackReason: null,
@@ -406,27 +501,17 @@ Deno.test('Luogu adapter rejects changed record-list structures', async () => {
   const malformedPages: unknown[] = [
     null,
     {},
-    { currentData: {} },
-    { currentData: { records: {} } },
-    { currentData: { records: { result: {}, count: 0 } } },
-    { currentData: { records: { result: [null], count: 1 } } },
-    { currentData: { records: { result: [{ problem: null }], count: 1 } } },
-    {
-      currentData: {
-        records: { result: [{ id: 1, submitTime: 1, problem: { pid: 1000 } }], count: 1 },
-      },
-    },
-    {
-      currentData: {
-        records: { result: [{ id: 'bad', submitTime: 1, problem: { pid: 'P1000' } }], count: 1 },
-      },
-    },
-    {
-      currentData: {
-        records: { result: [{ id: 1, submitTime: '1', problem: { pid: 'P1000' } }], count: 1 },
-      },
-    },
-    { currentData: { records: { result: [], count: '0' } } },
+    { template: 'record.list', data: {} },
+    ...[
+      {},
+      { result: {}, count: 0 },
+      { result: [null], count: 1 },
+      { result: [{ ...record('P1000', 1, 1), problem: null }], count: 1 },
+      { result: [{ ...record('P1000', 1, 1), problem: { pid: 1000 } }], count: 1 },
+      { result: [record('P1000', 'bad', 1)], count: 1 },
+      { result: [{ ...record('P1000', 1, 1), submitTime: '1' }], count: 1 },
+      { result: [], count: '0' },
+    ].map((records) => ({ template: 'record.list', data: { records } })),
   ]
 
   for (const payload of malformedPages) {

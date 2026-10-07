@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-09-03（Asia/Shanghai）
+最后更新：2026-10-07（Asia/Shanghai）
 
 本路线图只保留仍需执行的优化任务、发布门禁、运维演练与当前生产基线，所有已经完成并上线的历史功能、数据库迁移、测试套件与历史烟测记录已从本文清退；详细实现记录参见 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request。
 
@@ -109,6 +109,8 @@ WebChat 与推荐计划的既有前端、Edge Function、数据库 migration、�
 
 ## 4. 发布治理与生产运维待办
 
+- [ ] **洛谷 Lentille 同步恢复验收**
+  - 已核实当前记录页公开客户端的 Lentille 内容请求和 `data.records` 契约，完成最小本地 transport/parser 修复及离线回归；仍需完成发布前门禁、源码部署核对、受控成员烟测与自然日更观察。当前生产洛谷仍失败，保留旧统计；不将本地测试或 Pages 成功视为同步恢复。证据见 [本地修复记录](./docs/evidence/luogu-lentille-local-fix-2026-10-07.md)。
 - [ ] **完成最终检查并创建 `v1.0.0` 标签**
   - 按 `docs/release-checklist.md` 补齐 Auth 频控处置事实与供应商日志说明，完成全量生产门禁核验后正式创建 `v1.0.0` 版本标签。
 - [ ] **旧地址跳转回滚演练**

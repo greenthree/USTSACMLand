@@ -15,5 +15,7 @@
 | 牛客       | `nowcoder-practice-rated.html`、`nowcoder-rating-history.json`、Firecrawl rated/unrated JSON 等 |
 | AtCoder    | `atcoder-history-rated.json`、`atcoder-ac-rank.json`                                            |
 | XCPC ELO   | `xcpc-elo-data.txt`（内容保持官网 `data.js` 的 JSON 赋值格式）                                  |
-| 洛谷       | `luogu-record-page.json`（与 `ckp.py` 一致，仅使用 Accepted 记录列表）                          |
+| 洛谷       | `luogu-record-page.json`（Lentille `record.list` / `data.records` 合成样本，状态仅为 `12`）     |
 | QOJ        | `qoj-firecrawl-accepted.json`                                                                   |
+
+洛谷样本的结构依据为 2026-10-07 记录页实际加载的公开 Columba 客户端源码，不含线上提交或页面内嵌状态。协议证据和生产验证边界见 [洛谷 Lentille 本地修复记录](../../../../../docs/evidence/luogu-lentille-local-fix-2026-10-07.md)。

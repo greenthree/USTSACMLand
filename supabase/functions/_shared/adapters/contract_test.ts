@@ -149,7 +149,7 @@ const cases: ContractCase[] = [
     accountId: '123456',
     expectedAccountId: '123456',
     metrics: { currentRating: null, maxRating: null, solvedCount: 2 },
-    sourceVersion: 'luogu-authenticated-record-list-pb-v4',
+    sourceVersion: 'luogu-lentille-record-list-pb-v5',
     sourceUpdatedAt: null,
     invalidAccountId: 'not-a-uid',
   },

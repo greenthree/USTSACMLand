@@ -4,13 +4,15 @@ import { type AdapterResult, failure, type PlatformAdapter, success } from './ty
 interface LuoguRecord {
   id?: unknown
   submitTime?: unknown
+  status?: unknown
   problem?: {
     pid?: unknown
   } | null
 }
 
 interface LuoguRecordListResponse {
-  currentData?: {
+  template?: unknown
+  data?: {
     errorCode?: unknown
     records?: {
       result?: unknown
@@ -156,6 +158,7 @@ async function fetchAuthenticatedJson(
   url: URL,
   headers: Record<string, string>,
   signal?: AbortSignal,
+  fetcher: typeof fetch = fetch,
 ): Promise<unknown> {
   const { response, text } = await fetchTextWithRetry(url, {
     signal,
@@ -163,6 +166,7 @@ async function fetchAuthenticatedJson(
     retries: 2,
     retryBaseMs: 750,
     headers,
+    fetcher,
   })
   return parseLuoguJsonResponse(
     text,
@@ -197,17 +201,20 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   }
 
   const response = payload as LuoguRecordListResponse
-  if (!isRecord(response.currentData)) {
-    throw new HttpError('Luogu currentData is missing', 'schema_changed', false)
+  if (!isRecord(response.data)) {
+    throw new HttpError('Luogu Lentille data is missing', 'schema_changed', false)
   }
-  if (response.currentData.errorCode === 404) {
+  if (response.data.errorCode === 404) {
     throw new HttpError('Luogu user was not found', 'not_found', false, 404)
   }
-  if (!isRecord(response.currentData.records)) {
+  if (response.template !== 'record.list') {
+    throw new HttpError('Luogu record-list template is missing', 'schema_changed', false)
+  }
+  if (!isRecord(response.data.records)) {
     throw new HttpError('Luogu records object is missing', 'schema_changed', false)
   }
 
-  const records = response.currentData.records as Record<string, unknown>
+  const records = response.data.records as Record<string, unknown>
   if (!Array.isArray(records.result)) {
     throw new HttpError('Luogu record result is not an array', 'schema_changed', false)
   }
@@ -217,6 +224,9 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
       throw new HttpError(`Luogu record ${index} is not an object`, 'schema_changed', false)
     }
     const record = value as LuoguRecord
+    if (record.status !== 12) {
+      throw new HttpError('Luogu record is not Accepted', 'schema_changed', false)
+    }
     if (!isRecord(record.problem)) {
       throw new HttpError(`Luogu record ${index} problem is missing`, 'schema_changed', false)
     }
@@ -250,13 +260,18 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   }
 }
 
-function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguTransport {
+export function createLuoguTransport(
+  cookie: string,
+  csrfToken: string,
+  fetcher: typeof fetch = fetch,
+): LuoguTransport {
   const headers = {
     accept: 'application/json, text/plain, */*',
     cookie,
     'user-agent': BROWSER_USER_AGENT,
     'x-csrf-token': csrfToken,
     'x-requested-with': 'XMLHttpRequest',
+    'x-lentille-request': 'content-only',
   }
   return {
     fetchRecordPage(accountId, page, signal) {
@@ -264,7 +279,6 @@ function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguT
       url.searchParams.set('user', accountId)
       url.searchParams.set('page', String(page))
       url.searchParams.set('status', '12')
-      url.searchParams.set('_contentOnly', '1')
 
       return fetchAuthenticatedJson(
         url,
@@ -273,6 +287,7 @@ function createAuthenticatedTransport(cookie: string, csrfToken: string): LuoguT
           referer: `${ORIGIN}/record/list?user=${encodeURIComponent(accountId)}`,
         },
         signal,
+        fetcher,
       )
     },
   }
@@ -290,7 +305,7 @@ function environmentTransport(): LuoguTransport | null {
   const cookie = environmentValue('LUOGU_COOKIE')?.trim()
   const csrfToken = environmentValue('LUOGU_CSRF_TOKEN')?.trim()
   if (!cookie || !csrfToken) return null
-  return createAuthenticatedTransport(cookie, csrfToken)
+  return createLuoguTransport(cookie, csrfToken)
 }
 
 function resolveMaxPages(configured: number | undefined, useEnvironment: boolean): number {
@@ -681,11 +696,11 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           {
             fetchedAt,
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-authenticated-record-list-pb-v4',
+            sourceVersion: 'luogu-lentille-record-list-pb-v5',
             syncState: metrics.state,
             details: {
-              provider: 'authenticated_record_list',
-              statistic: 'unique currentData.records.result[].problem.pid',
+              provider: 'lentille_record_list',
+              statistic: 'unique data.records.result[].problem.pid',
               pidPrefixes: ['P', 'B'],
               syncMode: metrics.syncMode,
               fallbackReason: metrics.fallbackReason,
