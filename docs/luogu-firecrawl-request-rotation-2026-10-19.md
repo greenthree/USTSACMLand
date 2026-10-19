@@ -1,6 +1,6 @@
 # 洛谷 Firecrawl 逐请求 Key 轮换（2026-10-19）
 
-状态：实现与本地验证已完成，负责人已明确批准本轮提交/合并、仅新增迁移、`sync-member` 部署与一次单成员洛谷验证，正在执行；实际结果另行补充。
+状态：本轮批准的发布已完成。PR #171 合并为 `cfe9abb`，新迁移与 `sync-member v68` 已上线；一次单成员同步首次成功，18 次请求使用全部 7 个 Key、相邻不重复。详见 [生产验收记录](./evidence/luogu-request-rotation-production-2026-10-19.md)。下文保留准备阶段的事实与方案。
 
 ## 需求与当前事实
 
@@ -41,12 +41,12 @@
 
 ```text
 任务：洛谷每次 API 请求轮换 Firecrawl Key。
-当前分支 / 提交：codex/luogu-request-key-rotation / 4f27c2a，候选待提交。
-已完成：逐请求领取、洛谷 LRU 迁移、429 来源修正、回归和文档。
+发布候选：codex/luogu-request-key-rotation / 0a82cff；main 合并为 cfe9abb，后续文档独立提交。
+已完成：逐请求领取、洛谷 LRU 迁移、429 来源修正、全部门禁、发布和单成员跨页验收。
 验证：完整 Edge 510 pass / 1 ignored；隔离生产基线相关 pgTAP 100；类型、lint、格式和 Schema lint。
-生产状态：Agent 尚未更改；7 个配置、批准后核对为 7 个启用；77 个 migration；sync-member v67 / sync-stats v47。
-未提交或用户已有改动：本轮任务文件；此前域名、交接和 readiness 脚本改动保留。
-遗留风险：当前 429 的具体供应商原因尚无充分证据；真实跨页轮换待获批发布后验证。
-下一步：按上述定向范围发布并验收。
+生产状态：7 个 Key 启用健康；78 个 migration；sync-member v68 / sync-stats v47；受控同步 fresh、队列为空。
+未提交或用户已有改动：发布后文档独立记录；此前域名、交接和 readiness 脚本改动保留。
+遗留风险：全体自然日更仍待观察，不能以单成员成功替代全体恢复。
+下一步：核对下一次自然日更，本轮获批范围已完成。
 需要项目负责人输入或批准：无；本轮范围已明确批准。
 ```
