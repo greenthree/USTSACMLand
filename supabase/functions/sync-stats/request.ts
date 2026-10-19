@@ -120,7 +120,15 @@ export function normalizeSyncRequest(body: SyncRequest): NormalizedSyncRequest {
     if (!isUuid(body.member_id)) {
       throw new SyncRequestError('A valid member_id is required for member scope')
     }
-    return { scope, memberId: body.member_id, ...pagination }
+    if (body.platform !== undefined) {
+      throw new SyncRequestError('member scope uses platforms, not platform')
+    }
+    return {
+      scope,
+      memberId: body.member_id,
+      ...(body.platforms === undefined ? {} : { platforms: normalizePlatforms(body.platforms) }),
+      ...pagination,
+    }
   }
 
   return { scope, ...pagination }

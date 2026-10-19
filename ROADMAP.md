@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-09-03（Asia/Shanghai）
+最后更新：2026-10-19（Asia/Shanghai）
 
 本路线图只保留仍需执行的优化任务、发布门禁、运维演练与当前生产基线，所有已经完成并上线的历史功能、数据库迁移、测试套件与历史烟测记录已从本文清退；详细实现记录参见 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request。
 
@@ -109,6 +109,10 @@ WebChat 与推荐计划的既有前端、Edge Function、数据库 migration、�
 
 ## 4. 发布治理与生产运维待办
 
+- [ ] **洛谷 Firecrawl 同步恢复验收**
+  - 按新的维护要求，将获取层改为 Firecrawl `/v2/scrape`，解析记录页的 Lentille 上下文并接入现有 Key 池，保留 Accepted P/B、增量游标和失败保留；候选尚未部署。在生产相同 76 迁移的独立本地基线上验证洛谷迁移、188 项数据库断言、回滚与重放拒绝，并补齐单成员平台过滤；[仅洛谷发布准备](./docs/luogu-firecrawl-release-2026-10-19.md)已形成，Auth 改动不在范围。仍需批准发布、认证烟测与自然日更观察；当前生产洛谷仍失败。见 [QOJ 诊断与洛谷迁移记录](./docs/evidence/qoj-luogu-firecrawl-2026-10-19.md)。
+- [ ] **QOJ 登录结果确认故障**
+  - 生产最近成功为 9 月 22 日；9 月 29 日以来的失败只证明提交后未确认登录成功，不能单独认定密码错误或 Firecrawl Key 失效。2026-10-19 更新专用 Secret 后，单个已验证 QOJ 绑定的受控检查成功，其他平台也成功；仍需观察下一次周更。证据见 [QOJ/洛谷记录](./docs/evidence/qoj-luogu-firecrawl-2026-10-19.md)。
 - [ ] **完成最终检查并创建 `v1.0.0` 标签**
   - 按 `docs/release-checklist.md` 补齐 Auth 频控处置事实与供应商日志说明，完成全量生产门禁核验后正式创建 `v1.0.0` 版本标签。
 - [ ] **旧地址跳转回滚演练**

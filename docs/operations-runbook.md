@@ -264,7 +264,8 @@ Secret 名称和关闭状态确认三层关闭，不读取值、不轮换、不�
 - 牛客：先检查公开页面；只有反自动化响应才允许走 Firecrawl 回退。
 - AtCoder：分别检查历史 Rating JSON 与 `user/ac_rank` 的 `count`。
 - XCPC ELO：检查共享缓存版本、租约、源大小和“姓名 + 苏州科技大学”唯一命中。
-- 洛谷：先核对公开 UID，再检查认证记录接口、增量边界和 30 天全量校准。
+- 洛谷：候选获取层改为 Firecrawl `/v2/scrape`，先核对 Key 池与专用 Cookie/CSRF，再检查记录页 Lentille 上下文、Accepted 筛选、增量边界和 30 天全量校准。每个 attempt 只领取一个 Key，分页失败停止；不要把洛谷认证失败归为 Firecrawl Key 失效。生产尚待验收，见 [ADR 0009](./adr/0009-luogu-firecrawl-record-pages.md)。
+- 洛谷定向发布的独立 Schema 验证、受限迁移事务、单成员平台筛选与精确回滚包见 [2026-10-19 发布准备](./luogu-firecrawl-release-2026-10-19.md)。需要本次明确批准，不连带发布既有 Auth CAPTCHA 改动；全站就绪和正式版本发布门禁继续保留。
 - QOJ：检查 Firecrawl 临时会话、登录态标志和目标用户名；只有网络、超时、临时限流或上游不可用可进入一次队列重试，凭据/结构错误直接终止；必要时使用带审计原因的管理员手工题数。
 
 修复完成后只重试受影响平台，确认其他平台没有被批量重复同步。

@@ -24,7 +24,7 @@ on:
         required: false
         type: string
       platforms:
-        description: Comma-separated platform keys when scope is platforms
+        description: Comma-separated platform keys for platforms scope or an optional member filter
         required: false
         type: string
       member_id:
@@ -86,6 +86,10 @@ jobs:
             platforms_json="$(jq -cn \
               --arg csv "$SYNC_PLATFORMS" \
               '$csv | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
+            if [[ "$(jq 'length' <<< "$platforms_json")" -eq 0 ]]; then
+              echo "A supplied platform filter must contain at least one platform." >&2
+              exit 1
+            fi
           fi
 
           cursor=""
@@ -98,7 +102,7 @@ jobs:
           while true; do
             payload="$(jq -n \
               --arg scope "$SYNC_SCOPE" \
-              --arg platform "$SYNC_PLATFORM" \
+              --arg platform "${SYNC_PLATFORM:-}" \
               --argjson platforms "$platforms_json" \
               --arg member_id "$SYNC_MEMBER_ID" \
               --arg cursor "$cursor" \

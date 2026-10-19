@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  createFirecrawlLuoguTransport,
+  createLuoguAdapter,
+  type LuoguTransport,
+} from './adapters/luogu.ts'
+import {
   createFirecrawlNowcoderProvider,
   createNowcoderAdapter,
   type NowcoderMetricsProvider,
@@ -25,9 +30,12 @@ export interface FirecrawlRuntimeAdapterDependencies {
   qojProviderFactory?: typeof createFirecrawlQojProvider
   nowcoderPrimary?: NowcoderMetricsProvider
   nowcoderProviderFactory?: typeof createFirecrawlNowcoderProvider
+  luoguCookie?: string | null
+  luoguCsrfToken?: string | null
+  luoguTransportFactory?: typeof createFirecrawlLuoguTransport
 }
 
-function missingRuntimeKey(purpose: 'qoj' | 'nowcoder'): HttpError {
+function missingRuntimeKey(purpose: 'qoj' | 'nowcoder' | 'luogu'): HttpError {
   return new HttpError(
     'No enabled Firecrawl API key is currently available',
     'source_unavailable',
@@ -117,5 +125,59 @@ export function createRuntimeNowcoderAdapter(
   return createNowcoderAdapter({
     ...(dependencies.nowcoderPrimary ? { primary: dependencies.nowcoderPrimary } : {}),
     fallback: nowcoderRuntimeProvider(client, dependencies),
+  })
+}
+
+export function createRuntimeLuoguAdapter(
+  client: SupabaseClient,
+  dependencies: FirecrawlRuntimeAdapterDependencies = {},
+): PlatformAdapter {
+  // One lazy selection for every page (including rebuilds) in this attempt.
+  // A rejected selection stays rejected; it must not claim a replacement Key.
+  let selectedTransport: Promise<LuoguTransport> | undefined
+  async function selectTransport(): Promise<LuoguTransport> {
+    const cookie =
+      dependencies.luoguCookie === undefined
+        ? Deno.env.get('LUOGU_COOKIE')?.trim()
+        : dependencies.luoguCookie?.trim()
+    const csrf =
+      dependencies.luoguCsrfToken === undefined
+        ? Deno.env.get('LUOGU_CSRF_TOKEN')?.trim()
+        : dependencies.luoguCsrfToken?.trim()
+    if (!cookie || !csrf) {
+      throw new HttpError('Luogu authentication is not configured', 'not_configured', false)
+    }
+    const key = await (dependencies.selectKey ?? selectFirecrawlRuntimeKey)(
+      client,
+      'luogu',
+      dependencies.operationId ?? null,
+    )
+    if (!key) throw missingRuntimeKey('luogu')
+    const transport = (dependencies.luoguTransportFactory ?? createFirecrawlLuoguTransport)(
+      key.apiKey,
+      cookie,
+      csrf,
+      key.apiUrl,
+    )
+    return {
+      fetchRecordPage(accountId, page, signal) {
+        return (dependencies.observeOperation ?? observeFirecrawlOperation)(
+          client,
+          key,
+          'luogu',
+          () => transport.fetchRecordPage(accountId, page, signal),
+        )
+      },
+    }
+  }
+  return createLuoguAdapter({
+    maxPages: Number(Deno.env.get('LUOGU_MAX_PAGES') ?? 100),
+    pageDelayMs: 300,
+    transport: {
+      async fetchRecordPage(accountId, page, signal) {
+        selectedTransport ??= selectTransport()
+        return (await selectedTransport).fetchRecordPage(accountId, page, signal)
+      },
+    },
   })
 }

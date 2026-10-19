@@ -4,6 +4,7 @@ import { createXcpcEloAdapter } from '../_shared/adapters/xcpc-elo.ts'
 import { notifySyncFailure } from '../_shared/alerts.ts'
 import { notifyRuntimeError } from '../_shared/error-monitoring.ts'
 import {
+  createRuntimeLuoguAdapter,
   createRuntimeNowcoderAdapter,
   createRuntimeQojAdapter,
 } from '../_shared/firecrawl-runtime-adapters.ts'
@@ -29,6 +30,10 @@ const handler = createSyncMemberHandler({
   },
   resolveAdapter({ client, account, jobId, attempt, runId }) {
     switch (account.platform) {
+      case 'luogu':
+        return createRuntimeLuoguAdapter(client, {
+          operationId: `luogu:${jobId}:${attempt}:${account.id}`,
+        })
       case 'xcpc_elo':
         return createXcpcEloAdapter(createSupabaseXcpcDatasetLoader(client))
       case 'qoj':
