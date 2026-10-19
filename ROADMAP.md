@@ -111,6 +111,8 @@ WebChat 与推荐计划的既有前端、Edge Function、数据库 migration、�
 
 - [ ] **洛谷 Firecrawl 同步恢复验收**
   - Firecrawl `/v2/scrape` 获取层、Lentille Accepted P/B 解析、Key 池和单成员平台过滤已通过 PR #167 发布；仅洛谷 migration 已应用，生产为 77 个迁移、`sync-member v67` / `sync-stats v47`，Auth 改动未发布。一次受控洛谷同步首次尝试成功，题数、去重状态、游标和快照一致，其他平台未变、队列为空。仍需观察北京时间 19:00 的下一次自然日更，不能以单成员成功代替全体恢复验收。见 [生产发布记录](./docs/evidence/luogu-firecrawl-production-2026-10-19.md)与[发布准备](./docs/luogu-firecrawl-release-2026-10-19.md)。
+  - 后续两条任务遇到 Firecrawl HTTP 429，一次自动重试后仍失败，旧成功统计和全量校准时间保留，队列为空；旧文案错误归因为洛谷限流。本地已补服务来源与文案回归，55 项相关测试通过，尚未提交或部署；供应商并发/配额的具体原因待定位，不以文案修复代表限流解除。
+  - 按负责人要求完成逐请求 Key 轮换候选：洛谷每次实际分页独立领取最久未使用的合格 Key，失败立即停止；7 个已配置 Key 中当前只启用 6 个，不自动开启停用 Key。510 项 Edge 测试和生产同基线隔离库 100 项相关 pgTAP 通过；新增迁移与 `sync-member` 尚未发布，见 [轮换记录](./docs/luogu-firecrawl-request-rotation-2026-10-19.md)。
 - [ ] **QOJ 登录结果确认故障**
   - 生产最近成功为 9 月 22 日；9 月 29 日以来的失败只证明提交后未确认登录成功，不能单独认定密码错误或 Firecrawl Key 失效。2026-10-19 更新专用 Secret 后，单个已验证 QOJ 绑定的受控检查成功，其他平台也成功；仍需观察下一次周更。证据见 [QOJ/洛谷记录](./docs/evidence/qoj-luogu-firecrawl-2026-10-19.md)。
 - [ ] **完成最终检查并创建 `v1.0.0` 标签**

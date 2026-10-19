@@ -58,53 +58,80 @@ Deno.test('runtime QOJ adapter selects one Key for the complete operation', asyn
   ])
 })
 
-Deno.test('runtime Luogu uses one Key for all pages and observes each request', async () => {
-  const selections: string[] = []
-  const observations: string[] = []
-  const pages: number[] = []
-  const result = await createRuntimeLuoguAdapter(client, {
-    ...sharedDependencies((purpose, operationId) => selections.push(`${purpose}:${operationId}`)),
-    operationId: 'luogu:42:1:301',
-    luoguCookie: 'synthetic-cookie',
-    luoguCsrfToken: 'synthetic-csrf',
-    luoguTransportFactory(apiKey, cookie, csrf) {
-      equal(apiKey, runtimeKey.apiKey)
-      equal(cookie, 'synthetic-cookie')
-      equal(csrf, 'synthetic-csrf')
-      return {
-        fetchRecordPage(_accountId, page) {
-          pages.push(page)
-          return Promise.resolve({
-            template: 'record.list',
-            data: {
-              records: {
-                count: 2,
-                result: [
-                  {
-                    id: 103 - page,
-                    submitTime: 103 - page,
-                    status: 12,
-                    problem: { pid: page === 1 ? 'P1000' : 'B2000' },
-                  },
-                ],
+Deno.test(
+  'runtime Luogu rotates seven Keys over fourteen requests and observes each Key',
+  async () => {
+    const selections: string[] = []
+    const observations: string[] = []
+    const apiKeys: string[] = []
+    const pages: number[] = []
+    const keys = Array.from({ length: 7 }, (_, index) => ({
+      ...runtimeKey,
+      keyId: `00000000-0000-4000-8000-00000000030${index + 1}`,
+      apiKey: `synthetic-key-${index + 1}`,
+    }))
+    const result = await createRuntimeLuoguAdapter(client, {
+      selectKey(_client, purpose, operationId) {
+        const key = keys[selections.length % keys.length]
+        selections.push(`${purpose}:${operationId}`)
+        return Promise.resolve(key)
+      },
+      operationId: 'luogu:42:1:301',
+      luoguCookie: 'synthetic-cookie',
+      luoguCsrfToken: 'synthetic-csrf',
+      luoguTransportFactory(apiKey, cookie, csrf) {
+        apiKeys.push(apiKey)
+        equal(cookie, 'synthetic-cookie')
+        equal(csrf, 'synthetic-csrf')
+        return {
+          fetchRecordPage(_accountId, page) {
+            pages.push(page)
+            return Promise.resolve({
+              template: 'record.list',
+              data: {
+                records: {
+                  count: 14,
+                  result: [
+                    {
+                      id: 103 - page,
+                      submitTime: 103 - page,
+                      status: 12,
+                      problem: { pid: `P${1000 + page}` },
+                    },
+                  ],
+                },
               },
-            },
-          })
-        },
-      }
-    },
-    observeOperation(_client, _key, purpose, operation) {
-      observations.push(purpose)
-      return operation()
-    },
-  }).sync('409073')
-  equal(result.ok, true)
-  if (!result.ok) return
-  equal(result.metrics.solvedCount, 2)
-  deepStrictEqual(selections, ['luogu:luogu:42:1:301'])
-  deepStrictEqual(pages, [1, 2])
-  deepStrictEqual(observations, ['luogu', 'luogu'])
-})
+            })
+          },
+        }
+      },
+      observeOperation(_client, key, purpose, operation) {
+        equal(purpose, 'luogu')
+        observations.push(key.keyId!)
+        return operation()
+      },
+    }).sync('409073')
+    equal(result.ok, true)
+    if (!result.ok) return
+    equal(result.metrics.solvedCount, 14)
+    deepStrictEqual(
+      selections,
+      Array.from({ length: 14 }, (_, index) => `luogu:luogu:42:1:301:request:${index + 1}`),
+    )
+    deepStrictEqual(
+      pages,
+      Array.from({ length: 14 }, (_, index) => index + 1),
+    )
+    deepStrictEqual(
+      apiKeys,
+      [...keys, ...keys].map((key) => key.apiKey),
+    )
+    deepStrictEqual(
+      observations,
+      [...keys, ...keys].map((key) => key.keyId),
+    )
+  },
+)
 
 Deno.test('runtime Luogu stops on a failed page without selecting another Key', async () => {
   let selections = 0
@@ -127,6 +154,86 @@ Deno.test('runtime Luogu stops on a failed page without selecting another Key', 
   equal(selections, 1)
   equal(requests, 1)
   equal('syncState' in result, false)
+})
+
+Deno.test(
+  'runtime Luogu stops after a later-page 429 without a third Key or partial state',
+  async () => {
+    const claims: Array<string | null> = []
+    let requests = 0
+    const result = await createRuntimeLuoguAdapter(client, {
+      ...sharedDependencies((_purpose, operationId) => claims.push(operationId)),
+      operationId: 'luogu:44:1:301',
+      luoguCookie: 'cookie',
+      luoguCsrfToken: 'csrf',
+      luoguTransportFactory() {
+        return {
+          fetchRecordPage() {
+            requests++
+            if (requests === 2) throw new HttpError('limited', 'rate_limited', true, 429)
+            return Promise.resolve({
+              template: 'record.list',
+              data: {
+                records: {
+                  count: 2,
+                  result: [{ id: 102, submitTime: 102, status: 12, problem: { pid: 'P1000' } }],
+                },
+              },
+            })
+          },
+        }
+      },
+    }).sync('409073')
+    equal(result.ok, false)
+    if (result.ok) return
+    equal(result.error.code, 'rate_limited')
+    equal(result.error.retryable, true)
+    deepStrictEqual(claims, ['luogu:44:1:301:request:1', 'luogu:44:1:301:request:2'])
+    equal(requests, 2)
+    equal('syncState' in result, false)
+  },
+)
+
+Deno.test('runtime Luogu gives a rebuilt page a new request claim', async () => {
+  const claims: Array<string | null> = []
+  const pages: number[] = []
+  const result = await createRuntimeLuoguAdapter(client, {
+    ...sharedDependencies((_purpose, operationId) => claims.push(operationId)),
+    operationId: 'luogu:45:1:301',
+    luoguCookie: 'cookie',
+    luoguCsrfToken: 'csrf',
+    luoguTransportFactory() {
+      return {
+        fetchRecordPage(_accountId, page) {
+          pages.push(page)
+          return Promise.resolve({
+            template: 'record.list',
+            data: {
+              records: {
+                count: 1,
+                result: [{ id: 102, submitTime: 102, status: 12, problem: { pid: 'B2000' } }],
+              },
+            },
+          })
+        },
+      }
+    },
+  }).sync('409073', {
+    syncState: {
+      accountId: '409073',
+      boundaryRecordId: '102',
+      boundarySubmitTime: 101,
+      totalRecords: 1,
+      problemIds: ['P1000'],
+      lastFullSyncAt: new Date().toISOString(),
+    },
+  })
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.details?.syncMode, 'rebuild')
+  equal(result.metrics.solvedCount, 1)
+  deepStrictEqual(pages, [1, 1])
+  deepStrictEqual(claims, ['luogu:45:1:301:request:1', 'luogu:45:1:301:request:2'])
 })
 
 Deno.test(

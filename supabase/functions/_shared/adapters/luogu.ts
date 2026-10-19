@@ -373,6 +373,16 @@ export function createFirecrawlLuoguTransport(
           }),
         })
       } catch (error) {
+        if (error instanceof HttpError && error.status === 429) {
+          throw new HttpError(
+            'Firecrawl rate limit was reached',
+            'rate_limited',
+            true,
+            429,
+            undefined,
+            { authTarget: 'firecrawl' },
+          )
+        }
         if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
           throw new HttpError(
             'Firecrawl authentication failed',
