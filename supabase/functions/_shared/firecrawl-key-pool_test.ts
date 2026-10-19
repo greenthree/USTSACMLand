@@ -135,6 +135,16 @@ Deno.test('parsed QOJ failures do not falsely quarantine a working Firecrawl key
 })
 
 Deno.test('Firecrawl transport authentication and rate limits are classified per key', () => {
+  for (const status of [401, 403, 429, 503]) {
+    equal(
+      firecrawlKeyFailureCode(
+        new HttpError('Luogu source failure', 'source_unavailable', false, status, undefined, {
+          authTarget: 'luogu',
+        }),
+      ),
+      null,
+    )
+  }
   equal(
     firecrawlKeyFailureCode(
       new HttpError('invalid key', 'auth_expired', false, 401, undefined, {

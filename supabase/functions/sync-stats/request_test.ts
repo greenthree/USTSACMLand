@@ -74,6 +74,42 @@ Deno.test('XCPC cache preparation is selected only when the request can include 
   strictEqual(maySyncXcpcElo(normalizeSyncRequest({ scope: 'queue' })), false)
 })
 
+Deno.test('member scope retains an explicit platform filter across cursor pages', () => {
+  const memberId = '8a7c4494-97b0-4c5e-a386-02b0efcf22c7'
+  const request = normalizeSyncRequest({
+    scope: 'member',
+    member_id: memberId,
+    platforms: ['luogu', 'luogu'],
+    batch_size: 3,
+    cursor: 42,
+  })
+  deepStrictEqual(request, {
+    scope: 'member',
+    memberId,
+    platforms: ['luogu'],
+    batchSize: 3,
+    cursor: 42,
+  })
+  strictEqual(maySyncXcpcElo(request), false)
+})
+
+Deno.test(
+  'member platform filters reject invalid or empty values instead of broadening scope',
+  () => {
+    const member_id = '8a7c4494-97b0-4c5e-a386-02b0efcf22c7'
+    for (const platforms of [[], ['invalid'], null, 'luogu']) {
+      throws(
+        () => normalizeSyncRequest({ scope: 'member', member_id, platforms } as never),
+        SyncRequestError,
+      )
+    }
+    throws(
+      () => normalizeSyncRequest({ scope: 'member', member_id, platform: 'luogu' }),
+      SyncRequestError,
+    )
+  },
+)
+
 Deno.test('queue scope does not require a member target', () => {
   deepStrictEqual(normalizeSyncRequest({ scope: 'queue' }), { scope: 'queue' })
 })

@@ -58,13 +58,17 @@ describe('PrivacyPage', () => {
     const thirdPartySection = screen.getByRole('heading', { name: '第三方服务' }).closest('section')
     expect(thirdPartySection).toHaveTextContent('只有服务端会把 QQ 号发送给腾讯 QQ 头像接口')
     expect(thirdPartySection).toHaveTextContent('私有存储中保留规范化 WebP 头像和不可逆来源摘要')
+    expect(thirdPartySection).toHaveTextContent(
+      '目标 UID 和专用服务账号的 Cookie/CSRF 发送给 Firecrawl',
+    )
+    expect(thirdPartySection).toHaveTextContent('关闭页面缓存不代表供应商零保留')
   })
 
   it('shows the current privacy notice date', async () => {
     render(<PrivacyPage />)
     await screen.findByRole('heading', { name: '推荐计划' })
 
-    expect(screen.getByText('更新日期：2026 年 8 月 13 日')).toBeInTheDocument()
+    expect(screen.getByText('更新日期：2026 年 10 月 19 日')).toBeInTheDocument()
   })
 
   it('documents the target-free personal data export boundary', async () => {

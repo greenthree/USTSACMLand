@@ -3,6 +3,7 @@ import { deepStrictEqual, equal } from 'node:assert/strict'
 import type { NowcoderMetricsProvider } from './adapters/nowcoder.ts'
 import type { QojMetricsProvider, QojSessionCleanupReporter } from './adapters/qoj.ts'
 import {
+  createRuntimeLuoguAdapter,
   createRuntimeNowcoderAdapter,
   createRuntimeQojAdapter,
   type FirecrawlRuntimeAdapterDependencies,
@@ -18,7 +19,7 @@ const runtimeKey = {
 }
 
 function sharedDependencies(
-  select: (purpose: 'qoj' | 'nowcoder', operationId: string | null) => void,
+  select: (purpose: 'qoj' | 'nowcoder' | 'luogu', operationId: string | null) => void,
 ): FirecrawlRuntimeAdapterDependencies {
   return {
     qojServiceUsername: 'service_user',
@@ -55,6 +56,109 @@ Deno.test('runtime QOJ adapter selects one Key for the complete operation', asyn
       operationId: 'qoj:42:1:00000000-0000-4000-8000-000000000301',
     },
   ])
+})
+
+Deno.test('runtime Luogu uses one Key for all pages and observes each request', async () => {
+  const selections: string[] = []
+  const observations: string[] = []
+  const pages: number[] = []
+  const result = await createRuntimeLuoguAdapter(client, {
+    ...sharedDependencies((purpose, operationId) => selections.push(`${purpose}:${operationId}`)),
+    operationId: 'luogu:42:1:301',
+    luoguCookie: 'synthetic-cookie',
+    luoguCsrfToken: 'synthetic-csrf',
+    luoguTransportFactory(apiKey, cookie, csrf) {
+      equal(apiKey, runtimeKey.apiKey)
+      equal(cookie, 'synthetic-cookie')
+      equal(csrf, 'synthetic-csrf')
+      return {
+        fetchRecordPage(_accountId, page) {
+          pages.push(page)
+          return Promise.resolve({
+            template: 'record.list',
+            data: {
+              records: {
+                count: 2,
+                result: [
+                  {
+                    id: 103 - page,
+                    submitTime: 103 - page,
+                    status: 12,
+                    problem: { pid: page === 1 ? 'P1000' : 'B2000' },
+                  },
+                ],
+              },
+            },
+          })
+        },
+      }
+    },
+    observeOperation(_client, _key, purpose, operation) {
+      observations.push(purpose)
+      return operation()
+    },
+  }).sync('409073')
+  equal(result.ok, true)
+  if (!result.ok) return
+  equal(result.metrics.solvedCount, 2)
+  deepStrictEqual(selections, ['luogu:luogu:42:1:301'])
+  deepStrictEqual(pages, [1, 2])
+  deepStrictEqual(observations, ['luogu', 'luogu'])
+})
+
+Deno.test('runtime Luogu stops on a failed page without selecting another Key', async () => {
+  let selections = 0
+  let requests = 0
+  const result = await createRuntimeLuoguAdapter(client, {
+    ...sharedDependencies(() => selections++),
+    operationId: 'luogu:43:1:301',
+    luoguCookie: 'cookie',
+    luoguCsrfToken: 'csrf',
+    luoguTransportFactory() {
+      return {
+        fetchRecordPage() {
+          requests++
+          throw new HttpError('limited', 'rate_limited', true, 429)
+        },
+      }
+    },
+  }).sync('409073')
+  equal(result.ok, false)
+  equal(selections, 1)
+  equal(requests, 1)
+  equal('syncState' in result, false)
+})
+
+Deno.test(
+  'runtime Luogu rejects missing credentials and invalid UID before Key selection',
+  async () => {
+    for (const accountId of ['409073', 'invalid-uid']) {
+      let selections = 0
+      const result = await createRuntimeLuoguAdapter(client, {
+        ...sharedDependencies(() => selections++),
+        luoguCookie: null,
+        luoguCsrfToken: null,
+      }).sync(accountId)
+      equal(result.ok, false)
+      equal(selections, 0)
+    }
+  },
+)
+
+Deno.test('runtime Luogu configured pool exhaustion does not use the environment Key', async () => {
+  let factories = 0
+  const result = await createRuntimeLuoguAdapter(client, {
+    ...sharedDependencies(() => {}),
+    luoguCookie: 'cookie',
+    luoguCsrfToken: 'csrf',
+    selectKey: () => Promise.resolve(null),
+    luoguTransportFactory() {
+      factories++
+      throw new Error('must not run')
+    },
+  }).sync('409073')
+  equal(result.ok, false)
+  equal(factories, 0)
 })
 
 Deno.test('runtime QOJ adapter never selects a replacement Key after failure', async () => {

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { HttpError } from './http.ts'
 
-export type FirecrawlRuntimePurpose = 'qoj' | 'nowcoder'
+export type FirecrawlRuntimePurpose = 'qoj' | 'nowcoder' | 'luogu'
 export type FirecrawlObservationPurpose = FirecrawlRuntimePurpose | 'credit_monitor' | 'admin_check'
 
 export interface FirecrawlRuntimeKey {
@@ -122,6 +122,7 @@ export async function readFirecrawlRuntimeKey(
 export function firecrawlKeyFailureCode(error: unknown): string | null {
   if (error instanceof HttpError) {
     const authTarget = error.details?.authTarget
+    if (authTarget === 'luogu') return null
     if (
       authTarget === 'firecrawl' &&
       (error.code === 'auth_required' || error.code === 'auth_expired')

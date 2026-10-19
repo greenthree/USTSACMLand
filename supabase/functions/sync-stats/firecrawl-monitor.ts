@@ -11,6 +11,7 @@ export function shouldCheckFirecrawlCredits(
     (scope === 'all' ||
       scope === 'member' ||
       requestedPlatforms?.includes('qoj') === true ||
+      requestedPlatforms?.includes('luogu') === true ||
       requestedPlatforms?.includes('nowcoder') === true)
   )
 }

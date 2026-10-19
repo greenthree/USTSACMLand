@@ -79,16 +79,18 @@ flowchart LR
 | 牛客       | UID          | 当前/最高 Rating、唯一通过题数 | 已实现公开 Rating 历史和练习汇总解析；普通请求遇到 WAF 时自动回退 Firecrawl，使用 12 小时缓存并保留结构化错误                                                       |
 | AtCoder    | Username     | 当前/最高 Rating、唯一 AC 题数 | Rating 使用 `/users/{username}/history/json`，题数使用 AtCoder Problems `user/ac_rank` 的 `count`；区分零 AC 与不存在账号，并拒绝畸形或乱序 Rating 历史             |
 | XCPC ELO   | 姓名（自动） | 当前/最高 ELO                  | 用户无需填写 ID；注册后按“姓名 + 苏州科技大学”唯一匹配；使用数据库共享缓存、刷新租约与 ETag/Last-Modified 条件请求，同校同名时拒绝绑定                              |
-| 洛谷       | UID          | P/B 题目唯一通过数             | 使用专用凭据请求认证 `/record/list`；首次全量建立题号集合，后续按提交记录 ID 增量读取并定期全量校准；不使用 Firecrawl                                               |
+| 洛谷       | UID          | P/B 题目唯一通过数             | 候选改为 Firecrawl 抓取认证 `/record/list` 的 Lentille 上下文；保留提交记录 ID 增量和定期全量校准；尚待生产验收                                                     |
 | QOJ        | Username     | 唯一 AC 题数                   | 已实现 Firecrawl 独立临时浏览器每次请求自动登录并读取去重 Accepted problems；失败只记录脱敏阶段、HTTP 状态或错误类别，不记录会话 ID；可恢复失败进入一次持久队列重试 |
 
 线上比赛日历使用 clist.by 官方 `/api/v4/contest/` 接口。服务端以 `CLIST_API_USERNAME` 和 `CLIST_API_KEY` Function Secrets 认证，按时间窗口筛选并只保留白名单平台的官方赛事链接；Edge Function 缓存一小时，由 GitHub Actions 每小时预热一次，前端不提供手动刷新入口；凭据不会进入前端或日志。
 
 洛谷统计口径为认证记录接口返回的 Accepted 记录中，PID 以 `P` 或 `B` 开头的题目去重总数，其他前缀不计入。首次同步会读取完整历史并保存私有增量状态；之后从第一页读取到上次成功同步的首条提交记录 ID 即停止，不能用“遇到旧题号”作为边界。记录总数减少、游标异常或距离上次全量同步满 30 天时会自动全量校准。分页间隔为 300ms；达到 `LUOGU_MAX_PAGES` 仍无法确认边界或读完历史时会失败并保留最后一次成功值。
 
+2026-10-19 的候选获取层使用 Firecrawl `/v2/scrape`，以专用 Cookie/CSRF 请求每页 `rawHtml`，严格校验目标 UID、页码、Accepted 筛选和唯一 `lentille-context`；只返回记录 ID、时间、状态和 PID，丢弃查看者资料和其他页面上下文。每页设置 `maxAge: 0`、`storeInCache: false`，不请求增强代理、持久 profile、截图或交互会话，不在应用传输层重试；遇到挑战即失败关闭。每个 attempt 领取一次 Key 并供全部分页使用，需先应用 `202610190001_luogu_firecrawl_key_pool.sql`。这会将洛谷专用会话发送给 Firecrawl，并按页消耗抓取额度；未完成受控认证烟测和自然日更前，不代表生产恢复。见 [ADR 0009](./docs/adr/0009-luogu-firecrawl-record-pages.md) 和 [诊断证据](./docs/evidence/qoj-luogu-firecrawl-2026-10-19.md)。
+
 QOJ 统计口径为“去重后的 Accepted 题目数”，不是 Accepted 提交次数。每次同步从 Supabase Function Secrets 读取专用服务账号，通过 `POST /v2/interact` 创建全新 Firecrawl Browser Sandbox，再通过 `POST /v2/interact/{sessionId}/execute` 登录并在同一浏览器中打开目标主页，最后主动删除会话。创建请求显式设置 `recordSession: false`、`streamWebView: false`，不使用持久 profile，也不保存页面缓存；浏览器异常只归类为 `timeout` 或 `navigation_error`，并按 `login_navigation`、`login_selector`、`login_submit`、`profile_navigation` 等脱敏阶段定位。登录提交后的页面执行上下文切换只允许在同一次执行中重试 DOM 观察，不会再次提交表单或创建额外上游请求。不得把目标主页 URL、成员账号、会话 ID 或原始错误正文写入统计记录。账号密码不会进入前端、源码、Git、统计日志或错误信息，但会作为单次浏览器执行请求的一部分发送给 Firecrawl，因此只能使用可独立轮换的专用账号。
 
-Firecrawl API Key 可在后台“数据源健康”页管理。每个 Key 的明文只写入 Supabase Vault，浏览器仅接收名称、启用状态、优先级、健康度、剩余额度和时间；新增或轮换后的 Key 固定停用，必须由管理员执行一次无重试额度检查后才能启用，检查结果超过 60 分钟或额度为零时不能重新启用。运行时先排除认证失败、冷却中和零额度 Key，再按较小优先级选择，并在同优先级中选择最久未使用的 Key；QOJ 每个同步操作还会写入一次性数据库 claim，同一 operation ID 无法再次领取或切换到第二个 Key。牛客只有在直接请求命中允许回退的 WAF/可用性错误后才延迟领取 Key。数据库尚无 Key 记录时兼容旧 `FIRECRAWL_API_KEY` Function Secret；一旦建立数据库 Key 池，数据库即成为权威来源，即使全部停用也不会偷偷回退旧 Secret。
+Firecrawl API Key 可在后台“数据源健康”页管理。每个 Key 的明文只写入 Supabase Vault，浏览器仅接收名称、启用状态、优先级、健康度、剩余额度和时间；新增或轮换后的 Key 固定停用，必须由管理员执行一次无重试额度检查后才能启用，检查结果超过 60 分钟或额度为零时不能重新启用。运行时先排除认证失败、冷却中和零额度 Key，再按较小优先级选择，并在同优先级中选择最久未使用的 Key；QOJ 与洛谷每个同步 attempt 还会写入一次性数据库 claim，同一 operation ID 无法再次领取或切换到第二个 Key。牛客只有在直接请求命中允许回退的 WAF/可用性错误后才延迟领取 Key。数据库尚无 Key 记录时兼容旧 `FIRECRAWL_API_KEY` Function Secret；一旦建立数据库 Key 池，数据库即成为权威来源，即使全部停用也不会偷偷回退旧 Secret。
 
 XCPC ELO 上游 `data.js` 约 20 MB。同步服务只在数据库缓存过期后由一个持有租约的 Edge Function 下载，并只保存“苏州科技大学”选手的精简版本化记录；其他并发请求等待同一版本发布。上游支持 `304 Not Modified` 时只续期缓存。网络、限流、超大响应或结构变化会记录共享冷却并返回失败，旧榜单统计仍保留，但不会把旧缓存冒充为本次成功或刷新 `last_success_at`。历史最高 ELO 从真实比赛 `history` 计算，不采用官网字段中的人工初始 1500 分。
 

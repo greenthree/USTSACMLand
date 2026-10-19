@@ -42,7 +42,7 @@ export function PrivacyPage() {
         <p className="legal-kicker">USTS ACM Land</p>
         <h1>隐私说明</h1>
         <p>说明成员账号、公开榜单和第三方数据同步涉及的数据范围。</p>
-        <small>更新日期：2026 年 8 月 13 日</small>
+        <small>更新日期：2026 年 10 月 19 日</small>
       </header>
 
       <article className="legal-body">
@@ -87,11 +87,14 @@ export function PrivacyPage() {
             GitHub Pages 托管静态前端，Supabase
             提供认证、数据库和服务端函数。同步时会使用成员填写的平台账号查询
             Codeforces、牛客、AtCoder、AtCoder Problems、XCPC ELO、洛谷和
-            QOJ；牛客反自动化回退查询和 QOJ 临时登录使用 Firecrawl。成员填写或修改 QQ
+            QOJ；牛客回退查询、洛谷认证记录分页和 QOJ 临时登录使用 Firecrawl。成员填写或修改 QQ
             后，只有服务端会把 QQ 号发送给腾讯 QQ
             头像接口以获取头像；浏览器不会取得该请求地址，本站只在私有存储中保留规范化 WebP
-            头像和不可逆来源摘要。QOJ 登录会把专用服务账号和目标用户名发送给
-            Firecrawl，但不会发送成员邮箱、QQ 或本站密码。完整字段、认证方式和保留边界见
+            头像和不可逆来源摘要。洛谷查询会把目标 UID 和专用服务账号的 Cookie/CSRF 发送给
+            Firecrawl，关闭页面缓存并只提取通过记录的 ID、时间和题号；QOJ
+            登录会发送专用服务账号和目标用户名。上述请求不会发送成员邮箱、QQ
+            或本站密码。关闭页面缓存不代表供应商零保留，作业留存仍受 Firecrawl
+            政策和配置约束。完整字段、认证方式和保留边界见
             <a
               href="https://github.com/greenthree/USTSACMLand/blob/main/docs/third-party-data-sources.md"
               target="_blank"

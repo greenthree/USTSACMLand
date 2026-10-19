@@ -2,7 +2,8 @@ import { deepStrictEqual, equal, match } from 'node:assert/strict'
 import { HttpError } from '../http.ts'
 import {
   createLuoguAdapter,
-  createLuoguTransport,
+  createFirecrawlLuoguTransport,
+  parseFirecrawlLuoguPage,
   parseLuoguJsonResponse,
   parseLuoguRecordPage,
   type LuoguSyncState,
@@ -91,51 +92,68 @@ Deno.test('Luogu record parser recognizes a missing UID without a profile reques
   }
 })
 
-Deno.test('Luogu transport requests Lentille content with Accepted pagination', async () => {
-  let requests = 0
-  const fetcher: typeof fetch = (input, init) => {
-    requests += 1
-    const url = new URL(String(input))
-    equal(url.origin, 'https://www.luogu.com.cn')
-    equal(url.pathname, '/record/list')
-    deepStrictEqual(
-      [...url.searchParams],
-      [
-        ['user', '409073'],
-        ['page', '2'],
-        ['status', '12'],
-      ],
-    )
-    const headers = new Headers(init?.headers)
-    equal(headers.get('x-lentille-request'), 'content-only')
-    equal(headers.get('x-requested-with'), 'XMLHttpRequest')
-    equal(headers.get('cookie'), 'synthetic-cookie')
-    equal(headers.get('x-csrf-token'), 'synthetic-csrf')
-    equal(headers.get('referer'), 'https://www.luogu.com.cn/record/list?user=409073')
-    return Promise.resolve(
-      new Response(JSON.stringify(page([entry(101, 'P1000')], 1)), {
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
+function scrape(payload: unknown, pageNumber = 1, statusCode = 200) {
+  return {
+    success: true,
+    data: {
+      metadata: {
+        statusCode,
+        url: `https://www.luogu.com.cn/record/list?user=409073&page=${pageNumber}&status=12`,
+      },
+      rawHtml: `<!doctype html><script id="lentille-context" type="application/json">${JSON.stringify(payload)}</script>`,
+    },
   }
-  const transport = createLuoguTransport('synthetic-cookie', 'synthetic-csrf', fetcher)
-  const result = parseLuoguRecordPage(await transport.fetchRecordPage('409073', 2))
-  equal(result.records[0].problemId, 'P1000')
-  equal(requests, 1)
-})
+}
+
+Deno.test(
+  'Luogu Firecrawl transport requests uncached Accepted pages without inline retries',
+  async () => {
+    let requests = 0
+    const transport = createFirecrawlLuoguTransport(
+      'synthetic-key',
+      'synthetic-cookie',
+      'synthetic-csrf',
+      undefined,
+      (input, options) => {
+        requests += 1
+        equal(input, 'https://api.firecrawl.dev/v2/scrape')
+        equal(options.retries, 0)
+        equal(new Headers(options.headers).get('authorization'), 'Bearer synthetic-key')
+        deepStrictEqual(JSON.parse(options.body as string), {
+          url: 'https://www.luogu.com.cn/record/list?user=409073&page=2&status=12',
+          formats: ['rawHtml'],
+          onlyMainContent: false,
+          headers: { cookie: 'synthetic-cookie', 'x-csrf-token': 'synthetic-csrf' },
+          timeout: 60_000,
+          maxAge: 0,
+          storeInCache: false,
+          proxy: 'basic',
+        })
+        return Promise.resolve(scrape(page([entry(101, 'P1000')], 1), 2))
+      },
+    )
+    const result = parseLuoguRecordPage(await transport.fetchRecordPage('409073', 2))
+    equal(result.records[0].problemId, 'P1000')
+    equal(requests, 1)
+  },
+)
 
 Deno.test(
   'Luogu transport fails closed on HTML without retrying or returning a checkpoint',
   async () => {
     let requests = 0
-    const transport = createLuoguTransport('synthetic-cookie', 'synthetic-csrf', () => {
-      requests += 1
-      return Promise.resolve(
-        new Response('<!doctype html><title>Record list</title>', {
-          headers: { 'content-type': 'text/html' },
-        }),
-      )
-    })
+    const transport = createFirecrawlLuoguTransport(
+      'synthetic-key',
+      'synthetic-cookie',
+      'synthetic-csrf',
+      undefined,
+      () => {
+        requests += 1
+        const payload = scrape({})
+        payload.data.rawHtml = '<!doctype html><title>Record list</title>'
+        return Promise.resolve(payload)
+      },
+    )
     const result = await adapter(transport).sync('409073', { syncState: state() })
     equal(result.ok, false)
     if (result.ok) return
@@ -194,9 +212,9 @@ Deno.test('Luogu first synchronization reads the full accepted history', async (
   equal(result.ok, true)
   if (!result.ok) return
   equal(result.metrics.solvedCount, 3)
-  equal(result.sourceVersion, 'luogu-lentille-record-list-pb-v5')
+  equal(result.sourceVersion, 'luogu-firecrawl-lentille-pb-v6')
   deepStrictEqual(result.details, {
-    provider: 'lentille_record_list',
+    provider: 'firecrawl',
     statistic: 'unique data.records.result[].problem.pid',
     pidPrefixes: ['P', 'B'],
     syncMode: 'full',
@@ -461,7 +479,7 @@ Deno.test('Luogu adapter reports missing authentication as not configured', asyn
   if (resolved.ok) return
   equal(resolved.error.code, 'not_configured')
   deepStrictEqual(resolved.error.details, {
-    requiredSecrets: ['LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'],
+    requiredSecrets: ['FIRECRAWL_API_KEY', 'LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'],
   })
 })
 
@@ -593,6 +611,131 @@ Deno.test('Luogu JSON parser preserves non-HTML schema failures', () => {
     equal(error instanceof HttpError ? error.code : null, 'schema_changed')
   }
 })
+
+Deno.test('Firecrawl Luogu parser strips viewer state and unrelated record fields', () => {
+  const payload = page([entry(101, 'P1000')], 1)
+  const result = parseFirecrawlLuoguPage(
+    scrape({
+      ...(payload as Record<string, unknown>),
+      user: { privateViewer: 'synthetic-viewer' },
+      csrfToken: 'synthetic-csrf',
+    }),
+    '409073',
+    1,
+  )
+  deepStrictEqual(result, payload)
+  equal(JSON.stringify(result).includes('synthetic-'), false)
+})
+
+Deno.test('Firecrawl Luogu parser rejects other users, pages, filters and redirects', () => {
+  for (const url of [
+    'https://www.luogu.com.cn/record/list?user=1&page=1&status=12',
+    'https://www.luogu.com.cn/record/list?user=409073&page=2&status=12',
+    'https://www.luogu.com.cn/record/list?user=409073&page=1&status=11',
+    'https://www.luogu.com.cn/user/409073',
+    'https://example.test/record/list?user=409073&page=1&status=12',
+  ]) {
+    const payload = scrape(page([], 0))
+    payload.data.metadata.url = url
+    try {
+      parseFirecrawlLuoguPage(payload, '409073', 1)
+      throw new Error('expected wrong-page failure')
+    } catch (error) {
+      equal(error instanceof HttpError ? error.code : null, 'schema_changed')
+    }
+  }
+})
+
+Deno.test('Firecrawl Luogu parser recognizes the observed Lentille login error envelope', () => {
+  for (const payload of [
+    scrape({ template: 'error', status: 401, data: { errorCode: 401 } }),
+    scrape(page([], 0), 1, 403),
+    {
+      ...scrape(page([], 0)),
+      data: {
+        ...scrape(page([], 0)).data,
+        metadata: { statusCode: 200, url: 'https://www.luogu.com.cn/auth/login' },
+      },
+    },
+  ]) {
+    try {
+      parseFirecrawlLuoguPage(payload, '409073', 1)
+      throw new Error('expected authentication failure')
+    } catch (error) {
+      equal(error instanceof HttpError ? error.code : null, 'auth_expired')
+      equal(error instanceof HttpError ? error.details?.authTarget : null, 'luogu')
+      equal(error instanceof HttpError ? error.retryable : null, false)
+    }
+  }
+})
+
+Deno.test('Firecrawl Luogu malformed responses never become empty successful histories', () => {
+  const valid = scrape(page([], 0))
+  for (const payload of [
+    null,
+    { success: false },
+    { success: true, data: {} },
+    {
+      ...valid,
+      data: {
+        ...valid.data,
+        rawHtml: '<script id="lentille-context" type="application/json">invalid</script>',
+      },
+    },
+    scrape({ template: 'user.practice', data: { records: { result: [], count: 0 } } }),
+    { ...valid, data: { ...valid.data, rawHtml: valid.data.rawHtml + valid.data.rawHtml } },
+  ]) {
+    try {
+      parseFirecrawlLuoguPage(payload, '409073', 1)
+      throw new Error('expected invalid-response failure')
+    } catch (error) {
+      equal(error instanceof HttpError, true)
+    }
+  }
+})
+
+Deno.test('Firecrawl and Luogu authentication failures retain distinct targets', async () => {
+  for (const status of [401, 403]) {
+    let requests = 0
+    const transport = createFirecrawlLuoguTransport(
+      'synthetic-key',
+      'synthetic-cookie',
+      'synthetic-csrf',
+      undefined,
+      () => {
+        requests += 1
+        throw new HttpError('synthetic transport error', 'source_unavailable', false, status)
+      },
+    )
+    const result = await adapter(transport).sync('409073', { syncState: state() })
+    equal(result.ok, false)
+    if (result.ok) continue
+    equal(result.error.details?.authTarget, 'firecrawl')
+    equal(result.error.code, status === 401 ? 'auth_expired' : 'auth_required')
+    equal('syncState' in result, false)
+    equal(requests, 1)
+  }
+})
+
+Deno.test(
+  'Luogu upstream rate limits retain old state without being attributed to the Key',
+  async () => {
+    const transport = createFirecrawlLuoguTransport(
+      'synthetic-key',
+      'synthetic-cookie',
+      'synthetic-csrf',
+      undefined,
+      () => Promise.resolve(scrape(page([], 0), 1, 429)),
+    )
+    const result = await adapter(transport).sync('409073', { syncState: state() })
+    equal(result.ok, false)
+    if (result.ok) return
+    equal(result.error.code, 'rate_limited')
+    equal(result.error.retryable, true)
+    equal(result.error.details?.authTarget, 'luogu')
+    equal('syncState' in result, false)
+  },
+)
 
 Deno.test('Luogu HTML diagnostics retain only bounded response structure', () => {
   try {

@@ -1,4 +1,5 @@
-import { fetchTextWithRetry, HttpError, toAdapterHttpError } from '../http.ts'
+import { DOMParser } from 'deno-dom'
+import { fetchJson, type FetchWithRetryOptions, HttpError, toAdapterHttpError } from '../http.ts'
 import { type AdapterResult, failure, type PlatformAdapter, success } from './types.ts'
 
 interface LuoguRecord {
@@ -80,9 +81,6 @@ const DEFAULT_PAGE_DELAY_MS = 300
 const FULL_SYNC_INTERVAL_MS = 30 * 24 * 60 * 60 * 1_000
 const MAX_STATE_PROBLEMS = 100_000
 const COUNTED_PROBLEM_PID = /^[PB]/i
-const BROWSER_USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
 
 function challengePage(body: string): boolean {
   return (
@@ -152,28 +150,6 @@ export function parseLuoguJsonResponse(
     }
     throw new HttpError('Upstream returned invalid JSON', 'schema_changed', false, status)
   }
-}
-
-async function fetchAuthenticatedJson(
-  url: URL,
-  headers: Record<string, string>,
-  signal?: AbortSignal,
-  fetcher: typeof fetch = fetch,
-): Promise<unknown> {
-  const { response, text } = await fetchTextWithRetry(url, {
-    signal,
-    timeoutMs: 15_000,
-    retries: 2,
-    retryBaseMs: 750,
-    headers,
-    fetcher,
-  })
-  return parseLuoguJsonResponse(
-    text,
-    response.status,
-    response.headers.get('content-type'),
-    response.redirected,
-  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -260,35 +236,156 @@ export function parseLuoguRecordPage(payload: unknown): LuoguRecordPage {
   }
 }
 
-export function createLuoguTransport(
+function luoguPageUrl(accountId: string, page: number): URL {
+  const url = new URL('/record/list', ORIGIN)
+  url.searchParams.set('user', accountId)
+  url.searchParams.set('page', String(page))
+  url.searchParams.set('status', '12')
+  return url
+}
+
+function luoguSourceError(status: number): HttpError {
+  const code =
+    status === 401 || status === 403
+      ? 'auth_expired'
+      : status === 404
+        ? 'not_found'
+        : status === 429
+          ? 'rate_limited'
+          : 'source_unavailable'
+  return new HttpError(
+    'Luogu record page is unavailable',
+    code,
+    status === 429 || status >= 500,
+    status,
+    undefined,
+    { authTarget: 'luogu' },
+  )
+}
+
+export function parseFirecrawlLuoguPage(
+  payload: unknown,
+  accountId: string,
+  page: number,
+): unknown {
+  if (!isRecord(payload) || payload.success !== true || !isRecord(payload.data)) {
+    throw new HttpError('Firecrawl scrape was not successful', 'source_unavailable', true)
+  }
+  const { rawHtml, metadata } = payload.data
+  if (!isRecord(metadata) || !Number.isInteger(metadata.statusCode)) {
+    throw new HttpError('Firecrawl page metadata is missing', 'schema_changed', false)
+  }
+  const status = metadata.statusCode as number
+  if (status >= 400) throw luoguSourceError(status)
+  if (status !== 200 || typeof rawHtml !== 'string') {
+    throw new HttpError('Firecrawl record page is missing', 'schema_changed', false)
+  }
+  const actualUrl = metadata.url ?? metadata.sourceURL
+  let url: URL
+  try {
+    url = new URL(actualUrl as string)
+  } catch {
+    throw new HttpError('Firecrawl page URL is missing', 'schema_changed', false)
+  }
+  if (url.origin === ORIGIN && /^\/(?:auth|login)(?:\/|$)/.test(url.pathname)) {
+    throw luoguSourceError(401)
+  }
+  const expected = luoguPageUrl(accountId, page)
+  if (
+    url.origin !== ORIGIN ||
+    url.pathname !== expected.pathname ||
+    url.hash ||
+    url.searchParams.size !== expected.searchParams.size ||
+    [...expected.searchParams].some(([key, value]) => url.searchParams.get(key) !== value)
+  ) {
+    throw new HttpError('Firecrawl returned the wrong Luogu record page', 'schema_changed', false)
+  }
+  const document = new DOMParser().parseFromString(rawHtml, 'text/html')
+  const contexts = [...document.querySelectorAll('script[type="application/json"]')].filter(
+    (element) => element.getAttribute('id') === 'lentille-context',
+  )
+  if (contexts.length !== 1) {
+    // Keep the existing bounded login/challenge diagnostics; never persist HTML.
+    parseLuoguJsonResponse(rawHtml, status, 'text/html')
+    throw new HttpError('Luogu page context is missing', 'schema_changed', false)
+  }
+  let context: unknown
+  try {
+    context = JSON.parse(contexts[0].textContent)
+  } catch {
+    throw new HttpError('Luogu page context is invalid', 'schema_changed', false)
+  }
+  if (!isRecord(context)) {
+    throw new HttpError('Luogu page context is invalid', 'schema_changed', false)
+  }
+  if (isRecord(context.data) && typeof context.data.errorCode === 'number') {
+    throw luoguSourceError(context.data.errorCode)
+  }
+  // Discard viewer identity, CSRF and other page state before returning data.
+  parseLuoguRecordPage(context)
+  const records = (context.data as Record<string, unknown>).records as Record<string, unknown>
+  return {
+    template: 'record.list',
+    data: {
+      records: {
+        ...(Object.hasOwn(records, 'count') ? { count: records.count } : {}),
+        result: (records.result as LuoguRecord[]).map(({ id, submitTime, status, problem }) => ({
+          id,
+          submitTime,
+          status,
+          problem: { pid: problem?.pid },
+        })),
+      },
+    },
+  }
+}
+
+export function createFirecrawlLuoguTransport(
+  apiKey: string,
   cookie: string,
   csrfToken: string,
-  fetcher: typeof fetch = fetch,
+  apiUrl = 'https://api.firecrawl.dev',
+  fetcher: (input: string, options: FetchWithRetryOptions) => Promise<unknown> = fetchJson,
 ): LuoguTransport {
-  const headers = {
-    accept: 'application/json, text/plain, */*',
-    cookie,
-    'user-agent': BROWSER_USER_AGENT,
-    'x-csrf-token': csrfToken,
-    'x-requested-with': 'XMLHttpRequest',
-    'x-lentille-request': 'content-only',
-  }
   return {
-    fetchRecordPage(accountId, page, signal) {
-      const url = new URL('/record/list', ORIGIN)
-      url.searchParams.set('user', accountId)
-      url.searchParams.set('page', String(page))
-      url.searchParams.set('status', '12')
-
-      return fetchAuthenticatedJson(
-        url,
-        {
-          ...headers,
-          referer: `${ORIGIN}/record/list?user=${encodeURIComponent(accountId)}`,
-        },
-        signal,
-        fetcher,
-      )
+    async fetchRecordPage(accountId, page, signal) {
+      let payload: unknown
+      try {
+        payload = await fetcher(`${apiUrl.replace(/\/+$/, '')}/v2/scrape`, {
+          method: 'POST',
+          signal,
+          timeoutMs: 70_000,
+          retries: 0,
+          headers: {
+            accept: 'application/json',
+            authorization: `Bearer ${apiKey}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: luoguPageUrl(accountId, page).toString(),
+            formats: ['rawHtml'],
+            onlyMainContent: false,
+            headers: { cookie, 'x-csrf-token': csrfToken },
+            timeout: 60_000,
+            maxAge: 0,
+            storeInCache: false,
+            proxy: 'basic',
+          }),
+        })
+      } catch (error) {
+        if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
+          throw new HttpError(
+            'Firecrawl authentication failed',
+            error.status === 401 ? 'auth_expired' : 'auth_required',
+            false,
+            error.status,
+            undefined,
+            { authTarget: 'firecrawl' },
+          )
+        }
+        throw error
+      }
+      return parseFirecrawlLuoguPage(payload, accountId, page)
     },
   }
 }
@@ -302,10 +399,16 @@ function environmentValue(name: string): string | undefined {
 }
 
 function environmentTransport(): LuoguTransport | null {
+  const apiKey = environmentValue('FIRECRAWL_API_KEY')?.trim()
   const cookie = environmentValue('LUOGU_COOKIE')?.trim()
   const csrfToken = environmentValue('LUOGU_CSRF_TOKEN')?.trim()
-  if (!cookie || !csrfToken) return null
-  return createLuoguTransport(cookie, csrfToken)
+  if (!apiKey || !cookie || !csrfToken) return null
+  return createFirecrawlLuoguTransport(
+    apiKey,
+    cookie,
+    csrfToken,
+    environmentValue('FIRECRAWL_API_URL')?.trim() || undefined,
+  )
 }
 
 function resolveMaxPages(configured: number | undefined, useEnvironment: boolean): number {
@@ -345,6 +448,7 @@ function waitForNextPage(delayMs: number, signal?: AbortSignal): Promise<void> {
 }
 
 function normalizeLuoguError(error: unknown): ReturnType<typeof toAdapterHttpError> {
+  if (error instanceof HttpError && error.details?.authTarget) return toAdapterHttpError(error)
   if (error instanceof HttpError && (error.status === 401 || error.status === 403)) {
     return {
       code: 'auth_expired',
@@ -669,9 +773,9 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           'luogu',
           accountId,
           'not_configured',
-          'Luogu authentication is not configured',
+          'Luogu Firecrawl transport is not configured',
           false,
-          { requiredSecrets: ['LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'] },
+          { requiredSecrets: ['FIRECRAWL_API_KEY', 'LUOGU_COOKIE', 'LUOGU_CSRF_TOKEN'] },
         )
       }
 
@@ -696,10 +800,10 @@ export function createLuoguAdapter(options: LuoguAdapterOptions = {}): PlatformA
           {
             fetchedAt,
             sourceUpdatedAt: null,
-            sourceVersion: 'luogu-lentille-record-list-pb-v5',
+            sourceVersion: 'luogu-firecrawl-lentille-pb-v6',
             syncState: metrics.state,
             details: {
-              provider: 'lentille_record_list',
+              provider: 'firecrawl',
               statistic: 'unique data.records.result[].problem.pid',
               pidPrefixes: ['P', 'B'],
               syncMode: metrics.syncMode,

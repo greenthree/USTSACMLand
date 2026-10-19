@@ -17,6 +17,8 @@ Deno.test('Firecrawl credits cover Nowcoder fallback but skip unrelated platform
     false,
   )
   strictEqual(shouldCheckFirecrawlCredits(true, 'platforms', ['nowcoder'], undefined), true)
+  strictEqual(shouldCheckFirecrawlCredits(true, 'platforms', ['luogu'], undefined), true)
+  strictEqual(shouldCheckFirecrawlCredits(true, 'platforms', ['luogu'], 42), false)
 })
 
 Deno.test('all-scope scheduled batches check QOJ credits before the first page', () => {
