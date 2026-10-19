@@ -1,5 +1,7 @@
 # QOJ 诊断与洛谷 Firecrawl 候选迁移
 
+后续结果：负责人批准后，洛谷已通过 PR #167 完成定向发布，单成员真实同步首次成功，生产为 `sync-member v67` / `sync-stats v47`。详见 [生产发布记录](./luogu-firecrawl-production-2026-10-19.md)。下文保留此前诊断与候选阶段的事实；全体洛谷自然日更仍待观察。
+
 日期：2026-10-19（Asia/Shanghai）；下列数据库和 Actions 时间为 UTC。
 
 ## 范围和基线
