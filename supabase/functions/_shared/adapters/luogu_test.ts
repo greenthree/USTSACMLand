@@ -718,6 +718,32 @@ Deno.test('Firecrawl and Luogu authentication failures retain distinct targets',
 })
 
 Deno.test(
+  'Firecrawl HTTP 429 identifies the provider without inline retry or advancing state',
+  async () => {
+    let requests = 0
+    const transport = createFirecrawlLuoguTransport(
+      'synthetic-key',
+      'synthetic-cookie',
+      'synthetic-csrf',
+      undefined,
+      () => {
+        requests += 1
+        throw new HttpError('upstream body must not escape', 'rate_limited', true, 429)
+      },
+    )
+    const result = await adapter(transport).sync('409073', { syncState: state() })
+    equal(result.ok, false)
+    if (result.ok) return
+    equal(result.error.code, 'rate_limited')
+    equal(result.error.message, 'Firecrawl rate limit was reached')
+    equal(result.error.retryable, true)
+    deepStrictEqual(result.error.details, { httpStatus: 429, authTarget: 'firecrawl' })
+    equal('syncState' in result, false)
+    equal(requests, 1)
+  },
+)
+
+Deno.test(
   'Luogu upstream rate limits retain old state without being attributed to the Key',
   async () => {
     const transport = createFirecrawlLuoguTransport(

@@ -1,9 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import {
-  createFirecrawlLuoguTransport,
-  createLuoguAdapter,
-  type LuoguTransport,
-} from './adapters/luogu.ts'
+import { createFirecrawlLuoguTransport, createLuoguAdapter } from './adapters/luogu.ts'
 import {
   createFirecrawlNowcoderProvider,
   createNowcoderAdapter,
@@ -132,51 +128,47 @@ export function createRuntimeLuoguAdapter(
   client: SupabaseClient,
   dependencies: FirecrawlRuntimeAdapterDependencies = {},
 ): PlatformAdapter {
-  // One lazy selection for every page (including rebuilds) in this attempt.
-  // A rejected selection stays rejected; it must not claim a replacement Key.
-  let selectedTransport: Promise<LuoguTransport> | undefined
-  async function selectTransport(): Promise<LuoguTransport> {
-    const cookie =
-      dependencies.luoguCookie === undefined
-        ? Deno.env.get('LUOGU_COOKIE')?.trim()
-        : dependencies.luoguCookie?.trim()
-    const csrf =
-      dependencies.luoguCsrfToken === undefined
-        ? Deno.env.get('LUOGU_CSRF_TOKEN')?.trim()
-        : dependencies.luoguCsrfToken?.trim()
-    if (!cookie || !csrf) {
-      throw new HttpError('Luogu authentication is not configured', 'not_configured', false)
-    }
-    const key = await (dependencies.selectKey ?? selectFirecrawlRuntimeKey)(
-      client,
-      'luogu',
-      dependencies.operationId ?? null,
-    )
-    if (!key) throw missingRuntimeKey('luogu')
-    const transport = (dependencies.luoguTransportFactory ?? createFirecrawlLuoguTransport)(
-      key.apiKey,
-      cookie,
-      csrf,
-      key.apiUrl,
-    )
-    return {
-      fetchRecordPage(accountId, page, signal) {
+  // Every actual scrape, including a rebuilt page, has its own one-shot claim.
+  // A failed request stops the attempt; selecting again must never retry it.
+  let requestNumber = 0
+  return createLuoguAdapter({
+    maxPages: Number(Deno.env.get('LUOGU_MAX_PAGES') ?? 100),
+    pageDelayMs: 300,
+    transport: {
+      async fetchRecordPage(accountId, page, signal) {
+        const cookie =
+          dependencies.luoguCookie === undefined
+            ? Deno.env.get('LUOGU_COOKIE')?.trim()
+            : dependencies.luoguCookie?.trim()
+        const csrf =
+          dependencies.luoguCsrfToken === undefined
+            ? Deno.env.get('LUOGU_CSRF_TOKEN')?.trim()
+            : dependencies.luoguCsrfToken?.trim()
+        if (!cookie || !csrf) {
+          throw new HttpError('Luogu authentication is not configured', 'not_configured', false)
+        }
+        signal?.throwIfAborted()
+        const operationId = dependencies.operationId
+          ? `${dependencies.operationId}:request:${++requestNumber}`
+          : null
+        const key = await (dependencies.selectKey ?? selectFirecrawlRuntimeKey)(
+          client,
+          'luogu',
+          operationId,
+        )
+        if (!key) throw missingRuntimeKey('luogu')
+        const transport = (dependencies.luoguTransportFactory ?? createFirecrawlLuoguTransport)(
+          key.apiKey,
+          cookie,
+          csrf,
+          key.apiUrl,
+        )
         return (dependencies.observeOperation ?? observeFirecrawlOperation)(
           client,
           key,
           'luogu',
           () => transport.fetchRecordPage(accountId, page, signal),
         )
-      },
-    }
-  }
-  return createLuoguAdapter({
-    maxPages: Number(Deno.env.get('LUOGU_MAX_PAGES') ?? 100),
-    pageDelayMs: 300,
-    transport: {
-      async fetchRecordPage(accountId, page, signal) {
-        selectedTransport ??= selectTransport()
-        return (await selectedTransport).fetchRecordPage(accountId, page, signal)
       },
     },
   })
