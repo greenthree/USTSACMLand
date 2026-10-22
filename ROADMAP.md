@@ -109,9 +109,11 @@ WebChat 与推荐计划的既有前端、Edge Function、数据库 migration、�
 
 ## 4. 发布治理与生产运维待办
 
-- [ ] **Node.js 2026-10-21 安全补丁发布**
+- [x] **Node.js 2026-10-21 安全补丁发布**
   - 开发与工作流目标统一为 Node.js `22.23.4`，替换 `.nvmrc` 的主版本浮动选择，并同步 `package.json`、锁文件及开发说明；不升级应用依赖，不修改 Deno、Supabase 或业务同步逻辑。
-  - 本地安装校验、验证结果和后续发布边界见 [升级记录](./docs/evidence/nodejs-security-upgrade-2026-10-22.md)。只有获准发布后，确认 GitHub CI、Pages 和运维任务实际采用修复版，才可关闭此项。
+  - PR #172 已合并至 main `7491a9b`；main CI、Secret Scan、Pages 与 3 项生产榜单复算全部通过，CI 与 Pages 日志确认 `v22.23.4`，线上首页及 5 个入口资源与本次产物一致，域名和缓存契约通过。见 [生产记录](./docs/evidence/nodejs-security-production-2026-10-22.md)。
+- [ ] **自然备份 Node.js 版本核对**
+  - 备份与恢复工作流均已引用新的 `.nvmrc`；本轮不手动触发运维任务。下一次自然备份计划为北京时间 2026-10-23 00:30，待其自然运行后核对实际 Node 版本与结果。
 - [ ] **开发依赖安全告警处理**
   - 2026-10-22 的锁文件审计发现 7 个开发依赖包告警：2 critical、4 high、1 moderate，涉及 Vite、Vitest、Tinypool 等。它们独立于 Node.js 运行时补丁；需在单独维护任务中确认兼容修复版本并回归，不执行无边界 `npm audit fix --force`。详情见 [同次审计记录](./docs/evidence/nodejs-security-upgrade-2026-10-22.md)。
 - [ ] **洛谷 Firecrawl 同步恢复验收**
