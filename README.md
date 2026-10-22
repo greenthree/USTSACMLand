@@ -169,7 +169,7 @@ select public.bootstrap_first_admin('admin@example.edu.cn');
 
 ## 快速开始
 
-要求 Node.js 22 或更高版本。
+使用 Node.js **22.23.4**（见 `.nvmrc`）；项目支持 `>=22.23.4 <23`。该版本包含 2026-10-21 的 Node.js 安全修复，开发、CI、Pages 构建和备份任务统一使用 `.nvmrc` 中的精确版本。后续安全补丁需同步更新 `.nvmrc`、`package.json` 和锁文件中的版本约束。
 
 ```bash
 npm ci

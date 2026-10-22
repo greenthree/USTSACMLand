@@ -1,6 +1,6 @@
 # USTSACMLand 开发路线图
 
-最后更新：2026-10-19（Asia/Shanghai）
+最后更新：2026-10-22（Asia/Shanghai）
 
 本路线图只保留仍需执行的优化任务、发布门禁、运维演练与当前生产基线，所有已经完成并上线的历史功能、数据库迁移、测试套件与历史烟测记录已从本文清退；详细实现记录参见 `README.md`、`docs/evidence/`、`docs/operations-runbook.md` 和 GitHub Pull Request。
 
@@ -109,6 +109,11 @@ WebChat 与推荐计划的既有前端、Edge Function、数据库 migration、�
 
 ## 4. 发布治理与生产运维待办
 
+- [ ] **Node.js 2026-10-21 安全补丁发布**
+  - 开发与工作流目标统一为 Node.js `22.23.4`，替换 `.nvmrc` 的主版本浮动选择，并同步 `package.json`、锁文件及开发说明；不升级应用依赖，不修改 Deno、Supabase 或业务同步逻辑。
+  - 本地安装校验、验证结果和后续发布边界见 [升级记录](./docs/evidence/nodejs-security-upgrade-2026-10-22.md)。只有获准发布后，确认 GitHub CI、Pages 和运维任务实际采用修复版，才可关闭此项。
+- [ ] **开发依赖安全告警处理**
+  - 2026-10-22 的锁文件审计发现 7 个开发依赖包告警：2 critical、4 high、1 moderate，涉及 Vite、Vitest、Tinypool 等。它们独立于 Node.js 运行时补丁；需在单独维护任务中确认兼容修复版本并回归，不执行无边界 `npm audit fix --force`。详情见 [同次审计记录](./docs/evidence/nodejs-security-upgrade-2026-10-22.md)。
 - [ ] **洛谷 Firecrawl 同步恢复验收**
   - Firecrawl `/v2/scrape` 获取层、Lentille Accepted P/B 解析、Key 池和单成员平台过滤已通过 PR #167 发布；仅洛谷 migration 已应用，生产为 77 个迁移、`sync-member v67` / `sync-stats v47`，Auth 改动未发布。一次受控洛谷同步首次尝试成功，题数、去重状态、游标和快照一致，其他平台未变、队列为空。仍需观察北京时间 19:00 的下一次自然日更，不能以单成员成功代替全体恢复验收。见 [生产发布记录](./docs/evidence/luogu-firecrawl-production-2026-10-19.md)与[发布准备](./docs/luogu-firecrawl-release-2026-10-19.md)。
   - 后续两条任务遇到 Firecrawl HTTP 429，一次自动重试后仍失败，旧成功统计和全量校准时间保留，队列为空；旧文案错误归因为洛谷限流。本地已补服务来源与文案回归，55 项相关测试通过，尚未提交或部署；供应商并发/配额的具体原因待定位，不以文案修复代表限流解除。
